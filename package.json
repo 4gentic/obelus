@@ -22,7 +22,7 @@
     "typecheck": "pnpm -r typecheck",
     "guard:network": "node scripts/guard-network.mjs",
     "guard:desktop-only": "node scripts/guard-desktop-only.mjs",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm guard:network && pnpm guard:desktop-only && pnpm build && pnpm build:desktop-renderer"
+    "verify": "pnpm build && pnpm build:desktop-renderer && pnpm lint && pnpm typecheck && pnpm test && pnpm guard:network && pnpm guard:desktop-only"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.12",
