@@ -17,7 +17,7 @@ Two paths:
 ## Flow
 
 1. Review a PDF in the Obelus web app. Export the bundle.
-2. Save the bundle somewhere your paper repo can see it (default: `~/Downloads/obelus-YYYY-MM-DD.json`).
+2. Save the bundle somewhere your paper repo can see it (default: `~/Downloads/obelus-review-YYYY-MM-DD.json` or `obelus-revise-YYYY-MM-DD.json`).
 3. In Claude Code, inside the paper repo, run **one of**:
    - `/apply-revision <bundle>` — turn the marks into minimal-diff source edits.
    - `/write-review <bundle>` — turn the marks into a Markdown reviewer's letter, printed to stdout.
