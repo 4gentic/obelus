@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/4gentic/obelus/discussions
+    about: Ask how Obelus works, propose a direction, or share a use case.
+  - name: Security report
+    url: mailto:engineering@4gentic.ai
+    about: Report a vulnerability privately. Do not open a public issue.

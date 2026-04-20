@@ -1,0 +1,57 @@
+# CODEOWNERS — persona → path map.
+#
+# Each area is owned by one of the five personas whose charters live
+# under `.claude/agents/`. All ownership currently routes to the single
+# maintainer; split when additional co-maintainers take responsibility.
+
+# Catch-all
+*                                           @aguilarguisado
+
+# Typesetter — CSS, type, layout, UI components
+apps/web/src/**/*.css                       @aguilarguisado
+apps/web/src/components/**                  @aguilarguisado
+apps/web/src/routes/landing.*               @aguilarguisado
+apps/desktop/src/**/*.css                   @aguilarguisado
+apps/desktop/src/components/**              @aguilarguisado
+packages/design-tokens/**                   @aguilarguisado
+brand/**                                    @aguilarguisado
+
+# Archivist — storage, PWA, offline guarantees
+apps/web/vite.config.ts                     @aguilarguisado
+apps/web/src/main.tsx                       @aguilarguisado
+apps/web/src/pwa/**                         @aguilarguisado
+apps/web/src/storage/**                     @aguilarguisado
+packages/repo/**                            @aguilarguisado
+
+# Compositor — PDF rendering, text layer, anchoring
+apps/web/src/pdf/**                         @aguilarguisado
+apps/web/src/annotations/**                 @aguilarguisado
+packages/pdf-view/**                        @aguilarguisado
+packages/anchor/**                          @aguilarguisado
+
+# Scribe — bundle schema and Claude Code plugin
+packages/bundle-schema/**                   @aguilarguisado
+packages/bundle-builder/**                  @aguilarguisado
+packages/claude-plugin/**                   @aguilarguisado
+
+# Proofreader — CI, lint, strict TS, guards
+.github/workflows/**                        @aguilarguisado
+scripts/**                                  @aguilarguisado
+biome.json                                  @aguilarguisado
+tsconfig.base.json                          @aguilarguisado
+
+# Curator — OSS-facing surface, root docs
+README.md                                   @aguilarguisado
+CONTRIBUTING.md                             @aguilarguisado
+CODE_OF_CONDUCT.md                          @aguilarguisado
+SUPPORT.md                                  @aguilarguisado
+CHANGELOG.md                                @aguilarguisado
+SECURITY.md                                 @aguilarguisado
+.github/ISSUE_TEMPLATE/**                   @aguilarguisado
+.github/PULL_REQUEST_TEMPLATE.md            @aguilarguisado
+.github/dependabot.yml                      @aguilarguisado
+SUPPORT.md                                  @aguilarguisado
+docs/RELEASING.md                           @aguilarguisado
+.editorconfig                               @aguilarguisado
+.gitattributes                              @aguilarguisado
+.nvmrc                                      @aguilarguisado

@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Permissions scoped to the main Obelus window. Core permissions are narrowed to just the event listen/unlisten surface the renderer actually uses (via @tauri-apps/api/event.listen and the deep-link/store plugins' internal listeners); every other core:* module is denied. Plugin permissions are pinned to the minimum surface the frontend actually invokes. FS, dialog, and shell plugins are registered for Rust-side use only (no JS permissions), so the scoped fs_* commands remain the sole filesystem entry point for untrusted callers.",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "sql:allow-load",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "store:allow-load",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-save",
+    "store:allow-clear",
+    "process:allow-restart",
+    "updater:allow-check",
+    "updater:allow-download-and-install",
+    "deep-link:allow-get-current"
+  ]
+}

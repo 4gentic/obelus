@@ -1,0 +1,27 @@
+node_modules/
+dist/
+!packages/bundle-schema/dist/bundle-v*.schema.json
+dist-ssr/
+build/
+coverage/
+.turbo/
+.cache/
+.vite/
+*.tsbuildinfo
+.vercel/
+.env
+.env.local
+.DS_Store
+playwright-report/
+test-results/
+.playwright-cli/
+output/
+
+# pdfjs runtime assets — copied from node_modules/pdfjs-dist by apps/web prebuild.
+apps/web/public/cmaps/*
+!apps/web/public/cmaps/README.md
+apps/web/public/standard_fonts/
+
+# pdfjs runtime assets — copied from node_modules/pdfjs-dist by apps/desktop prebuild.
+apps/desktop/public/cmaps/
+apps/desktop/public/standard_fonts/

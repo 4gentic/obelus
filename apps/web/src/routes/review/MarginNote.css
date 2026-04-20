@@ -1,0 +1,65 @@
+.margin-note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+  padding: var(--space-2) var(--space-3);
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-left: 2px solid var(--chip-color);
+  border-radius: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+  transition: transform 120ms linear;
+}
+
+.margin-note:hover {
+  transform: translateY(-2px);
+}
+
+.margin-note__chip {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+
+.margin-note__body {
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.5;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  position: relative;
+}
+
+.margin-note[data-has-thread="true"] .margin-note__body::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 2px solid var(--rubric);
+  opacity: 0.55;
+}
+
+.margin-note__underline {
+  width: 100%;
+  height: 6px;
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.margin-note:hover .margin-note__underline {
+  opacity: 0.85;
+}

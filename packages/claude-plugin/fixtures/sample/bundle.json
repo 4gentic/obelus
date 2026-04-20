@@ -1,0 +1,68 @@
+{
+  "bundleVersion": "1.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.1.0"
+  },
+  "pdf": {
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "filename": "sample.pdf",
+    "pageCount": 1
+  },
+  "paper": {
+    "id": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5e6f",
+    "title": "On the Scalability of Transformer Attention",
+    "revision": 1,
+    "createdAt": "2026-04-15T10:00:00.000Z"
+  },
+  "annotations": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "category": "citation-needed",
+      "quote": "The dot-product attention operator of Vaswani et al.",
+      "contextBefore": "three classes of mitigations --- sparse patterns, low-rank approximations, and kernel-based linear attention --- and argue that their reported gains are highly task-dependent. Introduction ",
+      "contextAfter": " takes O(n^2 d) time for a sequence of length n and head dimension d. This cost dominates training budgets for context windows beyond about sixteen thousand tokens.",
+      "page": 1,
+      "bbox": [72.0, 520.0, 420.0, 536.0],
+      "textItemRange": {
+        "start": [42, 0],
+        "end": [42, 53]
+      },
+      "note": "Vaswani et al. needs a full citation here, not a bare name. Add \\cite{vaswani2017attention} or the equivalent.",
+      "thread": [],
+      "createdAt": "2026-04-15T10:12:03.000Z"
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "category": "unclear",
+      "quote": "most production systems still truncate or chunk their inputs",
+      "contextBefore": "This cost dominates training budgets for context windows beyond about sixteen thousand tokens, and is the reason ",
+      "contextAfter": ". Recent work claims that linear-time attention variants close this gap with negligible loss of quality.",
+      "page": 1,
+      "bbox": [72.0, 560.0, 520.0, 576.0],
+      "textItemRange": {
+        "start": [44, 0],
+        "end": [44, 60]
+      },
+      "note": "Which production systems? This is the load-bearing claim of the paragraph; name two or three, or soften the scope.",
+      "thread": [],
+      "createdAt": "2026-04-15T10:14:21.000Z"
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "category": "praise",
+      "quote": "Attention is a bottleneck, but not a uniform one.",
+      "contextBefore": "currently standard. Conclusion ",
+      "contextAfter": " The right mitigation depends on the task, and the field would benefit from benchmarks that make this dependence visible rather than averaging it away.",
+      "page": 1,
+      "bbox": [72.0, 740.0, 360.0, 756.0],
+      "textItemRange": {
+        "start": [58, 0],
+        "end": [58, 49]
+      },
+      "note": "This is the sentence the whole paper is organized around. Keep it as the opening of the conclusion.",
+      "thread": [],
+      "createdAt": "2026-04-15T10:18:44.000Z"
+    }
+  ]
+}
