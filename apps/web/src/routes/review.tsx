@@ -236,25 +236,34 @@ export default function Review() {
     [doc, setSelectedAnchor],
   );
 
-  const onExport = useCallback(async () => {
-    if (!paperId || !revisionId) return;
-    setStatus("working");
-    setMessage(null);
-    try {
-      const bundle = await buildBundle({
-        paperId,
-        revisionId,
-        pdfFilename: "paper.pdf",
-        pageCount: pageCount || 1,
-      });
-      await exportBundleFile(bundle);
-      setStatus("done");
-      setMessage("Bundle exported.");
-    } catch (err) {
-      setStatus("error");
-      setMessage(err instanceof Error ? err.message : "Export failed");
-    }
-  }, [paperId, revisionId, pageCount]);
+  const exportBundleForKind = useCallback(
+    async (kind: "review" | "revise"): Promise<string | null> => {
+      if (!paperId || !revisionId) return null;
+      setStatus("working");
+      setMessage(null);
+      try {
+        const bundle = await buildBundle({
+          paperId,
+          revisionId,
+          pdfFilename: "paper.pdf",
+          pageCount: pageCount || 1,
+        });
+        const name = await exportBundleFile(bundle, kind);
+        if (name) {
+          setStatus("done");
+          setMessage("Bundle exported.");
+        } else {
+          setStatus("idle");
+        }
+        return name;
+      } catch (err) {
+        setStatus("error");
+        setMessage(err instanceof Error ? err.message : "Export failed");
+        return null;
+      }
+    },
+    [paperId, revisionId, pageCount],
+  );
 
   const onExportMarkdown = useCallback(async () => {
     if (!paperId || !revisionId) return;
@@ -442,7 +451,8 @@ export default function Review() {
       onUpdateNote={(id, note) => updateAnnotation(id, { note })}
       onDelete={deleteAnnotation}
       onDeleteGroup={deleteGroup}
-      onExport={() => void onExport()}
+      onExportReview={() => exportBundleForKind("review")}
+      onExportRevise={() => exportBundleForKind("revise")}
       onExportMarkdown={() => void onExportMarkdown()}
       onExportReviewMarkdown={() => void onExportReviewMarkdown()}
       onCopy={() => void onCopy()}

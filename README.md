@@ -19,7 +19,7 @@ An offline, privacy-first review surface for AI-assisted papers — paired with 
 1. Open the web app. Drop a PDF.
 2. Highlight, annotate, threaded comment. Categorize each mark.
 3. Export a **review bundle** — a single JSON file describing every annotation with enough context to locate the passage in your source.
-4. In your paper's repo, run `/obelus:apply-review <bundle>`. The Claude Code plugin detects your source format (`.tex` / `.md` / `.typ`), plans a minimal-diff fix, and — on your confirmation — applies it.
+4. In your paper's repo, run `/apply-revision <bundle>`. The Claude Code plugin detects your source format (`.tex` / `.md` / `.typ`), plans a minimal-diff fix, and — on your confirmation — applies it.
 
 The web app never sees the network at runtime. No telemetry, no analytics, no counters — your draft never leaves the device.
 
@@ -41,7 +41,8 @@ The web app never sees the network at runtime. No telemetry, no analytics, no co
 
 ```sh
 # Option A: plugin install
-/plugin install github:4gentic/obelus
+/plugin marketplace add 4gentic/obelus
+/plugin install obelus@4gentic
 
 # Option B: copy the folder
 curl -fsSL https://obelus.4gentic.ai/claude.tar.gz | tar -xz -C .

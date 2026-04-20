@@ -1,6 +1,6 @@
 # Sample journal rubric
 
-A small four-criterion rubric used by the `draft-writeup` skill's tests and by
+A small four-criterion rubric used by the `write-review` skill's tests and by
 the desktop / web "Copy review prompt" path. Treat each `##` heading below as a
 named criterion when generating the `## Rubric` section of the review.
 

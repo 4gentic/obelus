@@ -22,7 +22,8 @@ type Props = {
   onUpdateNote: (id: string, note: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
-  onExport: () => void;
+  onExportReview: () => Promise<string | null>;
+  onExportRevise: () => Promise<string | null>;
   onExportMarkdown: () => void;
   onExportReviewMarkdown: () => void;
   onCopy: () => void;
@@ -151,6 +152,32 @@ function entryContainsId(e: DisplayEntry, id: string | null): boolean {
 
 type Tab = "marks" | "review" | "revise";
 
+function NextStep({ command }: { command: string }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  const onCopy = (): void => {
+    void navigator.clipboard?.writeText(command);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div className="review-pane__next">
+      <p className="review-pane__next-label">Next: in your paper folder, run</p>
+      <button
+        type="button"
+        className="review-pane__next-cmd"
+        data-copied={copied ? "true" : "false"}
+        onClick={onCopy}
+        title={copied ? "Copied" : "Copy to clipboard"}
+      >
+        <code>{command}</code>
+        <span className="review-pane__next-hint" aria-hidden="true">
+          {copied ? "Copied" : "Click to copy"}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export default function ReviewPane({
   annotations,
   selectedAnchor,
@@ -165,7 +192,8 @@ export default function ReviewPane({
   onUpdateNote,
   onDelete,
   onDeleteGroup,
-  onExport,
+  onExportReview,
+  onExportRevise,
   onExportMarkdown,
   onExportReviewMarkdown,
   onCopy,
@@ -178,6 +206,17 @@ export default function ReviewPane({
   const entries = useMemo(() => buildDisplayEntries(annotations), [annotations]);
   const itemsRef = useRef<HTMLOListElement | null>(null);
   const [tab, setTab] = useState<Tab>("marks");
+  const [reviewExportedName, setReviewExportedName] = useState<string | null>(null);
+  const [reviseExportedName, setReviseExportedName] = useState<string | null>(null);
+
+  const exportReview = async (): Promise<void> => {
+    const name = await onExportReview();
+    if (name) setReviewExportedName(name);
+  };
+  const exportRevise = async (): Promise<void> => {
+    const name = await onExportRevise();
+    if (name) setReviseExportedName(name);
+  };
 
   const canSave = selectedAnchor !== null && draftCategory !== null;
   const pages = selectedAnchor
@@ -311,8 +350,8 @@ export default function ReviewPane({
               <p>Highlight a passage in the PDF. A form appears here to categorize it.</p>
               <p>
                 Your marks line up in the margin next to the lines they reference. When you are
-                done, switch to <em>Review</em> to draft a write-up or <em>Revise</em> to hand the
-                marks to a coding agent as edits.
+                done, switch to <em>Review</em> to draft a reviewer's write-up or <em>Revise</em> to
+                hand the marks to a coding agent as source patches.
               </p>
             </div>
           ) : (
@@ -345,15 +384,20 @@ export default function ReviewPane({
             paper source — it only writes the review.
           </p>
           <fieldset className="review-pane__actions" aria-label="Review output">
-            <button
-              type="button"
-              className="review-pane__actions-chip"
-              onClick={onExport}
-              disabled={exportDisabled}
-            >
-              <span className="review-pane__actions-chip-label">JSON bundle</span>
-              <span className="review-pane__actions-chip-hint">.obelus.json</span>
-            </button>
+            <div className="review-pane__actions-group">
+              <button
+                type="button"
+                className="review-pane__actions-chip"
+                onClick={() => void exportReview()}
+                disabled={exportDisabled}
+              >
+                <span className="review-pane__actions-chip-label">JSON bundle</span>
+                <span className="review-pane__actions-chip-hint">obelus-review.json</span>
+              </button>
+              {reviewExportedName ? (
+                <NextStep command={`/write-review ~/Downloads/${reviewExportedName}`} />
+              ) : null}
+            </div>
             <button
               type="button"
               className="review-pane__actions-chip"
@@ -361,7 +405,7 @@ export default function ReviewPane({
               disabled={exportDisabled}
             >
               <span className="review-pane__actions-chip-label">Markdown</span>
-              <span className="review-pane__actions-chip-hint">.obelus.review.md</span>
+              <span className="review-pane__actions-chip-hint">obelus-review.md</span>
             </button>
             <button
               type="button"
@@ -389,19 +433,24 @@ export default function ReviewPane({
         >
           <p className="review-pane__tabpanel-hint">
             Hand the paper folder to a coding agent and have it apply your marks as minimal-diff
-            edits. The bundle is format-agnostic — the plugin detects <code>.tex</code> /{" "}
+            source edits. The bundle is format-agnostic — the plugin detects <code>.tex</code> /{" "}
             <code>.md</code> / <code>.typ</code> at run time.
           </p>
           <fieldset className="review-pane__actions" aria-label="Revise output">
-            <button
-              type="button"
-              className="review-pane__actions-chip"
-              onClick={onExport}
-              disabled={exportDisabled}
-            >
-              <span className="review-pane__actions-chip-label">JSON bundle</span>
-              <span className="review-pane__actions-chip-hint">.obelus.json</span>
-            </button>
+            <div className="review-pane__actions-group">
+              <button
+                type="button"
+                className="review-pane__actions-chip"
+                onClick={() => void exportRevise()}
+                disabled={exportDisabled}
+              >
+                <span className="review-pane__actions-chip-label">JSON bundle</span>
+                <span className="review-pane__actions-chip-hint">obelus-revise.json</span>
+              </button>
+              {reviseExportedName ? (
+                <NextStep command={`/apply-revision ~/Downloads/${reviseExportedName}`} />
+              ) : null}
+            </div>
             <button
               type="button"
               className="review-pane__actions-chip"
@@ -409,7 +458,7 @@ export default function ReviewPane({
               disabled={exportDisabled}
             >
               <span className="review-pane__actions-chip-label">Markdown</span>
-              <span className="review-pane__actions-chip-hint">.obelus.md</span>
+              <span className="review-pane__actions-chip-hint">obelus-revise.md</span>
             </button>
             <button
               type="button"

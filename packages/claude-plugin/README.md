@@ -1,39 +1,42 @@
 # Obelus — Claude Code plugin
 
-Applies an [Obelus](https://github.com/4gentic/obelus) review bundle to the paper source in your repository. Works with LaTeX, Markdown, and Typst. Runs entirely inside Claude Code; the plugin itself makes no network calls.
+Applies an [Obelus](https://github.com/4gentic/obelus) bundle to the paper source in your repository, or turns it into a reviewer write-up. Works with LaTeX, Markdown, and Typst. Runs entirely inside Claude Code; the plugin itself makes no network calls.
 
 ## Install
 
 Two paths:
 
-1. **From GitHub.** In Claude Code, run `/plugin install github:4gentic/obelus` — the plugin ships in `packages/claude-plugin/` of that monorepo.
+1. **From GitHub.** In Claude Code, add the marketplace and install the plugin:
+   ```
+   /plugin marketplace add 4gentic/obelus
+   /plugin install obelus@4gentic
+   ```
+   The plugin ships in `packages/claude-plugin/` of that monorepo.
 2. **Copy.** Drop this folder at `.claude/plugins/obelus/` inside your paper repo. Restart Claude Code so it picks up the new plugin.
 
 ## Flow
 
-1. Review your PDF in the Obelus web app. Export the bundle.
-2. Save `bundle.json` somewhere your paper repo can see it.
-3. In Claude Code, inside the paper repo, run:
-   ```
-   /skill apply-review path/to/bundle.json
-   ```
-4. The plugin validates the bundle, detects your source format, plans the edits in a forked context, and writes a plan file to `.obelus/plan-<timestamp>.md`.
-5. Read the plan. If it looks right, run:
-   ```
-   /skill apply-fix .obelus/plan-<timestamp>.md
-   ```
-   Edits are applied one block at a time. Any annotation the planner couldn't locate with high confidence is skipped and surfaced in the summary.
+1. Review a PDF in the Obelus web app. Export the bundle.
+2. Save the bundle somewhere your paper repo can see it (default: `~/Downloads/obelus-review-YYYY-MM-DD.json` or `obelus-revise-YYYY-MM-DD.json`).
+3. In Claude Code, inside the paper repo, run **one of**:
+   - `/apply-revision <bundle>` — turn the marks into minimal-diff source edits.
+   - `/write-review <bundle>` — turn the marks into a Markdown reviewer's letter, printed to stdout.
+4. For `apply-revision`: the plugin validates the bundle, detects your source format, and plans the edits in a forked context, writing the plan to `.obelus/plan-<timestamp>.md`.
+5. Read the plan. If it looks right, run `/apply-fix .obelus/plan-<timestamp>.md`. Edits are applied one block at a time. Any annotation the planner couldn't locate with high confidence is skipped and surfaced in the summary.
+
+If format detection can't find a single confident entrypoint, run `/apply-revision <bundle> --entrypoint <path>` to pin it explicitly.
 
 ## Skills
 
-| Skill              | Purpose                                                                          | User-invocable |
-| ------------------ | -------------------------------------------------------------------------------- | -------------- |
-| `apply-review`     | Entry point. Validates the bundle and orchestrates `detect-format` + `plan-fix`. | Yes            |
-| `apply-review-v2`  | v2-bundle entry point. Same orchestration, v2 schema.                            | Yes            |
-| `apply-fix`        | Executes an approved plan with the Edit tool. Skips ambiguous blocks.            | Yes            |
-| `draft-writeup`    | Drafts a reviewer write-up from the bundle.                                      | Yes            |
-| `detect-format`    | Walks the repo, emits `{ format, entrypoint, sourceFiles }`.                     | No (internal)  |
-| `plan-fix`         | Forks context, locates each annotation in source, writes a plan file.            | No (internal)  |
+| Skill           | Purpose                                                                           | User-invocable |
+| --------------- | --------------------------------------------------------------------------------- | -------------- |
+| `apply-revision`   | Entry point for source edits. Validates, detects format, invokes `plan-fix`.      | Yes            |
+| `write-review`  | Drafts a Markdown reviewer's letter from the bundle. Prints to stdout.            | Yes            |
+| `apply-fix`     | Executes an approved plan with the Edit tool. Skips ambiguous blocks.             | Yes            |
+| `detect-format` | Walks the repo, emits `{ format, entrypoint, sourceFiles }` as JSON.              | No (internal)  |
+| `plan-fix`      | Forks context, locates each annotation in source, writes the plan file.           | No (internal)  |
+
+Both `apply-revision` and `write-review` dispatch internally on `bundleVersion` (1.0 / 2.0).
 
 ## Safety
 
@@ -44,7 +47,7 @@ Two paths:
 
 ## Bundle contract
 
-See `@obelus/bundle-schema`. JSON Schemas live at `@obelus/bundle-schema/json-schema/v1` and `@obelus/bundle-schema/json-schema/v2`.
+See `@obelus/bundle-schema` in the monorepo. The plugin ships copies of the canonical JSON Schemas at `schemas/bundle-v1.schema.json` and `schemas/bundle-v2.schema.json` inside this directory — the skills resolve them via `${CLAUDE_PLUGIN_ROOT}/schemas/…` so validation works out of the box when the plugin is installed from the marketplace.
 
 ## License
 

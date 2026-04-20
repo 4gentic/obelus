@@ -39,14 +39,14 @@ let fail = false;
 for (const row of rows) {
   const over = row.gzBytes > PER_CHUNK_GZIP_BUDGET;
   const marker = over ? "OVER" : "ok";
-  console.log(
+  console.info(
     `[guard:bundle-size] ${row.name.padEnd(48)}  ${fmt(row.gzBytes).padStart(10)} gz  ${marker}`,
   );
   if (over) fail = true;
 }
 
 const total = rows.reduce((acc, r) => acc + r.gzBytes, 0);
-console.log(
+console.info(
   `[guard:bundle-size] total JS (gzipped): ${fmt(total)} (budget ${fmt(TOTAL_GZIP_BUDGET)})`,
 );
 if (total > TOTAL_GZIP_BUDGET) {
@@ -60,4 +60,4 @@ if (fail) {
   );
   process.exit(1);
 }
-console.log("[guard:bundle-size] clean");
+console.info("[guard:bundle-size] clean");

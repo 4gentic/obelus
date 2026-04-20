@@ -12,11 +12,12 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./json-schema/v1": "./dist/bundle-v1.schema.json",
-    "./json-schema/v2": "./dist/bundle-v2.schema.json"
+    "./json-schema/v1": "./schemas/bundle-v1.schema.json",
+    "./json-schema/v2": "./schemas/bundle-v2.schema.json"
   },
   "files": [
     "dist",
+    "schemas",
     "src"
   ],
   "scripts": {
@@ -28,7 +29,6 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "zod-to-json-schema": "3.25.2",
     "vitest": "4.1.4"
   }
 }

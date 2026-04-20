@@ -14,7 +14,7 @@ Run top to bottom on launch morning. Nothing ships red.
 - [ ] `pnpm verify` green on `main` (lint, typecheck, test, network-guard, build).
 - [ ] `pnpm guard:network` clean; no `fetch` / `XMLHttpRequest` / `sendBeacon` usage anywhere in the app.
 - [ ] Service worker precache budget under 3 MB gzipped. Record the measured value in the release notes.
-- [ ] Sample paper fixtures round-trip through `apply-review` in LaTeX, Markdown, and Typst. Capture each diff and attach to the release.
+- [ ] Sample paper fixtures round-trip through `apply-revision` in LaTeX, Markdown, and Typst. Capture each diff and attach to the release.
 - [ ] Bundle schema version literal matches the value the plugin validates against.
 
 ## Infrastructure

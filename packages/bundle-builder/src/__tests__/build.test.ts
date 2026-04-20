@@ -71,8 +71,13 @@ describe("buildBundleV1", () => {
 });
 
 describe("suggestBundleFilename", () => {
-  it("formats stamp and suffix", () => {
-    const name = suggestBundleFilename(new Date("2026-04-17T09:03:00"));
-    expect(name).toBe("review-20260417-0903.obelus.json");
+  it("formats review kind as obelus-review-YYYY-MM-DD.json", () => {
+    const name = suggestBundleFilename("review", new Date("2026-04-17T09:03:00"));
+    expect(name).toBe("obelus-review-2026-04-17.json");
+  });
+
+  it("formats revise kind as obelus-revise-YYYY-MM-DD.json", () => {
+    const name = suggestBundleFilename("revise", new Date("2026-04-17T09:03:00"));
+    expect(name).toBe("obelus-revise-2026-04-17.json");
   });
 });

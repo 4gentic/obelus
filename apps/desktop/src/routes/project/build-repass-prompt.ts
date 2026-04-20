@@ -6,7 +6,7 @@ export interface BuildRepassPromptInput {
 }
 
 // Returns the prompt-body text to append after the standard
-// "Run apply-review-v2 with bundle path …" line. Returns null when there is
+// "Run apply-revision with bundle path …" line. Returns null when there is
 // nothing to push back — the caller should skip the repass in that case.
 export async function buildRepassPrompt(input: BuildRepassPromptInput): Promise<string | null> {
   const { repo, sessionId } = input;

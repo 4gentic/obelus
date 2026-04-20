@@ -192,10 +192,10 @@ export {
   type PromptRubric,
 } from "./format-prompts";
 
-export function suggestBundleFilename(now: Date = new Date()): string {
+export type BundleKind = "review" | "revise";
+
+export function suggestBundleFilename(kind: BundleKind, now: Date = new Date()): string {
   const pad = (n: number): string => n.toString().padStart(2, "0");
-  const stamp =
-    `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
-    `-${pad(now.getHours())}${pad(now.getMinutes())}`;
-  return `review-${stamp}.obelus.json`;
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return `obelus-${kind}-${stamp}.json`;
 }
