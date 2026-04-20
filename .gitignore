@@ -1,5 +1,6 @@
 node_modules/
 dist/
+!packages/bundle-schema/dist/bundle-v*.schema.json
 dist-ssr/
 build/
 coverage/
