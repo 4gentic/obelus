@@ -73,8 +73,26 @@ docs/marketing/     Twitter / LinkedIn / HN copy, all tracked in-repo.
 ## Commands
 
 - `pnpm dev` — run the web app.
+- `pnpm dev:desktop` — run the Tauri desktop app (compiles Rust first pass).
 - `pnpm verify` — lint, typecheck, test, network-guard, build.
 - `pnpm guard:network` — grep for forbidden network-call strings anywhere in the web or desktop app. Fails CI if any hit.
+
+## Storage changes need a migration
+
+When the shape of persisted data changes, the running app will not pick it up on its own. Check for this every time you touch:
+
+- `packages/repo/src/types.ts` (row/enum changes)
+- `packages/bundle-schema/**` (bundle shape or JSON Schema)
+- `apps/desktop/src-tauri/migrations/*.sql` (SQLite schema + `CHECK` constraints)
+- `apps/desktop/src-tauri/src/migrations.rs` (the migration registry)
+- anything that writes to OPFS or IndexedDB in `apps/web/src/**`.
+
+Two tracks:
+
+1. **SQLite (desktop)** — if you edit or add a `.sql` file, bump it to a new numbered file (`0002_*.sql`, `0003_*.sql`, …) and register it in `src/migrations.rs`. Never edit an already-shipped migration: `CREATE TABLE IF NOT EXISTS` will silently skip existing tables and the new schema will never apply. SQLite does not support dropping a `CHECK` constraint in place — the migration must recreate the table (rename → create new → copy → drop old) or tighten the constraint via `PRAGMA writable_schema` if safe.
+2. **Pre-release resets (OK today)** — until Obelus ships publicly, wiping local state is acceptable. The desktop DB and app state live at `~/Library/Application Support/app.obelus.desktop/` (macOS); delete `obelus.db*` and `app-state.json` to start fresh. Web OPFS/IndexedDB can be cleared via devtools → Application → Storage → Clear site data. Mention this to the user if you made an incompatible change.
+
+If you change `ProjectKind`, the bundle schema's `kind` enum, the `annotations` shape, or any persisted row, *both* tracks apply: ship a proper SQLite migration **and** flag the reset for in-flight local state.
 
 ## Git hygiene
 
