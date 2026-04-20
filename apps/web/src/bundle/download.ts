@@ -1,4 +1,4 @@
-import type { PromptRubric } from "@obelus/bundle-builder";
+import type { BundleKind, PromptRubric } from "@obelus/bundle-builder";
 import type { Bundle } from "@obelus/bundle-schema";
 import { suggestBundleFilename } from "./build";
 import { formatClipboardPrompt, formatReviewClipboardPrompt } from "./clipboard";
@@ -38,7 +38,7 @@ async function saveBlob(
   suggestedName: string,
   description: string,
   accept: Record<string, string[]>,
-): Promise<void> {
+): Promise<boolean> {
   const picker = (window as unknown as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
   if (typeof picker === "function") {
     try {
@@ -49,25 +49,28 @@ async function saveBlob(
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
-      return;
+      return true;
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (err instanceof DOMException && err.name === "AbortError") return false;
+      throw err;
     }
   }
   anchorDownload(blob, suggestedName);
+  return true;
 }
 
-export async function exportBundleFile(bundle: Bundle): Promise<void> {
-  const suggestedName = suggestBundleFilename();
+export async function exportBundleFile(bundle: Bundle, kind: BundleKind): Promise<string | null> {
+  const suggestedName = suggestBundleFilename(kind);
   const json = JSON.stringify(bundle, null, 2);
   const blob = new Blob([json], { type: "application/json" });
-  await saveBlob(blob, suggestedName, "Obelus bundle", {
+  const ok = await saveBlob(blob, suggestedName, "Obelus bundle", {
     "application/json": [".json"],
   });
+  return ok ? suggestedName : null;
 }
 
 export async function exportBundleMarkdown(bundle: Bundle): Promise<void> {
-  const suggestedName = suggestBundleFilename().replace(/\.json$/, ".md");
+  const suggestedName = suggestBundleFilename("revise").replace(/\.json$/, ".md");
   const text = formatClipboardPrompt(bundle);
   const blob = new Blob([text], { type: "text/markdown" });
   await saveBlob(blob, suggestedName, "Obelus marks (Markdown)", {
@@ -79,10 +82,10 @@ export async function exportReviewBundleMarkdown(
   bundle: Bundle,
   rubric?: PromptRubric,
 ): Promise<void> {
-  const suggestedName = suggestBundleFilename().replace(/\.json$/, ".review.md");
+  const suggestedName = suggestBundleFilename("review").replace(/\.json$/, ".md");
   const text = formatReviewClipboardPrompt(bundle, rubric);
   const blob = new Blob([text], { type: "text/markdown" });
   await saveBlob(blob, suggestedName, "Obelus review write-up (Markdown)", {
-    "text/markdown": [".review.md", ".md"],
+    "text/markdown": [".md"],
   });
 }
