@@ -1,0 +1,333 @@
+.home {
+  max-width: 88ch;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.home--empty {
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--space-4);
+}
+
+.home__header {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.home__add {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: transparent;
+  transition:
+    color 120ms linear,
+    text-decoration-color 120ms linear;
+}
+
+.home__add:hover {
+  color: var(--rubric);
+  text-decoration-color: var(--rubric);
+}
+
+.home__title,
+.home__empty-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-4);
+  color: var(--ink);
+}
+
+.home__desk {
+  position: relative;
+  display: inline-block;
+}
+
+.home__desk-button {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-4);
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  text-decoration: underline;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: transparent;
+  transition:
+    text-decoration-color 120ms linear,
+    color 120ms linear;
+}
+
+.home__desk-button:hover,
+.home__desk-button[aria-expanded="true"] {
+  color: var(--rubric);
+  text-decoration-color: var(--rubric);
+}
+
+.home__desk-menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 10;
+  min-width: 14rem;
+  background: var(--panel);
+  border: var(--rule-soft);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.home__desk-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.home__desk-item {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  padding: var(--space-2) 0;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+
+.home__desk-item:hover {
+  color: var(--rubric);
+}
+
+.home__desk-item--active {
+  color: var(--rubric);
+}
+
+.home__desk-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-top: var(--rule-soft);
+  padding-top: var(--space-2);
+}
+
+.home__desk-action {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  padding: var(--space-1) 0;
+  text-align: left;
+  cursor: pointer;
+  transition: color 120ms linear;
+}
+
+.home__desk-action:hover:not(:disabled) {
+  color: var(--rubric);
+}
+
+.home__desk-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.home__desk-input {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--rubric);
+  padding: var(--space-1) 0;
+  width: 100%;
+  outline: none;
+}
+
+.home__row-move {
+  position: relative;
+  display: inline-block;
+}
+
+.home__move-menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 10;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--panel);
+  border: var(--rule-soft);
+  min-width: 10rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.home__move-item {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  padding: var(--space-1) 0;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+
+.home__move-item:hover {
+  color: var(--rubric);
+}
+
+.home__empty-body {
+  color: var(--ink-soft);
+}
+
+.home__empty-cta {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.home__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.home__section-title {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.home__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-top: var(--rule-soft);
+}
+
+.home__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-bottom: var(--rule-soft);
+}
+
+.home__row-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.3;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: transparent;
+  transition:
+    text-decoration-color 120ms linear,
+    color 120ms linear;
+}
+
+.home__row-title:hover {
+  color: var(--rubric);
+  text-decoration-color: var(--rubric);
+}
+
+.home__row--missing .home__row-title {
+  text-decoration: line-through;
+  color: var(--ink-soft);
+}
+
+.home__row-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.home__row-rename,
+.home__row-action {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: transparent;
+  transition:
+    color 120ms linear,
+    text-decoration-color 120ms linear,
+    opacity 120ms linear;
+}
+
+.home__row-rename {
+  opacity: 0;
+}
+
+.home__row:hover .home__row-rename,
+.home__row-rename:focus-visible {
+  opacity: 1;
+  text-decoration-color: var(--ink-soft);
+}
+
+.home__row-rename:hover,
+.home__row-action:hover {
+  color: var(--rubric);
+  text-decoration-color: var(--rubric);
+}
+
+.home__row-input {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.3;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--rubric);
+  padding: 0 0 2px;
+  width: 100%;
+  outline: none;
+}
+
+.home__row-date {
+  display: inline-block;
+}
+
+.home__row-kind {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+.home__loading {
+  min-height: 10rem;
+}

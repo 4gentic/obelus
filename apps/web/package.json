@@ -1,0 +1,48 @@
+{
+  "name": "@obelus/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "prebuild": "cp -R node_modules/pdfjs-dist/cmaps public/ && cp -R node_modules/pdfjs-dist/standard_fonts public/",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
+    "@fontsource-variable/newsreader": "5.2.10",
+    "@fontsource-variable/source-serif-4": "5.2.9",
+    "@obelus/anchor": "workspace:*",
+    "@obelus/bundle-builder": "workspace:*",
+    "@obelus/bundle-schema": "workspace:*",
+    "@obelus/categories": "workspace:*",
+    "@obelus/design-tokens": "workspace:*",
+    "@obelus/pdf-view": "workspace:*",
+    "@obelus/repo": "workspace:*",
+    "@obelus/review-store": "workspace:*",
+    "dexie": "4.4.2",
+    "pdfjs-dist": "5.6.205",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "react-router-dom": "7.14.1",
+    "zod": "4.3.6",
+    "zundo": "2.3.0",
+    "zustand": "5.0.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.59.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.2.0",
+    "happy-dom": "20.9.0",
+    "typescript": "6.0.3",
+    "vite": "7.3.2",
+    "vite-plugin-pwa": "1.2.0",
+    "vitest": "4.1.4",
+    "workbox-window": "7.4.0"
+  }
+}

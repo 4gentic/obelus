@@ -1,0 +1,48 @@
+:root {
+  --paper: #f6f1e7;
+  --panel: #ede5d3;
+  --ink: #2b2a26;
+  --ink-soft: #6b655a;
+  --rubric: #b84a2e;
+
+  --hl-unclear: #d9b44a;
+  --hl-wrong: #c85a3f;
+  --hl-weak: #8a6f9e;
+  --hl-cite: #5e8d6e;
+  --hl-praise: #a8b89a;
+  --hl-rephrase: #6f8ca8;
+
+  --font-display: "Newsreader Variable", "Newsreader", Georgia, serif;
+  --font-body: "Source Serif 4 Variable", "Source Serif 4", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+  /* Modular scale, base 17px, ratio 1.25. Display steps use clamp for responsive. */
+  --step--1: 13.6px;
+  --step-0: 17px;
+  --step-1: 21.25px;
+  --step-2: 26.56px;
+  --step-3: clamp(26.56px, 2.4vw + 18px, 33.2px);
+  --step-4: clamp(33.2px, 3.2vw + 20px, 41.5px);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  --radius-1: 2px;
+  --radius-2: 4px;
+
+  --rule: 1px solid var(--ink);
+  --rule-soft: 1px solid var(--ink-soft);
+
+  --frame-header-h: 64px;
+
+  --diff-old-bg: color-mix(in oklab, var(--rubric) 12%, var(--paper));
+  --diff-old-rule: var(--rubric);
+  --diff-new-bg: color-mix(in oklab, var(--hl-cite) 14%, var(--paper));
+  --diff-new-rule: var(--hl-cite);
+}

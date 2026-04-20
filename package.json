@@ -1,0 +1,31 @@
+{
+  "name": "obelus",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mark what you doubt. An offline, privacy-first review loop for AI-assisted papers.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.10.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter=!@obelus/desktop -r build",
+    "build:desktop-renderer": "pnpm -C apps/desktop build:vite",
+    "dev": "pnpm -C apps/web dev",
+    "dev:desktop": "pnpm -C apps/desktop tauri dev",
+    "build:desktop": "pnpm -C apps/desktop tauri build",
+    "test": "pnpm -r test",
+    "e2e": "pnpm -C apps/web e2e",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "typecheck": "pnpm -r typecheck",
+    "guard:network": "node scripts/guard-network.mjs",
+    "guard:desktop-only": "node scripts/guard-desktop-only.mjs",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm guard:network && pnpm guard:desktop-only && pnpm build && pnpm build:desktop-renderer"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.12",
+    "typescript": "6.0.3"
+  }
+}

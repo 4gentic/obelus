@@ -1,0 +1,48 @@
+# CODEOWNERS — persona → path map.
+#
+# Each area is owned by one of the five personas whose charters live
+# under `.claude/agents/`. Replace the placeholder handles with real
+# GitHub usernames before enabling CODEOWNERS as a required review.
+
+# Catch-all
+*                                           @<repo-owner-here>
+
+# Typesetter — CSS, type, layout, UI components
+apps/web/src/**/*.css                       @<typesetter-owner>
+apps/web/src/components/**                  @<typesetter-owner>
+apps/web/src/routes/landing.*               @<typesetter-owner>
+apps/desktop/src/**/*.css                   @<typesetter-owner>
+apps/desktop/src/components/**              @<typesetter-owner>
+packages/design-tokens/**                   @<typesetter-owner>
+brand/**                                    @<typesetter-owner>
+
+# Archivist — storage, PWA, offline guarantees
+apps/web/vite.config.ts                     @<archivist-owner>
+apps/web/src/main.tsx                       @<archivist-owner>
+packages/repo/**                            @<archivist-owner>
+
+# Compositor — PDF rendering, text layer, anchoring
+packages/pdf-view/**                        @<compositor-owner>
+packages/anchor/**                          @<compositor-owner>
+
+# Scribe — bundle schema and Claude Code plugin
+packages/bundle-schema/**                   @<scribe-owner>
+packages/bundle-builder/**                  @<scribe-owner>
+packages/claude-plugin/**                   @<scribe-owner>
+
+# Proofreader — CI, lint, strict TS, guards
+.github/workflows/**                        @<proofreader-owner>
+scripts/**                                  @<proofreader-owner>
+biome.json                                  @<proofreader-owner>
+tsconfig.base.json                          @<proofreader-owner>
+
+# Curator — OSS-facing surface, root docs
+README.md                                   @<curator-owner>
+CONTRIBUTING.md                             @<curator-owner>
+CODE_OF_CONDUCT.md                          @<curator-owner>
+SUPPORT.md                                  @<curator-owner>
+CHANGELOG.md                                @<curator-owner>
+SECURITY.md                                 @<curator-owner>
+.github/ISSUE_TEMPLATE/**                   @<curator-owner>
+.github/PULL_REQUEST_TEMPLATE.md            @<curator-owner>
+.github/dependabot.yml                      @<curator-owner>

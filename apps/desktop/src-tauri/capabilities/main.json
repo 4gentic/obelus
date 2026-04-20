@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Permissions scoped to the main Obelus window. Plugin permissions are pinned to the minimum surface the frontend actually invokes. FS, dialog, and shell plugins are registered for Rust-side use only (no JS permissions), so the scoped fs_* commands remain the sole filesystem entry point for untrusted callers.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "sql:allow-load",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "store:allow-load",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-save",
+    "store:allow-clear",
+    "process:allow-restart",
+    "updater:allow-check",
+    "updater:allow-download-and-install",
+    "deep-link:allow-get-current"
+  ]
+}

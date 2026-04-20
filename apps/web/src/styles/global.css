@@ -1,0 +1,91 @@
+@import "@fontsource-variable/newsreader/index.css";
+@import "@fontsource-variable/newsreader/opsz-italic.css";
+@import "@fontsource-variable/source-serif-4/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
+@import "@obelus/design-tokens/tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.6;
+  text-rendering: geometricPrecision;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+a {
+  color: var(--ink);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: color 120ms linear;
+}
+
+a:hover {
+  color: var(--rubric);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  margin: 0;
+  line-height: 1.15;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+::selection {
+  background: rgb(184 74 46 / 0.22);
+  color: var(--ink);
+}
+
+/* On the review route, lock the outer viewport so only the PDF column and
+   the review pane scroll. Scoped via :has() so landing and other routes
+   keep their natural body scroll. */
+html:has(.review),
+body:has(.review) {
+  height: 100dvh;
+  overflow: hidden;
+}

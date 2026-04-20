@@ -1,0 +1,68 @@
+.frame {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+
+/* When a .review is present, the frame becomes viewport-bound so the PDF and
+   pane each own their scrollbars instead of the window scrolling too. */
+.frame:has(.review) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.frame__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-6);
+  border-bottom: var(--rule-soft);
+}
+
+.frame__brand {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.frame__nav {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+}
+
+.frame__link {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: color 120ms linear;
+}
+
+.frame__link:hover {
+  color: var(--rubric);
+}
+
+.frame__main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.frame:has(.review) .frame__main {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .frame__header {
+    padding: var(--space-3) var(--space-4);
+  }
+  .frame__nav {
+    gap: var(--space-4);
+  }
+}

@@ -1,0 +1,79 @@
+.catpick {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.catpick__legend {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0;
+}
+
+.catpick__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.catpick__chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-3);
+  border-left: 2px solid var(--chip-color);
+  border-radius: var(--radius-1);
+  background: transparent;
+  transition:
+    background 120ms linear,
+    color 120ms linear;
+}
+
+.catpick__chip:hover {
+  background: color-mix(in srgb, var(--chip-color) 18%, transparent);
+}
+
+.catpick__chip[data-checked="true"] {
+  background: color-mix(in srgb, var(--chip-color) 30%, transparent);
+  color: var(--ink);
+}
+
+.catpick:disabled .catpick__legend {
+  color: var(--ink-soft);
+}
+
+.catpick:disabled .catpick__chip {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.catpick:disabled .catpick__chip:hover {
+  background: transparent;
+}
+
+.catpick:disabled .catpick__chip[data-checked="true"] {
+  background: color-mix(in srgb, var(--chip-color) 18%, transparent);
+}
+
+.catpick__input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+.catpick__label {
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}

@@ -1,0 +1,31 @@
+.pwa-banner {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--panel);
+  border-top: var(--rule-soft);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+}
+
+.pwa-banner--error {
+  color: var(--rubric);
+}
+
+.pwa-banner__action {
+  color: var(--rubric);
+  border-bottom: 1px solid var(--rubric);
+  padding: 0;
+  transition: color 120ms linear;
+}
+
+.pwa-banner__action:hover {
+  color: var(--ink);
+}

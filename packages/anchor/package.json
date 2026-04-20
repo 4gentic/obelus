@@ -1,0 +1,37 @@
+{
+  "name": "@obelus/anchor",
+  "version": "0.1.0",
+  "description": "Text-item-indexed PDF selection anchoring, context extraction, and rect geometry. Shared by the web app and the desktop app.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@obelus/bundle-schema": "workspace:*"
+  },
+  "peerDependencies": {
+    "pdfjs-dist": "5.6.205"
+  },
+  "devDependencies": {
+    "happy-dom": "20.9.0",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "5.6.205",
+    "vitest": "4.1.4"
+  }
+}

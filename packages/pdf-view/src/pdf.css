@@ -1,0 +1,58 @@
+@import "pdfjs-dist/web/pdf_viewer.css";
+
+.pdf-doc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-4) 0;
+  min-width: min-content;
+}
+
+.pdf-doc__slot {
+  position: relative;
+}
+
+.pdf-doc__placeholder {
+  width: var(--pdf-est-width, 612px);
+  height: var(--pdf-est-height, 792px);
+  background: var(--panel);
+  box-shadow: 0 1px 0 0 rgb(43 42 38 / 0.06);
+}
+
+.pdf-page {
+  position: relative;
+  background: #fff;
+  box-shadow:
+    0 1px 0 0 rgb(43 42 38 / 0.08),
+    0 8px 24px -12px rgb(43 42 38 / 0.12);
+}
+
+.pdf-page__canvas {
+  display: block;
+  position: relative;
+  z-index: 0;
+}
+
+.pdf-page__overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pdf-page__text {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 2;
+  line-height: 1;
+  opacity: 1;
+  transform-origin: 0 0;
+  color: transparent;
+}
+
+.pdf-page__text ::selection {
+  background: rgb(184 74 46 / 0.28);
+  color: transparent;
+}
