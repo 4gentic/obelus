@@ -426,7 +426,9 @@ export default function Landing() {
           </div>
           <div className="tabs__panels">
             <pre className="tabs__panel tabs__panel--plugin">
-              <code>{"/plugin marketplace add 4gentic/obelus\n/plugin install obelus@4gentic"}</code>
+              <code>
+                {"/plugin marketplace add 4gentic/obelus\n/plugin install obelus@4gentic"}
+              </code>
             </pre>
             <pre className="tabs__panel tabs__panel--curl">
               <code>curl -fsSL https://obelus.4gentic.ai/claude.tar.gz | tar -xz -C .</code>
