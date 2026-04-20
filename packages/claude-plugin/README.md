@@ -6,7 +6,12 @@ Applies an [Obelus](https://github.com/4gentic/obelus) review bundle to the pape
 
 Two paths:
 
-1. **From GitHub.** In Claude Code, run `/plugin install github:4gentic/obelus` — the plugin ships in `packages/claude-plugin/` of that monorepo.
+1. **From GitHub.** In Claude Code, add the marketplace and install the plugin:
+   ```
+   /plugin marketplace add 4gentic/obelus
+   /plugin install obelus@4gentic
+   ```
+   The plugin ships in `packages/claude-plugin/` of that monorepo.
 2. **Copy.** Drop this folder at `.claude/plugins/obelus/` inside your paper repo. Restart Claude Code so it picks up the new plugin.
 
 ## Flow

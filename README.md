@@ -41,7 +41,8 @@ The web app never sees the network at runtime. No telemetry, no analytics, no co
 
 ```sh
 # Option A: plugin install
-/plugin install github:4gentic/obelus
+/plugin marketplace add 4gentic/obelus
+/plugin install obelus@4gentic
 
 # Option B: copy the folder
 curl -fsSL https://obelus.4gentic.ai/claude.tar.gz | tar -xz -C .
