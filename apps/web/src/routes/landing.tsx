@@ -402,10 +402,9 @@ export default function Landing() {
         <h2 className="section__title">Claude Code plugin (optional).</h2>
         <p className="install__lead">
           Only useful when you're applying the bundle via Claude Code. Adds{" "}
-          <code>/skill apply-review</code>, <code>/skill apply-fix</code>, and{" "}
-          <code>/skill draft-writeup</code> — a forked-context planner, single-hunk apply, and
-          reviewer write-up. Using a different agent? Skip this: the exported Markdown is
-          self-describing.
+          <code>/apply-revision</code>, <code>/apply-fix</code>, and <code>/write-review</code> — a
+          forked-context planner, single-hunk apply, and reviewer write-up. Using a different agent?
+          Skip this: the exported Markdown is self-describing.
         </p>
         <div className="tabs">
           <input
@@ -426,7 +425,9 @@ export default function Landing() {
           </div>
           <div className="tabs__panels">
             <pre className="tabs__panel tabs__panel--plugin">
-              <code>/plugin install github:4gentic/obelus</code>
+              <code>
+                {"/plugin marketplace add 4gentic/obelus\n/plugin install obelus@4gentic"}
+              </code>
             </pre>
             <pre className="tabs__panel tabs__panel--curl">
               <code>curl -fsSL https://obelus.4gentic.ai/claude.tar.gz | tar -xz -C .</code>

@@ -76,6 +76,10 @@ docs/marketing/     Twitter / LinkedIn / HN copy, all tracked in-repo.
 - `pnpm verify` — lint, typecheck, test, network-guard, build.
 - `pnpm guard:network` — grep for forbidden network-call strings anywhere in the web or desktop app. Fails CI if any hit.
 
+## Git hygiene
+
+- **Never `git push` without explicit user confirmation.** A `PreToolUse` hook in `.claude/settings.json` forces a permission prompt on any Bash command containing `git push` (including `--force`, compound commands, flag variants). Don't try to work around it. If a push is warranted, ask first and let the user approve each one.
+
 ## When in doubt
 
 Read the plan at the repo root (`docs/plan.md`) or the Obelus design brief. If something in this file conflicts with what you're about to write, update this file — don't quietly diverge.
