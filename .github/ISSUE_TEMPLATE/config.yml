@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: Question or discussion
-    url: https://github.com/obelus/obelus/discussions
+    url: https://github.com/4gentic/obelus/discussions
     about: Ask how Obelus works, propose a direction, or share a use case.
   - name: Security report
     url: mailto:security@obelus.app

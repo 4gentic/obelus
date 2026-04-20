@@ -1,6 +1,6 @@
 # Obelus
 
-[![CI](https://github.com/obelus/obelus/actions/workflows/ci.yml/badge.svg)](https://github.com/obelus/obelus/actions/workflows/ci.yml)
+[![CI](https://github.com/4gentic/obelus/actions/workflows/ci.yml/badge.svg)](https://github.com/4gentic/obelus/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node >=20.10](https://img.shields.io/badge/node-%3E%3D20.10-brightgreen.svg)](.nvmrc)
 
@@ -27,9 +27,9 @@ The web app never sees the network at runtime. No telemetry, no analytics, no co
 
 ## Install
 
-**Web app** — visit [obelus.app](https://obelus.app). Installable as a PWA, fully functional offline after first load. PDF review, margin notes, v1 bundle export.
+**Web app** — visit [obelus.4gentic.ai](https://obelus.4gentic.ai). Installable as a PWA, fully functional offline after first load. PDF review, margin notes, v1 bundle export.
 
-**Desktop app** — Tauri v2 build with project folders, source editing, in-app diff review, stack-paper reviewing, and draft write-ups. Downloads land under [Releases](https://github.com/obelus/obelus/releases) once the v1 pipeline ships.
+**Desktop app** — Tauri v2 build with project folders, source editing, in-app diff review, stack-paper reviewing, and draft write-ups. Downloads land under [Releases](https://github.com/4gentic/obelus/releases) once the v1 pipeline ships.
 
 > First launch notes. Desktop builds are unsigned in v1. macOS will refuse the first launch with "cannot be opened because it is from an unidentified developer" — right-click the app → **Open** once, and macOS remembers. Windows SmartScreen shows "Unrecognized app" — click **More info** → **Run anyway**. Linux AppImages run directly. Signed releases are planned post-v1.
 
@@ -37,10 +37,10 @@ The web app never sees the network at runtime. No telemetry, no analytics, no co
 
 ```sh
 # Option A: plugin install
-/plugin install github:obelus/obelus
+/plugin install github:4gentic/obelus
 
 # Option B: copy the folder
-curl -fsSL https://obelus.app/claude.tar.gz | tar -xz -C .
+curl -fsSL https://obelus.4gentic.ai/claude.tar.gz | tar -xz -C .
 ```
 
 See [`packages/claude-plugin/README.md`](packages/claude-plugin/README.md).

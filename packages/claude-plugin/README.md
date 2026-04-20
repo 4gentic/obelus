@@ -1,12 +1,12 @@
 # Obelus — Claude Code plugin
 
-Applies an [Obelus](https://github.com/obelus/obelus) review bundle to the paper source in your repository. Works with LaTeX, Markdown, and Typst. Runs entirely inside Claude Code; the plugin itself makes no network calls.
+Applies an [Obelus](https://github.com/4gentic/obelus) review bundle to the paper source in your repository. Works with LaTeX, Markdown, and Typst. Runs entirely inside Claude Code; the plugin itself makes no network calls.
 
 ## Install
 
 Two paths:
 
-1. **From GitHub.** In Claude Code, run `/plugin install github:obelus/obelus` — the plugin ships in `packages/claude-plugin/` of that monorepo.
+1. **From GitHub.** In Claude Code, run `/plugin install github:4gentic/obelus` — the plugin ships in `packages/claude-plugin/` of that monorepo.
 2. **Copy.** Drop this folder at `.claude/plugins/obelus/` inside your paper repo. Restart Claude Code so it picks up the new plugin.
 
 ## Flow

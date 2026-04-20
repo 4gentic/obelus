@@ -383,8 +383,8 @@ export default function Landing() {
         </ul>
         <p className="desktop__status">
           <em>Coming soon.</em> Releases at{" "}
-          <a href="https://github.com/obelus/obelus/releases" rel="noreferrer noopener">
-            github.com/obelus/obelus/releases
+          <a href="https://github.com/4gentic/obelus/releases" rel="noreferrer noopener">
+            github.com/4gentic/obelus/releases
           </a>{" "}
           when ready.
         </p>
@@ -426,10 +426,10 @@ export default function Landing() {
           </div>
           <div className="tabs__panels">
             <pre className="tabs__panel tabs__panel--plugin">
-              <code>/plugin install github:obelus/obelus</code>
+              <code>/plugin install github:4gentic/obelus</code>
             </pre>
             <pre className="tabs__panel tabs__panel--curl">
-              <code>curl -fsSL https://obelus.app/claude.tar.gz | tar -xz -C .</code>
+              <code>curl -fsSL https://obelus.4gentic.ai/claude.tar.gz | tar -xz -C .</code>
             </pre>
           </div>
         </div>
@@ -447,8 +447,8 @@ export default function Landing() {
           <div className="colophon__row">
             <dt>Source</dt>
             <dd>
-              <a href="https://github.com/obelus/obelus" rel="noreferrer noopener">
-                github.com/obelus/obelus
+              <a href="https://github.com/4gentic/obelus" rel="noreferrer noopener">
+                github.com/4gentic/obelus
               </a>{" "}
               · MIT
             </dd>

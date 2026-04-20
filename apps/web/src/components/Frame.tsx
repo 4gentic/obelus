@@ -19,7 +19,7 @@ export default function Frame() {
           </Link>
           <a
             className="frame__link"
-            href="https://github.com/obelus/obelus"
+            href="https://github.com/4gentic/obelus"
             rel="noreferrer noopener"
           >
             GitHub

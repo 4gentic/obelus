@@ -19,7 +19,7 @@ Subhead (one line):
 
 ## Install CTA
 
-Open obelus.app in a browser, or install the plugin in your paper's repository with `/plugin install github:obelus/obelus`.
+Open obelus.4gentic.ai in a browser, or install the plugin in your paper's repository with `/plugin install github:4gentic/obelus`.
 
 ## Privacy one-liner
 
