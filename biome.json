@@ -9,7 +9,8 @@
       "!**/build",
       "!**/target",
       "!**/src-tauri/gen",
-      "!.claude/skills"
+      "!.claude/skills",
+      "!packages/bundle-schema/schemas"
     ]
   },
   "formatter": {

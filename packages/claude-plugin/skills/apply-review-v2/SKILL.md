@@ -14,7 +14,7 @@ Invoked by the `apply-review` dispatcher when it detects `bundleVersion: "2.0"`.
 
 ## Steps
 
-1. **Read and validate.** Read the JSON at `<bundle-path>`. Validate against `@obelus/bundle-schema/json-schema/v2` (resolves to `packages/bundle-schema/dist/bundle-v2.schema.json`). If invalid, print the first three errors and stop. Confirm `bundleVersion === "2.0"`; if it is anything else, refuse.
+1. **Read and validate.** Read the JSON at `<bundle-path>`. Validate against `@obelus/bundle-schema/json-schema/v2` (resolves to `packages/bundle-schema/schemas/bundle-v2.schema.json`). If invalid, print the first three errors and stop. Confirm `bundleVersion === "2.0"`; if it is anything else, refuse.
 
 2. **Per-paper preflight.** For each entry in `bundle.papers`:
 

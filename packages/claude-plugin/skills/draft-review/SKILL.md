@@ -37,12 +37,12 @@ stdout so the caller (the web app user, or any other tool) can capture it.
      `"unsupported bundleVersion: <value>"` and stop.
 
 3. **Validate.** Load the JSON Schema from `@obelus/bundle-schema/json-schema/v1`
-   (resolves to `packages/bundle-schema/dist/bundle-v1.schema.json`).
+   (resolves to `packages/bundle-schema/schemas/bundle-v1.schema.json`).
 
-   - If the pinned schema file is not present at the resolved `dist/` path, **stop and
-     fail** with: `"cannot validate bundle: schema artifact <path> is missing; reinstall
-     the plugin or run the bundle-schema build"`. Do not fall back to a lenient parse,
-     the shipped Zod types, or a schema fetched from anywhere else — the pinned artifact
+   - If the pinned schema file is not present at the resolved path, **stop and
+     fail** with: `"cannot validate bundle: schema artifact <path> is missing;
+     reinstall the plugin"`. Do not fall back to a lenient parse, the shipped
+     Zod types, or a schema fetched from anywhere else — the pinned artifact
      is the contract.
    - Validate the bundle against it. If invalid, print the first three errors and stop
      — do not guess the shape.

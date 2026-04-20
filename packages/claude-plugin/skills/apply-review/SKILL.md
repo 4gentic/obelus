@@ -19,9 +19,9 @@ Entry point. The user passes a path to an Obelus review bundle.
    - `"2.0"` → delegate. Invoke the `apply-review-v2` skill with the same `<bundle-path>`. Report its result to the user and stop — do not continue with the v1 steps.
    - anything else (including missing) → refuse with `"unsupported bundleVersion: <value>"` and stop.
 
-3. **Validate.** Load the JSON Schema from `@obelus/bundle-schema/json-schema/v1` (resolves to `packages/bundle-schema/dist/bundle-v1.schema.json`).
+3. **Validate.** Load the JSON Schema from `@obelus/bundle-schema/json-schema/v1` (resolves to `packages/bundle-schema/schemas/bundle-v1.schema.json`).
 
-   - If the pinned schema file is not present at the resolved `dist/` path, **stop and fail** with: `"cannot validate bundle: schema artifact <path> is missing; reinstall the plugin or run the bundle-schema build"`. Do not fall back to a lenient parse, the shipped Zod types, or a schema fetched from anywhere else — the pinned artifact is the contract.
+   - If the pinned schema file is not present at the resolved path, **stop and fail** with: `"cannot validate bundle: schema artifact <path> is missing; reinstall the plugin"`. Do not fall back to a lenient parse, the shipped Zod types, or a schema fetched from anywhere else — the pinned artifact is the contract.
    - Validate the bundle against it. If invalid, print the first three errors and stop — do not guess the shape. The bundle is the contract.
 
 4. **Check the PDF hash, if present.** If a PDF filename in the bundle matches a file in the repo, compute its SHA-256 and compare to `pdf.sha256`. On mismatch, warn but continue — the source may have moved since the PDF was rendered. Note it in the summary.
