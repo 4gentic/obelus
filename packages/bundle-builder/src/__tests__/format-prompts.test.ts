@@ -57,21 +57,34 @@ describe("formatFixPrompt", () => {
 describe("formatReviewPrompt", () => {
   it("forbids editing source files and skips edit-shape guidance", () => {
     const text = formatReviewPrompt(plainInput());
-    expect(text).toContain("Generate a journal-style review");
+    expect(text).toContain("Generate a peer-review letter");
     expect(text).toContain("**Do not** edit any source file");
     expect(text).not.toContain("Edit shape by category");
     expect(text).not.toContain("Apply the following review notes");
   });
 
-  it("includes the six-section structure and category map", () => {
+  it("uses a Major / Minor comments structure and retires the six-section headings", () => {
     const text = formatReviewPrompt(plainInput());
-    expect(text).toContain("## Summary");
-    expect(text).toContain("## Strengths");
-    expect(text).toContain("## Weaknesses");
-    expect(text).toContain("## Clarity");
-    expect(text).toContain("## Citations");
-    expect(text).toContain("## Minor");
-    expect(text).toContain("Category → section map");
+    expect(text).toContain("## Major comments");
+    expect(text).toContain("## Minor comments");
+    expect(text).toContain("Category → destination map");
+    expect(text).not.toMatch(/^## Summary$/m);
+    expect(text).not.toMatch(/^## Strengths$/m);
+    expect(text).not.toMatch(/^## Weaknesses$/m);
+    expect(text).not.toMatch(/^## Clarity$/m);
+    expect(text).not.toMatch(/^## Citations$/m);
+    expect(text).not.toMatch(/^## Minor$/m);
+  });
+
+  it("tells the writer to avoid the `— Reviewer note:` label and meta-narration phrases", () => {
+    const text = formatReviewPrompt(plainInput());
+    expect(text).toContain("Never prefix any line with `— Reviewer note:`");
+    expect(text).toContain("No `— Reviewer note:` prefix.");
+    expect(text).toContain("my marks");
+    expect(text).toContain("my posture");
+    expect(text).toContain("the sharpest concern I found");
+    const withRubric = formatReviewPrompt({ ...plainInput(), rubric: sampleRubric });
+    expect(withRubric).toContain("No `— Reviewer note:` prefix.");
   });
 
   it("renders annotations exactly once", () => {
@@ -79,14 +92,15 @@ describe("formatReviewPrompt", () => {
     expect(text.match(/<obelus:quote>The results were good\.<\/obelus:quote>/g)).toHaveLength(1);
   });
 
-  it("emits a Rubric block referencing the criteria when a rubric is attached", () => {
+  it("folds a rubric into framing rather than a standalone `## Rubric` section", () => {
     const text = formatReviewPrompt({ ...plainInput(), rubric: sampleRubric });
-    expect(text).toContain("## Rubric");
     expect(text).toContain("neurips-rubric.md");
     expect(text).toContain("<obelus:rubric>");
     expect(text).toContain("Novelty");
     expect(text).toContain("Soundness");
-    expect(text).toContain("name the rubric criteria the marks in that section touch");
+    expect(text).not.toMatch(/^## Rubric$/m);
+    expect(text).not.toContain("name the rubric criteria the marks in that section touch");
+    expect(text).toContain("at most once per criterion");
   });
 
   it("refuses a rubric body that contains a closing sentinel", () => {
