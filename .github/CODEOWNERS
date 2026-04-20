@@ -1,48 +1,48 @@
 # CODEOWNERS — persona → path map.
 #
 # Each area is owned by one of the five personas whose charters live
-# under `.claude/agents/`. Replace the placeholder handles with real
-# GitHub usernames before enabling CODEOWNERS as a required review.
+# under `.claude/agents/`. All ownership currently routes to the single
+# maintainer; split when additional co-maintainers take responsibility.
 
 # Catch-all
-*                                           @<repo-owner-here>
+*                                           @aguilarguisado
 
 # Typesetter — CSS, type, layout, UI components
-apps/web/src/**/*.css                       @<typesetter-owner>
-apps/web/src/components/**                  @<typesetter-owner>
-apps/web/src/routes/landing.*               @<typesetter-owner>
-apps/desktop/src/**/*.css                   @<typesetter-owner>
-apps/desktop/src/components/**              @<typesetter-owner>
-packages/design-tokens/**                   @<typesetter-owner>
-brand/**                                    @<typesetter-owner>
+apps/web/src/**/*.css                       @aguilarguisado
+apps/web/src/components/**                  @aguilarguisado
+apps/web/src/routes/landing.*               @aguilarguisado
+apps/desktop/src/**/*.css                   @aguilarguisado
+apps/desktop/src/components/**              @aguilarguisado
+packages/design-tokens/**                   @aguilarguisado
+brand/**                                    @aguilarguisado
 
 # Archivist — storage, PWA, offline guarantees
-apps/web/vite.config.ts                     @<archivist-owner>
-apps/web/src/main.tsx                       @<archivist-owner>
-packages/repo/**                            @<archivist-owner>
+apps/web/vite.config.ts                     @aguilarguisado
+apps/web/src/main.tsx                       @aguilarguisado
+packages/repo/**                            @aguilarguisado
 
 # Compositor — PDF rendering, text layer, anchoring
-packages/pdf-view/**                        @<compositor-owner>
-packages/anchor/**                          @<compositor-owner>
+packages/pdf-view/**                        @aguilarguisado
+packages/anchor/**                          @aguilarguisado
 
 # Scribe — bundle schema and Claude Code plugin
-packages/bundle-schema/**                   @<scribe-owner>
-packages/bundle-builder/**                  @<scribe-owner>
-packages/claude-plugin/**                   @<scribe-owner>
+packages/bundle-schema/**                   @aguilarguisado
+packages/bundle-builder/**                  @aguilarguisado
+packages/claude-plugin/**                   @aguilarguisado
 
 # Proofreader — CI, lint, strict TS, guards
-.github/workflows/**                        @<proofreader-owner>
-scripts/**                                  @<proofreader-owner>
-biome.json                                  @<proofreader-owner>
-tsconfig.base.json                          @<proofreader-owner>
+.github/workflows/**                        @aguilarguisado
+scripts/**                                  @aguilarguisado
+biome.json                                  @aguilarguisado
+tsconfig.base.json                          @aguilarguisado
 
 # Curator — OSS-facing surface, root docs
-README.md                                   @<curator-owner>
-CONTRIBUTING.md                             @<curator-owner>
-CODE_OF_CONDUCT.md                          @<curator-owner>
-SUPPORT.md                                  @<curator-owner>
-CHANGELOG.md                                @<curator-owner>
-SECURITY.md                                 @<curator-owner>
-.github/ISSUE_TEMPLATE/**                   @<curator-owner>
-.github/PULL_REQUEST_TEMPLATE.md            @<curator-owner>
-.github/dependabot.yml                      @<curator-owner>
+README.md                                   @aguilarguisado
+CONTRIBUTING.md                             @aguilarguisado
+CODE_OF_CONDUCT.md                          @aguilarguisado
+SUPPORT.md                                  @aguilarguisado
+CHANGELOG.md                                @aguilarguisado
+SECURITY.md                                 @aguilarguisado
+.github/ISSUE_TEMPLATE/**                   @aguilarguisado
+.github/PULL_REQUEST_TEMPLATE.md            @aguilarguisado
+.github/dependabot.yml                      @aguilarguisado
