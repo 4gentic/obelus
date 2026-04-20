@@ -12,7 +12,7 @@ Eight tweets. No hashtags, no emoji, no link until the last.
 
 4/ The web app never touches the network at runtime. PDFs live in the browser's origin-private filesystem; annotations live in IndexedDB. There is one opt-in call to a counter endpoint when you export. Thirty lines of open Worker code, storing a single integer.
 
-5/ In your paper's repo, the Claude Code plugin takes over. `/apply-marks bundle.json` detects whether your source is LaTeX, Markdown, or Typst, plans a minimal-diff fix for each mark, and waits for your confirmation before writing anything.
+5/ In your paper's repo, the Claude Code plugin takes over. `/apply-revision bundle.json` detects whether your source is LaTeX, Markdown, or Typst, plans a minimal-diff fix for each mark, and waits for your confirmation before writing anything.
 
 6/ The plugin is ordinary files under `.claude/`. No hosted service behind it. The web app and the plugin share one Zod schema and nothing else — the bundle is the seam.
 

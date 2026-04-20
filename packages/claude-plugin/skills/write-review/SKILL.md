@@ -8,7 +8,7 @@ allowed-tools: Read Glob Grep
 
 # Write review
 
-Emit a structured Markdown review based on the reviewer's marks in an Obelus bundle. The output is a reviewer's letter — first-person, written for a journal editor or conference chair. This skill does **not** edit paper source; see `apply-marks` for that. It prints Markdown to stdout so the caller (web app user, desktop app, or another tool) can capture it.
+Emit a structured Markdown review based on the reviewer's marks in an Obelus bundle. The output is a reviewer's letter — first-person, written for a journal editor or conference chair. This skill does **not** edit paper source; see `apply-revision` for that. It prints Markdown to stdout so the caller (web app user, desktop app, or another tool) can capture it.
 
 ## Input
 

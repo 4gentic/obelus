@@ -48,9 +48,9 @@ describe("formatFixPrompt", () => {
     expect(text).toContain("<obelus:note>How good?</obelus:note>");
   });
 
-  it("points Claude Code users at the /apply-marks skill", () => {
+  it("points Claude Code users at the /apply-revision skill", () => {
     const text = formatFixPrompt(plainInput());
-    expect(text.match(/\/apply-marks/g)).toHaveLength(1);
+    expect(text.match(/\/apply-revision/g)).toHaveLength(1);
   });
 });
 

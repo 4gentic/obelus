@@ -32,7 +32,7 @@ After rendering, recompute the SHA-256 and update `bundle.json`:
 shasum -a 256 sample.pdf
 ```
 
-Paste the hex digest into `bundle.pdf.sha256`. The plugin's `apply-marks` skill checks this hash and warns on mismatch.
+Paste the hex digest into `bundle.pdf.sha256`. The plugin's `apply-revision` skill checks this hash and warns on mismatch.
 
 ## How the plugin verifies against these
 

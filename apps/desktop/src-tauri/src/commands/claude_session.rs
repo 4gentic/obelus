@@ -168,7 +168,7 @@ pub async fn claude_spawn(
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
 
     let mut prompt = format!(
-        "Run apply-marks with bundle path {}.\n",
+        "Run apply-revision with bundle path {}.\n",
         bundle_abs.display()
     );
     if let Some(extra) = extra_prompt_body.as_ref().filter(|s| !s.trim().is_empty()) {

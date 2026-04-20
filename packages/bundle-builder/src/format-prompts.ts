@@ -144,7 +144,7 @@ export function formatFixPrompt(input: PromptInput): string {
     `# Review for "${input.paper.title}" (revision ${input.paper.revisionNumber})`,
     `Source PDF: \`${input.paper.pdfFilename}\` (sha256 \`${input.paper.pdfSha256}\`)`,
     "",
-    "> In Claude Code with the Obelus plugin installed, run `/apply-marks <bundle-path>` on the JSON bundle instead of following this Markdown.",
+    "> In Claude Code with the Obelus plugin installed, run `/apply-revision <bundle-path>` on the JSON bundle instead of following this Markdown.",
     "",
     "Apply the following review notes to the paper source. Each note cites the exact quote and its surrounding context so you can anchor it even after edits shift character offsets.",
     "",

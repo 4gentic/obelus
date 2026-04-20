@@ -1,14 +1,14 @@
 ---
-name: apply-marks
-description: Apply the marks in an Obelus bundle as minimal-diff edits to this paper's source.
+name: apply-revision
+description: Apply the marks in an Obelus bundle as a revision — minimal-diff edits to this paper's source.
 argument-hint: <bundle-path> [--entrypoint <path>]
 disable-model-invocation: true
 allowed-tools: Read Glob Grep
 ---
 
-# Apply marks
+# Apply revision
 
-Entry point. The user passes a path to an Obelus bundle exported from the web or desktop app. This skill takes each mark and turns it into a minimal-diff edit on the paper source. It does **not** write a review — see `write-review` for that.
+Entry point. The user passes a path to an Obelus bundle exported from the web or desktop app. This skill takes each mark and turns it into a minimal-diff edit on the paper source — a revision pass. It does **not** write a review — see `write-review` for that.
 
 Optional second argument: `--entrypoint <path>` forces the paper source to the supplied file, skipping format detection.
 
@@ -37,7 +37,7 @@ Optional second argument: `--entrypoint <path>` forces the paper source to the s
 
      > I couldn't find a single `.tex`, `.md`, or `.typ` entrypoint in this repo with high enough confidence. Tell me which file to use and I'll continue:
      >
-     > `/apply-marks <bundle-path> --entrypoint <path-to-entrypoint>`
+     > `/apply-revision <bundle-path> --entrypoint <path-to-entrypoint>`
      >
      > Or move to a folder that has exactly one candidate and rerun.
 

@@ -150,7 +150,7 @@ function entryContainsId(e: DisplayEntry, id: string | null): boolean {
   return e.rows.some((r) => r.id === id);
 }
 
-type Tab = "marks" | "review" | "edit";
+type Tab = "marks" | "review" | "revise";
 
 function NextStep({ command }: { command: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
@@ -314,14 +314,14 @@ export default function ReviewPane({
         <button
           type="button"
           role="tab"
-          id="review-pane-tab-edit"
-          aria-controls="review-pane-panel-edit"
-          aria-selected={tab === "edit"}
+          id="review-pane-tab-revise"
+          aria-controls="review-pane-panel-revise"
+          aria-selected={tab === "revise"}
           className="review-pane__tab"
-          data-active={tab === "edit" ? "true" : "false"}
-          onClick={() => setTab("edit")}
+          data-active={tab === "revise" ? "true" : "false"}
+          onClick={() => setTab("revise")}
         >
-          <span className="review-pane__tab-label">Edit</span>
+          <span className="review-pane__tab-label">Revise</span>
         </button>
       </div>
 
@@ -338,7 +338,7 @@ export default function ReviewPane({
               <p>Highlight a passage in the PDF. A form appears here to categorize it.</p>
               <p>
                 Your marks line up in the margin next to the lines they reference. When you are
-                done, switch to <em>Review</em> to draft a reviewer's write-up or <em>Edit</em> to
+                done, switch to <em>Review</em> to draft a reviewer's write-up or <em>Revise</em> to
                 hand the marks to a coding agent as source patches.
               </p>
             </div>
@@ -410,17 +410,17 @@ export default function ReviewPane({
       ) : (
         <section
           className="review-pane__tabpanel"
-          aria-label="Edit"
+          aria-label="Revise"
           role="tabpanel"
-          id="review-pane-panel-edit"
-          aria-labelledby="review-pane-tab-edit"
+          id="review-pane-panel-revise"
+          aria-labelledby="review-pane-tab-revise"
         >
           <p className="review-pane__tabpanel-hint">
             Hand the paper folder to a coding agent and have it apply your marks as minimal-diff
             source edits. The bundle is format-agnostic — the plugin detects <code>.tex</code> /{" "}
             <code>.md</code> / <code>.typ</code> at run time.
           </p>
-          <fieldset className="review-pane__actions" aria-label="Edit output">
+          <fieldset className="review-pane__actions" aria-label="Revise output">
             <button
               type="button"
               className="review-pane__actions-chip"
@@ -449,7 +449,7 @@ export default function ReviewPane({
               <span className="review-pane__actions-chip-hint">paste into any agent</span>
             </button>
           </fieldset>
-          <NextStep command={`/apply-marks ~/Downloads/${suggestBundleFilename()}`} />
+          <NextStep command={`/apply-revision ~/Downloads/${suggestBundleFilename()}`} />
           {statusMessage ? (
             <p className="review-pane__status" data-status={statusTone}>
               {statusMessage}
