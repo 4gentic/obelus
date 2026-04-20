@@ -27,7 +27,7 @@ Emit a structured Markdown review based on the reviewer's marks in an Obelus bun
 
 ## v1 flow
 
-3. **Validate (v1).** Load the JSON Schema from `@obelus/bundle-schema/json-schema/v1` (resolves to `packages/bundle-schema/schemas/bundle-v1.schema.json`).
+3. **Validate (v1).** Load the JSON Schema shipped with this plugin at `${CLAUDE_PLUGIN_ROOT}/schemas/bundle-v1.schema.json` (the `schemas/` directory sits next to `skills/` and `agents/` inside the plugin's install directory).
    - If the pinned schema file is not present at the resolved path, stop and fail with: `"cannot validate bundle: schema artifact <path> is missing; reinstall the plugin"`. Do not fall back to a lenient parse, the shipped Zod types, or a schema fetched from anywhere else — the pinned artifact is the contract.
    - Validate the bundle. If invalid, print the first three errors and stop.
 
@@ -53,7 +53,7 @@ Emit a structured Markdown review based on the reviewer's marks in an Obelus bun
 
 ## v2 flow
 
-3v2. **Validate (v2).** Load the JSON Schema from `@obelus/bundle-schema/json-schema/v2` (resolves to `packages/bundle-schema/schemas/bundle-v2.schema.json`). Same missing-schema behaviour as v1. Validate the bundle. If invalid, print the first three errors and stop. Confirm `bundleVersion === "2.0"`.
+3v2. **Validate (v2).** Load the JSON Schema shipped with this plugin at `${CLAUDE_PLUGIN_ROOT}/schemas/bundle-v2.schema.json`. Same missing-schema behaviour as v1. Validate the bundle. If invalid, print the first three errors and stop. Confirm `bundleVersion === "2.0"`.
 
 4v2. **Select the paper.**
    - If `<paper-id>` was supplied, confirm it appears in `bundle.papers[].id`. If not, stop and say so.

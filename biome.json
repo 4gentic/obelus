@@ -10,7 +10,8 @@
       "!**/target",
       "!**/src-tauri/gen",
       "!.claude/skills",
-      "!packages/bundle-schema/schemas"
+      "!packages/bundle-schema/schemas",
+      "!packages/claude-plugin/schemas"
     ]
   },
   "formatter": {

@@ -47,7 +47,7 @@ Both `apply-revision` and `write-review` dispatch internally on `bundleVersion` 
 
 ## Bundle contract
 
-See `@obelus/bundle-schema`. JSON Schemas live at `@obelus/bundle-schema/json-schema/v1` and `@obelus/bundle-schema/json-schema/v2`.
+See `@obelus/bundle-schema` in the monorepo. The plugin ships copies of the canonical JSON Schemas at `schemas/bundle-v1.schema.json` and `schemas/bundle-v2.schema.json` inside this directory — the skills resolve them via `${CLAUDE_PLUGIN_ROOT}/schemas/…` so validation works out of the box when the plugin is installed from the marketplace.
 
 ## License
 
