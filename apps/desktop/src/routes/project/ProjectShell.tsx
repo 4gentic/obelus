@@ -5,7 +5,6 @@ import { useProject } from "./context";
 import FilesColumn from "./FilesColumn";
 import MarginGutter from "./MarginGutter";
 import { useOpenPaper } from "./OpenPaper";
-import PaperListColumn from "./PaperListColumn";
 import ReviewColumn from "./ReviewColumn";
 import { useReviewStore } from "./store-context";
 import { useDiffActions } from "./use-diff-actions";
@@ -38,7 +37,7 @@ export default function ProjectShell(): JSX.Element {
     return () => window.removeEventListener("keydown", onKey);
   }, [reviewStore]);
 
-  const hideLeft = project.kind === "single-pdf";
+  const hideLeft = project.kind === "reviewer";
   const bodyClass =
     (openPaper.kind === "none"
       ? "project-shell__body project-shell__body--no-pdf"
@@ -51,8 +50,7 @@ export default function ProjectShell(): JSX.Element {
         <code className="project-shell__root">{project.root}</code>
       </header>
       <div className={bodyClass}>
-        {project.kind === "folder" ? <FilesColumn /> : null}
-        {project.kind === "stack-pdf" ? <PaperListColumn /> : null}
+        {project.kind === "writer" ? <FilesColumn /> : null}
         <main className="project-shell__center">
           <CenterPane />
         </main>
