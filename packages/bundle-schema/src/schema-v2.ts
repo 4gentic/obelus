@@ -63,7 +63,7 @@ export const ProjectCategory = z.object({
   color: z.string().optional(),
 });
 
-export const ProjectKind = z.enum(["folder", "single-pdf", "stack-pdf"]);
+export const ProjectKind = z.enum(["writer", "reviewer"]);
 
 const Project = z.object({
   id: z.string().uuid(),

@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS desks (
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
   label TEXT NOT NULL,
-  kind TEXT NOT NULL CHECK (kind IN ('folder', 'single-pdf', 'stack-pdf')),
+  kind TEXT NOT NULL CHECK (kind IN ('writer', 'reviewer')),
   root TEXT NOT NULL UNIQUE,
   pinned INTEGER NOT NULL DEFAULT 0,
   archived INTEGER NOT NULL DEFAULT 0,

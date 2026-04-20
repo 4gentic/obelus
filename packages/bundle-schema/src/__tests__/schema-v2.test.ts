@@ -9,7 +9,7 @@ const validBundleV2: Bundle2 = {
   project: {
     id: "00000000-0000-4000-8000-000000000001",
     label: "attention-survey",
-    kind: "folder",
+    kind: "writer",
     categories: [
       { slug: "unclear", label: "unclear" },
       { slug: "wrong", label: "wrong", color: "#B84A2E" },

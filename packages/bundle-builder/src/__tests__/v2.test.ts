@@ -12,7 +12,7 @@ function seed() {
     project: {
       id: PROJECT_ID,
       label: "Phase 3 Project",
-      kind: "folder" as const,
+      kind: "writer" as const,
       categories: [
         { slug: "unclear", label: "unclear" },
         { slug: "praise", label: "praise", color: "#6B655A" },

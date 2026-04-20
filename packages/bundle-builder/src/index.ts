@@ -105,7 +105,7 @@ export interface PaperRefV2Input {
 export interface ProjectV2Input {
   id: string;
   label: string;
-  kind: "folder" | "single-pdf" | "stack-pdf";
+  kind: "writer" | "reviewer";
   categories: ReadonlyArray<{ slug: string; label: string; color?: string }>;
 }
 
