@@ -48,9 +48,9 @@ describe("formatFixPrompt", () => {
     expect(text).toContain("<obelus:note>How good?</obelus:note>");
   });
 
-  it("points Claude Code users at the /obelus:apply-review skill", () => {
+  it("points Claude Code users at the /apply-marks skill", () => {
     const text = formatFixPrompt(plainInput());
-    expect(text.match(/\/obelus:apply-review/g)).toHaveLength(1);
+    expect(text.match(/\/apply-marks/g)).toHaveLength(1);
   });
 });
 
@@ -103,10 +103,10 @@ describe("formatReviewPrompt", () => {
     );
   });
 
-  it("points Claude Code users at the /obelus:draft-review skill (with and without rubric)", () => {
+  it("points Claude Code users at the /write-review skill (with and without rubric)", () => {
     const plain = formatReviewPrompt(plainInput());
-    expect(plain.match(/\/obelus:draft-review/g)).toHaveLength(1);
+    expect(plain.match(/\/write-review/g)).toHaveLength(1);
     const withRubric = formatReviewPrompt({ ...plainInput(), rubric: sampleRubric });
-    expect(withRubric.match(/\/obelus:draft-review/g)).toHaveLength(1);
+    expect(withRubric.match(/\/write-review/g)).toHaveLength(1);
   });
 });

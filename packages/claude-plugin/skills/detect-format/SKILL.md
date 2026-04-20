@@ -26,4 +26,4 @@ Walk the repo and classify its paper source. Emit a single descriptor:
 
 ## Output
 
-Print the descriptor as fenced JSON at the end of your response. No prose after it. The caller parses the last fenced JSON block.
+Print **only** the descriptor as fenced JSON. Do not emit prose, preamble, or notes outside the JSON envelope — the descriptor's `notes` field is the only place for disambiguation commentary. The caller (`apply-marks`) parses the fenced JSON block and narrates the result to the user; this skill never addresses the user directly.

@@ -71,8 +71,8 @@ describe("buildBundleV1", () => {
 });
 
 describe("suggestBundleFilename", () => {
-  it("formats stamp and suffix", () => {
+  it("formats as obelus-YYYY-MM-DD.json", () => {
     const name = suggestBundleFilename(new Date("2026-04-17T09:03:00"));
-    expect(name).toBe("review-20260417-0903.obelus.json");
+    expect(name).toBe("obelus-2026-04-17.json");
   });
 });

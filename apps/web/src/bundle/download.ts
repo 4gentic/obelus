@@ -61,17 +61,17 @@ export async function exportBundleFile(bundle: Bundle): Promise<void> {
   const suggestedName = suggestBundleFilename();
   const json = JSON.stringify(bundle, null, 2);
   const blob = new Blob([json], { type: "application/json" });
-  await saveBlob(blob, suggestedName, "Obelus review bundle", {
-    "application/json": [".obelus.json", ".json"],
+  await saveBlob(blob, suggestedName, "Obelus bundle", {
+    "application/json": [".json"],
   });
 }
 
 export async function exportBundleMarkdown(bundle: Bundle): Promise<void> {
-  const suggestedName = suggestBundleFilename().replace(/\.obelus\.json$/, ".obelus.md");
+  const suggestedName = suggestBundleFilename().replace(/\.json$/, ".md");
   const text = formatClipboardPrompt(bundle);
   const blob = new Blob([text], { type: "text/markdown" });
-  await saveBlob(blob, suggestedName, "Obelus review (Markdown)", {
-    "text/markdown": [".obelus.md", ".md"],
+  await saveBlob(blob, suggestedName, "Obelus marks (Markdown)", {
+    "text/markdown": [".md"],
   });
 }
 
@@ -79,10 +79,10 @@ export async function exportReviewBundleMarkdown(
   bundle: Bundle,
   rubric?: PromptRubric,
 ): Promise<void> {
-  const suggestedName = suggestBundleFilename().replace(/\.obelus\.json$/, ".obelus.review.md");
+  const suggestedName = suggestBundleFilename().replace(/\.json$/, ".review.md");
   const text = formatReviewClipboardPrompt(bundle, rubric);
   const blob = new Blob([text], { type: "text/markdown" });
   await saveBlob(blob, suggestedName, "Obelus review write-up (Markdown)", {
-    "text/markdown": [".obelus.review.md", ".md"],
+    "text/markdown": [".review.md", ".md"],
   });
 }

@@ -1,3 +1,4 @@
+import { suggestBundleFilename } from "@obelus/bundle-builder";
 import type { AnnotationRow, PaperRubric } from "@obelus/repo";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DraftInput } from "../../store/review-store";
@@ -149,7 +150,33 @@ function entryContainsId(e: DisplayEntry, id: string | null): boolean {
   return e.rows.some((r) => r.id === id);
 }
 
-type Tab = "marks" | "review" | "revise";
+type Tab = "marks" | "review" | "edit";
+
+function NextStep({ command }: { command: string }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  const onCopy = (): void => {
+    void navigator.clipboard?.writeText(command);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div className="review-pane__next">
+      <p className="review-pane__next-label">Next: in your paper folder, run</p>
+      <button
+        type="button"
+        className="review-pane__next-cmd"
+        data-copied={copied ? "true" : "false"}
+        onClick={onCopy}
+        title={copied ? "Copied" : "Copy to clipboard"}
+      >
+        <code>{command}</code>
+        <span className="review-pane__next-hint" aria-hidden="true">
+          {copied ? "Copied" : "Click to copy"}
+        </span>
+      </button>
+    </div>
+  );
+}
 
 export default function ReviewPane({
   annotations,
@@ -287,14 +314,14 @@ export default function ReviewPane({
         <button
           type="button"
           role="tab"
-          id="review-pane-tab-revise"
-          aria-controls="review-pane-panel-revise"
-          aria-selected={tab === "revise"}
+          id="review-pane-tab-edit"
+          aria-controls="review-pane-panel-edit"
+          aria-selected={tab === "edit"}
           className="review-pane__tab"
-          data-active={tab === "revise" ? "true" : "false"}
-          onClick={() => setTab("revise")}
+          data-active={tab === "edit" ? "true" : "false"}
+          onClick={() => setTab("edit")}
         >
-          <span className="review-pane__tab-label">Revise</span>
+          <span className="review-pane__tab-label">Edit</span>
         </button>
       </div>
 
@@ -311,8 +338,8 @@ export default function ReviewPane({
               <p>Highlight a passage in the PDF. A form appears here to categorize it.</p>
               <p>
                 Your marks line up in the margin next to the lines they reference. When you are
-                done, switch to <em>Review</em> to draft a write-up or <em>Revise</em> to hand the
-                marks to a coding agent as edits.
+                done, switch to <em>Review</em> to draft a reviewer's write-up or <em>Edit</em> to
+                hand the marks to a coding agent as source patches.
               </p>
             </div>
           ) : (
@@ -373,6 +400,7 @@ export default function ReviewPane({
               <span className="review-pane__actions-chip-hint">paste into any agent</span>
             </button>
           </fieldset>
+          <NextStep command={`/write-review ~/Downloads/${suggestBundleFilename()}`} />
           {statusMessage ? (
             <p className="review-pane__status" data-status={statusTone}>
               {statusMessage}
@@ -382,17 +410,17 @@ export default function ReviewPane({
       ) : (
         <section
           className="review-pane__tabpanel"
-          aria-label="Revise"
+          aria-label="Edit"
           role="tabpanel"
-          id="review-pane-panel-revise"
-          aria-labelledby="review-pane-tab-revise"
+          id="review-pane-panel-edit"
+          aria-labelledby="review-pane-tab-edit"
         >
           <p className="review-pane__tabpanel-hint">
             Hand the paper folder to a coding agent and have it apply your marks as minimal-diff
-            edits. The bundle is format-agnostic — the plugin detects <code>.tex</code> /{" "}
+            source edits. The bundle is format-agnostic — the plugin detects <code>.tex</code> /{" "}
             <code>.md</code> / <code>.typ</code> at run time.
           </p>
-          <fieldset className="review-pane__actions" aria-label="Revise output">
+          <fieldset className="review-pane__actions" aria-label="Edit output">
             <button
               type="button"
               className="review-pane__actions-chip"
@@ -421,6 +449,7 @@ export default function ReviewPane({
               <span className="review-pane__actions-chip-hint">paste into any agent</span>
             </button>
           </fieldset>
+          <NextStep command={`/apply-marks ~/Downloads/${suggestBundleFilename()}`} />
           {statusMessage ? (
             <p className="review-pane__status" data-status={statusTone}>
               {statusMessage}

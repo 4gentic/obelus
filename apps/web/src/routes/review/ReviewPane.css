@@ -340,6 +340,69 @@
   color: var(--rubric);
 }
 
+.review-pane__next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+
+.review-pane__next-label {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.review-pane__next-cmd {
+  position: relative;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink);
+  background: var(--panel);
+  border: var(--rule-soft);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.review-pane__next-cmd:hover {
+  border-color: var(--ink);
+}
+
+.review-pane__next-cmd:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.review-pane__next-cmd code {
+  font-family: inherit;
+  background: none;
+  padding: 0;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.review-pane__next-hint {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.review-pane__next-cmd[data-copied="true"] .review-pane__next-hint {
+  color: var(--hl-cite);
+}
+
 @media (max-width: 900px) {
   .review-pane__btn,
   .review-pane__btn--primary,

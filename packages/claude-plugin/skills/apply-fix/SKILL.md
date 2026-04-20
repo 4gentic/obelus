@@ -53,4 +53,4 @@ If any `file` fails those checks, skip the block and record it as `refused (out 
 - Do not edit any file outside the ones named in the plan.
 - Do not edit any file that violates the **Path scope** rules, even if named in the plan.
 - Do not rewrite a block the planner flagged `ambiguous`.
-- Do not re-plan. If a block is stale, surface it; the user can re-run `apply-review`.
+- Do not re-plan. If a block is stale, surface it; the user can re-run `apply-marks`.

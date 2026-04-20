@@ -168,7 +168,7 @@ pub async fn claude_spawn(
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
 
     let mut prompt = format!(
-        "Run apply-review-v2 with bundle path {}.\n",
+        "Run apply-marks with bundle path {}.\n",
         bundle_abs.display()
     );
     if let Some(extra) = extra_prompt_body.as_ref().filter(|s| !s.trim().is_empty()) {
@@ -208,7 +208,7 @@ pub async fn claude_draft_writeup(
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
 
     let mut prompt = format!(
-        "Run draft-writeup with bundle path {}. Target paperId: {}. Paper title: {}.\n\
+        "Run write-review with bundle path {}. Target paperId: {}. Paper title: {}.\n\
          Emit markdown only. Use the default category\u{2192}section map.\n",
         bundle_abs.display(),
         paper_id,

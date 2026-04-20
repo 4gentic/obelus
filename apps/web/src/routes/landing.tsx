@@ -402,10 +402,9 @@ export default function Landing() {
         <h2 className="section__title">Claude Code plugin (optional).</h2>
         <p className="install__lead">
           Only useful when you're applying the bundle via Claude Code. Adds{" "}
-          <code>/skill apply-review</code>, <code>/skill apply-fix</code>, and{" "}
-          <code>/skill draft-writeup</code> — a forked-context planner, single-hunk apply, and
-          reviewer write-up. Using a different agent? Skip this: the exported Markdown is
-          self-describing.
+          <code>/apply-marks</code>, <code>/apply-fix</code>, and <code>/write-review</code> — a
+          forked-context planner, single-hunk apply, and reviewer write-up. Using a different agent?
+          Skip this: the exported Markdown is self-describing.
         </p>
         <div className="tabs">
           <input
