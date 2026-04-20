@@ -15,7 +15,7 @@ jobs:
       release_id: ${{ steps.find.outputs.release_id }}
     steps:
       - id: find
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           TAG_NAME: ${{ github.ref_name }}
         with:
@@ -48,7 +48,7 @@ jobs:
             args: ""
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: install rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -66,11 +66,11 @@ jobs:
             patchelf \
             libayatana-appindicator3-dev
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9.12.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: pnpm
@@ -93,7 +93,7 @@ jobs:
     needs: [find-release, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         env:
           RELEASE_ID: ${{ needs.find-release.outputs.release_id }}
         with:
