@@ -3,7 +3,7 @@ name: apply-revision
 description: Apply the marks in an Obelus bundle as a revision — minimal-diff edits to this paper's source.
 argument-hint: <bundle-path> [--entrypoint <path>]
 disable-model-invocation: true
-allowed-tools: Read Glob Grep
+allowed-tools: Read Glob Grep Write
 ---
 
 # Apply revision
@@ -32,11 +32,21 @@ Optional second argument: `--entrypoint <path>` forces the paper source to the s
    - **Found, hash mismatches:** warn in one sentence (`The PDF <filename> is in this repo but its hash doesn't match the bundle — the source may have moved since the PDF was rendered.`) and continue. Record it for the summary.
    - **Not found:** narrate one sentence (`The PDF <filename> referenced by this bundle isn't in this repo.`) and continue. This is a hint, not a refusal — step 5 may still locate source if the user is in a repo that holds it but not the rendered PDF.
 
-5. **Locate the paper source.**
-   - If `--entrypoint <path>` was supplied, use it directly. Infer `format` from the extension (`.tex` → `latex`, `.md` → `markdown`, `.typ` → `typst`). If the extension isn't one of those, stop and say so.
-   - Otherwise invoke the `detect-format` skill as an internal sub-step. Parse the fenced JSON descriptor it returns; **do not echo that JSON to the user**.
-   - On success, narrate one short sentence: `Detected <format> source at <entrypoint>.` If the descriptor has a `notes` field, append a second sentence based on it — e.g. `Two <format> entrypoints found — picked <chosen> (most recently modified).` No structured block, no JSON.
-   - On `format === "unknown"`, stop with exactly this message (substitute `<bundle-path>` with the path the user passed in):
+5. **Locate the paper source.** Do this inline using only `Glob` / `Read` / `Grep`. Do **not** emit any JSON block — the result of this step is a short narration in prose, then you proceed to step 6 in the same turn.
+
+   - If `--entrypoint <path>` was supplied, use it directly. Infer the format from the extension (`.tex` → latex, `.md` → markdown, `.typ` → typst). If the extension isn't one of those, stop and say so. Otherwise skip the classification below and jump to the success narration.
+
+   - Otherwise classify the source format:
+
+     a. **LaTeX.** Glob `**/*.tex`. For each, read the first ~200 lines and look for `\documentclass`. The entrypoint is the file that has it (not `\input`'d from elsewhere). If multiple candidates exist, prefer `main.tex`, `paper.tex`, then the shortest path.
+     b. **Typst.** Glob `**/*.typ`. Entrypoint heuristic: presence of `#set document(` or `#show:` at top level. Prefer `main.typ`, `paper.typ`, `report.typ`.
+     c. **Markdown.** Glob `**/*.md` excluding `README.md`, `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, and anything under `node_modules/`, `.git/`, `dist/`, `build/`. A Markdown paper usually has a YAML frontmatter block (`---` at line 1) with `title:` or `author:`. Prefer `paper.md`, `manuscript.md`, then the longest remaining `.md` by word count.
+     d. **Conflict resolution.** If two formats both present candidates, pick the one whose entrypoint was modified most recently; the displaced one goes into a disambiguation note.
+     e. **Nothing matched.** Take the unknown branch below.
+
+   - **On success** (you found a latex, markdown, or typst entrypoint), narrate one short sentence: `Detected <format> source at <entrypoint>.` If step 5d's disambiguation fired, append a second sentence — e.g. `Two <format> entrypoints found — picked <chosen> (most recently modified).` No JSON, no code fences, no bullet list of source files. Then **continue to step 6 in the same turn** — this is a mid-flow narration, not the final answer.
+
+   - **On nothing matched**, stop with exactly this message (substitute `<bundle-path>` with the path the user passed in):
 
      > I can't apply this revision — there is no `.tex`, `.md`, or `.typ` paper source in this repo.
      >
@@ -50,7 +60,7 @@ Optional second argument: `--entrypoint <path>` forces the paper source to the s
      >
      > or `cd` to the folder that holds it and rerun.
 
-6. **Plan.** Invoke the `plan-fix` skill with the validated bundle and the format descriptor. It runs in a forked context and writes `.obelus/plan-<timestamp>.md` together with a companion `.obelus/plan-<timestamp>.json`. When it returns, print the plan paths and a one-line summary of each block (with any `ambiguous` flags made visible).
+6. **Plan.** Follow the `plan-fix` skill's procedure with the validated bundle and the format descriptor you computed in step 5. That procedure writes `.obelus/plan-<timestamp>.md` together with a companion `.obelus/plan-<timestamp>.json` (both paths relative to the current working directory — create the `.obelus/` directory first if it does not exist). When the plan files are on disk, print a compact report: the two plan paths on their own lines, then a single sentence naming totals (e.g. `Wrote 3 blocks (1 citation-needed, 1 unclear, 1 praise) — 0 ambiguous.`). Do not echo per-block bodies; the user will open the plan file to read those.
 
 7. **Hand off.** Tell the user:
 
@@ -74,7 +84,7 @@ Optional second argument: `--entrypoint <path>` forces the paper source to the s
    b. **Locate the paper source.** Precedence:
       - If `--entrypoint <path>` was supplied (single-paper case only), use it. For multi-paper bundles, refuse `--entrypoint` and tell the user to omit it.
       - Else if `paper.entrypoint` is present in the bundle, use it and infer `format` from the extension.
-      - Else invoke `detect-format` silently. Narrate one sentence per paper (`Detected <format> source at <entrypoint> for <paper title>.`). On `format === "unknown"`, stop with the v1 refusal, scoped to the specific paper — name the paper title in the first sentence (e.g. `I can't apply this revision for "<paper title>" — there is no …`) and keep both fallback options (use `write-review` when the source isn't available; pass `--entrypoint` when it is).
+      - Else run the classification procedure inline using only `Glob` / `Read` / `Grep` — same sub-steps as the v1 flow's step 5 (a–e). Do **not** emit a JSON block; narrate one sentence per paper (`Detected <format> source at <entrypoint> for <paper title>.`) and continue in the same turn. On the nothing-matched branch, stop with the v1 refusal, scoped to the specific paper — name the paper title in the first sentence (e.g. `I can't apply this revision for "<paper title>" — there is no …`) and keep both fallback options (use `write-review` when the source isn't available; pass `--entrypoint` when it is).
 
 5v2. **Plan.** Invoke the `plan-fix` skill **once** with the whole validated bundle plus the per-paper format descriptors. `plan-fix` writes `.obelus/plan-<timestamp>.md` and a companion `.obelus/plan-<timestamp>.json`. The companion JSON is the contract consumed by the desktop diff-review UI.
 
@@ -91,6 +101,6 @@ Optional second argument: `--entrypoint <path>` forces the paper source to the s
 
 - Do not proceed past an unsupported or missing `bundleVersion`.
 - Do not proceed past a schema error.
-- Do not echo `detect-format`'s raw JSON to the user — always narrate in prose.
+- Do not emit the classification result as JSON or as a fenced code block — always narrate it in one sentence of prose and move on to step 6 in the same turn.
 - Do not edit any source file in this skill.
 - Do not prompt the user to auto-apply; `apply-fix` must be explicitly requested.

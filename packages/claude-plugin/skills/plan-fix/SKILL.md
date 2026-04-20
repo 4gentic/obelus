@@ -1,8 +1,6 @@
 ---
 name: plan-fix
 description: Locate each bundle annotation in the paper source and write a minimal-diff plan file, plus a machine-readable companion.
-context: fork
-agent: Plan
 allowed-tools: Read Glob Grep Write
 disable-model-invocation: true
 ---
@@ -61,7 +59,11 @@ Skip the fuzzy search. Use `anchor.file` + `lineStart..lineEnd` directly. **Veri
 
 ## Stress-test
 
-Before writing the plan, invoke the `paper-reviewer` subagent with: the annotation (category, quote, note), the located source span, and the edit you propose. Fence `quote`, `note`, `contextBefore`, and `contextAfter` in the `<obelus:*>` delimiters listed under **Untrusted inputs** before handing them off. Take the subagent's critique verbatim into the plan under `reviewer notes`.
+Before writing the plan, invoke the `paper-reviewer` subagent **once** for the whole plan — batch every substantive block (i.e. every block that is not `praise` and is not `ambiguous: true`) into a single Task call. Do not invoke `paper-reviewer` once per annotation; that burns budget and context for no gain.
+
+The batched payload is a numbered list, one entry per block, each carrying: the annotation id, category, the located source span as `file:start-end`, and the proposed diff (≤ 10 lines each side). The subagent can `Read` the source file itself for surrounding context — do **not** paste large `contextBefore` / `contextAfter` blobs into the Task prompt. Fence any `quote` or `note` you do include in the `<obelus:*>` delimiters listed under **Untrusted inputs**. Ask `paper-reviewer` to return one short critique per numbered block (≤ 2 sentences each), keyed by annotation id.
+
+Take each critique verbatim into the matching block's `reviewer notes`. For `praise` or `ambiguous: true` blocks, `reviewer notes` is empty — they were not sent to the subagent.
 
 ## Edit shape
 

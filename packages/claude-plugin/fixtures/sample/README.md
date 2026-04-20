@@ -36,4 +36,4 @@ Paste the hex digest into `bundle.pdf.sha256`. The plugin's `apply-revision` ski
 
 ## How the plugin verifies against these
 
-`pnpm -C packages/claude-plugin verify` loads `bundle.json`, parses it with `@obelus/bundle-schema`, and prints the annotation count. The three source variants let the e2e runner exercise all three format branches of `detect-format` from the same bundle.
+`pnpm -C packages/claude-plugin verify` loads `bundle.json`, parses it with `@obelus/bundle-schema`, and prints the annotation count. The three source variants let the e2e runner exercise all three format branches of `apply-revision` from the same bundle.
