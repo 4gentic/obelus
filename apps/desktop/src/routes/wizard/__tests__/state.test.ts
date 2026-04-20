@@ -58,23 +58,23 @@ describe("wizardReducer", () => {
     expect(s.folio).toBe(1);
   });
 
-  it("PICK_FOLDER records kind=folder and label", () => {
+  it("PICK_FOLDER records kind=writer and label", () => {
     const s = wizardReducer(initialWizardState, {
       type: "PICK_FOLDER",
       root: "/tmp/work",
       label: "work",
     });
-    expect(s.project).toEqual({ kind: "folder", root: "/tmp/work", label: "work" });
+    expect(s.project).toEqual({ kind: "writer", root: "/tmp/work", label: "work" });
   });
 
-  it("PICK_FILE records kind=single-pdf", () => {
+  it("PICK_FILE records kind=reviewer", () => {
     const s = wizardReducer(initialWizardState, {
       type: "PICK_FILE",
       root: "/tmp/a.pdf",
       label: "a",
     });
     expect(s.project).toEqual({
-      kind: "single-pdf",
+      kind: "reviewer",
       root: "/tmp/a.pdf",
       label: "a",
     });

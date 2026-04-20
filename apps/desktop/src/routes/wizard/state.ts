@@ -22,7 +22,6 @@ export type WizardAction =
   | { type: "SET_DESK"; desk: string }
   | { type: "PICK_FOLDER"; root: string; label: string }
   | { type: "PICK_FILE"; root: string; label: string }
-  | { type: "PICK_STACK"; root: string; label: string }
   | { type: "ADVANCE" }
   | { type: "BACK" }
   | { type: "FINISH" };
@@ -57,17 +56,12 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
     case "PICK_FOLDER":
       return {
         ...state,
-        project: { kind: "folder", root: action.root, label: action.label },
+        project: { kind: "writer", root: action.root, label: action.label },
       };
     case "PICK_FILE":
       return {
         ...state,
-        project: { kind: "single-pdf", root: action.root, label: action.label },
-      };
-    case "PICK_STACK":
-      return {
-        ...state,
-        project: { kind: "stack-pdf", root: action.root, label: action.label },
+        project: { kind: "reviewer", root: action.root, label: action.label },
       };
     case "ADVANCE":
       return { ...state, folio: next(state.folio) };

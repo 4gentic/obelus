@@ -116,7 +116,7 @@ export default function Wizard(): JSX.Element {
           />
         ) : null}
         {state.folio === 3 ? (
-          state.project && state.project.kind === "folder" ? (
+          state.project && state.project.kind === "writer" ? (
             <FolioRenderHint
               label={state.project.label}
               firstProject={!addMode}
@@ -130,10 +130,6 @@ export default function Wizard(): JSX.Element {
               }}
               onPickFile={(root, label) => {
                 dispatch({ type: "PICK_FILE", root, label });
-                dispatch({ type: "FINISH" });
-              }}
-              onPickStack={(root, label) => {
-                dispatch({ type: "PICK_STACK", root, label });
                 dispatch({ type: "FINISH" });
               }}
               onBack={
