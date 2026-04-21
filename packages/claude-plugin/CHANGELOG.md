@@ -2,6 +2,13 @@
 
 All notable changes to the Obelus Claude Code plugin are documented here. This file is generated from Conventional Commits touching `packages/claude-plugin/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2](https://github.com/4gentic/obelus/compare/plugin-v0.1.1...plugin-v0.1.2) (2026-04-21)
+
+
+### Features
+
+* **desktop:** live Claude progress, model/effort, desk rail, polish ([#27](https://github.com/4gentic/obelus/issues/27)) ([532c929](https://github.com/4gentic/obelus/commit/532c929f225caed9b988435e82078f2809ed29a5))
+
 ## [0.1.1](https://github.com/4gentic/obelus/compare/plugin-v0.1.0...plugin-v0.1.1) (2026-04-21)
 
 
