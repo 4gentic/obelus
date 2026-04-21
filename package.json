@@ -1,7 +1,7 @@
 {
   "name": "obelus",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Mark what you doubt. An offline, privacy-first review loop for AI-assisted papers.",
   "license": "MIT",
   "packageManager": "pnpm@9.12.0",
