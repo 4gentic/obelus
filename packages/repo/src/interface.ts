@@ -5,6 +5,7 @@ import type {
   DeskRow,
   DiffHunkRow,
   DiffHunkState,
+  FilePinRow,
   PaperRow,
   PaperRubric,
   ProjectKind,
@@ -71,6 +72,7 @@ export interface ProjectsRepo {
   get(id: string): Promise<ProjectRow | undefined>;
   create(input: ProjectCreateInput): Promise<ProjectRow>;
   rename(id: string, label: string): Promise<void>;
+  setPinned(id: string, pinned: boolean): Promise<void>;
   forget(id: string): Promise<void>;
   repoint(id: string, newRoot: string): Promise<void>;
   moveToDesk(id: string, deskId: string): Promise<void>;
@@ -139,13 +141,21 @@ export interface WriteUpsRepo {
   upsert(input: { projectId: string; paperId: string; bodyMd: string }): Promise<WriteUpRow>;
 }
 
+export interface FilePinsRepo {
+  listForProject(projectId: string): Promise<FilePinRow[]>;
+  pin(projectId: string, relPath: string): Promise<void>;
+  unpin(projectId: string, relPath: string): Promise<void>;
+  isPinned(projectId: string, relPath: string): Promise<boolean>;
+}
+
 export type RepositoryFeature =
   | "projects"
   | "desks"
   | "reviewSessions"
   | "diffHunks"
   | "askThreads"
-  | "writeUps";
+  | "writeUps"
+  | "filePins";
 
 export interface Repository {
   papers: PapersRepo;
@@ -158,6 +168,7 @@ export interface Repository {
   diffHunks: DiffHunksRepo;
   askThreads: AskThreadsRepo;
   writeUps: WriteUpsRepo;
+  filePins: FilePinsRepo;
   supports(feature: RepositoryFeature): boolean;
   transaction<T>(fn: (tx: Repository) => Promise<T>): Promise<T>;
 }

@@ -2,6 +2,7 @@ import {
   type AskThreadsRepo,
   type DesksRepo,
   type DiffHunksRepo,
+  type FilePinsRepo,
   NotSupportedError,
   type ProjectsRepo,
   type Repository,
@@ -16,6 +17,7 @@ const projectsStub: ProjectsRepo = {
   get: () => Promise.reject(new NotSupportedError("projects")),
   create: () => Promise.reject(new NotSupportedError("projects")),
   rename: () => Promise.reject(new NotSupportedError("projects")),
+  setPinned: () => Promise.reject(new NotSupportedError("projects")),
   forget: () => Promise.reject(new NotSupportedError("projects")),
   repoint: () => Promise.reject(new NotSupportedError("projects")),
   moveToDesk: () => Promise.reject(new NotSupportedError("projects")),
@@ -66,6 +68,13 @@ const writeUpsStub: WriteUpsRepo = {
   upsert: () => Promise.reject(new NotSupportedError("writeUps")),
 };
 
+const filePinsStub: FilePinsRepo = {
+  listForProject: () => Promise.reject(new NotSupportedError("filePins")),
+  pin: () => Promise.reject(new NotSupportedError("filePins")),
+  unpin: () => Promise.reject(new NotSupportedError("filePins")),
+  isPinned: () => Promise.reject(new NotSupportedError("filePins")),
+};
+
 export function buildWebRepository(): Repository {
   const self: Repository = {
     papers,
@@ -78,6 +87,7 @@ export function buildWebRepository(): Repository {
     diffHunks: diffHunksStub,
     askThreads: askThreadsStub,
     writeUps: writeUpsStub,
+    filePins: filePinsStub,
     supports(_feature: RepositoryFeature): boolean {
       return false;
     },

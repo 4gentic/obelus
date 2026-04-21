@@ -131,3 +131,9 @@ export interface WriteUpRow {
   bodyMd: string;
   updatedAt: string;
 }
+
+export interface FilePinRow {
+  projectId: string;
+  relPath: string;
+  pinnedAt: string;
+}
