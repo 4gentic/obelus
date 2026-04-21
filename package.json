@@ -23,6 +23,7 @@
     "guard:network": "node scripts/guard-network.mjs",
     "guard:desktop-only": "node scripts/guard-desktop-only.mjs",
     "guard:bundle-size": "node scripts/guard-bundle-size.mjs",
+    "plugin:e2e": "node scripts/plugin-e2e.mjs",
     "verify": "pnpm build && pnpm build:desktop-renderer && pnpm lint && pnpm typecheck && pnpm test && pnpm guard:network && pnpm guard:desktop-only && pnpm guard:bundle-size"
   },
   "devDependencies": {
