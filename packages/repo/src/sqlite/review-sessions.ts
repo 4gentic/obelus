@@ -7,6 +7,8 @@ interface ReviewSessionSqlRow {
   project_id: string;
   bundle_id: string;
   claude_version: string | null;
+  model: string | null;
+  effort: string | null;
   started_at: string;
   completed_at: string | null;
   applied_at: string | null;
@@ -18,6 +20,8 @@ function toRow(r: ReviewSessionSqlRow): ReviewSessionRow {
     projectId: r.project_id,
     bundleId: r.bundle_id,
     claudeVersion: r.claude_version,
+    model: r.model,
+    effort: r.effort,
     startedAt: r.started_at,
     completedAt: r.completed_at,
     appliedAt: r.applied_at,
@@ -25,7 +29,7 @@ function toRow(r: ReviewSessionSqlRow): ReviewSessionRow {
 }
 
 const SELECT =
-  "SELECT id, project_id, bundle_id, claude_version, started_at, completed_at, applied_at FROM review_sessions";
+  "SELECT id, project_id, bundle_id, claude_version, model, effort, started_at, completed_at, applied_at FROM review_sessions";
 
 export function buildReviewSessionsRepo(db: Database): ReviewSessionsRepo {
   return {
@@ -56,15 +60,25 @@ export function buildReviewSessionsRepo(db: Database): ReviewSessionsRepo {
       const id = crypto.randomUUID();
       const startedAt = new Date().toISOString();
       await db.execute(
-        `INSERT INTO review_sessions (id, project_id, bundle_id, claude_version, started_at)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [id, input.projectId, input.bundleId, input.claudeVersion, startedAt],
+        `INSERT INTO review_sessions (id, project_id, bundle_id, claude_version, model, effort, started_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          id,
+          input.projectId,
+          input.bundleId,
+          input.claudeVersion,
+          input.model,
+          input.effort,
+          startedAt,
+        ],
       );
       return {
         id,
         projectId: input.projectId,
         bundleId: input.bundleId,
         claudeVersion: input.claudeVersion,
+        model: input.model,
+        effort: input.effort,
         startedAt,
         completedAt: null,
         appliedAt: null,

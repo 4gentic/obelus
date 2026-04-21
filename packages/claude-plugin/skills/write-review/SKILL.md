@@ -3,12 +3,14 @@ name: write-review
 description: Turn an Obelus bundle's marks into a structured Markdown review — a reviewer's letter to the editor.
 argument-hint: <bundle-path> [paper-id] [rubric-path]
 disable-model-invocation: true
-allowed-tools: Read Glob Grep
+allowed-tools: Read Glob Grep Write
 ---
 
 # Write review
 
-Emit a structured Markdown review based on the reviewer's marks in an Obelus bundle. The output is a reviewer's letter — first-person, written for a journal editor or conference chair. This skill does **not** edit paper source; see `apply-revision` for that. It prints Markdown to stdout so the caller (web app user, desktop app, or another tool) can capture it.
+Emit a structured Markdown review based on the reviewer's marks in an Obelus bundle. The output is a reviewer's letter — first-person, written for a journal editor or conference chair. This skill does **not** edit paper source; see `apply-revision` for that.
+
+**The deliverable is a file.** Write the final Markdown review to `.obelus/writeup-<paper-id>-<iso-timestamp>.md` using the `Write` tool. Do **not** print the review letter to stdout; the desktop app reads the file after the run ends. The stdout channel is only for brief progress narration ("reading the bundle", "composing the letter") — keep it minimal. Everything the user sees lives in that file.
 
 ## Input
 
@@ -49,7 +51,7 @@ Emit a structured Markdown review based on the reviewer's marks in an Obelus bun
 
 6. **Compose the opening paragraph and the Major / Minor sections** (see "Composition" below).
 
-7. **Print, don't write.** Emit the full Markdown to stdout. Do not create or edit any file.
+7. **Write the file.** Use `Write` to create `.obelus/writeup-<paper-id>-<iso-timestamp>.md` containing the full Markdown review. The ISO timestamp is compact (e.g. `20260421-145536`). Do not print the review to stdout. Do not edit any paper source.
 
 ## v2 flow
 
@@ -64,7 +66,7 @@ Emit a structured Markdown review based on the reviewer's marks in an Obelus bun
 
 6v2. **Bucket annotations** using the same category → destination map as v1. Custom v2 slugs that aren't in the six standard categories fall into *Minor comments*.
 
-7v2. **Compose and print** as in v1. Use `bundle.papers[<target>].title` for the top heading.
+7v2. **Compose and write the file.** Use `bundle.papers[<target>].title` for the top heading, then `Write` the Markdown to `.obelus/writeup-<paper-id>-<iso-timestamp>.md` as in v1 step 7. Do not print the review to stdout.
 
 ## Composition
 

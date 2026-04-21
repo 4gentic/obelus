@@ -76,7 +76,8 @@ export default function FolioProject({
         <button
           type="button"
           className="folio__card"
-          disabled={busy !== null}
+          disabled
+          aria-disabled="true"
           onClick={() => void pickFolder()}
         >
           <span className="folio__card-title">I'm a writer.</span>
@@ -84,7 +85,7 @@ export default function FolioProject({
             For authors and co-authors. Open the folder that holds your paper source — LaTeX,
             Markdown, or Typst — and mark the rendered PDF for revision.
           </span>
-          <span className="folio__card-sub">Pick folder →</span>
+          <span className="folio__card-sub folio__card-sub--muted">Available soon</span>
         </button>
         <button
           type="button"

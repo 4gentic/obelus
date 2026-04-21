@@ -52,6 +52,17 @@
   color: transparent;
 }
 
+/* Apps may set `user-select: none` at the root to keep chrome unselectable; the
+   PDF text layer is the one place drag-selection must work. WKWebView treats
+   `-webkit-user-select` and `user-select` as separate properties in the
+   cascade, so both prefixes are required for selection to work in the packaged
+   Tauri build. */
+.pdf-page__text,
+.pdf-page__text * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .pdf-page__text ::selection {
   background: rgb(184 74 46 / 0.28);
   color: transparent;

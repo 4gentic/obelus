@@ -96,6 +96,8 @@ export interface ReviewSessionCreateInput {
   projectId: string;
   bundleId: string;
   claudeVersion: string | null;
+  model: string | null;
+  effort: string | null;
 }
 
 export interface ReviewSessionsRepo {

@@ -21,6 +21,15 @@ export function detectClaude(): Promise<ClaudeStatus> {
   return invoke<ClaudeStatus>("detect_claude");
 }
 
+export interface ClaudeUserSettings {
+  model: string | null;
+  effortLevel: string | null;
+}
+
+export function readClaudeUserSettings(): Promise<ClaudeUserSettings> {
+  return invoke<ClaudeUserSettings>("read_claude_user_settings");
+}
+
 export interface PickedRoot {
   path: string;
   rootId: string;
@@ -69,6 +78,13 @@ export function fsWriteBytes(rootId: string, relPath: string, bytes: Uint8Array)
 
 export function fsWriteText(rootId: string, relPath: string, body: string): Promise<void> {
   return invoke<void>("fs_write_text", { rootId, relPath, body });
+}
+
+// Writes text to an absolute path the user picked via the native save dialog.
+// Bypasses the project-root scope of `fs_write_text`; the dialog is the trust
+// boundary. The Rust side rejects non-absolute paths.
+export function fsWriteTextAbs(path: string, body: string): Promise<void> {
+  return invoke<void>("fs_write_text_abs", { path, body });
 }
 
 export function fsListPdfs(rootId: string): Promise<string[]> {

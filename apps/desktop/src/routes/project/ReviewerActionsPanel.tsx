@@ -1,14 +1,16 @@
 import { formatReviewPrompt, type PromptAnnotation } from "@obelus/bundle-builder";
 import type { PaperRow } from "@obelus/repo";
+import { save } from "@tauri-apps/plugin-dialog";
 import type { JSX, MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { readClaudeStatus } from "../../boot/detect";
-import { fsWriteBytes, fsWriteText } from "../../ipc/commands";
+import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
 import { exportBundleV2ForProject } from "./build-bundle";
+import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
 import RubricPanel from "./RubricPanel";
-import { useWriteUpRunner } from "./writeup-store-context";
+import { useWriteUpProgress, useWriteUpRunner, useWriteUpStore } from "./writeup-store-context";
 
 function slugify(name: string): string {
   const dot = name.lastIndexOf(".");
@@ -33,10 +35,18 @@ type ExportState =
   | { kind: "idle" }
   | { kind: "error"; message: string }
   | { kind: "json"; relPath: string }
-  | { kind: "markdown"; relPath: string }
+  | { kind: "markdown"; path: string }
   | { kind: "copied" };
 
-export default function ReviewerActionsPanel(): JSX.Element {
+interface ReviewerActionsPanelProps {
+  wide: boolean;
+  onToggleWide: () => void;
+}
+
+export default function ReviewerActionsPanel({
+  wide,
+  onToggleWide,
+}: ReviewerActionsPanelProps): JSX.Element {
   const { project, repo, rootId } = useProject();
   const openPaper = useOpenPaper();
   const runner = useWriteUpRunner();
@@ -150,9 +160,14 @@ export default function ReviewerActionsPanel(): JSX.Element {
         annotations: ctx.annotations,
         ...(paper.rubric ? { rubric: { label: paper.rubric.label, body: paper.rubric.body } } : {}),
       });
-      const relPath = `.obelus/review-${slugify(paperTitle || "paper")}-${timestampForFilename()}.md`;
-      await fsWriteText(rootId, relPath, text);
-      setExportState({ kind: "markdown", relPath });
+      const defaultName = `review-${slugify(paperTitle || "paper")}-${timestampForFilename()}.md`;
+      const picked = await save({
+        defaultPath: defaultName,
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+      });
+      if (!picked) return;
+      await fsWriteTextAbs(picked, text);
+      setExportState({ kind: "markdown", path: picked });
     } catch (err) {
       setExportState({
         kind: "error",
@@ -213,9 +228,14 @@ export default function ReviewerActionsPanel(): JSX.Element {
     if (openPaper.kind !== "ready") return;
     await store.getState().save();
     const pdfName = openPaper.path.split("/").pop() ?? "paper";
-    const relPath = `.obelus/review-${slugify(pdfName)}-${timestampForFilename()}.md`;
-    await fsWriteText(rootId, relPath, body);
-    setSavedDraftAt(relPath);
+    const defaultName = `review-${slugify(pdfName)}-${timestampForFilename()}.md`;
+    const picked = await save({
+      defaultPath: defaultName,
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+    });
+    if (!picked) return;
+    await fsWriteTextAbs(picked, body);
+    setSavedDraftAt(picked);
   }
 
   async function onCopyDraft(): Promise<void> {
@@ -237,6 +257,23 @@ export default function ReviewerActionsPanel(): JSX.Element {
 
   return (
     <section className="reviewer-actions" aria-label="Review">
+      <header className="reviewer-actions__head">
+        <h2 className="reviewer-actions__heading">Reviewer's letter</h2>
+        <div className="reviewer-actions__head-tools">
+          {claudeReady ? <ClaudeChip /> : null}
+          <button
+            type="button"
+            className="reviewer-actions__widen"
+            onClick={onToggleWide}
+            aria-pressed={wide}
+            aria-label={wide ? "Restore review pane width" : "Widen review pane"}
+            title={wide ? "Restore width" : "Widen"}
+          >
+            <WidenIcon expanded={wide} />
+            <span className="reviewer-actions__widen-label">{wide ? "Narrow" : "Widen"}</span>
+          </button>
+        </div>
+      </header>
       <RubricPanel paper={paperRowForRubric} />
       <p className="reviewer-actions__hint">
         {claudeReady
@@ -296,7 +333,7 @@ function ExportChips({
       <button type="button" className="reviewer-actions__chip" onClick={onExportMarkdown}>
         <span className="reviewer-actions__chip-label">Markdown</span>
         <span className="reviewer-actions__chip-hint">
-          {state.kind === "markdown" ? state.relPath : "review-<title>-<ts>.md"}
+          {state.kind === "markdown" ? state.path : "choose where to save…"}
         </span>
       </button>
       <button type="button" className="reviewer-actions__chip" onClick={onCopyPrompt}>
@@ -342,6 +379,31 @@ function ClaudeAction({
   copied,
   error,
 }: ClaudeProps): JSX.Element {
+  const progressStore = useWriteUpProgress();
+  const writeupStore = useWriteUpStore();
+  const phase = progressStore((s) => s.phase);
+  const toolEvents = progressStore((s) => s.toolEvents);
+  const assistantChars = progressStore((s) => s.assistantChars);
+  const transcript = writeupStore((s) => s.transcript);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const transcriptRef = useRef<HTMLPreElement | null>(null);
+
+  const transcriptLen = transcript.length;
+  useEffect(() => {
+    if (!transcriptOpen || !streaming) return;
+    const el = transcriptRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    // transcriptLen is the scroll trigger.
+    void transcriptLen;
+  }, [transcriptLen, transcriptOpen, streaming]);
+
+  const phaseLabel = streaming
+    ? phase || (assistantChars > 0 ? "Drafting…" : "Reading your marks…")
+    : hasBody
+      ? "Draft ready."
+      : "Idle.";
+
   return (
     <div className="reviewer-actions__claude">
       <div className="reviewer-actions__claude-head">
@@ -355,18 +417,58 @@ function ClaudeAction({
           </button>
         )}
         {streaming ? <span className="reviewer-actions__pulse" aria-hidden="true" /> : null}
-        <span className="reviewer-actions__claude-label">
-          {streaming ? "Claude is reading your marks…" : hasBody ? "Draft ready." : "Idle."}
-        </span>
+        <span className="reviewer-actions__claude-label">{phaseLabel}</span>
       </div>
 
-      {streaming || hasBody ? (
-        <div ref={outputRef} className="reviewer-actions__output" aria-live="polite">
-          <pre className="reviewer-actions__output-pre">
-            {body}
-            {streaming ? <span className="reviewer-actions__caret" aria-hidden="true" /> : null}
-          </pre>
+      {streaming ? (
+        <div className="reviewer-actions__progress-row">
+          <p className="reviewer-actions__progress">
+            {toolEvents} tool{toolEvents === 1 ? "" : "s"}
+            {transcript.length > 0 ? ` · ${transcript.length.toLocaleString()} chars streamed` : ""}
+          </p>
+          <button
+            type="button"
+            className="reviewer-actions__transcript-toggle"
+            onClick={() => setTranscriptOpen((v) => !v)}
+            aria-expanded={transcriptOpen}
+          >
+            {transcriptOpen ? "hide live output" : "show live output"}
+          </button>
         </div>
+      ) : null}
+
+      {!streaming && hasBody ? (
+        <div ref={outputRef} className="reviewer-actions__output" aria-live="polite">
+          <pre className="reviewer-actions__output-pre">{body}</pre>
+        </div>
+      ) : null}
+
+      {transcript.length > 0 ? (
+        <>
+          {!streaming ? (
+            <div className="reviewer-actions__progress-row reviewer-actions__progress-row--after">
+              <p className="reviewer-actions__progress">
+                Claude's full output · {transcript.length.toLocaleString()} chars
+              </p>
+              <button
+                type="button"
+                className="reviewer-actions__transcript-toggle"
+                onClick={() => setTranscriptOpen((v) => !v)}
+                aria-expanded={transcriptOpen}
+              >
+                {transcriptOpen ? "hide" : "show"}
+              </button>
+            </div>
+          ) : null}
+          {transcriptOpen ? (
+            <div className="reviewer-actions__transcript" aria-live="polite">
+              <pre ref={transcriptRef} className="reviewer-actions__transcript-pre">
+                {transcript || "waiting for Claude…"}
+                {streaming ? <span className="reviewer-actions__caret" aria-hidden="true" /> : null}
+              </pre>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {hasBody && !streaming ? (
@@ -389,6 +491,39 @@ function ClaudeAction({
         </p>
       ) : null}
     </div>
+  );
+}
+
+function WidenIcon({ expanded }: { expanded: boolean }): JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="8" y1="2" x2="8" y2="14" />
+      {expanded ? (
+        <>
+          <polyline points="12,4 10,8 12,12" />
+          <line x1="10" y1="8" x2="14" y2="8" />
+          <polyline points="4,4 6,8 4,12" />
+          <line x1="2" y1="8" x2="6" y2="8" />
+        </>
+      ) : (
+        <>
+          <polyline points="10,4 12,8 10,12" />
+          <line x1="14" y1="8" x2="10" y2="8" />
+          <polyline points="6,4 4,8 6,12" />
+          <line x1="2" y1="8" x2="6" y2="8" />
+        </>
+      )}
+    </svg>
   );
 }
 

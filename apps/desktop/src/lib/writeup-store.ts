@@ -11,12 +11,13 @@ export interface WriteUpState {
   paperId: string | null;
   row: WriteUpRow | null;
   body: string;
+  transcript: string;
   dirty: boolean;
   status: WriteUpStatus;
 
   load(projectId: string, paperId: string): Promise<void>;
   startDrafting(claudeSessionId: string): void;
-  appendChunk(line: string): void;
+  appendTranscript(chunk: string): void;
   finishDrafting(opts?: { cancelled?: boolean }): Promise<void>;
   failDrafting(message: string): void;
   setBody(body: string): void;
@@ -31,6 +32,7 @@ export function createWriteUpStore(repo: WriteUpsRepo): WriteUpStore {
     paperId: null,
     row: null,
     body: "",
+    transcript: "",
     dirty: false,
     status: { kind: "idle" },
 
@@ -41,6 +43,7 @@ export function createWriteUpStore(repo: WriteUpsRepo): WriteUpStore {
         paperId,
         row: existing ?? null,
         body: existing?.bodyMd ?? "",
+        transcript: "",
         dirty: false,
         status: { kind: "idle" },
       });
@@ -48,17 +51,15 @@ export function createWriteUpStore(repo: WriteUpsRepo): WriteUpStore {
 
     startDrafting(claudeSessionId: string): void {
       set({
-        body: "",
-        dirty: true,
+        transcript: "",
         status: { kind: "streaming", claudeSessionId },
       });
     },
 
-    appendChunk(line: string): void {
-      const { status, body } = get();
+    appendTranscript(chunk: string): void {
+      const { status, transcript } = get();
       if (status.kind !== "streaming") return;
-      const nextBody = body.length === 0 ? line : `${body}\n${line}`;
-      set({ body: nextBody });
+      set({ transcript: transcript + chunk });
     },
 
     async finishDrafting(opts?: { cancelled?: boolean }): Promise<void> {

@@ -135,15 +135,31 @@ async fn spawn_streaming(
     Ok(session_str)
 }
 
-fn claude_command(claude: &Path, project_root: &Path) -> Command {
+fn claude_command(
+    claude: &Path,
+    project_root: &Path,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Command {
     let mut cmd = Command::new(claude);
     cmd.arg("--print")
+        .arg("--output-format")
+        .arg("stream-json")
+        .arg("--include-partial-messages")
+        .arg("--verbose")
         .arg("--add-dir")
         .arg(project_root)
         .arg("--allowedTools")
         .arg("Read")
         .arg("Glob")
-        .arg("Grep");
+        .arg("Grep")
+        .arg("Write");
+    if let Some(m) = model.filter(|s| !s.is_empty()) {
+        cmd.arg("--model").arg(m);
+    }
+    if let Some(e) = effort.filter(|s| !s.is_empty()) {
+        cmd.arg("--effort").arg(e);
+    }
     cmd
 }
 
@@ -152,6 +168,8 @@ pub async fn claude_spawn(
     root_id: String,
     bundle_rel_path: String,
     extra_prompt_body: Option<String>,
+    model: Option<String>,
+    effort: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> AppResult<String> {
@@ -179,7 +197,7 @@ pub async fn claude_spawn(
         }
     }
 
-    let mut cmd = claude_command(&claude, &root);
+    let mut cmd = claude_command(&claude, &root, model.as_deref(), effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await
@@ -192,6 +210,8 @@ pub async fn claude_draft_writeup(
     paper_id: String,
     paper_title: String,
     rubric_rel_path: Option<String>,
+    model: Option<String>,
+    effort: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> AppResult<String> {
@@ -224,7 +244,7 @@ pub async fn claude_draft_writeup(
         ));
     }
 
-    let mut cmd = claude_command(&claude, &root);
+    let mut cmd = claude_command(&claude, &root, model.as_deref(), effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await
@@ -234,6 +254,8 @@ pub async fn claude_draft_writeup(
 pub async fn claude_ask(
     root_id: String,
     prompt_body: String,
+    model: Option<String>,
+    effort: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> AppResult<String> {
@@ -249,7 +271,7 @@ pub async fn claude_ask(
         s.push('\n');
         s
     };
-    let cmd = claude_command(&claude, &root);
+    let cmd = claude_command(&claude, &root, model.as_deref(), effort.as_deref());
     spawn_streaming(cmd, body, app, &state).await
 }
 
