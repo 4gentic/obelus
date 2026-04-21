@@ -13,12 +13,24 @@ Commits that only touch `apps/web/**`, `packages/` (other than the plugin), docs
 
 ## Version bumps
 
-[release-please](https://github.com/googleapis/release-please) watches `main` for Conventional Commits and opens a PR per component that bumps the relevant `version` fields and updates that component's `CHANGELOG.md`. Releases are **published on merge** (no draft step) so the tag pushes immediately and downstream workflows see a real `release.published` event.
+[release-please](https://github.com/googleapis/release-please) watches `main` for Conventional Commits and opens a PR per component that bumps the relevant `version` fields and updates that component's `CHANGELOG.md`. Releases are **published on merge** (no draft step).
 
 - **Plugin PR** bumps `packages/claude-plugin/package.json` and `packages/claude-plugin/.claude-plugin/plugin.json`. Merging it creates `plugin-v<version>` and publishes a source-only GitHub Release with the changelog — there are no binaries to build; users install the plugin from the tagged source.
-- **Desktop PR** bumps `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`, and `apps/desktop/src-tauri/Cargo.toml`. Merging it creates `desktop-v<version>` and publishes a GitHub Release with the changelog; that fires `release.yml`, which builds binaries for macOS (arm64 + x64), Linux AppImage, and Windows via `tauri-action` and uploads them to the already-published release.
+- **Desktop PR** bumps `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`, and `apps/desktop/src-tauri/Cargo.toml`. Merging it creates `desktop-v<version>` and publishes a GitHub Release with the changelog; `release-please.yml` then invokes `release.yml` via `workflow_call`, which builds binaries for macOS (arm64 + x64), Linux AppImage, and Windows via `tauri-action` and uploads them to the already-published release.
 
 Users landing on the release page during the ~10–15 min matrix build see a release with a changelog and no binaries yet; binaries appear as each matrix target finishes.
+
+`release.yml` is chained directly from `release-please.yml` rather than relying on the `release.published` event: releases authored by the default `GITHUB_TOKEN` do not cascade into other workflows, so an event-driven trigger would silently skip every auto-published release. The `release.published` trigger is retained as a fallback for releases published manually through the Releases UI.
+
+### Manual backfills
+
+If a build is missing for an already-published release, re-run the matrix directly:
+
+```sh
+gh workflow run release.yml -f tag=desktop-v<version>
+```
+
+The workflow resolves the release id from the tag and uploads assets to the existing release.
 
 ## One-time setup — updater keypair
 
