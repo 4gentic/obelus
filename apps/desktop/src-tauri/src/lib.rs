@@ -9,7 +9,10 @@ use commands::{
     claude_session::{claude_ask, claude_cancel, claude_draft_writeup, claude_spawn},
     db_tx::db_tx_batch,
     dialog::{open_folder_picker, open_pdf_picker, open_rubric_picker},
-    fs_scoped::{fs_list_pdfs, fs_read_dir, fs_read_file, fs_stat, fs_write_bytes, fs_write_text},
+    fs_scoped::{
+        fs_list_pdfs, fs_read_dir, fs_read_file, fs_stat, fs_write_bytes, fs_write_text,
+        fs_write_text_abs,
+    },
     project::authorize_project_root,
     typst::compile_typst,
 };
@@ -39,6 +42,7 @@ pub fn run() {
             fs_read_dir,
             fs_write_bytes,
             fs_write_text,
+            fs_write_text_abs,
             fs_list_pdfs,
             fs_stat,
             claude_spawn,

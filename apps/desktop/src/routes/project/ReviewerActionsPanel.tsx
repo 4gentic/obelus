@@ -1,9 +1,10 @@
 import { formatReviewPrompt, type PromptAnnotation } from "@obelus/bundle-builder";
 import type { PaperRow } from "@obelus/repo";
+import { save } from "@tauri-apps/plugin-dialog";
 import type { JSX, MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { readClaudeStatus } from "../../boot/detect";
-import { fsWriteBytes, fsWriteText } from "../../ipc/commands";
+import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
 import { exportBundleV2ForProject } from "./build-bundle";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
@@ -33,7 +34,7 @@ type ExportState =
   | { kind: "idle" }
   | { kind: "error"; message: string }
   | { kind: "json"; relPath: string }
-  | { kind: "markdown"; relPath: string }
+  | { kind: "markdown"; path: string }
   | { kind: "copied" };
 
 export default function ReviewerActionsPanel(): JSX.Element {
@@ -150,9 +151,14 @@ export default function ReviewerActionsPanel(): JSX.Element {
         annotations: ctx.annotations,
         ...(paper.rubric ? { rubric: { label: paper.rubric.label, body: paper.rubric.body } } : {}),
       });
-      const relPath = `.obelus/review-${slugify(paperTitle || "paper")}-${timestampForFilename()}.md`;
-      await fsWriteText(rootId, relPath, text);
-      setExportState({ kind: "markdown", relPath });
+      const defaultName = `review-${slugify(paperTitle || "paper")}-${timestampForFilename()}.md`;
+      const picked = await save({
+        defaultPath: defaultName,
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+      });
+      if (!picked) return;
+      await fsWriteTextAbs(picked, text);
+      setExportState({ kind: "markdown", path: picked });
     } catch (err) {
       setExportState({
         kind: "error",
@@ -213,9 +219,14 @@ export default function ReviewerActionsPanel(): JSX.Element {
     if (openPaper.kind !== "ready") return;
     await store.getState().save();
     const pdfName = openPaper.path.split("/").pop() ?? "paper";
-    const relPath = `.obelus/review-${slugify(pdfName)}-${timestampForFilename()}.md`;
-    await fsWriteText(rootId, relPath, body);
-    setSavedDraftAt(relPath);
+    const defaultName = `review-${slugify(pdfName)}-${timestampForFilename()}.md`;
+    const picked = await save({
+      defaultPath: defaultName,
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+    });
+    if (!picked) return;
+    await fsWriteTextAbs(picked, body);
+    setSavedDraftAt(picked);
   }
 
   async function onCopyDraft(): Promise<void> {
@@ -296,7 +307,7 @@ function ExportChips({
       <button type="button" className="reviewer-actions__chip" onClick={onExportMarkdown}>
         <span className="reviewer-actions__chip-label">Markdown</span>
         <span className="reviewer-actions__chip-hint">
-          {state.kind === "markdown" ? state.relPath : "review-<title>-<ts>.md"}
+          {state.kind === "markdown" ? state.path : "choose where to save…"}
         </span>
       </button>
       <button type="button" className="reviewer-actions__chip" onClick={onCopyPrompt}>

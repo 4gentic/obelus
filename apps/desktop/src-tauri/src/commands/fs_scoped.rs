@@ -161,6 +161,22 @@ pub async fn fs_write_text(
     atomic_write(&abs, body.as_bytes()).await
 }
 
+// Writes a text file to an absolute path the user just picked via the native
+// `save()` dialog. The dialog is the user-trust boundary; this command only
+// rejects relative paths so a malformed frontend call can't append-to-cwd.
+// Distinct from `fs_write_text`, which is strictly scoped to a project root.
+#[tauri::command]
+pub async fn fs_write_text_abs(path: String, body: String) -> AppResult<()> {
+    let abs = Path::new(&path);
+    if !abs.is_absolute() {
+        return Err(AppError::OutOfScope);
+    }
+    if let Some(parent) = abs.parent() {
+        tokio::fs::create_dir_all(parent).await.map_err(AppError::from)?;
+    }
+    atomic_write(abs, body.as_bytes()).await
+}
+
 #[tauri::command]
 pub async fn fs_list_pdfs(
     root_id: String,
