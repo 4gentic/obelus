@@ -53,16 +53,12 @@
   },
   "plugins": {
     "updater": {
-      "endpoints": [
-        "https://github.com/4gentic/obelus/releases/latest/download/latest.json"
-      ],
+      "endpoints": ["https://github.com/4gentic/obelus/releases/latest/download/latest.json"],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcxNDJDMDBFREE3ODBDMApSV1RBZ0tmdEFDd1VCMEczdFJRZDZzalI3bG9VTWtMbUI5dCtEWW5tUmNTQnZCUDJLbkhzM3FwMQo="
     },
     "deep-link": {
       "desktop": {
-        "schemes": [
-          "obelus"
-        ]
+        "schemes": ["obelus"]
       }
     }
   }
