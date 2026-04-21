@@ -8,6 +8,8 @@ type Props = {
   onChange: (next: string) => void;
   name: string;
   disabled?: boolean;
+  invalid?: boolean;
+  errorId?: string;
 };
 
 export default function CategoryPicker({
@@ -15,9 +17,17 @@ export default function CategoryPicker({
   onChange,
   name,
   disabled = false,
+  invalid = false,
+  errorId,
 }: Props): JSX.Element {
   return (
-    <fieldset className="catpick" disabled={disabled}>
+    <fieldset
+      className="catpick"
+      disabled={disabled}
+      data-invalid={invalid ? "true" : "false"}
+      aria-invalid={invalid || undefined}
+      aria-describedby={invalid && errorId ? errorId : undefined}
+    >
       <legend className="catpick__legend">Category</legend>
       <div className="catpick__row" role="radiogroup">
         {DEFAULT_CATEGORIES.map((c) => {

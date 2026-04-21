@@ -778,6 +778,22 @@ ul.files__tree--flat li {
   gap: var(--space-2);
 }
 
+.review-draft__hint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.review-draft__error {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--rubric);
+  letter-spacing: 0.02em;
+}
+
 .review-draft__quote {
   margin: 0;
   padding: var(--space-2);
@@ -821,6 +837,16 @@ ul.files__tree--flat li {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
+}
+
+.category-picker[data-invalid="true"] {
+  outline: 1px solid var(--rubric);
+  outline-offset: 4px;
+  border-radius: var(--radius-1);
+}
+
+.category-picker[data-invalid="true"] .category-picker__legend {
+  color: var(--rubric);
 }
 
 .category-chip {
