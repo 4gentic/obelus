@@ -1,14 +1,26 @@
 # Releasing
 
-Desktop releases are triggered by pushing a `v*` tag. `.github/workflows/release.yml` builds for macOS (arm64 + x64), Windows x64, and Linux x64 AppImage via `tauri-action`, uploads artifacts to a draft GitHub Release, and flips it to public when all targets succeed.
+Obelus ships two artifacts: the desktop app and the Claude Code plugin. The web app deploys continuously from `main` (see `.github/workflows/pages.yml`) and is *not* released — users never download it.
+
+Each shippable lives as its own release-please package, so commits only trigger a release PR for the component they touch:
+
+| Component | Path | Tag prefix | Changelog |
+| --- | --- | --- | --- |
+| Desktop | `apps/desktop/**` | `desktop-v*` | `apps/desktop/CHANGELOG.md` |
+| Plugin | `packages/claude-plugin/**` | `plugin-v*` | `packages/claude-plugin/CHANGELOG.md` |
+
+Commits that only touch `apps/web/**`, `packages/` (other than the plugin), docs, or CI do not open a release PR.
+
+## Desktop flow
+
+Desktop releases are triggered by pushing a `desktop-v*` tag. `.github/workflows/release.yml` builds for macOS (arm64 + x64), Windows x64, and Linux x64 AppImage via `tauri-action`, uploads artifacts to a draft GitHub Release, and flips it to public when all targets succeed.
 
 ## Version bumps
 
-[release-please](https://github.com/googleapis/release-please) watches `main` for Conventional Commits and opens a PR that bumps the relevant `version` fields (`package.json`, `Cargo.toml`, `tauri.conf.json`) and updates `CHANGELOG.md`. Merging that PR:
+[release-please](https://github.com/googleapis/release-please) watches `main` for Conventional Commits and opens a PR per component that bumps the relevant `version` fields and updates that component's `CHANGELOG.md`.
 
-1. Creates a `v<version>` git tag.
-2. Drafts a GitHub Release with the generated changelog.
-3. Triggers `.github/workflows/release.yml` — the matrix build for all three platforms.
+- **Desktop PR** bumps `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`, and `apps/desktop/src-tauri/Cargo.toml`. Merging it creates `desktop-v<version>`, drafts a GitHub Release, and triggers `release.yml`.
+- **Plugin PR** bumps `packages/claude-plugin/package.json` and `packages/claude-plugin/.claude-plugin/plugin.json`. Merging it creates `plugin-v<version>` and drafts a GitHub Release with the changelog — there are no binaries to build; users install the plugin from the tagged source.
 
 ## One-time setup — updater keypair
 

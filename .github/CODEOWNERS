@@ -45,7 +45,8 @@ README.md                                   @aguilarguisado
 CONTRIBUTING.md                             @aguilarguisado
 CODE_OF_CONDUCT.md                          @aguilarguisado
 SUPPORT.md                                  @aguilarguisado
-CHANGELOG.md                                @aguilarguisado
+apps/desktop/CHANGELOG.md                   @aguilarguisado
+packages/claude-plugin/CHANGELOG.md         @aguilarguisado
 SECURITY.md                                 @aguilarguisado
 .github/ISSUE_TEMPLATE/**                   @aguilarguisado
 .github/PULL_REQUEST_TEMPLATE.md            @aguilarguisado
