@@ -14,7 +14,7 @@ export interface AskState {
   load(threadId: string): Promise<void>;
   appendUser(body: string): Promise<AskMessageRow>;
   startAssistant(claudeSessionId: string): Promise<AskMessageRow>;
-  appendChunk(line: string): void;
+  appendChunk(chunk: string): void;
   finishAssistant(opts?: { cancelled?: boolean }): Promise<void>;
   failAssistant(message: string): Promise<void>;
   clear(): Promise<void>;
@@ -60,12 +60,12 @@ export function createAskStore(repo: AskThreadsRepo): AskStore {
       return row;
     },
 
-    appendChunk(line: string): void {
+    appendChunk(chunk: string): void {
       const { status, messages } = get();
       if (status.kind !== "streaming") return;
       const current = messages.find((m) => m.id === status.assistantId);
       if (!current) return;
-      const nextBody = current.body.length === 0 ? line : `${current.body}\n${line}`;
+      const nextBody = current.body + chunk;
       set({ messages: withMessage(messages, status.assistantId, { body: nextBody }) });
     },
 

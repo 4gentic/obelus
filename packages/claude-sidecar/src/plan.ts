@@ -22,3 +22,13 @@ export function pickLatestPlanName(names: ReadonlyArray<string>): string | null 
   if (candidates.length === 0) return null;
   return [...candidates].sort().at(-1) ?? null;
 }
+
+export function pickLatestWriteupName(
+  names: ReadonlyArray<string>,
+  paperId: string,
+): string | null {
+  const prefix = `writeup-${paperId}-`;
+  const candidates = names.filter((n) => n.startsWith(prefix) && n.endsWith(".md"));
+  if (candidates.length === 0) return null;
+  return [...candidates].sort().at(-1) ?? null;
+}

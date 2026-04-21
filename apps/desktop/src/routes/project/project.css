@@ -490,8 +490,9 @@ ul.files__tree--flat li {
 
 .diff-review__counter {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--step--1);
   color: var(--ink-soft);
@@ -1408,6 +1409,73 @@ ul.files__tree--flat li {
   line-height: 1;
 }
 
+.reviewer-actions__head-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.reviewer-actions__progress {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+}
+
+.reviewer-actions__progress-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.reviewer-actions__progress-row--after {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--rule-soft);
+}
+
+.reviewer-actions__transcript-toggle {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+  transition: color 120ms linear;
+}
+
+.reviewer-actions__transcript-toggle:hover {
+  color: var(--rubric);
+}
+
+.reviewer-actions__transcript {
+  margin-top: var(--space-1);
+  border: 1px solid var(--rule-soft);
+  background: color-mix(in oklab, var(--panel) 70%, var(--paper));
+  max-height: 360px;
+  overflow: hidden;
+  display: flex;
+}
+
+.reviewer-actions__transcript-pre {
+  flex: 1;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  line-height: 1.55;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+}
+
 .reviewer-actions__empty {
   color: var(--ink-soft);
   font-style: italic;
@@ -1612,4 +1680,187 @@ ul.files__tree--flat li {
 
 .reviewer-actions__status[data-status="error"] {
   color: var(--rubric);
+}
+
+/* --- Live review progress panel ------------------------------------------ */
+
+.review-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2);
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  line-height: 1.7;
+}
+
+.review-progress__head {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.review-progress__phase {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 1.6em;
+}
+
+.review-progress__pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rubric);
+  animation: review-progress-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes review-progress-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.review-progress__counters {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+
+.review-progress__filler {
+  margin: var(--space-3) 0 0 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--ink-soft);
+  opacity: 0.7;
+  transition: opacity 280ms ease-in;
+}
+
+/* --- Claude chip + popover ----------------------------------------------- */
+
+.claude-chip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.claude-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--rule-soft);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color 120ms linear;
+}
+
+.claude-chip:hover,
+.claude-chip--open {
+  border-color: var(--ink);
+}
+
+.claude-chip__value {
+  color: var(--ink);
+}
+
+.claude-chip__sep {
+  color: var(--ink-soft);
+}
+
+.claude-chip__caret {
+  color: var(--ink-soft);
+  font-size: 0.85em;
+  margin-left: 0.1em;
+}
+
+.claude-chip-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 220px;
+  padding: var(--space-3);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--ink) 12%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.claude-chip-pop__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.claude-chip-pop__label {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.claude-chip-pop__options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.claude-chip-pop__opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px var(--space-2);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.claude-chip-pop__opt:hover {
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+
+.claude-chip-pop__opt--on {
+  background: color-mix(in oklab, var(--rubric) 12%, transparent);
+  border-color: color-mix(in oklab, var(--rubric) 40%, transparent);
+}
+
+.claude-chip-pop__hint {
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+}
+
+.claude-chip-pop__foot {
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--rule-soft);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
 }

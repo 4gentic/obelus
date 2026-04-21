@@ -21,6 +21,15 @@ export function detectClaude(): Promise<ClaudeStatus> {
   return invoke<ClaudeStatus>("detect_claude");
 }
 
+export interface ClaudeUserSettings {
+  model: string | null;
+  effortLevel: string | null;
+}
+
+export function readClaudeUserSettings(): Promise<ClaudeUserSettings> {
+  return invoke<ClaudeUserSettings>("read_claude_user_settings");
+}
+
 export interface PickedRoot {
   path: string;
   rootId: string;

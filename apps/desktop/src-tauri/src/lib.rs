@@ -7,6 +7,7 @@ use commands::{
     apply::apply_hunks,
     claude::detect_claude,
     claude_session::{claude_ask, claude_cancel, claude_draft_writeup, claude_spawn},
+    claude_user_settings::read_claude_user_settings,
     db_tx::db_tx_batch,
     dialog::{open_folder_picker, open_pdf_picker, open_rubric_picker},
     fs_scoped::{
@@ -49,6 +50,7 @@ pub fn run() {
             claude_ask,
             claude_draft_writeup,
             claude_cancel,
+            read_claude_user_settings,
             apply_hunks,
             compile_typst,
             db_tx_batch,

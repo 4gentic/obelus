@@ -2,11 +2,15 @@ import {
   type ClaudeStreamEvent,
   claudeAsk,
   claudeCancel,
+  extractDeltaText,
+  extractResultText,
   onClaudeExit,
   onClaudeStderr,
   onClaudeStdout,
+  parseStreamLine,
 } from "@obelus/claude-sidecar";
 import { type JSX, useEffect, useRef, useState } from "react";
+import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { useAskStore } from "./ask-store-context";
 import { buildAskPrompt } from "./build-ask-prompt";
 import { useProject } from "./context";
@@ -58,7 +62,24 @@ export default function AskPanel(): JSX.Element {
 
     void onClaudeStdout((ev: ClaudeStreamEvent) => {
       if (!matchSession(ev.sessionId)) return;
-      askStore.getState().appendChunk(ev.line);
+      const parsed = parseStreamLine(ev.line);
+      if (!parsed) return;
+      const result = extractResultText(parsed);
+      if (result !== null) {
+        // Final authoritative message — prefer it over accumulated deltas.
+        const current = askStore.getState();
+        const s = current.status;
+        if (s.kind !== "streaming") return;
+        const msgs = current.messages;
+        const target = msgs.find((m) => m.id === s.assistantId);
+        if (!target) return;
+        askStore.setState({
+          messages: msgs.map((m) => (m.id === s.assistantId ? { ...m, body: result } : m)),
+        });
+        return;
+      }
+      const delta = extractDeltaText(parsed);
+      if (delta) askStore.getState().appendChunk(delta);
     }).then((fn) => {
       unlistenStdout = fn;
     });
@@ -122,7 +143,13 @@ export default function AskPanel(): JSX.Element {
 
     try {
       await askStore.getState().appendUser(question);
-      const claudeSessionId = await claudeAsk({ rootId, promptBody });
+      const overrides = await loadClaudeOverrides();
+      const claudeSessionId = await claudeAsk({
+        rootId,
+        promptBody,
+        model: overrides.model,
+        effort: overrides.effort,
+      });
       await askStore.getState().startAssistant(claudeSessionId);
     } catch (err) {
       await askStore

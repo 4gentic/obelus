@@ -2,9 +2,12 @@ import {
   type ClaudeStreamEvent,
   claudeCancel,
   claudeDraftWriteup,
+  extractDeltaText,
+  isContentBlockStop,
   onClaudeExit,
   onClaudeStderr,
   onClaudeStdout,
+  parseStreamLine,
 } from "@obelus/claude-sidecar";
 import {
   createContext,
@@ -16,12 +19,16 @@ import {
   useMemo,
 } from "react";
 import { fsWriteBytes, fsWriteText } from "../../ipc/commands";
+import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { createWriteUpStore, type WriteUpStore } from "../../lib/writeup-store";
 import { exportBundleV2ForProject } from "./build-bundle";
 import { useProject } from "./context";
+import { ingestWriteupFile } from "./ingest-writeup";
+import { createReviewProgressStore, type ReviewProgressStore } from "./review-progress-store";
 
 export interface WriteUpRunner {
   store: WriteUpStore;
+  progressStore: ReviewProgressStore;
   beginDraft(paperId: string, paperTitle: string): Promise<void>;
   cancelDraft(): Promise<void>;
 }
@@ -31,6 +38,7 @@ const WriteUpRunnerContext = createContext<WriteUpRunner | null>(null);
 export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX.Element {
   const { project, repo, rootId } = useProject();
   const store = useMemo(() => createWriteUpStore(repo.writeUps), [repo]);
+  const progressStore = useMemo(() => createReviewProgressStore(), []);
 
   useEffect(() => {
     // `onClaude*` are async: if the effect re-runs (HMR, store memo invalidation,
@@ -51,7 +59,25 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
     void onClaudeStdout((ev: ClaudeStreamEvent) => {
       if (cancelled) return;
       if (!matchSession(ev.sessionId)) return;
-      store.getState().appendChunk(ev.line);
+      const parsed = parseStreamLine(ev.line);
+      if (!parsed) return;
+      progressStore.getState().ingest(parsed);
+      // Raw Claude output (preamble, narration, the letter itself) streams
+      // into `transcript` — a live view the user can expand. The final clean
+      // letter comes from the .obelus/writeup-*.md file on exit, never from
+      // the stdout stream. Block seams get a blank line so consecutive turns
+      // don't collide ("…composition logic.Now I'll compose…").
+      const delta = extractDeltaText(parsed);
+      if (delta) {
+        store.getState().appendTranscript(delta);
+        return;
+      }
+      if (isContentBlockStop(parsed)) {
+        const current = store.getState().transcript;
+        if (current.length > 0 && !current.endsWith("\n\n")) {
+          store.getState().appendTranscript(current.endsWith("\n") ? "\n" : "\n\n");
+        }
+      }
     }).then((fn) => {
       if (cancelled) fn();
       else unlistenStdout = fn;
@@ -69,14 +95,38 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
       if (cancelled) return;
       if (!matchSession(ev.sessionId)) return;
       if (ev.cancelled) {
+        progressStore.getState().reset();
         void store.getState().finishDrafting({ cancelled: true });
         return;
       }
       if (ev.code !== 0) {
+        progressStore.getState().reset();
         store.getState().failDrafting(`Claude exited with code ${ev.code ?? "?"}.`);
         return;
       }
-      void store.getState().finishDrafting();
+      void (async () => {
+        try {
+          const { paperId } = store.getState();
+          if (!paperId) return;
+          const ingested = await ingestWriteupFile({ rootId, paperId });
+          if (ingested) {
+            store.getState().setBody(ingested.body);
+          } else {
+            store
+              .getState()
+              .failDrafting("Claude finished but no .obelus/writeup-*.md file was written.");
+            progressStore.getState().reset();
+            return;
+          }
+          progressStore.getState().reset();
+          await store.getState().finishDrafting();
+        } catch (err) {
+          progressStore.getState().reset();
+          store
+            .getState()
+            .failDrafting(err instanceof Error ? err.message : "Could not read writeup file.");
+        }
+      })();
     }).then((fn) => {
       if (cancelled) fn();
       else unlistenExit = fn;
@@ -88,7 +138,7 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
       unlistenStderr?.();
       unlistenExit?.();
     };
-  }, [store]);
+  }, [store, progressStore, rootId]);
 
   const beginDraft = useCallback(
     async (paperId: string, paperTitle: string): Promise<void> => {
@@ -102,22 +152,27 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
           rubricRelPath = `.obelus/rubric-${paperId}.md`;
           await fsWriteText(rootId, rubricRelPath, paper.rubric.body);
         }
+        const overrides = await loadClaudeOverrides();
+        progressStore.getState().start();
         const claudeSessionId = await claudeDraftWriteup({
           rootId,
           bundleRelPath: filename,
           paperId,
           paperTitle,
           ...(rubricRelPath !== undefined ? { rubricRelPath } : {}),
+          model: overrides.model,
+          effort: overrides.effort,
         });
         await store.getState().load(project.id, paperId);
         store.getState().startDrafting(claudeSessionId);
       } catch (err) {
+        progressStore.getState().reset();
         store
           .getState()
           .failDrafting(err instanceof Error ? err.message : "Could not start write-up.");
       }
     },
-    [repo, project.id, rootId, store],
+    [repo, project.id, rootId, store, progressStore],
   );
 
   const cancelDraft = useCallback(async (): Promise<void> => {
@@ -127,8 +182,8 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
   }, [store]);
 
   const value: WriteUpRunner = useMemo(
-    () => ({ store, beginDraft, cancelDraft }),
-    [store, beginDraft, cancelDraft],
+    () => ({ store, progressStore, beginDraft, cancelDraft }),
+    [store, progressStore, beginDraft, cancelDraft],
   );
 
   return <WriteUpRunnerContext.Provider value={value}>{children}</WriteUpRunnerContext.Provider>;
@@ -142,4 +197,8 @@ export function useWriteUpRunner(): WriteUpRunner {
 
 export function useWriteUpStore(): WriteUpStore {
   return useWriteUpRunner().store;
+}
+
+export function useWriteUpProgress(): ReviewProgressStore {
+  return useWriteUpRunner().progressStore;
 }

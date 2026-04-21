@@ -6,10 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import { readClaudeStatus } from "../../boot/detect";
 import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
 import { exportBundleV2ForProject } from "./build-bundle";
+import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
 import RubricPanel from "./RubricPanel";
-import { useWriteUpRunner } from "./writeup-store-context";
+import { useWriteUpProgress, useWriteUpRunner, useWriteUpStore } from "./writeup-store-context";
 
 function slugify(name: string): string {
   const dot = name.lastIndexOf(".");
@@ -258,17 +259,20 @@ export default function ReviewerActionsPanel({
     <section className="reviewer-actions" aria-label="Review">
       <header className="reviewer-actions__head">
         <h2 className="reviewer-actions__heading">Reviewer's letter</h2>
-        <button
-          type="button"
-          className="reviewer-actions__widen"
-          onClick={onToggleWide}
-          aria-pressed={wide}
-          aria-label={wide ? "Restore review pane width" : "Widen review pane"}
-          title={wide ? "Restore width" : "Widen"}
-        >
-          <WidenIcon expanded={wide} />
-          <span className="reviewer-actions__widen-label">{wide ? "Narrow" : "Widen"}</span>
-        </button>
+        <div className="reviewer-actions__head-tools">
+          {claudeReady ? <ClaudeChip /> : null}
+          <button
+            type="button"
+            className="reviewer-actions__widen"
+            onClick={onToggleWide}
+            aria-pressed={wide}
+            aria-label={wide ? "Restore review pane width" : "Widen review pane"}
+            title={wide ? "Restore width" : "Widen"}
+          >
+            <WidenIcon expanded={wide} />
+            <span className="reviewer-actions__widen-label">{wide ? "Narrow" : "Widen"}</span>
+          </button>
+        </div>
       </header>
       <RubricPanel paper={paperRowForRubric} />
       <p className="reviewer-actions__hint">
@@ -375,6 +379,31 @@ function ClaudeAction({
   copied,
   error,
 }: ClaudeProps): JSX.Element {
+  const progressStore = useWriteUpProgress();
+  const writeupStore = useWriteUpStore();
+  const phase = progressStore((s) => s.phase);
+  const toolEvents = progressStore((s) => s.toolEvents);
+  const assistantChars = progressStore((s) => s.assistantChars);
+  const transcript = writeupStore((s) => s.transcript);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const transcriptRef = useRef<HTMLPreElement | null>(null);
+
+  const transcriptLen = transcript.length;
+  useEffect(() => {
+    if (!transcriptOpen || !streaming) return;
+    const el = transcriptRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    // transcriptLen is the scroll trigger.
+    void transcriptLen;
+  }, [transcriptLen, transcriptOpen, streaming]);
+
+  const phaseLabel = streaming
+    ? phase || (assistantChars > 0 ? "Drafting…" : "Reading your marks…")
+    : hasBody
+      ? "Draft ready."
+      : "Idle.";
+
   return (
     <div className="reviewer-actions__claude">
       <div className="reviewer-actions__claude-head">
@@ -388,18 +417,58 @@ function ClaudeAction({
           </button>
         )}
         {streaming ? <span className="reviewer-actions__pulse" aria-hidden="true" /> : null}
-        <span className="reviewer-actions__claude-label">
-          {streaming ? "Claude is reading your marks…" : hasBody ? "Draft ready." : "Idle."}
-        </span>
+        <span className="reviewer-actions__claude-label">{phaseLabel}</span>
       </div>
 
-      {streaming || hasBody ? (
-        <div ref={outputRef} className="reviewer-actions__output" aria-live="polite">
-          <pre className="reviewer-actions__output-pre">
-            {body}
-            {streaming ? <span className="reviewer-actions__caret" aria-hidden="true" /> : null}
-          </pre>
+      {streaming ? (
+        <div className="reviewer-actions__progress-row">
+          <p className="reviewer-actions__progress">
+            {toolEvents} tool{toolEvents === 1 ? "" : "s"}
+            {transcript.length > 0 ? ` · ${transcript.length.toLocaleString()} chars streamed` : ""}
+          </p>
+          <button
+            type="button"
+            className="reviewer-actions__transcript-toggle"
+            onClick={() => setTranscriptOpen((v) => !v)}
+            aria-expanded={transcriptOpen}
+          >
+            {transcriptOpen ? "hide live output" : "show live output"}
+          </button>
         </div>
+      ) : null}
+
+      {!streaming && hasBody ? (
+        <div ref={outputRef} className="reviewer-actions__output" aria-live="polite">
+          <pre className="reviewer-actions__output-pre">{body}</pre>
+        </div>
+      ) : null}
+
+      {transcript.length > 0 ? (
+        <>
+          {!streaming ? (
+            <div className="reviewer-actions__progress-row reviewer-actions__progress-row--after">
+              <p className="reviewer-actions__progress">
+                Claude's full output · {transcript.length.toLocaleString()} chars
+              </p>
+              <button
+                type="button"
+                className="reviewer-actions__transcript-toggle"
+                onClick={() => setTranscriptOpen((v) => !v)}
+                aria-expanded={transcriptOpen}
+              >
+                {transcriptOpen ? "hide" : "show"}
+              </button>
+            </div>
+          ) : null}
+          {transcriptOpen ? (
+            <div className="reviewer-actions__transcript" aria-live="polite">
+              <pre ref={transcriptRef} className="reviewer-actions__transcript-pre">
+                {transcript || "waiting for Claude…"}
+                {streaming ? <span className="reviewer-actions__caret" aria-hidden="true" /> : null}
+              </pre>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {hasBody && !streaming ? (

@@ -2,9 +2,10 @@ import type { DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useKeyNav } from "../../lib/use-key-nav";
+import ClaudeChip from "./ClaudeChip";
 import { useDiffStore } from "./diff-store-context";
 import HunkBlock from "./HunkBlock";
-import { useReviewRunner } from "./review-runner-context";
+import { useReviewProgress, useReviewRunner } from "./review-runner-context";
 
 interface Props {
   onApply: () => void | Promise<void>;
@@ -89,20 +90,13 @@ export default function DiffReview(props: Props): JSX.Element {
       runner.status.kind === "ingesting")
   ) {
     const { marks, files, startedAt } = runner.status.counts;
-    const clock = new Date(startedAt).toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const markLabel = marks === 1 ? "mark" : "marks";
-    const fileLabel = files === 1 ? "file" : "files";
     return (
-      <div className="diff-review__empty">
-        <p>Claude is reading your marks.</p>
-        <p>
-          {marks} {markLabel} · {files} {fileLabel} · started {clock}.
-        </p>
-        <p className="diff-review__empty-ellipsis">· · · first hunk in a moment.</p>
-      </div>
+      <ReviewProgressPanel
+        marks={marks}
+        files={files}
+        startedAt={startedAt}
+        stage={runner.status.kind}
+      />
     );
   }
 
@@ -146,6 +140,7 @@ export default function DiffReview(props: Props): JSX.Element {
           })}
         </nav>
         <div className="diff-review__counter">
+          <ClaudeChip />
           <span>
             {acceptedTotal}/{hunks.length} accepted
           </span>
@@ -214,6 +209,87 @@ export default function DiffReview(props: Props): JSX.Element {
         <span>. apply</span>
         <span>, re-review</span>
       </footer>
+    </div>
+  );
+}
+
+const FILLER_LINES: ReadonlyArray<string> = [
+  "the review is a careful reading.",
+  "every page is turned.",
+  "the manuscript is read like a letter.",
+  "weighing the argument.",
+  "consulting the marginalia.",
+  "cross-checking the citations.",
+];
+
+interface ReviewProgressPanelProps {
+  marks: number;
+  files: number;
+  startedAt: number;
+  stage: "working" | "running" | "ingesting";
+}
+
+function ReviewProgressPanel({
+  marks,
+  files,
+  startedAt,
+  stage,
+}: ReviewProgressPanelProps): JSX.Element {
+  const progress = useReviewProgress();
+  const phase = progress((s) => s.phase);
+  const toolEvents = progress((s) => s.toolEvents);
+  const assistantChars = progress((s) => s.assistantChars);
+  const lastThinkingAt = progress((s) => s.lastThinkingAt);
+
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const [fillerIndex, setFillerIndex] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setFillerIndex((i) => (i + 1) % FILLER_LINES.length);
+    }, 8000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const clock = new Date(startedAt).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const markLabel = marks === 1 ? "mark" : "marks";
+  const fileLabel = files === 1 ? "file" : "files";
+  const elapsed = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const elapsedLabel =
+    elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+
+  const phaseLine =
+    phase ||
+    (stage === "ingesting"
+      ? "Reading the plan."
+      : stage === "working"
+        ? "Getting ready."
+        : "Waiting for Claude.");
+
+  const thinking = lastThinkingAt !== null && now - lastThinkingAt < 3000;
+  const filler = FILLER_LINES[fillerIndex] ?? FILLER_LINES[0] ?? "";
+
+  return (
+    <div className="review-progress">
+      <div className="review-progress__head">
+        <ClaudeChip />
+      </div>
+      <p className="review-progress__phase">
+        {phaseLine}
+        {thinking ? <span className="review-progress__pulse" aria-hidden /> : null}
+      </p>
+      <p className="review-progress__counters">
+        {marks} {markLabel} · {files} {fileLabel} · {toolEvents} tool{toolEvents === 1 ? "" : "s"} ·{" "}
+        {assistantChars.toLocaleString()} chars · {elapsedLabel} · started {clock}
+      </p>
+      <p className="review-progress__filler">…{filler}</p>
     </div>
   );
 }

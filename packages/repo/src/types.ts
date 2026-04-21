@@ -83,6 +83,8 @@ export interface ReviewSessionRow {
   projectId: string;
   bundleId: string;
   claudeVersion: string | null;
+  model: string | null;
+  effort: string | null;
   startedAt: string;
   completedAt: string | null;
   appliedAt: string | null;
