@@ -11,8 +11,20 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      desktop-released: ${{ steps.release.outputs['apps/desktop--release_created'] }}
+      desktop-tag: ${{ steps.release.outputs['apps/desktop--tag_name'] }}
     steps:
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  build-desktop:
+    needs: release-please
+    if: needs.release-please.outputs.desktop-released == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.release-please.outputs.desktop-tag }}
+    secrets: inherit

@@ -3,13 +3,53 @@ name: release
 on:
   release:
     types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        required: true
+        description: "Release tag to build for (e.g. desktop-v0.1.2)"
 
 permissions:
   contents: write
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.pick.outputs.tag }}
+      id: ${{ steps.pick.outputs.id }}
+      should-build: ${{ steps.pick.outputs.should-build }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-$EVENT_TAG}"
+          if [[ "$TAG" != desktop-v* ]]; then
+            echo "Skipping: tag '$TAG' is not a desktop release."
+            echo "should-build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ID=$(gh api "repos/$REPO/releases/tags/$TAG" --jq .id)
+          {
+            echo "tag=$TAG"
+            echo "id=$ID"
+            echo "should-build=true"
+          } >> "$GITHUB_OUTPUT"
+
   build:
-    if: startsWith(github.event.release.tag_name, 'desktop-v')
+    needs: resolve
+    if: needs.resolve.outputs.should-build == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -29,6 +69,8 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
 
       - name: install rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -65,5 +107,5 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
-          releaseId: ${{ github.event.release.id }}
+          releaseId: ${{ needs.resolve.outputs.id }}
           args: ${{ matrix.args }}
