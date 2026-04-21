@@ -11,16 +11,14 @@ Each shippable lives as its own release-please package, so commits only trigger 
 
 Commits that only touch `apps/web/**`, `packages/` (other than the plugin), docs, or CI do not open a release PR.
 
-## Desktop flow
-
-Desktop releases are triggered by pushing a `desktop-v*` tag. `.github/workflows/release.yml` builds for macOS (arm64 + x64), Windows x64, and Linux x64 AppImage via `tauri-action`, uploads artifacts to a draft GitHub Release, and flips it to public when all targets succeed.
-
 ## Version bumps
 
-[release-please](https://github.com/googleapis/release-please) watches `main` for Conventional Commits and opens a PR per component that bumps the relevant `version` fields and updates that component's `CHANGELOG.md`.
+[release-please](https://github.com/googleapis/release-please) watches `main` for Conventional Commits and opens a PR per component that bumps the relevant `version` fields and updates that component's `CHANGELOG.md`. Releases are **published on merge** (no draft step) so the tag pushes immediately and downstream workflows see a real `release.published` event.
 
-- **Desktop PR** bumps `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`, and `apps/desktop/src-tauri/Cargo.toml`. Merging it creates `desktop-v<version>`, drafts a GitHub Release, and triggers `release.yml`.
-- **Plugin PR** bumps `packages/claude-plugin/package.json` and `packages/claude-plugin/.claude-plugin/plugin.json`. Merging it creates `plugin-v<version>` and drafts a GitHub Release with the changelog — there are no binaries to build; users install the plugin from the tagged source.
+- **Plugin PR** bumps `packages/claude-plugin/package.json` and `packages/claude-plugin/.claude-plugin/plugin.json`. Merging it creates `plugin-v<version>` and publishes a source-only GitHub Release with the changelog — there are no binaries to build; users install the plugin from the tagged source.
+- **Desktop PR** bumps `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`, and `apps/desktop/src-tauri/Cargo.toml`. Merging it creates `desktop-v<version>` and publishes a GitHub Release with the changelog; that fires `release.yml`, which builds binaries for macOS (arm64 + x64), Linux AppImage, and Windows via `tauri-action` and uploads them to the already-published release.
+
+Users landing on the release page during the ~10–15 min matrix build see a release with a changelog and no binaries yet; binaries appear as each matrix target finishes.
 
 ## One-time setup — updater keypair
 
