@@ -25,9 +25,8 @@ You own the shared contract — the review bundle — and the Claude Code plugin
 ### Claude plugin skills
 
 - Follow April 2026 skill frontmatter: `description`, `allowed-tools`, optional `disable-model-invocation`, `argument-hint`, `context: fork`, `agent`.
-- **`apply-revision`** is the source-edits entry point. Parses + validates via Zod, dispatches internally on `bundleVersion`, then orchestrates `detect-format` + `plan-fix`. `disable-model-invocation: true` (user-only).
+- **`apply-revision`** is the source-edits entry point. Parses + validates via Zod, dispatches internally on `bundleVersion`, classifies source format inline (no sub-skill hop — see note below), then invokes `plan-fix`. `disable-model-invocation: true` (user-only).
 - **`write-review`** is the reviewer-letter entry point. Same internal v1/v2 dispatch; emits Markdown to stdout, never edits source.
-- **`detect-format`** walks the repo for `.tex` / `.md` / `.typ`, emits a JSON descriptor. Emits JSON only — `apply-revision` narrates the result in prose.
 - **`plan-fix`** runs `context: fork, agent: Plan`. It writes out a plan file for user review, does not edit.
 - **`apply-fix`** is user-invocable only; `allowed-tools: Read Edit Write`. It executes an approved plan.
 
