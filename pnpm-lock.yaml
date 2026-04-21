@@ -195,9 +195,6 @@ importers:
       zod:
         specifier: 4.3.6
         version: 4.3.6
-      zundo:
-        specifier: 2.3.0
-        version: 2.3.0(zustand@5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.2.2(react@19.2.5)))
       zustand:
         specifier: 5.0.12
         version: 5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.2.2(react@19.2.5))
@@ -353,9 +350,6 @@ importers:
       '@obelus/repo':
         specifier: workspace:*
         version: link:../repo
-      zundo:
-        specifier: 2.3.0
-        version: 2.3.0(zustand@5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.2.2(react@19.2.5)))
       zustand:
         specifier: 5.0.12
         version: 5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.2.2(react@19.2.5))
@@ -3151,11 +3145,6 @@ packages:
 
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
-
-  zundo@2.3.0:
-    resolution: {integrity: sha512-4GXYxXA17SIKYhVbWHdSEU04P697IMyVGXrC2TnzoyohEAWytFNOKqOp5gTGvaW93F/PM5Y0evbGtOPF0PWQwQ==}
-    peerDependencies:
-      zustand: ^4.3.0 || ^5.0.0
 
   zustand@5.0.12:
     resolution: {integrity: sha512-i77ae3aZq4dhMlRhJVCYgMLKuSiZAaUPAct2AksxQ+gOtimhGMdXljRT21P5BNpeT4kXlLIckvkPM029OljD7g==}
@@ -6335,10 +6324,6 @@ snapshots:
   yallist@3.1.1: {}
 
   zod@4.3.6: {}
-
-  zundo@2.3.0(zustand@5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.2.2(react@19.2.5))):
-    dependencies:
-      zustand: 5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.2.2(react@19.2.5))
 
   zustand@5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.2.2(react@19.2.5)):
     optionalDependencies:
