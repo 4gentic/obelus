@@ -2,6 +2,18 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2](https://github.com/4gentic/obelus/compare/desktop-v0.1.1...desktop-v0.1.2) (2026-04-21)
+
+
+### Features
+
+* **desktop:** live Claude progress, model/effort, desk rail, polish ([#27](https://github.com/4gentic/obelus/issues/27)) ([532c929](https://github.com/4gentic/obelus/commit/532c929f225caed9b988435e82078f2809ed29a5))
+
+
+### Performance
+
+* **pdf-view:** lazy-raster off-screen pages; fix selection drift ([#30](https://github.com/4gentic/obelus/issues/30)) ([5c6687d](https://github.com/4gentic/obelus/commit/5c6687d6f92fbac5caa2f6e2a285cdf0a6a3f820))
+
 ## [0.1.1](https://github.com/4gentic/obelus/compare/desktop-v0.1.0...desktop-v0.1.1) (2026-04-21)
 
 
