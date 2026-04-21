@@ -8,13 +8,5 @@
   "homepage": "https://github.com/4gentic/obelus",
   "repository": "https://github.com/4gentic/obelus.git",
   "license": "MIT",
-  "keywords": [
-    "obelus",
-    "review",
-    "paper",
-    "latex",
-    "markdown",
-    "typst",
-    "academic"
-  ]
+  "keywords": ["obelus", "review", "paper", "latex", "markdown", "typst", "academic"]
 }
