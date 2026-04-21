@@ -211,152 +211,193 @@ function Section({
   );
 }
 
-interface DeskMenuProps {
+interface DesksAsideProps {
   desks: DeskRow[];
-  current: DeskRow;
-  canDelete: boolean;
+  currentDeskId: string;
+  canDeleteCurrent: boolean;
   onSwitch: (id: string) => void;
   onCreate: (name: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
-  onClose: () => void;
 }
 
-function DeskMenu({
+function DesksAside({
   desks,
-  current,
-  canDelete,
+  currentDeskId,
+  canDeleteCurrent,
   onSwitch,
   onCreate,
   onRename,
   onDelete,
-  onClose,
-}: DeskMenuProps): JSX.Element {
-  const [mode, setMode] = useState<"list" | "new" | "rename">("list");
-  const [value, setValue] = useState("");
-  const inputRef = useRef<HTMLInputElement | null>(null);
+}: DesksAsideProps): JSX.Element {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createValue, setCreateValue] = useState("");
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const editRef = useRef<HTMLInputElement | null>(null);
+  const createRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (mode !== "list") inputRef.current?.focus();
-  }, [mode]);
+    if (editingId) editRef.current?.select();
+  }, [editingId]);
 
-  function submitCreate(): void {
-    const name = value.trim();
-    if (name) onCreate(name);
-    setValue("");
-    setMode("list");
+  useEffect(() => {
+    if (creating) createRef.current?.focus();
+  }, [creating]);
+
+  function startRename(desk: DeskRow): void {
+    setEditValue(desk.name);
+    setEditingId(desk.id);
+    setConfirmingDeleteId(null);
   }
 
-  function submitRename(): void {
-    const name = value.trim();
-    if (name && name !== current.name) onRename(current.id, name);
-    setValue("");
-    setMode("list");
+  function commitRename(): void {
+    if (!editingId) return;
+    const next = editValue.trim();
+    const desk = desks.find((d) => d.id === editingId);
+    if (next && desk && next !== desk.name) onRename(editingId, next);
+    setEditingId(null);
+    setEditValue("");
   }
 
-  if (mode === "new") {
-    return (
-      <div className="home__desk-menu" role="menu">
-        <input
-          ref={inputRef}
-          className="home__desk-input"
-          type="text"
-          placeholder="Name the new desk"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              submitCreate();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              setValue("");
-              setMode("list");
-            }
-          }}
-        />
-      </div>
-    );
+  function cancelRename(): void {
+    setEditingId(null);
+    setEditValue("");
   }
 
-  if (mode === "rename") {
-    return (
-      <div className="home__desk-menu" role="menu">
-        <input
-          ref={inputRef}
-          className="home__desk-input"
-          type="text"
-          placeholder={current.name}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              submitRename();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              setValue("");
-              setMode("list");
-            }
-          }}
-        />
-      </div>
-    );
+  function commitCreate(): void {
+    const next = createValue.trim();
+    if (next) onCreate(next);
+    setCreating(false);
+    setCreateValue("");
+  }
+
+  function cancelCreate(): void {
+    setCreating(false);
+    setCreateValue("");
   }
 
   return (
-    <div className="home__desk-menu" role="menu">
-      <ul className="home__desk-list">
-        {desks.map((d) => (
-          <li key={d.id} role="none">
-            <button
-              type="button"
-              role="menuitem"
-              className={
-                d.id === current.id ? "home__desk-item home__desk-item--active" : "home__desk-item"
-              }
-              onClick={() => {
-                onSwitch(d.id);
-                onClose();
-              }}
-            >
-              {d.name}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <div className="home__desk-actions">
+    <aside className="home__desks" aria-label="Desks">
+      <div className="home__desks-head">
+        <h2 className="home__desks-title">Desks</h2>
         <button
           type="button"
-          className="home__desk-action"
-          onClick={() => {
-            setValue(current.name);
-            setMode("rename");
-          }}
+          className="home__desks-add"
+          onClick={() => setCreating(true)}
+          disabled={creating}
+          aria-label="New desk"
         >
-          Rename desk
-        </button>
-        <button
-          type="button"
-          className="home__desk-action"
-          disabled={!canDelete}
-          title={canDelete ? undefined : "Move or forget this desk's projects first."}
-          onClick={() => onDelete(current.id)}
-        >
-          Delete desk
-        </button>
-        <button
-          type="button"
-          className="home__desk-action"
-          onClick={() => {
-            setValue("");
-            setMode("new");
-          }}
-        >
-          + New desk
+          + New
         </button>
       </div>
-    </div>
+      <ul className="home__desks-list">
+        {creating ? (
+          <li className="home__desks-li">
+            <input
+              ref={createRef}
+              className="home__desks-input"
+              type="text"
+              value={createValue}
+              placeholder="Name the new desk"
+              aria-label="New desk name"
+              onChange={(e) => setCreateValue(e.target.value)}
+              onBlur={cancelCreate}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitCreate();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelCreate();
+                }
+              }}
+            />
+          </li>
+        ) : null}
+        {desks.map((desk) => {
+          const isCurrent = desk.id === currentDeskId;
+          const isEditing = editingId === desk.id;
+          const isConfirmingDelete = confirmingDeleteId === desk.id;
+          const liClass = isCurrent ? "home__desks-li home__desks-li--active" : "home__desks-li";
+          return (
+            <li key={desk.id} className={liClass}>
+              {isEditing ? (
+                <input
+                  ref={editRef}
+                  className="home__desks-input"
+                  type="text"
+                  value={editValue}
+                  aria-label={`Rename desk ${desk.name}`}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      commitRename();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelRename();
+                    }
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className={
+                    isCurrent ? "home__desks-item home__desks-item--active" : "home__desks-item"
+                  }
+                  aria-current={isCurrent ? "page" : undefined}
+                  onClick={() => {
+                    if (!isCurrent) onSwitch(desk.id);
+                  }}
+                >
+                  {desk.name}
+                </button>
+              )}
+              {isCurrent && !isEditing ? (
+                <span className="home__desks-actions">
+                  <button
+                    type="button"
+                    className="home__desks-action"
+                    onClick={() => startRename(desk)}
+                    aria-label={`Rename desk ${desk.name}`}
+                  >
+                    Rename
+                  </button>
+                  {isConfirmingDelete ? (
+                    <button
+                      type="button"
+                      className="home__desks-action home__desks-action--danger"
+                      onClick={() => {
+                        setConfirmingDeleteId(null);
+                        onDelete(desk.id);
+                      }}
+                      onBlur={() => setConfirmingDeleteId(null)}
+                    >
+                      Click to confirm
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="home__desks-action"
+                      disabled={!canDeleteCurrent}
+                      title={
+                        canDeleteCurrent ? undefined : "Move or forget this desk's projects first."
+                      }
+                      onClick={() => setConfirmingDeleteId(desk.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </span>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </aside>
   );
 }
 
@@ -365,19 +406,6 @@ export default function Home(): JSX.Element {
   const [desks, setDesks] = useState<DeskRow[] | null>(null);
   const [currentDeskId, setCurrentDeskId] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onClick(event: MouseEvent): void {
-      if (!menuRef.current) return;
-      if (!(event.target instanceof Node)) return;
-      if (!menuRef.current.contains(event.target)) setMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [menuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -461,7 +489,6 @@ export default function Home(): JSX.Element {
     setDesks((prev) => (prev ? [...prev, desk] : [desk]));
     setCurrentDeskId(desk.id);
     setRows(null);
-    setMenuOpen(false);
   }
 
   async function onRenameDesk(id: string, name: string): Promise<void> {
@@ -483,7 +510,6 @@ export default function Home(): JSX.Element {
     } else {
       navigate("/wizard", { replace: true });
     }
-    setMenuOpen(false);
   }
 
   if (desks === null || currentDeskId === null || rows === null) {
@@ -499,67 +525,57 @@ export default function Home(): JSX.Element {
   const pinned = rows.filter((r) => r.project.pinned && !r.project.archived);
   const recent = rows.filter((r) => !r.project.pinned && !r.project.archived);
   const archive = rows.filter((r) => r.project.archived);
+  const canDeleteCurrent = rows.length === 0 && desks.length > 1;
 
   return (
     <section className="home">
-      <header className="home__header">
-        <div className="home__desk" ref={menuRef}>
-          <button
-            type="button"
-            className="home__desk-button"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            {current.name} <span aria-hidden="true">▾</span>
-          </button>
-          {menuOpen ? (
-            <DeskMenu
-              desks={desks}
-              current={current}
-              canDelete={rows.length === 0 && desks.length > 1}
-              onSwitch={(id) => void onSwitchDesk(id)}
-              onCreate={(name) => void onCreateDesk(name)}
-              onRename={(id, name) => void onRenameDesk(id, name)}
-              onDelete={(id) => void onDeleteDesk(id)}
-              onClose={() => setMenuOpen(false)}
-            />
-          ) : null}
-        </div>
-        <Link to="/wizard?add=1" className="home__add">
-          + New project
-        </Link>
-      </header>
-      {rows.length === 0 ? (
-        <p className="home__empty-body">No projects on {current.name} yet.</p>
-      ) : null}
-      <Section
-        title="Pinned"
-        rows={pinned}
-        otherDesks={otherDesks}
-        onRename={(id, l) => void onRename(id, l)}
-        onForget={(id) => void onForget(id)}
-        onRepoint={(id) => void onRepoint(id)}
-        onMove={(id, deskId) => void onMove(id, deskId)}
+      <DesksAside
+        desks={desks}
+        currentDeskId={currentDeskId}
+        canDeleteCurrent={canDeleteCurrent}
+        onSwitch={(id) => void onSwitchDesk(id)}
+        onCreate={(name) => void onCreateDesk(name)}
+        onRename={(id, name) => void onRenameDesk(id, name)}
+        onDelete={(id) => void onDeleteDesk(id)}
       />
-      <Section
-        title="Recent"
-        rows={recent}
-        otherDesks={otherDesks}
-        onRename={(id, l) => void onRename(id, l)}
-        onForget={(id) => void onForget(id)}
-        onRepoint={(id) => void onRepoint(id)}
-        onMove={(id, deskId) => void onMove(id, deskId)}
-      />
-      <Section
-        title="Archive"
-        rows={archive}
-        otherDesks={otherDesks}
-        onRename={(id, l) => void onRename(id, l)}
-        onForget={(id) => void onForget(id)}
-        onRepoint={(id) => void onRepoint(id)}
-        onMove={(id, deskId) => void onMove(id, deskId)}
-      />
+      <div className="home__main">
+        <header className="home__header">
+          <h1 className="home__title">{current.name}</h1>
+          <Link to="/wizard?add=1" className="home__add">
+            + New project
+          </Link>
+        </header>
+        {rows.length === 0 ? (
+          <p className="home__empty-body">No projects on {current.name} yet.</p>
+        ) : null}
+        <Section
+          title="Pinned"
+          rows={pinned}
+          otherDesks={otherDesks}
+          onRename={(id, l) => void onRename(id, l)}
+          onForget={(id) => void onForget(id)}
+          onRepoint={(id) => void onRepoint(id)}
+          onMove={(id, deskId) => void onMove(id, deskId)}
+        />
+        <Section
+          title="Recent Projects"
+          rows={recent}
+          otherDesks={otherDesks}
+          onRename={(id, l) => void onRename(id, l)}
+          onForget={(id) => void onForget(id)}
+          onRepoint={(id) => void onRepoint(id)}
+          onMove={(id, deskId) => void onMove(id, deskId)}
+        />
+        <Section
+          title="Archive"
+          rows={archive}
+          otherDesks={otherDesks}
+          onRename={(id, l) => void onRename(id, l)}
+          onForget={(id) => void onForget(id)}
+          onRepoint={(id) => void onRepoint(id)}
+          onMove={(id, deskId) => void onMove(id, deskId)}
+        />
+      </div>
     </section>
   );
 }
