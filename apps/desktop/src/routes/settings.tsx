@@ -1,3 +1,4 @@
+import { ask } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useEffect, useState } from "react";
 import { readClaudeStatus } from "../boot/detect";
@@ -34,8 +35,9 @@ export default function Settings(): JSX.Element {
   }
 
   async function onWizardReset(): Promise<void> {
-    const ok = window.confirm(
+    const ok = await ask(
       "Reset wizard clears the wizard checkpoint and Claude-detect cache, then re-runs the wizard. Your projects and annotations stay. Continue?",
+      { title: "Reset wizard", kind: "info", okLabel: "Reset wizard", cancelLabel: "Cancel" },
     );
     if (!ok) return;
     setResetting("wizard");
@@ -56,8 +58,14 @@ export default function Settings(): JSX.Element {
   }
 
   async function onFactoryReset(): Promise<void> {
-    const ok = window.confirm(
+    const ok = await ask(
       "Factory reset erases every project, paper, annotation, review, and write-up. This cannot be undone. Continue?",
+      {
+        title: "Factory reset",
+        kind: "warning",
+        okLabel: "Factory reset",
+        cancelLabel: "Cancel",
+      },
     );
     if (!ok) return;
     setResetting("factory");
