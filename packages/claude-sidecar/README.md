@@ -1,6 +1,6 @@
 # @obelus/claude-sidecar
 
-**What.** The desktop-only bridge to a local Claude Code process — `spawn`, `ask`, `draft-writeup`, `cancel`, plus stdout/stderr/exit event streams — implemented as thin wrappers over Tauri v2 IPC.
+**What.** The desktop-only bridge to a local Claude Code process — `spawn`, `ask`, `write-review`, `cancel`, plus stdout/stderr/exit event streams — implemented as thin wrappers over Tauri v2 IPC. (The write-review bridge is still named `claudeDraftWriteup` in code for now.)
 
 **Why.** The desktop build runs Claude Code as a child process so that the plugin's skills can operate on the local project tree. Centralising the IPC surface means one place to validate the event shape and one place to update when the Tauri command signatures change.
 

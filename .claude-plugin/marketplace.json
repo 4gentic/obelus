@@ -1,0 +1,13 @@
+{
+  "name": "4gentic",
+  "owner": {
+    "name": "4gentic"
+  },
+  "plugins": [
+    {
+      "name": "obelus",
+      "source": "./packages/claude-plugin",
+      "description": "Apply an Obelus review bundle to your paper source. Format-agnostic (LaTeX, Markdown, Typst), offline, minimal-diff."
+    }
+  ]
+}
