@@ -6,11 +6,19 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          pdfjs: ["pdfjs-dist"],
-          dexie: ["dexie"],
-          react: ["react", "react-dom", "react-router-dom"],
-          zod: ["zod"],
+        manualChunks(id) {
+          if (id.includes("node_modules/pdfjs-dist")) return "pdfjs";
+          if (id.includes("node_modules/dexie")) return "dexie";
+          if (
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/") ||
+            id.includes("node_modules/react-router-dom/") ||
+            id.includes("node_modules/react-router/")
+          ) {
+            return "react";
+          }
+          if (id.includes("node_modules/zod")) return "zod";
+          return undefined;
         },
       },
     },
