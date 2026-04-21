@@ -43,14 +43,11 @@ Breaking changes get a `!` after the type (`feat!: drop bundle v0`) or a `BREAKI
 
 ## Releases
 
-Releases are automated. Every push to `main` updates a rolling **"chore: release vX.Y.Z"** PR opened by [release-please](https://github.com/googleapis/release-please). Merging that PR:
+Releases are automated and scoped per shippable component — the desktop app (`apps/desktop`) and the Claude Code plugin (`packages/claude-plugin`). Web-only changes deploy continuously from `main` and are not released. [release-please](https://github.com/googleapis/release-please) opens a rolling `chore(desktop): release vX.Y.Z` or `chore(plugin): release vX.Y.Z` PR only when commits touch that component's path.
 
-1. Bumps the version in the root `package.json`, `apps/desktop/src-tauri/tauri.conf.json`, and `apps/desktop/src-tauri/Cargo.toml`.
-2. Updates `CHANGELOG.md`.
-3. Tags `vX.Y.Z` and creates a draft GitHub Release.
-4. Triggers `release.yml`, which builds Tauri desktop binaries for macOS (arm64 + x86_64), Linux, and Windows, attaches them to the draft, then publishes it.
+Merging a desktop release PR tags `desktop-vX.Y.Z`, drafts a GitHub Release, and triggers `release.yml`, which builds Tauri binaries for macOS (arm64 + x86_64), Linux, and Windows, attaches them, then publishes. Merging a plugin release PR tags `plugin-vX.Y.Z` and publishes a source-only release with the changelog.
 
-You don't tag manually. You don't bump versions manually. Just write good commit messages and merge the release PR when it's time to ship.
+You don't tag manually. You don't bump versions manually. Just write good commit messages and merge the release PR when it's time to ship. See [`docs/RELEASING.md`](docs/RELEASING.md) for the mapping from paths to tags to changelogs.
 
 ## Where to start
 
