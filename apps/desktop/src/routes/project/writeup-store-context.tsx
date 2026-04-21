@@ -33,9 +33,15 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
   const store = useMemo(() => createWriteUpStore(repo.writeUps), [repo]);
 
   useEffect(() => {
-    let unlistenStdout: (() => void) | undefined;
-    let unlistenStderr: (() => void) | undefined;
-    let unlistenExit: (() => void) | undefined;
+    // `onClaude*` are async: if the effect re-runs (HMR, store memo invalidation,
+    // remount) before the first `.then` resolves, cleanup sees `unlisten*` still
+    // null and the first listener stays alive — producing a doubled stream. The
+    // `cancelled` flag + in-callback guard keeps a single live sink regardless
+    // of when the registration promises resolve.
+    let cancelled = false;
+    let unlistenStdout: (() => void) | null = null;
+    let unlistenStderr: (() => void) | null = null;
+    let unlistenExit: (() => void) | null = null;
 
     const matchSession = (sid: string): boolean => {
       const s = store.getState().status;
@@ -43,19 +49,24 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
     };
 
     void onClaudeStdout((ev: ClaudeStreamEvent) => {
+      if (cancelled) return;
       if (!matchSession(ev.sessionId)) return;
       store.getState().appendChunk(ev.line);
     }).then((fn) => {
-      unlistenStdout = fn;
+      if (cancelled) fn();
+      else unlistenStdout = fn;
     });
 
     void onClaudeStderr((ev: ClaudeStreamEvent) => {
+      if (cancelled) return;
       void ev;
     }).then((fn) => {
-      unlistenStderr = fn;
+      if (cancelled) fn();
+      else unlistenStderr = fn;
     });
 
     void onClaudeExit((ev) => {
+      if (cancelled) return;
       if (!matchSession(ev.sessionId)) return;
       if (ev.cancelled) {
         void store.getState().finishDrafting({ cancelled: true });
@@ -67,10 +78,12 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
       }
       void store.getState().finishDrafting();
     }).then((fn) => {
-      unlistenExit = fn;
+      if (cancelled) fn();
+      else unlistenExit = fn;
     });
 
     return () => {
+      cancelled = true;
       unlistenStdout?.();
       unlistenStderr?.();
       unlistenExit?.();
