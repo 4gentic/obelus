@@ -46,7 +46,7 @@ export default function ProjectRoute(): JSX.Element {
         const stored = project.lastOpenedFilePath;
         if (stored) {
           if (!cancelled) setOpenFilePath(stored);
-        } else if (project.kind !== "folder") {
+        } else if (project.kind === "reviewer") {
           const pdfs = await fsListPdfs(rootId);
           const first = pdfs[0];
           if (first && !cancelled) {

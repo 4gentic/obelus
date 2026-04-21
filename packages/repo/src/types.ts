@@ -55,7 +55,7 @@ export interface SettingRow {
   value: unknown;
 }
 
-export type ProjectKind = "folder" | "single-pdf" | "stack-pdf";
+export type ProjectKind = "writer" | "reviewer";
 
 export interface ProjectRow {
   id: string;

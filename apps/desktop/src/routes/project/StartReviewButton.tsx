@@ -1,53 +1,16 @@
 import type { JSX } from "react";
 import { useProject } from "./context";
-import { useOpenPaper } from "./OpenPaper";
 import { useReviewRunner } from "./review-runner-context";
 import { useReviewStore } from "./store-context";
-import { useWriteUpRunner } from "./writeup-store-context";
 export default function StartReviewButton(): JSX.Element {
   const { project } = useProject();
   const store = useReviewStore();
   const annotations = store((s) => s.annotations);
   const { status, start, cancel } = useReviewRunner();
-  const writeUpRunner = useWriteUpRunner();
-  const writeUpStatus = writeUpRunner.store((s) => s.status);
-  const openPaper = useOpenPaper();
 
-  const reviewerMode = project.kind !== "folder";
-
-  if (reviewerMode) {
-    const streaming = writeUpStatus.kind === "streaming";
-    const paperReady = openPaper.kind === "ready";
-    const canDraft = paperReady && annotations.length > 0 && !streaming;
-    return (
-      <div className="review-column__footer">
-        {streaming ? (
-          <button
-            type="button"
-            className="btn btn--subtle"
-            onClick={() => void writeUpRunner.cancelDraft()}
-          >
-            Cancel
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="btn btn--primary"
-            disabled={!canDraft}
-            onClick={() => {
-              if (!paperReady) return;
-              void writeUpRunner.beginDraft(openPaper.paper.id, openPaper.paper.title);
-            }}
-          >
-            Draft the write-up
-          </button>
-        )}
-        {writeUpStatus.kind === "error" ? (
-          <p className="review-column__hint">{writeUpStatus.message}</p>
-        ) : null}
-      </div>
-    );
-  }
+  // Reviewer projects drive Claude from the Review tab (see ReviewerActionsPanel),
+  // so this footer only renders for writer projects.
+  if (project.kind === "reviewer") return <div className="review-column__footer" />;
 
   const canStart =
     annotations.length > 0 &&

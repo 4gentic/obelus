@@ -38,9 +38,8 @@
         "kind": {
           "type": "string",
           "enum": [
-            "folder",
-            "single-pdf",
-            "stack-pdf"
+            "writer",
+            "reviewer"
           ]
         },
         "categories": {

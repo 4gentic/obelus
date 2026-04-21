@@ -30,10 +30,9 @@ If format detection can't find a single confident entrypoint, run `/apply-revisi
 
 | Skill           | Purpose                                                                           | User-invocable |
 | --------------- | --------------------------------------------------------------------------------- | -------------- |
-| `apply-revision`   | Entry point for source edits. Validates, detects format, invokes `plan-fix`.      | Yes            |
+| `apply-revision`   | Entry point for source edits. Validates, classifies source format inline, invokes `plan-fix`. | Yes            |
 | `write-review`  | Drafts a Markdown reviewer's letter from the bundle. Prints to stdout.            | Yes            |
 | `apply-fix`     | Executes an approved plan with the Edit tool. Skips ambiguous blocks.             | Yes            |
-| `detect-format` | Walks the repo, emits `{ format, entrypoint, sourceFiles }` as JSON.              | No (internal)  |
 | `plan-fix`      | Forks context, locates each annotation in source, writes the plan file.           | No (internal)  |
 
 Both `apply-revision` and `write-review` dispatch internally on `bundleVersion` (1.0 / 2.0).
@@ -48,6 +47,21 @@ Both `apply-revision` and `write-review` dispatch internally on `bundleVersion` 
 ## Bundle contract
 
 See `@obelus/bundle-schema` in the monorepo. The plugin ships copies of the canonical JSON Schemas at `schemas/bundle-v1.schema.json` and `schemas/bundle-v2.schema.json` inside this directory — the skills resolve them via `${CLAUDE_PLUGIN_ROOT}/schemas/…` so validation works out of the box when the plugin is installed from the marketplace.
+
+## End-to-end tests
+
+The skills are prompted, not coded — so a working plugin today can regress silently tomorrow when Claude Code or the default model changes. `pnpm plugin:e2e` (at the repo root) runs four real Claude Code sessions against this plugin and asserts that:
+
+| # | Scenario | Skill | Expected |
+| --- | --- | --- | --- |
+| 1.1 | V1 bundle alone | `write-review` | Markdown letter with `# Review ·` heading and annotation traces. |
+| 1.2 | V1 bundle + `.tex`/`.md`/`.typ` alongside | `write-review` | Same letter — co-located sources are ignored. |
+| 2.1 | V1 bundle, no sources in cwd | `apply-revision` | Graceful refusal; `/obelus:write-review` suggested; no plan written. |
+| 2.2 | V1 bundle + `.tex` source | `apply-revision` | `.obelus/plan-*.md` and `plan-*.json` written. |
+
+Auth is auto-detected: `ANTHROPIC_API_KEY` → metered mode with `--bare`; otherwise the harness reads the keychain OAuth from `claude /login` (no per-call cost). Temp dirs default to `$TMPDIR/obelus-plugin-e2e/` so subscription mode doesn't pull the repo's `CLAUDE.md` into the test sessions. The same suite runs weekly on GitHub Actions (`.github/workflows/plugin-e2e.yml`) and opens a rolling issue on regression.
+
+See `scripts/plugin-e2e.mjs` for the harness and `.claude/commands/plugin-e2e.md` for the full how-to.
 
 ## License
 

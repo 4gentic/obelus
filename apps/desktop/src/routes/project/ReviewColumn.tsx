@@ -1,17 +1,18 @@
 import type { JSX } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useProject } from "./context";
 import DiffReview from "./DiffReview";
 import { useDiffStore } from "./diff-store-context";
 import { useOpenPaper } from "./OpenPaper";
 import ReviewDraft from "./ReviewDraft";
+import ReviewerActionsPanel from "./ReviewerActionsPanel";
 import ReviewList from "./ReviewList";
 import { useReviewRunner } from "./review-runner-context";
 import StartReviewButton from "./StartReviewButton";
 import { useReviewStore } from "./store-context";
-import WriteUpPanel from "./WriteUpPanel";
 
-type View = "marks" | "diff" | "writeup";
+type WriterView = "marks" | "diff";
+type ReviewerView = "marks" | "review";
 
 interface Props {
   onApply: () => void | Promise<void>;
@@ -20,6 +21,14 @@ interface Props {
 
 export default function ReviewColumn({ onApply, onRepass }: Props): JSX.Element {
   const { project } = useProject();
+  return project.kind === "reviewer" ? (
+    <ReviewerColumn />
+  ) : (
+    <WriterColumn onApply={onApply} onRepass={onRepass} />
+  );
+}
+
+function WriterColumn({ onApply, onRepass }: Props): JSX.Element {
   const store = useReviewStore();
   const diffStore = useDiffStore();
   const runner = useReviewRunner();
@@ -27,11 +36,9 @@ export default function ReviewColumn({ onApply, onRepass }: Props): JSX.Element 
   const selected = store((s) => s.selectedAnchor);
   const sessionId = diffStore((s) => s.sessionId);
   const runnerKind = runner.status.kind;
-  const reviewerMode = project.kind !== "folder";
-  const [view, setView] = useState<View>("marks");
+  const [view, setView] = useState<WriterView>("marks");
 
   useEffect(() => {
-    if (reviewerMode) return;
     if (
       sessionId !== null ||
       runnerKind === "working" ||
@@ -40,16 +47,15 @@ export default function ReviewColumn({ onApply, onRepass }: Props): JSX.Element 
     ) {
       setView("diff");
     }
-  }, [sessionId, runnerKind, reviewerMode]);
+  }, [sessionId, runnerKind]);
 
   const paperOpen = openPaper.kind === "ready";
-  const secondaryTab: View = reviewerMode ? "writeup" : "diff";
   const runnerBusy =
     runnerKind === "working" || runnerKind === "running" || runnerKind === "ingesting";
-  const secondaryAvailable = reviewerMode || sessionId !== null || runnerBusy;
-  const resolvedView: View = view === secondaryTab && !secondaryAvailable ? "marks" : view;
-  const fallbackWhenNoPaper: View = secondaryAvailable ? secondaryTab : "marks";
-  const effectiveView: View = paperOpen ? resolvedView : fallbackWhenNoPaper;
+  const diffAvailable = sessionId !== null || runnerBusy;
+  const resolvedView: WriterView = view === "diff" && !diffAvailable ? "marks" : view;
+  const fallbackWhenNoPaper: WriterView = diffAvailable ? "diff" : "marks";
+  const effectiveView: WriterView = paperOpen ? resolvedView : fallbackWhenNoPaper;
 
   return (
     <aside className="review-column">
@@ -63,13 +69,13 @@ export default function ReviewColumn({ onApply, onRepass }: Props): JSX.Element 
             >
               Marks
             </button>
-            {secondaryAvailable && (
+            {diffAvailable && (
               <button
                 type="button"
-                className={`review-column__tab${effectiveView === secondaryTab ? " review-column__tab--on" : ""}`}
-                onClick={() => setView(secondaryTab)}
+                className={`review-column__tab${effectiveView === "diff" ? " review-column__tab--on" : ""}`}
+                onClick={() => setView("diff")}
               >
-                {reviewerMode ? "Write-up" : "Diff"}
+                Diff
               </button>
             )}
           </>
@@ -80,10 +86,66 @@ export default function ReviewColumn({ onApply, onRepass }: Props): JSX.Element 
           {selected ? <ReviewDraft /> : <ReviewList />}
           <StartReviewButton />
         </>
-      ) : effectiveView === "diff" ? (
-        <DiffReview onApply={onApply} onRepass={onRepass} />
       ) : (
-        <WriteUpPanel />
+        <DiffReview onApply={onApply} onRepass={onRepass} />
+      )}
+    </aside>
+  );
+}
+
+function ReviewerColumn(): JSX.Element {
+  const store = useReviewStore();
+  const openPaper = useOpenPaper();
+  const selected = store((s) => s.selectedAnchor);
+  const focusedAnnotationId = store((s) => s.focusedAnnotationId);
+  const [view, setView] = useState<ReviewerView>("marks");
+
+  const prevSelectedRef = useRef<typeof selected>(null);
+  const prevFocusedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (selected && !prevSelectedRef.current) setView("marks");
+    prevSelectedRef.current = selected;
+  }, [selected]);
+
+  useEffect(() => {
+    if (focusedAnnotationId && focusedAnnotationId !== prevFocusedRef.current) setView("marks");
+    prevFocusedRef.current = focusedAnnotationId;
+  }, [focusedAnnotationId]);
+
+  const paperOpen = openPaper.kind === "ready";
+  const effectiveView: ReviewerView = paperOpen ? view : "review";
+
+  return (
+    <aside className="review-column">
+      <nav className="review-column__tabs">
+        {paperOpen && (
+          <>
+            <button
+              type="button"
+              className={`review-column__tab${effectiveView === "marks" ? " review-column__tab--on" : ""}`}
+              onClick={() => setView("marks")}
+            >
+              Marks
+            </button>
+            <button
+              type="button"
+              className={`review-column__tab${effectiveView === "review" ? " review-column__tab--on" : ""}`}
+              onClick={() => setView("review")}
+            >
+              Review
+            </button>
+          </>
+        )}
+      </nav>
+      {effectiveView === "marks" ? (
+        selected ? (
+          <ReviewDraft />
+        ) : (
+          <ReviewList />
+        )
+      ) : (
+        <ReviewerActionsPanel />
       )}
     </aside>
   );

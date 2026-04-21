@@ -70,7 +70,7 @@ describe("migrateV1ToV2", () => {
   it("synthesises project.categories from the v1 categories actually used", () => {
     const migrated = migrateV1ToV2(v1Bundle);
     expect(migrated.project.categories).toEqual([{ slug: "unclear", label: "unclear" }]);
-    expect(migrated.project.kind).toBe("single-pdf");
+    expect(migrated.project.kind).toBe("reviewer");
     expect(migrated.project.label).toBe("On the Obelization of Generated Prose");
   });
 

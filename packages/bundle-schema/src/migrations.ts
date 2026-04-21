@@ -59,7 +59,7 @@ export function migrateV1ToV2(input: unknown): Bundle2 {
     project: {
       id: v1.paper.id,
       label: v1.paper.title,
-      kind: "single-pdf" as const,
+      kind: "reviewer" as const,
       categories,
     },
     papers: [
