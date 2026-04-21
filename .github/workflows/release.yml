@@ -1,35 +1,15 @@
 name: release
 
 on:
-  push:
-    tags:
-      - "desktop-v*"
+  release:
+    types: [published]
 
 permissions:
   contents: write
 
 jobs:
-  find-release:
-    runs-on: ubuntu-latest
-    outputs:
-      release_id: ${{ steps.find.outputs.release_id }}
-    steps:
-      - id: find
-        uses: actions/github-script@v9
-        env:
-          TAG_NAME: ${{ github.ref_name }}
-        with:
-          script: |
-            const tag = process.env.TAG_NAME;
-            const { data: release } = await github.rest.repos.getReleaseByTag({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag,
-            });
-            core.setOutput('release_id', release.id);
-
   build:
-    needs: find-release
+    if: startsWith(github.event.release.tag_name, 'desktop-v')
     strategy:
       fail-fast: false
       matrix:
@@ -86,21 +66,5 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
-          releaseId: ${{ needs.find-release.outputs.release_id }}
+          releaseId: ${{ github.event.release.id }}
           args: ${{ matrix.args }}
-
-  publish-release:
-    needs: [find-release, build]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v9
-        env:
-          RELEASE_ID: ${{ needs.find-release.outputs.release_id }}
-        with:
-          script: |
-            await github.rest.repos.updateRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: Number(process.env.RELEASE_ID),
-              draft: false,
-            });
