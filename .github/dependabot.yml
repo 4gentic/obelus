@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       root-deps:
         patterns: ["*"]
@@ -14,6 +18,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       web-deps:
         patterns: ["*"]
@@ -23,6 +31,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       desktop-deps:
         patterns: ["*"]
@@ -32,6 +44,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       anchor-deps:
         patterns: ["*"]
@@ -41,6 +57,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       bundle-builder-deps:
         patterns: ["*"]
@@ -50,6 +70,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       bundle-schema-deps:
         patterns: ["*"]
@@ -59,6 +83,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       categories-deps:
         patterns: ["*"]
@@ -68,6 +96,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       claude-plugin-deps:
         patterns: ["*"]
@@ -77,6 +109,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       claude-sidecar-deps:
         patterns: ["*"]
@@ -86,6 +122,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       design-tokens-deps:
         patterns: ["*"]
@@ -95,6 +135,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       pdf-view-deps:
         patterns: ["*"]
@@ -104,6 +148,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       repo-deps:
         patterns: ["*"]
@@ -113,6 +161,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       review-store-deps:
         patterns: ["*"]
@@ -122,6 +174,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
       source-render-deps:
         patterns: ["*"]
@@ -131,6 +187,9 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci(deps)"
+      include: "scope"
     groups:
       actions:
         patterns: ["*"]
@@ -140,6 +199,9 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(cargo)"
+      include: "scope"
     groups:
       desktop-cargo:
         patterns: ["*"]
