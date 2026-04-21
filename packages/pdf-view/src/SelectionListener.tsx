@@ -15,13 +15,12 @@ import {
   resolveEndpointToAnchor,
   snapshotEndpoint,
 } from "@obelus/anchor";
-import type { PDFDocumentProxy } from "pdfjs-dist";
-import type { TextItem, TextMarkedContent } from "pdfjs-dist/types/src/display/api";
+import type { TextItem } from "pdfjs-dist/types/src/display/api";
 import type { JSX } from "react";
 import { type ReactNode, useEffect, useRef } from "react";
+import { getPageItems } from "./page-items";
 
 type Props = {
-  doc: PDFDocumentProxy;
   onAnchor: (
     anchors: Anchor[],
     quote: string,
@@ -29,28 +28,6 @@ type Props = {
   ) => void;
   children: ReactNode;
 };
-
-// Must match pdfjs TextLayer's own filter: only non-empty-string TextItems
-// get a rendered span. If we include empty-str items here, our list indices
-// drift relative to DOM `data-item-index` and sub-line selections resolve
-// against the wrong item.
-function isTextItem(x: TextItem | TextMarkedContent): x is TextItem {
-  return "str" in x && x.str !== "";
-}
-
-function makePageItemCache(doc: PDFDocumentProxy): (pageIndex: number) => Promise<TextItem[]> {
-  const cache = new Map<number, Promise<TextItem[]>>();
-  return (pageIndex) => {
-    const hit = cache.get(pageIndex);
-    if (hit) return hit;
-    const fetch = doc.getPage(pageIndex + 1).then(async (page) => {
-      const content = await page.getTextContent();
-      return content.items.filter(isTextItem);
-    });
-    cache.set(pageIndex, fetch);
-    return fetch;
-  };
-}
 
 // Pages whose visual rect overlaps the cursor band, plus the pages each
 // snapshot endpoint landed on (catches single-line selections inside one page
@@ -153,13 +130,8 @@ function snapshotPage(
   return { pageIndex, firstIntersectedItem: first, lastIntersectedItem: last };
 }
 
-export default function SelectionListener({ doc, onAnchor, children }: Props): JSX.Element {
+export default function SelectionListener({ onAnchor, children }: Props): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const getItemsRef = useRef(makePageItemCache(doc));
-
-  useEffect(() => {
-    getItemsRef.current = makePageItemCache(doc);
-  }, [doc]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -213,43 +185,38 @@ export default function SelectionListener({ doc, onAnchor, children }: Props): J
       const pages = pagesForBand(topY, bottomY, endpointPages, host);
       if (pages.length === 0) return;
 
-      // Take the geometric snapshots up front — once we await `getTextContent`,
-      // a re-render may move the spans.
+      // Take the geometric snapshots up front. Carry the page element so the
+      // items lookup stays anchored to the exact DOM node whose spans we read.
       const planned = pages
-        .map(({ el, index }) => snapshotPage(el, index, topY, bottomY))
-        .filter((s) => s.firstIntersectedItem !== null && s.lastIntersectedItem !== null);
+        .map(({ el, index }) => ({ el, snap: snapshotPage(el, index, topY, bottomY) }))
+        .filter(
+          ({ snap }) => snap.firstIntersectedItem !== null && snap.lastIntersectedItem !== null,
+        );
       if (planned.length === 0) return;
 
       const quote = normalizeQuote(sel.toString());
 
-      void Promise.all(
-        planned.map(async (snap) => {
-          const items = await getItemsRef.current(snap.pageIndex);
-          const entry = planPage(startEp, endEp, snap, items.length);
-          if (!entry) return null;
-          const anchor = resolveEndpointToAnchor(entry, items);
-          if (!anchor) return null;
-          return { anchor, items };
-        }),
-      ).then((entries) => {
-        const resolved = entries.filter(
-          (x): x is { anchor: Anchor; items: TextItem[] } => x !== null,
-        );
-        if (resolved.length === 0) return;
-        // Pass the items map alongside anchors so the consumer extracts text
-        // and computes rects from the exact items the indices were derived
-        // from. A separate getTextContent() call could otherwise re-stream
-        // with different sequencing, leaving the anchor indices pointing at
-        // different items than the user actually selected.
-        const itemsByPage = new Map<number, ReadonlyArray<TextItem>>();
-        for (const { anchor, items } of resolved) itemsByPage.set(anchor.pageIndex, items);
-        onAnchor(
-          resolved.map(({ anchor }) => anchor),
-          quote,
-          itemsByPage,
-        );
-        window.getSelection()?.removeAllRanges();
-      });
+      // Items were captured by PdfPage from the same stream that rendered the
+      // spans — synchronous lookup, no separate getTextContent() call that
+      // could drift out of order with the DOM.
+      const resolved: { anchor: Anchor; items: ReadonlyArray<TextItem> }[] = [];
+      for (const { el, snap } of planned) {
+        const items = getPageItems(el);
+        if (!items) continue;
+        const entry = planPage(startEp, endEp, snap, items.length);
+        if (!entry) continue;
+        const anchor = resolveEndpointToAnchor(entry, items);
+        if (anchor) resolved.push({ anchor, items });
+      }
+      if (resolved.length === 0) return;
+      const itemsByPage = new Map<number, ReadonlyArray<TextItem>>();
+      for (const { anchor, items } of resolved) itemsByPage.set(anchor.pageIndex, items);
+      onAnchor(
+        resolved.map(({ anchor }) => anchor),
+        quote,
+        itemsByPage,
+      );
+      window.getSelection()?.removeAllRanges();
     };
 
     document.addEventListener("mousedown", onDown);

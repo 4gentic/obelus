@@ -171,7 +171,7 @@ export default function PdfPane({ doc, onAnchor }: Props): JSX.Element {
     // biome-ignore lint/a11y/useKeyWithClickEvents: event delegation for annotation hit-testing; keyboard access is via the margin notes list.
     // biome-ignore lint/a11y/noStaticElementInteractions: event delegation for annotation hit-testing; static div wraps a PDF canvas, not a semantic control.
     <div ref={paneRef} className="pdf-pane" onClick={onPaneClick}>
-      <SelectionListener doc={doc} onAnchor={onAnchor}>
+      <SelectionListener onAnchor={onAnchor}>
         <PdfDocument doc={doc} scale={effectiveScale} renderPageOverlay={renderPageOverlay} />
       </SelectionListener>
     </div>
