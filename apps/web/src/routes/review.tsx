@@ -470,7 +470,7 @@ export default function Review() {
       <section className="review" aria-label={`Review ${paperId ?? ""}`}>
         <div className="review__scroll" ref={scrollRef}>
           {doc ? (
-            <SelectionListener doc={doc} onAnchor={onAnchor}>
+            <SelectionListener onAnchor={onAnchor}>
               <PdfDocument doc={doc} scale={scale} />
               <div className="review__hl-layer" aria-hidden="true">
                 {annotations.flatMap((row) => {
