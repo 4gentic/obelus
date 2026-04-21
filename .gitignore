@@ -25,3 +25,6 @@ apps/web/public/standard_fonts/
 # pdfjs runtime assets — copied from node_modules/pdfjs-dist by apps/desktop prebuild.
 apps/desktop/public/cmaps/
 apps/desktop/public/standard_fonts/
+
+# Claude Code runtime state
+.claude/scheduled_tasks.lock
