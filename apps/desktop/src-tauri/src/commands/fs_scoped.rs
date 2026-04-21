@@ -225,6 +225,11 @@ pub async fn fs_stat(
         }
         hasher.update(&buf[..n]);
     }
-    let hash = format!("{:x}", hasher.finalize());
+    let digest = hasher.finalize();
+    let mut hash = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        use std::fmt::Write;
+        let _ = write!(hash, "{byte:02x}");
+    }
     Ok(FsStatDto { size, sha256: hash })
 }
