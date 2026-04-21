@@ -6,7 +6,7 @@ describe("toProjectRow", () => {
     const row = toProjectRow({
       id: "abc",
       label: "Paper",
-      kind: "folder",
+      kind: "writer",
       root: "/tmp/paper",
       pinned: 1,
       archived: 0,
@@ -18,7 +18,7 @@ describe("toProjectRow", () => {
     expect(row).toEqual({
       id: "abc",
       label: "Paper",
-      kind: "folder",
+      kind: "writer",
       root: "/tmp/paper",
       pinned: true,
       archived: false,
@@ -33,7 +33,7 @@ describe("toProjectRow", () => {
     const row = toProjectRow({
       id: "x",
       label: "L",
-      kind: "single-pdf",
+      kind: "reviewer",
       root: "/p.pdf",
       pinned: 0,
       archived: 1,
@@ -87,7 +87,7 @@ describe("buildProjectsRepo", () => {
     const repo = buildProjectsRepo(db as never);
     const row = await repo.create({
       label: "P",
-      kind: "folder",
+      kind: "writer",
       root: "/tmp/p",
       deskId: "desk-1",
     });
@@ -95,7 +95,7 @@ describe("buildProjectsRepo", () => {
     const sql = db.execute.mock.calls[0]?.[0] as string;
     expect(sql).toMatch(/INSERT INTO projects/);
     expect(row.label).toBe("P");
-    expect(row.kind).toBe("folder");
+    expect(row.kind).toBe("writer");
     expect(row.pinned).toBe(false);
     expect(row.deskId).toBe("desk-1");
     expect(row.lastOpenedFilePath).toBeNull();

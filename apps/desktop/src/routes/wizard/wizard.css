@@ -150,10 +150,19 @@
   font-size: var(--step-1);
 }
 
+.folio__card-legend {
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.45;
+  color: var(--ink);
+  margin-top: var(--space-1);
+}
+
 .folio__card-sub {
   font-family: var(--font-body);
   font-size: var(--step--1);
   color: var(--ink-soft);
+  margin-top: auto;
 }
 
 .folio__card-sub--muted {

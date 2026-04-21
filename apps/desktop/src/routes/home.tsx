@@ -15,9 +15,7 @@ interface Row {
 }
 
 function kindLabel(kind: ProjectKind): string {
-  if (kind === "folder") return "Paper — writing";
-  if (kind === "single-pdf") return "Paper — reviewing";
-  return "Stack — reviewing";
+  return kind === "writer" ? "Paper — writing" : "Paper — reviewing";
 }
 
 function formatDate(iso: string | null): string {

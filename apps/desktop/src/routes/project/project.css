@@ -1288,3 +1288,222 @@ ul.files__tree--flat li {
   min-height: 0;
   overflow: hidden;
 }
+
+/* Reviewer-actions panel — shown inside the Review tab of reviewer projects.
+   Mirrors the editorial aesthetic of the web review pane but scoped so the
+   desktop namespace never collides with it. */
+
+.reviewer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  overflow: auto;
+  min-height: 0;
+}
+
+.reviewer-actions__empty {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.reviewer-actions__hint {
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.reviewer-actions__chips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  border: none;
+}
+
+.reviewer-actions__chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid color-mix(in oklab, var(--ink) 14%, transparent);
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  transition:
+    border-color 120ms linear,
+    color 120ms linear;
+}
+
+.reviewer-actions__chip:hover:not(:disabled) {
+  border-color: var(--rubric);
+  color: var(--rubric);
+}
+
+.reviewer-actions__chip:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.reviewer-actions__chip-label {
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  font-weight: 500;
+}
+
+.reviewer-actions__chip-hint {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+}
+
+.reviewer-actions__next {
+  padding: var(--space-3);
+  background: color-mix(in oklab, var(--rubric) 6%, var(--panel));
+  border-left: 2px solid var(--rubric);
+  border-radius: var(--radius-1);
+}
+
+.reviewer-actions__next-label {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  margin: 0 0 var(--space-1) 0;
+}
+
+.reviewer-actions__next-cmd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--paper);
+  border: 1px dashed color-mix(in oklab, var(--rubric) 40%, transparent);
+  border-radius: var(--radius-1);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  text-align: left;
+}
+
+.reviewer-actions__next-cmd[data-copied="true"] {
+  border-style: solid;
+  border-color: var(--rubric);
+}
+
+.reviewer-actions__next-cmd code {
+  font-size: var(--step--1);
+  color: var(--ink);
+  background: none;
+  padding: 0;
+}
+
+.reviewer-actions__next-hint {
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  white-space: nowrap;
+}
+
+.reviewer-actions__claude {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reviewer-actions__claude-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.reviewer-actions__claude-label {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+}
+
+.reviewer-actions__pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rubric);
+  animation: reviewer-actions-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes reviewer-actions-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.reviewer-actions__output {
+  max-height: 60vh;
+  overflow: auto;
+  padding: var(--space-3);
+  background: var(--paper);
+  border: 1px solid color-mix(in oklab, var(--ink) 10%, transparent);
+  border-radius: var(--radius-2);
+}
+
+.reviewer-actions__output-pre {
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.reviewer-actions__caret {
+  display: inline-block;
+  width: 0.5ch;
+  height: 1em;
+  margin-left: 1px;
+  background: var(--rubric);
+  vertical-align: -2px;
+  animation: reviewer-actions-caret 1s steps(2, end) infinite;
+}
+
+@keyframes reviewer-actions-caret {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.reviewer-actions__claude-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.reviewer-actions__hint-inline {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+}
+
+.reviewer-actions__status {
+  font-size: var(--step--1);
+  margin: 0;
+}
+
+.reviewer-actions__status[data-status="error"] {
+  color: var(--rubric);
+}
