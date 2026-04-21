@@ -39,7 +39,6 @@
   grid-template-rows: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
-  transition: grid-template-columns 180ms ease-out;
 }
 
 .project-shell__body--no-pdf {
@@ -52,6 +51,17 @@
 
 .project-shell__body--no-left.project-shell__body--no-pdf {
   grid-template-columns: minmax(0, 1fr) 0 340px;
+}
+
+/* Review pane widened via the widen toggle in the reviewer column — collapses
+   the margin gutter and pushes the review column to ~44% of the viewport so
+   long reviewer's letters stay legible without losing the PDF. */
+.project-shell__body--review-wide {
+  grid-template-columns: 220px minmax(0, 1fr) 0 minmax(520px, 44%);
+}
+
+.project-shell__body--review-wide.project-shell__body--no-left {
+  grid-template-columns: minmax(0, 1fr) 0 minmax(520px, 44%);
 }
 
 .project-shell__center {
@@ -76,6 +86,11 @@
   overflow: hidden;
 }
 
+.project-shell__body--review-wide .project-shell__margin {
+  border: none;
+  overflow: hidden;
+}
+
 /* Below 1280px the margin gutter eats the PDF. The Marks tab in the */
 /* review column already mirrors its content, so collapse it first. */
 @media (max-width: 1280px) {
@@ -89,6 +104,12 @@
     border: none;
     overflow: hidden;
   }
+  .project-shell__body--review-wide {
+    grid-template-columns: 220px minmax(0, 1fr) 0 minmax(480px, 48%);
+  }
+  .project-shell__body--review-wide.project-shell__body--no-left {
+    grid-template-columns: minmax(0, 1fr) 0 minmax(480px, 48%);
+  }
 }
 
 /* Below 1024px tighten the side columns so the PDF stays legible. */
@@ -99,6 +120,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 0 300px;
   }
+  .project-shell__body--review-wide {
+    grid-template-columns: 180px minmax(0, 1fr) 0 minmax(440px, 52%);
+  }
+  .project-shell__body--review-wide.project-shell__body--no-left {
+    grid-template-columns: minmax(0, 1fr) 0 minmax(440px, 52%);
+  }
 }
 
 /* Below 760px the file tree becomes a hindrance; hide it and shrink */
@@ -107,6 +134,10 @@
   .project-shell__body,
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 0 260px;
+  }
+  .project-shell__body--review-wide,
+  .project-shell__body--review-wide.project-shell__body--no-left {
+    grid-template-columns: minmax(0, 1fr) 0 minmax(320px, 60%);
   }
   .files {
     display: none;
@@ -1326,6 +1357,55 @@ ul.files__tree--flat li {
   padding: var(--space-4);
   overflow: auto;
   min-height: 0;
+}
+
+.reviewer-actions__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.reviewer-actions__heading {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-0);
+  color: var(--ink);
+  margin: 0;
+}
+
+.reviewer-actions__widen {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: 1px solid var(--rule-soft);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition:
+    border-color 120ms linear,
+    color 120ms linear;
+}
+
+.reviewer-actions__widen:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.reviewer-actions__widen[aria-pressed="true"] {
+  color: var(--rubric);
+  border-color: var(--rubric);
+}
+
+.reviewer-actions__widen-label {
+  line-height: 1;
 }
 
 .reviewer-actions__empty {

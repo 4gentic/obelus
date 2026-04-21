@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import CenterPane from "./CenterPane";
 import { useProject } from "./context";
 import FilesColumn from "./FilesColumn";
@@ -15,6 +15,8 @@ export default function ProjectShell(): JSX.Element {
   useLoadRevision();
   const { apply, repass } = useDiffActions();
   const reviewStore = useReviewStore();
+  const [reviewWide, setReviewWide] = useState(false);
+  const onToggleReviewWide = useCallback(() => setReviewWide((w) => !w), []);
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent): void => {
@@ -38,10 +40,11 @@ export default function ProjectShell(): JSX.Element {
   }, [reviewStore]);
 
   const hideLeft = project.kind === "reviewer";
-  const bodyClass =
-    (openPaper.kind === "none"
-      ? "project-shell__body project-shell__body--no-pdf"
-      : "project-shell__body") + (hideLeft ? " project-shell__body--no-left" : "");
+  const classes = ["project-shell__body"];
+  if (openPaper.kind === "none") classes.push("project-shell__body--no-pdf");
+  if (hideLeft) classes.push("project-shell__body--no-left");
+  if (reviewWide) classes.push("project-shell__body--review-wide");
+  const bodyClass = classes.join(" ");
 
   return (
     <div className="project-shell">
@@ -58,7 +61,12 @@ export default function ProjectShell(): JSX.Element {
           <MarginGutter />
         </div>
         <div className="project-shell__review">
-          <ReviewColumn onApply={apply} onRepass={repass} />
+          <ReviewColumn
+            onApply={apply}
+            onRepass={repass}
+            wide={reviewWide}
+            onToggleWide={onToggleReviewWide}
+          />
         </div>
       </div>
     </div>

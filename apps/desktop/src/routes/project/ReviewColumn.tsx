@@ -17,18 +17,30 @@ type ReviewerView = "marks" | "review";
 interface Props {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
+  wide: boolean;
+  onToggleWide: () => void;
 }
 
-export default function ReviewColumn({ onApply, onRepass }: Props): JSX.Element {
+interface WriterProps {
+  onApply: () => void | Promise<void>;
+  onRepass: () => void | Promise<void>;
+}
+
+export default function ReviewColumn({
+  onApply,
+  onRepass,
+  wide,
+  onToggleWide,
+}: Props): JSX.Element {
   const { project } = useProject();
   return project.kind === "reviewer" ? (
-    <ReviewerColumn />
+    <ReviewerColumn wide={wide} onToggleWide={onToggleWide} />
   ) : (
     <WriterColumn onApply={onApply} onRepass={onRepass} />
   );
 }
 
-function WriterColumn({ onApply, onRepass }: Props): JSX.Element {
+function WriterColumn({ onApply, onRepass }: WriterProps): JSX.Element {
   const store = useReviewStore();
   const diffStore = useDiffStore();
   const runner = useReviewRunner();
@@ -93,7 +105,12 @@ function WriterColumn({ onApply, onRepass }: Props): JSX.Element {
   );
 }
 
-function ReviewerColumn(): JSX.Element {
+interface ReviewerColumnProps {
+  wide: boolean;
+  onToggleWide: () => void;
+}
+
+function ReviewerColumn({ wide, onToggleWide }: ReviewerColumnProps): JSX.Element {
   const store = useReviewStore();
   const openPaper = useOpenPaper();
   const selected = store((s) => s.selectedAnchor);
@@ -145,7 +162,7 @@ function ReviewerColumn(): JSX.Element {
           <ReviewList />
         )
       ) : (
-        <ReviewerActionsPanel />
+        <ReviewerActionsPanel wide={wide} onToggleWide={onToggleWide} />
       )}
     </aside>
   );
