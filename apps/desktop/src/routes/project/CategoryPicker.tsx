@@ -4,11 +4,23 @@ import type { JSX } from "react";
 interface Props {
   value: string | null;
   onChange: (slug: string) => void;
+  invalid?: boolean;
+  errorId?: string;
 }
 
-export default function CategoryPicker({ value, onChange }: Props): JSX.Element {
+export default function CategoryPicker({
+  value,
+  onChange,
+  invalid = false,
+  errorId,
+}: Props): JSX.Element {
   return (
-    <fieldset className="category-picker">
+    <fieldset
+      className="category-picker"
+      data-invalid={invalid ? "true" : "false"}
+      aria-invalid={invalid || undefined}
+      aria-describedby={invalid && errorId ? errorId : undefined}
+    >
       <legend className="category-picker__legend">Category</legend>
       <div className="category-picker__chips">
         {DEFAULT_CATEGORIES.map((c) => (

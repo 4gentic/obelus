@@ -208,6 +208,7 @@ export default function ReviewPane({
   const [tab, setTab] = useState<Tab>("marks");
   const [reviewExportedName, setReviewExportedName] = useState<string | null>(null);
   const [reviseExportedName, setReviseExportedName] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState(false);
 
   const exportReview = async (): Promise<void> => {
     const name = await onExportReview();
@@ -218,7 +219,6 @@ export default function ReviewPane({
     if (name) setReviseExportedName(name);
   };
 
-  const canSave = selectedAnchor !== null && draftCategory !== null;
   const pages = selectedAnchor
     ? Array.from(new Set(selectedAnchor.slices.map((s) => s.anchor.pageIndex + 1)))
     : [];
@@ -243,6 +243,10 @@ export default function ReviewPane({
     if (selectedAnchor) setTab("marks");
   }, [selectedAnchor]);
 
+  useEffect(() => {
+    if (draftCategory || !selectedAnchor) setSaveError(false);
+  }, [draftCategory, selectedAnchor]);
+
   return (
     <aside className="review-pane" aria-label="Review pane">
       {selectedAnchor ? (
@@ -263,7 +267,14 @@ export default function ReviewPane({
             name="draft-category"
             value={draftCategory}
             onChange={onDraftCategoryChange}
+            invalid={saveError}
+            errorId="draft-category-error"
           />
+          {saveError ? (
+            <p className="review-pane__draft-error" id="draft-category-error" role="alert">
+              Pick a category to save this mark.
+            </p>
+          ) : null}
           <NoteEditor
             value={draftNote}
             onChange={onDraftNoteChange}
@@ -274,9 +285,12 @@ export default function ReviewPane({
             <button
               type="button"
               className="review-pane__btn review-pane__btn--primary"
-              disabled={!canSave}
               onClick={() => {
-                if (!selectedAnchor || !draftCategory) return;
+                if (!selectedAnchor) return;
+                if (!draftCategory) {
+                  setSaveError(true);
+                  return;
+                }
                 void onSave({
                   draft: selectedAnchor,
                   category: draftCategory,

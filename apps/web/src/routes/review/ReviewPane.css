@@ -188,6 +188,14 @@
   color: var(--ink-soft);
 }
 
+.review-pane__draft-error {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--rubric);
+  letter-spacing: 0.02em;
+}
+
 .review-pane__quote {
   margin: 0;
   padding: var(--space-3);

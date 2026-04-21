@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import { type JSX, useEffect, useState } from "react";
 import CategoryPicker from "./CategoryPicker";
 import { useReviewStore } from "./store-context";
 export default function ReviewDraft(): JSX.Element | null {
@@ -10,18 +10,38 @@ export default function ReviewDraft(): JSX.Element | null {
   const setNote = store((s) => s.setDraftNote);
   const save = store((s) => s.saveAnnotation);
   const discard = store((s) => s.setSelectedAnchor);
+  const [saveError, setSaveError] = useState(false);
+
+  useEffect(() => {
+    if (category || !draft) setSaveError(false);
+  }, [category, draft]);
 
   if (!draft) return null;
 
   function handleSave(): void {
-    if (!draft || !category) return;
+    if (!draft) return;
+    if (!category) {
+      setSaveError(true);
+      return;
+    }
     void save({ draft, category, note });
   }
 
   return (
     <div className="review-draft">
+      <p className="review-draft__hint">Pick a category and save, or discard this selection.</p>
       <blockquote className="review-draft__quote">{draft.quote}</blockquote>
-      <CategoryPicker value={category} onChange={setCategory} />
+      <CategoryPicker
+        value={category}
+        onChange={setCategory}
+        invalid={saveError}
+        errorId="review-draft-error"
+      />
+      {saveError ? (
+        <p className="review-draft__error" id="review-draft-error" role="alert">
+          Pick a category to save this mark.
+        </p>
+      ) : null}
       <textarea
         className="review-draft__note"
         placeholder="Note (optional)"
@@ -30,12 +50,7 @@ export default function ReviewDraft(): JSX.Element | null {
         rows={4}
       />
       <div className="review-draft__actions">
-        <button
-          type="button"
-          className="btn btn--primary"
-          disabled={!category}
-          onClick={handleSave}
-        >
+        <button type="button" className="btn btn--primary" onClick={handleSave}>
           Save mark
         </button>
         <button type="button" className="btn btn--subtle" onClick={() => discard(null)}>

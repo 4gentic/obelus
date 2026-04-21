@@ -65,6 +65,16 @@
   background: color-mix(in srgb, var(--chip-color) 18%, transparent);
 }
 
+.catpick[data-invalid="true"] {
+  outline: 1px solid var(--rubric);
+  outline-offset: 4px;
+  border-radius: var(--radius-1);
+}
+
+.catpick[data-invalid="true"] .catpick__legend {
+  color: var(--rubric);
+}
+
 .catpick__input {
   position: absolute;
   opacity: 0;
