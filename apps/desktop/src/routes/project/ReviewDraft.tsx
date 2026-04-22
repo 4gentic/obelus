@@ -1,6 +1,8 @@
 import { type JSX, useEffect, useState } from "react";
 import CategoryPicker from "./CategoryPicker";
 import { useReviewStore } from "./store-context";
+import { trimQuoteMiddle } from "./trim-quote";
+
 export default function ReviewDraft(): JSX.Element | null {
   const store = useReviewStore();
   const draft = store((s) => s.selectedAnchor);
@@ -30,7 +32,7 @@ export default function ReviewDraft(): JSX.Element | null {
   return (
     <div className="review-draft">
       <p className="review-draft__hint">Pick a category and save, or discard this selection.</p>
-      <blockquote className="review-draft__quote">{draft.quote}</blockquote>
+      <blockquote className="review-draft__quote">{trimQuoteMiddle(draft.quote)}</blockquote>
       <CategoryPicker
         value={category}
         onChange={setCategory}

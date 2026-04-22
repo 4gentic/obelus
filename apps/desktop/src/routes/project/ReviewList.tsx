@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { useEffect, useRef } from "react";
 import { useReviewStore } from "./store-context";
+import { trimQuoteMiddle } from "./trim-quote";
 export default function ReviewList(): JSX.Element {
   const store = useReviewStore();
   const annotations = store((s) => s.annotations);
@@ -47,7 +48,7 @@ export default function ReviewList(): JSX.Element {
               ×
             </button>
           </header>
-          <blockquote className="review-list__quote">{a.quote}</blockquote>
+          <blockquote className="review-list__quote">{trimQuoteMiddle(a.quote)}</blockquote>
           {a.note && <p className="review-list__note">{a.note}</p>}
         </li>
       ))}

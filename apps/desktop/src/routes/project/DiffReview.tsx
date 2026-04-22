@@ -1,6 +1,6 @@
 import type { DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
 import { useKeyNav } from "../../lib/use-key-nav";
 import ClaudeChip from "./ClaudeChip";
@@ -9,17 +9,24 @@ import { useDiffStore } from "./diff-store-context";
 import HunkBlock from "./HunkBlock";
 import { useReviewProgress, useReviewRunner } from "./review-runner-context";
 import type { ForkInfo } from "./use-diff-actions";
+import WidenToggle from "./WidenToggle";
 
 interface Props {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
   forkInfo: ForkInfo | null;
+  wide: boolean;
+  onToggleWide: () => void;
+}
+
+function fileKey(h: DiffHunkRow): string {
+  return h.file === "" ? "(unresolved)" : h.file;
 }
 
 function groupByFile(hunks: ReadonlyArray<DiffHunkRow>): Map<string, DiffHunkRow[]> {
   const map = new Map<string, DiffHunkRow[]>();
   for (const h of hunks) {
-    const key = h.file === "" ? "(unresolved)" : h.file;
+    const key = fileKey(h);
     const bucket = map.get(key) ?? [];
     bucket.push(h);
     map.set(key, bucket);
@@ -41,16 +48,67 @@ export default function DiffReview(props: Props): JSX.Element {
   const counts = store((s) => s.counts);
   const applyStatus = store((s) => s.applyStatus);
 
-  const [activeFile, setActiveFile] = useState<string | null>(null);
-
   const grouped = useMemo(() => groupByFile(hunks), [hunks]);
   const files = useMemo(() => [...grouped.keys()], [grouped]);
 
+  const [activeFile, setActiveFile] = useState<string | null>(() => files[0] ?? null);
+
+  useEffect(() => {
+    if (files.length === 0) {
+      if (activeFile !== null) setActiveFile(null);
+      return;
+    }
+    if (activeFile === null || !files.includes(activeFile)) {
+      setActiveFile(files[0] ?? null);
+    }
+  }, [files, activeFile]);
+
   const focusedHunk = hunks[focusedIndex];
   const visibleHunks = useMemo(() => {
-    if (activeFile === null) return hunks;
-    return hunks.filter((h) => (h.file === "" ? "(unresolved)" : h.file) === activeFile);
+    if (activeFile === null) return [];
+    return hunks.filter((h) => fileKey(h) === activeFile);
   }, [hunks, activeFile]);
+
+  const pendingInActive = useMemo(() => {
+    if (activeFile === null) return 0;
+    const bucket = grouped.get(activeFile) ?? [];
+    return bucket.reduce((n, h) => (h.state === "pending" ? n + 1 : n), 0);
+  }, [grouped, activeFile]);
+
+  const goToFile = useCallback(
+    (file: string): void => {
+      setActiveFile(file);
+      const idx = hunks.findIndex((h) => fileKey(h) === file);
+      if (idx >= 0) store.getState().focus(idx);
+    },
+    [hunks, store],
+  );
+
+  const stepFile = useCallback(
+    (delta: 1 | -1): void => {
+      if (files.length === 0 || activeFile === null) return;
+      const idx = files.indexOf(activeFile);
+      const nextIdx = (idx + delta + files.length) % files.length;
+      const target = files[nextIdx];
+      if (target !== undefined && target !== activeFile) goToFile(target);
+    },
+    [files, activeFile, goToFile],
+  );
+
+  const prevPendingInActiveRef = useRef(pendingInActive);
+  useEffect(() => {
+    const prev = prevPendingInActiveRef.current;
+    prevPendingInActiveRef.current = pendingInActive;
+    if (activeFile === null) return;
+    if (prev <= 0 || pendingInActive !== 0) return;
+    const activeIdx = files.indexOf(activeFile);
+    const rotated = [...files.slice(activeIdx + 1), ...files.slice(0, activeIdx)];
+    const next = rotated.find((f) => {
+      const bucket = grouped.get(f) ?? [];
+      return bucket.some((h) => h.state === "pending");
+    });
+    if (next !== undefined && next !== activeFile) goToFile(next);
+  }, [pendingInActive, activeFile, files, grouped, goToFile]);
 
   const [sourceByFile, setSourceByFile] = useState<ReadonlyMap<string, string>>(
     () => new Map<string, string>(),
@@ -89,10 +147,43 @@ export default function DiffReview(props: Props): JSX.Element {
 
   const modeless = editingId === null && noteId === null;
 
+  const navInFile = useCallback(
+    (delta: 1 | -1): void => {
+      if (activeFile === null) return;
+      const state = store.getState();
+      const locals: number[] = [];
+      state.hunks.forEach((h, i) => {
+        if (fileKey(h) === activeFile) locals.push(i);
+      });
+      if (locals.length === 0) return;
+      const curGlobal = state.focusedIndex;
+      const curLocal = locals.indexOf(curGlobal);
+      const nextLocal = curLocal < 0 ? 0 : (curLocal + delta + locals.length) % locals.length;
+      const globalIdx = locals[nextLocal];
+      if (globalIdx !== undefined) state.focus(globalIdx);
+    },
+    [activeFile, store],
+  );
+
+  const focusEdge = useCallback(
+    (edge: "first" | "last"): void => {
+      if (activeFile === null) return;
+      const state = store.getState();
+      const locals: number[] = [];
+      state.hunks.forEach((h, i) => {
+        if (fileKey(h) === activeFile) locals.push(i);
+      });
+      if (locals.length === 0) return;
+      const pick = edge === "first" ? locals[0] : locals[locals.length - 1];
+      if (pick !== undefined) state.focus(pick);
+    },
+    [activeFile, store],
+  );
+
   useKeyNav(
     {
-      j: () => store.getState().next(),
-      k: () => store.getState().prev(),
+      j: () => navInFile(1),
+      k: () => navInFile(-1),
       a: () => void store.getState().accept(),
       r: () => void store.getState().reject(),
       Backspace: () => void store.getState().reject(),
@@ -108,10 +199,12 @@ export default function DiffReview(props: Props): JSX.Element {
         const f = store.getState().hunks[store.getState().focusedIndex];
         if (f) void store.getState().acceptFile(f.file === "" ? "" : f.file);
       },
+      "[": () => stepFile(-1),
+      "]": () => stepFile(1),
       ".": () => void props.onApply(),
       ",": () => void props.onRepass(),
-      g: { g: () => store.getState().focusFirst() },
-      G: () => store.getState().focusLast(),
+      g: { g: () => focusEdge("first") },
+      G: () => focusEdge("last"),
     },
     { enabled: modeless && hunks.length > 0 },
   );
@@ -150,7 +243,11 @@ export default function DiffReview(props: Props): JSX.Element {
         </div>
       );
     }
-    return <p className="review-column__hint">Plan loaded but no hunks were produced.</p>;
+    const hint =
+      (runner.status.kind === "done" || runner.status.kind === "error") && runner.status.message
+        ? runner.status.message
+        : "Plan loaded but no hunks were produced.";
+    return <p className="review-column__hint">{hint}</p>;
   }
 
   const acceptedTotal = counts.accepted + counts.modified;
@@ -159,6 +256,7 @@ export default function DiffReview(props: Props): JSX.Element {
     runner.status.kind === "running" ||
     runner.status.kind === "ingesting";
   const applicable =
+    counts.pending === 0 &&
     acceptedTotal > 0 &&
     applyStatus.kind !== "applying" &&
     applyStatus.kind !== "applied" &&
@@ -167,54 +265,74 @@ export default function DiffReview(props: Props): JSX.Element {
   return (
     <div className="diff-review">
       <header className="diff-review__head">
-        <nav className="diff-review__tabs">
-          <span className="diff-review__tabs-label">files</span>
-          <button
-            type="button"
-            className={`diff-review__tab${activeFile === null ? " diff-review__tab--on" : ""}`}
-            onClick={() => setActiveFile(null)}
-            title="Show hunks across every file"
-          >
-            <span className="diff-review__tab-label">all</span>
-            <span className="diff-review__tab-count">
-              {acceptedTotal}/{hunks.length}
-            </span>
-          </button>
+        <div className="diff-review__counter">
+          <ClaudeChip />
+          <span className="diff-review__counter-text">
+            {counts.pending > 0 ? (
+              <>
+                <span className="diff-review__counter-pending">{counts.pending} pending</span>
+                <span className="diff-review__counter-sep"> · </span>
+                <span>
+                  {acceptedTotal}/{hunks.length} kept
+                </span>
+              </>
+            ) : (
+              <>
+                <span>
+                  {acceptedTotal}/{hunks.length} kept
+                </span>
+                <span className="diff-review__counter-sep"> · </span>
+                <span className="diff-review__counter-ready">ready</span>
+              </>
+            )}
+          </span>
+          <div className="diff-review__head-tools">
+            <WidenToggle wide={props.wide} onToggle={props.onToggleWide} />
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={!applicable}
+              onClick={() => void props.onApply()}
+              title={
+                counts.pending > 0
+                  ? `Handle the remaining ${counts.pending} hunk${counts.pending === 1 ? "" : "s"} first.`
+                  : undefined
+              }
+            >
+              keep these changes · .
+            </button>
+          </div>
+        </div>
+        <nav className="diff-review__files" aria-label="Files with pending review">
           {files.map((file) => {
             const bucket = grouped.get(file) ?? [];
-            const accepted = bucket.filter(
-              (h) => h.state === "accepted" || h.state === "modified",
-            ).length;
+            const handled = bucket.filter((h) => h.state !== "pending").length;
+            const pending = bucket.length - handled;
+            const isActive = activeFile === file;
+            const isDone = pending === 0;
             return (
               <button
                 key={file}
                 type="button"
-                className={`diff-review__tab${activeFile === file ? " diff-review__tab--on" : ""}`}
-                onClick={() => setActiveFile(file)}
+                className={[
+                  "diff-review__file-row",
+                  isActive ? "diff-review__file-row--on" : "",
+                  isDone ? "diff-review__file-row--done" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={() => goToFile(file)}
                 title={file}
+                aria-current={isActive ? "true" : undefined}
               >
-                <span className="diff-review__tab-label">{file}</span>
-                <span className="diff-review__tab-count">
-                  {accepted}/{bucket.length}
+                <span className="diff-review__file-row-path">{file}</span>
+                <span className="diff-review__file-row-count">
+                  {handled}/{bucket.length}
                 </span>
               </button>
             );
           })}
         </nav>
-        <div className="diff-review__counter">
-          <ClaudeChip />
-          <span>
-            {acceptedTotal}/{hunks.length} accepted
-          </span>
-          <button
-            type="button"
-            className="btn btn--primary"
-            disabled={!applicable}
-            onClick={() => void props.onApply()}
-          >
-            keep these changes · .
-          </button>
-        </div>
       </header>
 
       {applyStatus.kind === "applied" && (
@@ -240,30 +358,14 @@ export default function DiffReview(props: Props): JSX.Element {
       )}
 
       <section className="diff-review__list">
-        {visibleHunks.map((h, vi) => {
+        {visibleHunks.map((h) => {
           const global = hunks.indexOf(h);
-          const key = h.file === "" ? "(unresolved)" : h.file;
+          const key = fileKey(h);
           const bucket = grouped.get(key) ?? [];
           const indexInFile = bucket.indexOf(h);
-          const prev = vi === 0 ? null : visibleHunks[vi - 1];
-          const prevKey =
-            prev === undefined || prev === null
-              ? null
-              : prev.file === ""
-                ? "(unresolved)"
-                : prev.file;
-          const isFileBoundary = prevKey !== key;
           const source = h.file === "" ? null : (sourceByFile.get(h.file) ?? null);
           return (
             <div key={h.id} className="diff-review__group">
-              {isFileBoundary && (
-                <h3 className="diff-review__file-header" title={key}>
-                  <span className="diff-review__file-header-path">{key}</span>
-                  <span className="diff-review__file-header-count">
-                    {bucket.length} hunk{bucket.length === 1 ? "" : "s"}
-                  </span>
-                </h3>
-              )}
               <HunkBlock
                 hunk={h}
                 indexInFile={indexInFile}
@@ -293,6 +395,7 @@ export default function DiffReview(props: Props): JSX.Element {
 
       <footer className="diff-review__foot">
         <span>j/k nav</span>
+        <span>[ / ] file</span>
         <span>a/r accept/reject</span>
         <span>e edit</span>
         <span>n note</span>
