@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import CenterPane from "./CenterPane";
 import { useProject } from "./context";
 import FilesColumn from "./FilesColumn";
@@ -8,13 +8,22 @@ import { useOpenPaper } from "./OpenPaper";
 import ReviewColumn from "./ReviewColumn";
 import { useReviewStore } from "./store-context";
 import { useDiffActions } from "./use-diff-actions";
+import { useWorkingTreeDivergence } from "./use-divergence";
 import { useLoadRevision } from "./use-load-revision";
+import { usePaperEdits } from "./use-paper-edits";
+
 export default function ProjectShell(): JSX.Element {
-  const { project } = useProject();
+  const { project, repo, rootId } = useProject();
   const openPaper = useOpenPaper();
   useLoadRevision();
   const { apply, repass, forkInfo } = useDiffActions();
   const reviewStore = useReviewStore();
+  const edits = usePaperEdits(repo, project.id);
+  const currentDraft = useMemo(
+    () => edits.live.find((e) => e.id === edits.currentDraftId),
+    [edits.live, edits.currentDraftId],
+  );
+  const divergence = useWorkingTreeDivergence(rootId, currentDraft);
   const [reviewWide, setReviewWide] = useState(false);
   const onToggleReviewWide = useCallback(() => setReviewWide((w) => !w), []);
 
@@ -52,6 +61,9 @@ export default function ProjectShell(): JSX.Element {
         <h1 className="project-shell__title">{project.label}</h1>
         <code className="project-shell__root">{project.root}</code>
       </header>
+      {divergence.dirty && divergence.report !== null && (
+        <DivergenceBanner report={divergence.report} currentOrdinal={divergence.currentOrdinal} />
+      )}
       <div className={bodyClass}>
         {project.kind === "writer" ? <FilesColumn /> : null}
         <main className="project-shell__center">
@@ -71,5 +83,24 @@ export default function ProjectShell(): JSX.Element {
         </div>
       </div>
     </div>
+  );
+}
+
+interface DivergenceBannerProps {
+  report: { modified: string[]; added: string[]; missing: string[] };
+  currentOrdinal: number | undefined;
+}
+
+function DivergenceBanner({ report, currentOrdinal }: DivergenceBannerProps): JSX.Element {
+  const changes = [...report.modified, ...report.added, ...report.missing];
+  const total = changes.length;
+  const sample = changes.slice(0, 3).join(", ");
+  const more = total > 3 ? ` and ${total - 3} more` : "";
+  const label = currentOrdinal !== undefined ? `Draft ${currentOrdinal}` : "the current draft";
+  return (
+    <p className="project-shell__divergence" role="status">
+      You've edited {total} file{total === 1 ? "" : "s"} by hand since {label} ({sample}
+      {more}). Applying will capture these changes as a new draft.
+    </p>
   );
 }

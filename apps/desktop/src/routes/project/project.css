@@ -33,6 +33,17 @@
   flex: 1;
 }
 
+.project-shell__divergence {
+  margin: 0;
+  padding: var(--space-1) var(--space-5);
+  background: color-mix(in oklab, var(--rubric) 8%, var(--paper));
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  border-bottom: 1px solid var(--rule-soft);
+  flex-shrink: 0;
+}
+
 .project-shell__body {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr) 220px 340px;
