@@ -5,5 +5,7 @@ pub mod claude_user_settings;
 pub mod db_tx;
 pub mod dialog;
 pub mod fs_scoped;
+pub mod history;
 pub mod project;
+pub mod project_meta;
 pub mod typst;

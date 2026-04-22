@@ -116,3 +116,129 @@ export interface TypstCompileReport {
 export function compileTypst(rootId: string, relPath: string): Promise<TypstCompileReport> {
   return invoke<TypstCompileReport>("compile_typst", { rootId, relPath });
 }
+
+export interface HistorySnapshotReport {
+  manifestSha256: string;
+  filesTotal: number;
+  blobsWritten: number;
+  bytesWritten: number;
+  isNewManifest: boolean;
+}
+
+export function historySnapshot(args: {
+  rootId: string;
+  explicitRelPaths?: ReadonlyArray<string>;
+  tombstonedRelPaths?: ReadonlyArray<string>;
+}): Promise<HistorySnapshotReport> {
+  return invoke<HistorySnapshotReport>("history_snapshot", {
+    rootId: args.rootId,
+    explicitRelPaths: args.explicitRelPaths ?? [],
+    tombstonedRelPaths: args.tombstonedRelPaths ?? [],
+  });
+}
+
+export interface HistoryDivergenceReport {
+  modified: string[];
+  added: string[];
+  missing: string[];
+}
+
+export function historyDetectDivergence(
+  rootId: string,
+  targetManifestSha: string,
+): Promise<HistoryDivergenceReport> {
+  return invoke<HistoryDivergenceReport>("history_detect_divergence", {
+    rootId,
+    targetManifestSha,
+  });
+}
+
+export interface HistoryCheckoutReport {
+  filesWritten: number;
+  filesDeleted: number;
+}
+
+export function historyCheckout(args: {
+  rootId: string;
+  targetManifestSha: string;
+  expectedParentManifestSha?: string | null;
+}): Promise<HistoryCheckoutReport> {
+  return invoke<HistoryCheckoutReport>("history_checkout", {
+    rootId: args.rootId,
+    targetManifestSha: args.targetManifestSha,
+    expectedParentManifestSha: args.expectedParentManifestSha ?? null,
+  });
+}
+
+export interface HistoryGcReport {
+  blobsDeleted: number;
+  manifestsDeleted: number;
+  bytesFreed: number;
+}
+
+export function historyGc(
+  rootId: string,
+  liveManifestShas: ReadonlyArray<string>,
+): Promise<HistoryGcReport> {
+  return invoke<HistoryGcReport>("history_gc", {
+    rootId,
+    liveManifestShas: Array.from(liveManifestShas),
+  });
+}
+
+export function historyReadBlob(rootId: string, sha256: string): Promise<ArrayBuffer> {
+  return invoke<ArrayBuffer>("history_read_blob", { rootId, sha256 });
+}
+
+export type ProjectScanFileFormat =
+  | "tex"
+  | "md"
+  | "typ"
+  | "bib"
+  | "cls"
+  | "sty"
+  | "bst"
+  | "pdf"
+  | "yml"
+  | "json"
+  | "txt";
+
+export type ProjectScanFileRole = "main" | "include" | "bib" | "asset";
+
+export interface ProjectScanFile {
+  relPath: string;
+  format: ProjectScanFileFormat;
+  role: ProjectScanFileRole | null;
+  size: number;
+  mtimeMs: number;
+}
+
+export interface ProjectScanReport {
+  projectId: string;
+  format: "tex" | "md" | "typ" | null;
+  mainRelPath: string | null;
+  mainIsPinned: boolean;
+  compiler: "typst" | "latexmk" | "pandoc" | "xelatex" | "pdflatex" | null;
+  files: ProjectScanFile[];
+  scannedAt: string;
+}
+
+export function projectScan(args: {
+  rootId: string;
+  projectId: string;
+  label: string;
+  kind: "writer" | "reviewer";
+  pinnedMainRelPath?: string | null;
+  scannedAt: string;
+}): Promise<ProjectScanReport> {
+  return invoke<ProjectScanReport>("project_scan", {
+    rootId: args.rootId,
+    input: {
+      projectId: args.projectId,
+      label: args.label,
+      kind: args.kind,
+      pinnedMainRelPath: args.pinnedMainRelPath ?? null,
+      scannedAt: args.scannedAt,
+    },
+  });
+}
