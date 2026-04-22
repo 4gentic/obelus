@@ -76,7 +76,7 @@
   padding: var(--space-1) var(--space-4);
   background: transparent;
   border: 0;
-  border-top: 2px solid transparent;
+  box-shadow: inset 0 2px 0 transparent;
   cursor: pointer;
   font: inherit;
   color: inherit;
@@ -85,7 +85,7 @@
   white-space: nowrap;
   transition:
     background 120ms linear,
-    border-top-color 120ms linear;
+    box-shadow 120ms linear;
 }
 
 .jobs-dock__seg:hover {
@@ -93,23 +93,23 @@
 }
 
 .jobs-dock__seg--running {
-  border-top-color: var(--rubric);
+  box-shadow: inset 0 2px 0 var(--rubric);
 }
 
 .jobs-dock__seg--ingesting {
-  border-top-color: var(--hl-unclear);
+  box-shadow: inset 0 2px 0 var(--hl-unclear);
 }
 
 .jobs-dock__seg--done {
-  border-top-color: var(--hl-cite);
+  box-shadow: inset 0 2px 0 var(--hl-cite);
 }
 
 .jobs-dock__seg--error {
-  border-top-color: var(--hl-wrong);
+  box-shadow: inset 0 2px 0 var(--hl-wrong);
 }
 
 .jobs-dock__seg--cancelled {
-  border-top-color: var(--ink-soft);
+  box-shadow: inset 0 2px 0 var(--ink-soft);
   opacity: 0.75;
 }
 

@@ -2,6 +2,7 @@ import { claudeCancel } from "@obelus/claude-sidecar";
 import { type JSX, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { type JobRecord, useJobsStore } from "../lib/jobs-store";
+import { getRepository } from "../lib/repo";
 import "./jobs-dock.css";
 
 export default function JobsDock(): JSX.Element | null {
@@ -121,7 +122,9 @@ function JobSegment({ job, isOpen, onToggle }: JobSegmentProps): JSX.Element {
       <span className="jobs-dock__seg-kind">{job.kind === "writeup" ? "Draft" : "Review"}</span>
       <span className="jobs-dock__seg-title">{title}</span>
       <span className="jobs-dock__seg-phase">{shortPhase(job)}</span>
-      <span className="jobs-dock__seg-elapsed">{formatElapsed(Date.now() - job.startedAt)}</span>
+      <span className="jobs-dock__seg-elapsed">
+        {formatElapsed((job.endedAt ?? Date.now()) - job.startedAt)}
+      </span>
     </button>
   );
 }
@@ -146,10 +149,22 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
     }
   }, [job.claudeSessionId]);
 
-  const handleOpen = useCallback((): void => {
+  const handleOpen = useCallback(async (): Promise<void> => {
+    if (job.paperId) {
+      try {
+        const repo = await getRepository();
+        const paper = await repo.papers.get(job.paperId);
+        if (paper?.pdfRelPath) {
+          await repo.projects.setLastOpenedFile(job.projectId, paper.pdfRelPath);
+        }
+      } catch {
+        // If the repo lookup fails the project still opens on its stored
+        // last-opened file — acceptable fallback, better than blocking the nav.
+      }
+    }
     navigate(`/project/${job.projectId}`);
     onClose();
-  }, [navigate, job.projectId, onClose]);
+  }, [navigate, job.projectId, job.paperId, onClose]);
 
   return (
     <section
@@ -170,7 +185,7 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
           </div>
           <div>
             <dt>Elapsed</dt>
-            <dd>{formatElapsed(Date.now() - job.startedAt)}</dd>
+            <dd>{formatElapsed((job.endedAt ?? Date.now()) - job.startedAt)}</dd>
           </div>
           {job.counts ? (
             <div>
@@ -189,8 +204,8 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
       {job.message ? <p className="jobs-dock__panel-message">{job.message}</p> : null}
 
       <footer className="jobs-dock__panel-foot">
-        <button type="button" className="jobs-dock__btn" onClick={handleOpen}>
-          Open project →
+        <button type="button" className="jobs-dock__btn" onClick={() => void handleOpen()}>
+          {job.paperId ? "Open paper →" : "Open project →"}
         </button>
         {live ? (
           <button

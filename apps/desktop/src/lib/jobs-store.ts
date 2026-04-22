@@ -30,6 +30,7 @@ export interface JobRecord {
   paperId?: string;
   paperTitle?: string;
   startedAt: number;
+  endedAt?: number;
   counts?: JobCounts;
   status: JobStatus;
   phase: string;
@@ -108,7 +109,12 @@ export const useJobsStore: JobsStore = create<JobsState>()((set, get) => ({
     set((s) => {
       const existing = s.jobs[id];
       if (!existing) return s;
-      return { jobs: { ...s.jobs, [id]: { ...existing, status: "done", message, phase: "" } } };
+      return {
+        jobs: {
+          ...s.jobs,
+          [id]: { ...existing, status: "done", message, phase: "", endedAt: Date.now() },
+        },
+      };
     });
   },
 
@@ -116,7 +122,12 @@ export const useJobsStore: JobsStore = create<JobsState>()((set, get) => ({
     set((s) => {
       const existing = s.jobs[id];
       if (!existing) return s;
-      return { jobs: { ...s.jobs, [id]: { ...existing, status: "error", message, phase: "" } } };
+      return {
+        jobs: {
+          ...s.jobs,
+          [id]: { ...existing, status: "error", message, phase: "", endedAt: Date.now() },
+        },
+      };
     });
   },
 
@@ -127,7 +138,13 @@ export const useJobsStore: JobsStore = create<JobsState>()((set, get) => ({
       return {
         jobs: {
           ...s.jobs,
-          [id]: { ...existing, status: "cancelled", message: "Cancelled.", phase: "" },
+          [id]: {
+            ...existing,
+            status: "cancelled",
+            message: "Cancelled.",
+            phase: "",
+            endedAt: Date.now(),
+          },
         },
       };
     });
