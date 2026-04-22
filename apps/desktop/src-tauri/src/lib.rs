@@ -20,6 +20,7 @@ use commands::{
     },
     project::authorize_project_root,
     project_meta::project_scan,
+    reset_local_state::reset_local_state,
     typst::compile_typst,
 };
 use state::AppState;
@@ -66,6 +67,7 @@ pub fn run() {
             history_read_blob,
             history_diff_manifests,
             project_scan,
+            reset_local_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Obelus");

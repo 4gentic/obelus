@@ -8,4 +8,5 @@ pub mod fs_scoped;
 pub mod history;
 pub mod project;
 pub mod project_meta;
+pub mod reset_local_state;
 pub mod typst;

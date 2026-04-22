@@ -64,6 +64,12 @@ export function authorizeProjectRoot(path: string): Promise<string> {
   return invoke<string>("authorize_project_root", { path });
 }
 
+// Wipes the SQLite database and persisted UI store from the app-data dir.
+// Used by the boot-failure recovery screen; callers relaunch afterwards.
+export function resetLocalState(): Promise<void> {
+  return invoke<void>("reset_local_state");
+}
+
 export function fsReadFile(rootId: string, relPath: string): Promise<ArrayBuffer> {
   return invoke<ArrayBuffer>("fs_read_file", { rootId, relPath });
 }
