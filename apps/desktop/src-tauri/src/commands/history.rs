@@ -60,6 +60,15 @@ fn sha256_hex(bytes: &[u8]) -> String {
     out
 }
 
+// Matches the shape our content-addressed store emits: 64-char lowercase hex.
+// Renderer-supplied shas flow into blob_abs / manifest_abs untyped, so
+// enforcing hex here is the only thing preventing `aa/../../etc/passwd` style
+// paths from escaping `.obelus/history/` via `PathBuf::join`'s
+// absolute-argument-replaces-base rule.
+fn is_sha256(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
 async fn sha256_file_hex(abs: &Path) -> AppResult<String> {
     let file = tokio::fs::File::open(abs).await.map_err(AppError::from)?;
     let mut reader = tokio::io::BufReader::new(file);
@@ -82,7 +91,7 @@ async fn sha256_file_hex(abs: &Path) -> AppResult<String> {
 }
 
 fn blob_abs(root: &Path, sha: &str) -> AppResult<PathBuf> {
-    if sha.len() < 3 {
+    if !is_sha256(sha) {
         return Err(AppError::Apply(format!("invalid blob sha: {sha}")));
     }
     let (ab, rest) = sha.split_at(2);
@@ -95,7 +104,7 @@ fn blob_abs(root: &Path, sha: &str) -> AppResult<PathBuf> {
 }
 
 fn manifest_abs(root: &Path, sha: &str) -> AppResult<PathBuf> {
-    if sha.len() < 3 {
+    if !is_sha256(sha) {
         return Err(AppError::Apply(format!("invalid manifest sha: {sha}")));
     }
     let (ab, rest) = sha.split_at(2);
@@ -385,7 +394,7 @@ async fn do_checkout(
         }
     }
 
-    let mut writes: Vec<(PathBuf, Vec<u8>, Vec<u8>)> =
+    let mut writes: Vec<(PathBuf, Option<Vec<u8>>, Vec<u8>)> =
         Vec::with_capacity(target.files.len());
     for entry in &target.files {
         let blob = blob_abs(root, &entry.sha256)?;
@@ -396,11 +405,18 @@ async fn do_checkout(
         if !abs.starts_with(root) {
             return Err(AppError::OutOfScope);
         }
-        let orig_bytes = tokio::fs::read(&abs).await.unwrap_or_default();
+        // None distinguishes "file was absent" from "file was empty" so the
+        // rollback path can delete the new file instead of stamping a 0-byte
+        // stub over its previously-nonexistent path.
+        let orig_bytes = match tokio::fs::read(&abs).await {
+            Ok(b) => Some(b),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(AppError::from(e)),
+        };
         writes.push((abs, orig_bytes, new_bytes));
     }
 
-    let mut committed: Vec<(PathBuf, Vec<u8>)> = Vec::with_capacity(writes.len());
+    let mut committed: Vec<(PathBuf, Option<Vec<u8>>)> = Vec::with_capacity(writes.len());
     for (abs, orig, new) in &writes {
         if let Some(parent) = abs.parent() {
             if let Err(e) = tokio::fs::create_dir_all(parent).await {
@@ -450,9 +466,16 @@ pub async fn history_checkout(
     .await
 }
 
-async fn rollback(committed: &[(PathBuf, Vec<u8>)]) {
+async fn rollback(committed: &[(PathBuf, Option<Vec<u8>>)]) {
     for (abs, orig) in committed {
-        let _ = atomic_write(abs, orig).await;
+        match orig {
+            Some(bytes) => {
+                let _ = atomic_write(abs, bytes).await;
+            }
+            None => {
+                let _ = tokio::fs::remove_file(abs).await;
+            }
+        }
     }
 }
 
@@ -852,5 +875,89 @@ mod tests {
         assert_eq!(snap1.manifest_sha256, snap2.manifest_sha256);
         assert!(snap1.is_new_manifest);
         assert!(!snap2.is_new_manifest);
+    }
+
+    #[test]
+    fn is_sha256_accepts_valid_lowercase_hex() {
+        assert!(is_sha256(&"a".repeat(64)));
+        let mixed = "0123456789abcdef".repeat(4);
+        assert_eq!(mixed.len(), 64);
+        assert!(is_sha256(&mixed));
+    }
+
+    #[test]
+    fn is_sha256_rejects_wrong_length() {
+        assert!(!is_sha256(""));
+        assert!(!is_sha256("abc"));
+        assert!(!is_sha256(&"a".repeat(63)));
+        assert!(!is_sha256(&"a".repeat(65)));
+    }
+
+    #[test]
+    fn is_sha256_rejects_uppercase_and_non_hex() {
+        assert!(!is_sha256(&"A".repeat(64)));
+        assert!(!is_sha256(&"g".repeat(64)));
+        let mixed = format!("{}{}", "a".repeat(32), "A".repeat(32));
+        assert!(!is_sha256(&mixed));
+    }
+
+    #[test]
+    fn is_sha256_rejects_path_traversal_inputs() {
+        assert!(!is_sha256("aa/../../../../../etc/passwd"));
+        let padded = format!("aa/../../../../{}", "x".repeat(49));
+        assert_eq!(padded.len(), 64);
+        assert!(!is_sha256(&padded));
+    }
+
+    #[test]
+    fn blob_abs_and_manifest_abs_reject_non_sha() {
+        let root = Path::new("/tmp/obelus-test-root");
+        match blob_abs(root, "aa/../../../../../etc/passwd") {
+            Err(AppError::Apply(msg)) => assert!(msg.contains("invalid blob sha"), "{msg}"),
+            other => panic!("expected Apply error, got {other:?}"),
+        }
+        match manifest_abs(root, "not-a-sha") {
+            Err(AppError::Apply(msg)) => assert!(msg.contains("invalid manifest sha"), "{msg}"),
+            other => panic!("expected Apply error, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn checkout_rollback_removes_new_files_and_restores_modified() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        write(&root.join("a.tex"), "original").await;
+        write(&root.join("b.tex"), "to_add").await;
+        write(&root.join("z/c.tex"), "z_original").await;
+
+        let snap = do_snapshot(&root, &[], &[]).await.unwrap();
+
+        // Pre-checkout state: a.tex modified, b.tex absent, z/ replaced with a
+        // regular file so create_dir_all("z") trips mid-loop. Checkout sorts
+        // by rel (a.tex → b.tex → z/c.tex), so a.tex and b.tex commit before
+        // the z/c.tex step fails — exercising both rollback branches.
+        write(&root.join("a.tex"), "modified").await;
+        tokio::fs::remove_file(root.join("b.tex")).await.unwrap();
+        tokio::fs::remove_dir_all(root.join("z")).await.unwrap();
+        write(&root.join("z"), "blocker").await;
+
+        let err = do_checkout(&root, &snap.manifest_sha256, None)
+            .await
+            .expect_err("expected checkout to fail at create_dir_all(z)");
+        assert!(
+            matches!(err, AppError::Io(_) | AppError::Apply(_)),
+            "unexpected error variant: {err:?}"
+        );
+
+        // a.tex: rollback restored its pre-checkout bytes, not the target bytes.
+        let a = tokio::fs::read_to_string(root.join("a.tex")).await.unwrap();
+        assert_eq!(a, "modified", "rollback must restore pre-checkout bytes");
+
+        // b.tex: was absent pre-checkout — rollback must delete, not leave a
+        // 0-byte stub. This is the regression this whole test exists for.
+        assert!(
+            !root.join("b.tex").exists(),
+            "b.tex was absent pre-checkout; rollback must not leave a stub"
+        );
     }
 }
