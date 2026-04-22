@@ -19,7 +19,13 @@ import { BundleV2 } from "../dist/schema-v2.js";
 // and returns empty shapes against Zod 4 internals.
 
 const here = dirname(fileURLToPath(import.meta.url));
-const outDirs = [resolve(here, "../schemas"), resolve(here, "../../claude-plugin/schemas")];
+// Default targets are the two committed schema directories. The guard script
+// (`scripts/guard-schema-emit.mjs`) overrides these via argv so it can emit to
+// a temp dir and diff against the committed copies without touching them.
+const outDirs =
+  process.argv.length > 2
+    ? process.argv.slice(2).map((p) => resolve(p))
+    : [resolve(here, "../schemas"), resolve(here, "../../claude-plugin/schemas")];
 for (const dir of outDirs) mkdirSync(dir, { recursive: true });
 
 const targets = [
