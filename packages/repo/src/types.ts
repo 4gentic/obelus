@@ -48,6 +48,9 @@ export interface AnnotationRow {
   createdAt: string;
   // Present when a cross-page selection produced multiple linked marks.
   groupId?: string;
+  // Set when a draft has landed the hunk this mark spawned; archives it from
+  // the active Marks tab but keeps it addressable.
+  resolvedInEditId?: string;
 }
 
 export interface SettingRow {
@@ -136,4 +139,62 @@ export interface FilePinRow {
   projectId: string;
   relPath: string;
   pinnedAt: string;
+}
+
+export type PaperEditKind = "baseline" | "ai" | "manual";
+export type PaperEditState = "live" | "tombstoned";
+
+export interface PaperEditRow {
+  id: string;
+  projectId: string;
+  parentEditId: string | null;
+  ordinal: number;
+  kind: PaperEditKind;
+  sessionId: string | null;
+  manifestSha256: string;
+  summary: string;
+  noteMd: string;
+  state: PaperEditState;
+  createdAt: string;
+}
+
+export type ProjectFileFormat =
+  | "tex"
+  | "md"
+  | "typ"
+  | "bib"
+  | "cls"
+  | "sty"
+  | "bst"
+  | "pdf"
+  | "yml"
+  | "json"
+  | "txt"
+  | "other";
+
+export type ProjectFileRole = "main" | "include" | "bib" | "asset";
+
+export interface ProjectFileRow {
+  projectId: string;
+  relPath: string;
+  format: ProjectFileFormat;
+  role: ProjectFileRole | null;
+  size: number;
+  mtimeMs: number;
+  scannedAt: string;
+}
+
+export type ProjectBuildFormat = "tex" | "md" | "typ";
+export type ProjectBuildCompiler = "typst" | "latexmk" | "pandoc" | "xelatex" | "pdflatex";
+
+export interface ProjectBuildRow {
+  projectId: string;
+  format: ProjectBuildFormat | null;
+  mainRelPath: string | null;
+  mainIsPinned: boolean;
+  compiler: ProjectBuildCompiler | null;
+  compilerArgs: string[];
+  outputRelDir: string | null;
+  scannedAt: string | null;
+  updatedAt: string;
 }

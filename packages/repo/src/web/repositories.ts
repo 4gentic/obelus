@@ -114,8 +114,16 @@ export const revisions = {
 };
 
 export const annotations = {
-  async listForRevision(revisionId: string): Promise<AnnotationRow[]> {
-    return getDb().annotations.where("revisionId").equals(revisionId).sortBy("createdAt");
+  async listForRevision(
+    revisionId: string,
+    opts?: { includeResolved?: boolean },
+  ): Promise<AnnotationRow[]> {
+    const all = await getDb()
+      .annotations.where("revisionId")
+      .equals(revisionId)
+      .sortBy("createdAt");
+    if (opts?.includeResolved) return all;
+    return all.filter((r) => r.resolvedInEditId === undefined);
   },
 
   async bulkPut(revisionId: string, rows: AnnotationRow[]): Promise<void> {
@@ -125,6 +133,16 @@ export const annotations = {
 
   async remove(id: string): Promise<void> {
     await getDb().annotations.delete(id);
+  },
+
+  async markResolvedInEdit(ids: ReadonlyArray<string>, editId: string): Promise<void> {
+    if (ids.length === 0) return;
+    const db = getDb();
+    await db.transaction("rw", db.annotations, async () => {
+      for (const id of ids) {
+        await db.annotations.update(id, { resolvedInEditId: editId });
+      }
+    });
   },
 };
 

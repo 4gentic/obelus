@@ -16,6 +16,7 @@ interface AnnotationSqlRow {
   thread_json: string;
   group_id: string | null;
   created_at: string;
+  resolved_in_edit_id: string | null;
 }
 
 interface PdfAnchorJson {
@@ -44,7 +45,10 @@ function toAnnotationRow(r: AnnotationSqlRow): AnnotationRow {
     createdAt: r.created_at,
   };
   const withRects = anchor.rects !== undefined ? { ...base, rects: anchor.rects } : base;
-  return r.group_id !== null ? { ...withRects, groupId: r.group_id } : withRects;
+  const withGroup = r.group_id !== null ? { ...withRects, groupId: r.group_id } : withRects;
+  return r.resolved_in_edit_id !== null
+    ? { ...withGroup, resolvedInEditId: r.resolved_in_edit_id }
+    : withGroup;
 }
 
 function toAnchorJson(row: AnnotationRow): string {
@@ -59,14 +63,20 @@ function toAnchorJson(row: AnnotationRow): string {
 }
 
 export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
+  const SELECT_COLS = `id, revision_id, category, quote, context_before, context_after,
+                       anchor_kind, anchor_json, note, thread_json, group_id, created_at,
+                       resolved_in_edit_id`;
   return {
-    async listForRevision(revisionId: string): Promise<AnnotationRow[]> {
-      const rows = await db.select<AnnotationSqlRow[]>(
-        `SELECT id, revision_id, category, quote, context_before, context_after,
-                anchor_kind, anchor_json, note, thread_json, group_id, created_at
-         FROM annotations WHERE revision_id = $1 ORDER BY created_at ASC`,
-        [revisionId],
-      );
+    async listForRevision(
+      revisionId: string,
+      opts?: { includeResolved?: boolean },
+    ): Promise<AnnotationRow[]> {
+      const sql = opts?.includeResolved
+        ? `SELECT ${SELECT_COLS} FROM annotations WHERE revision_id = $1 ORDER BY created_at ASC`
+        : `SELECT ${SELECT_COLS} FROM annotations
+           WHERE revision_id = $1 AND resolved_in_edit_id IS NULL
+           ORDER BY created_at ASC`;
+      const rows = await db.select<AnnotationSqlRow[]>(sql, [revisionId]);
       return rows.map(toAnnotationRow);
     },
 
@@ -107,6 +117,15 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
 
     async remove(id: string): Promise<void> {
       await db.execute("DELETE FROM annotations WHERE id = $1", [id]);
+    },
+
+    async markResolvedInEdit(ids: ReadonlyArray<string>, editId: string): Promise<void> {
+      if (ids.length === 0) return;
+      const stmts: TxStmt[] = ids.map((id) => ({
+        sql: `UPDATE annotations SET resolved_in_edit_id = $1 WHERE id = $2`,
+        params: [editId, id],
+      }));
+      await dbTxBatch(stmts);
     },
   };
 }

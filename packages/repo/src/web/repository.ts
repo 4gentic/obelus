@@ -4,6 +4,9 @@ import {
   type DiffHunksRepo,
   type FilePinsRepo,
   NotSupportedError,
+  type PaperEditsRepo,
+  type ProjectBuildRepo,
+  type ProjectFilesRepo,
   type ProjectsRepo,
   type Repository,
   type RepositoryFeature,
@@ -75,6 +78,32 @@ const filePinsStub: FilePinsRepo = {
   isPinned: () => Promise.reject(new NotSupportedError("filePins")),
 };
 
+const paperEditsStub: PaperEditsRepo = {
+  listForProject: () => Promise.reject(new NotSupportedError("paperEdits")),
+  get: () => Promise.reject(new NotSupportedError("paperEdits")),
+  head: () => Promise.reject(new NotSupportedError("paperEdits")),
+  baseline: () => Promise.reject(new NotSupportedError("paperEdits")),
+  create: () => Promise.reject(new NotSupportedError("paperEdits")),
+  setNote: () => Promise.reject(new NotSupportedError("paperEdits")),
+  setSummary: () => Promise.reject(new NotSupportedError("paperEdits")),
+  tombstoneDescendantsOf: () => Promise.reject(new NotSupportedError("paperEdits")),
+  consolidate: () => Promise.reject(new NotSupportedError("paperEdits")),
+  restore: () => Promise.reject(new NotSupportedError("paperEdits")),
+  countForProject: () => Promise.reject(new NotSupportedError("paperEdits")),
+};
+
+const projectFilesStub: ProjectFilesRepo = {
+  listForProject: () => Promise.reject(new NotSupportedError("projectFiles")),
+  replaceAll: () => Promise.reject(new NotSupportedError("projectFiles")),
+  setRole: () => Promise.reject(new NotSupportedError("projectFiles")),
+};
+
+const projectBuildStub: ProjectBuildRepo = {
+  get: () => Promise.reject(new NotSupportedError("projectBuild")),
+  upsert: () => Promise.reject(new NotSupportedError("projectBuild")),
+  setMain: () => Promise.reject(new NotSupportedError("projectBuild")),
+};
+
 export function buildWebRepository(): Repository {
   const self: Repository = {
     papers,
@@ -88,6 +117,9 @@ export function buildWebRepository(): Repository {
     askThreads: askThreadsStub,
     writeUps: writeUpsStub,
     filePins: filePinsStub,
+    paperEdits: paperEditsStub,
+    projectFiles: projectFilesStub,
+    projectBuild: projectBuildStub,
     supports(_feature: RepositoryFeature): boolean {
       return false;
     },
