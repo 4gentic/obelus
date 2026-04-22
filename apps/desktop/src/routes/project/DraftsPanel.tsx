@@ -98,19 +98,40 @@ export default function DraftsPanel(): JSX.Element {
       if (busy) return;
       const head = edits.head;
       if (!head) return;
-      const live = sortedLive.slice().reverse(); // oldest → newest
-      const fromIdx = live.findIndex((e) => e.id === target.id);
-      const toIdx = live.findIndex((e) => e.id === head.id);
-      if (fromIdx < 0 || toIdx < 0 || fromIdx > toIdx) return;
-      const chain = live.slice(fromIdx, toIdx + 1).map((e) => e.id);
+
+      // Walk parent links from head back toward target. The chain must be
+      // linear — if a branch exists between target and head we refuse rather
+      // than silently tombstoning a sibling subtree.
+      const byId = new Map(edits.live.map((e) => [e.id, e] as const));
+      const chainIds: string[] = [];
+      let cursor: PaperEditRow | undefined = head;
+      while (cursor && cursor.id !== target.id) {
+        chainIds.push(cursor.id);
+        cursor = cursor.parentEditId ? byId.get(cursor.parentEditId) : undefined;
+      }
+      if (!cursor) {
+        setBanner({
+          kind: "error",
+          message: "Can't fold: the drafts between these don't form a linear chain.",
+        });
+        return;
+      }
+      chainIds.push(target.id);
+
       setBanner({ kind: "working", message: "Folding drafts…" });
       try {
-        await repo.paperEdits.consolidate({
+        // Create the replacement first so there's never a moment with no live
+        // head. If tombstoneMany fails, the user sees two siblings and can
+        // recover; if create fails, nothing was disturbed.
+        await repo.paperEdits.create({
           projectId: project.id,
-          editIds: chain,
-          newManifestSha256: head.manifestSha256,
+          parentEditId: target.parentEditId,
+          kind: "manual",
+          sessionId: null,
+          manifestSha256: head.manifestSha256,
           summary: `Folded Drafts ${target.ordinal}–${head.ordinal}`,
         });
+        await repo.paperEdits.tombstoneMany(chainIds);
         await edits.refresh();
         setBanner({ kind: "idle" });
       } catch (err) {
@@ -120,7 +141,7 @@ export default function DraftsPanel(): JSX.Element {
         });
       }
     },
-    [busy, edits.head, edits.refresh, sortedLive, repo, project.id],
+    [busy, edits.head, edits.live, edits.refresh, repo, project.id],
   );
 
   const onRecover = useCallback(

@@ -182,12 +182,7 @@ export interface PaperEditsRepo {
   setNote(id: string, noteMd: string): Promise<void>;
   setSummary(id: string, summary: string): Promise<void>;
   tombstoneDescendantsOf(editId: string): Promise<{ tombstoned: string[] }>;
-  consolidate(input: {
-    projectId: string;
-    editIds: ReadonlyArray<string>;
-    newManifestSha256: string;
-    summary: string;
-  }): Promise<PaperEditRow>;
+  tombstoneMany(ids: ReadonlyArray<string>): Promise<void>;
   restore(id: string): Promise<void>;
   countForProject(projectId: string, opts?: { includeTombstoned?: boolean }): Promise<number>;
 }

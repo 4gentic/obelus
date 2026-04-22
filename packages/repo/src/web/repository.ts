@@ -87,7 +87,7 @@ const paperEditsStub: PaperEditsRepo = {
   setNote: () => Promise.reject(new NotSupportedError("paperEdits")),
   setSummary: () => Promise.reject(new NotSupportedError("paperEdits")),
   tombstoneDescendantsOf: () => Promise.reject(new NotSupportedError("paperEdits")),
-  consolidate: () => Promise.reject(new NotSupportedError("paperEdits")),
+  tombstoneMany: () => Promise.reject(new NotSupportedError("paperEdits")),
   restore: () => Promise.reject(new NotSupportedError("paperEdits")),
   countForProject: () => Promise.reject(new NotSupportedError("paperEdits")),
 };

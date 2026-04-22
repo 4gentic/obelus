@@ -171,53 +171,13 @@ export function buildPaperEditsRepo(db: Database): PaperEditsRepo {
       return { tombstoned: toTombstone };
     },
 
-    async consolidate(input: {
-      projectId: string;
-      editIds: ReadonlyArray<string>;
-      newManifestSha256: string;
-      summary: string;
-    }): Promise<PaperEditRow> {
-      if (input.editIds.length === 0) {
-        throw new Error("consolidate requires at least one editId");
-      }
-      const firstId = input.editIds[0];
-      if (firstId === undefined) {
-        throw new Error("consolidate editIds[0] missing");
-      }
-      const first = await this.get(firstId);
-      if (!first) throw new Error(`paper_edit ${firstId} not found`);
-      const id = randomUuid();
-      const createdAt = new Date().toISOString();
-      const stmts: TxStmt[] = [
-        {
-          sql: `INSERT INTO paper_edits
-                  (id, project_id, parent_edit_id, ordinal, kind, session_id,
-                   manifest_sha256, summary, note_md, state, created_at)
-                VALUES (
-                  $1, $2, $3,
-                  (SELECT COALESCE(MAX(ordinal), 0) + 1 FROM paper_edits WHERE project_id = $2),
-                  'manual', NULL, $4, $5, '', 'live', $6
-                )`,
-          params: [
-            id,
-            input.projectId,
-            first.parentEditId,
-            input.newManifestSha256,
-            input.summary,
-            createdAt,
-          ],
-        },
-      ];
-      for (const eid of input.editIds) {
-        stmts.push({
-          sql: `UPDATE paper_edits SET state = 'tombstoned' WHERE id = $1`,
-          params: [eid],
-        });
-      }
+    async tombstoneMany(ids: ReadonlyArray<string>): Promise<void> {
+      if (ids.length === 0) return;
+      const stmts: TxStmt[] = ids.map((id) => ({
+        sql: `UPDATE paper_edits SET state = 'tombstoned' WHERE id = $1`,
+        params: [id],
+      }));
       await dbTxBatch(stmts);
-      const persisted = await this.get(id);
-      if (!persisted) throw new Error("consolidate insert failed to round-trip");
-      return persisted;
     },
 
     async restore(id: string): Promise<void> {
