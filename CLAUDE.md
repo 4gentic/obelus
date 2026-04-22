@@ -20,6 +20,17 @@ Writing AI-assisted papers is cheap; reviewing them is the work. Obelus is an of
 - **No error handling for impossible cases** — trust framework guarantees. Only validate at system boundaries (file parsing, network, DOM parsing).
 - **Small modules**, named for their role, not their pattern.
 
+## Tracing at ingest boundaries
+
+Every place we turn an external artifact (a plan JSON, a write-up markdown, a bundle the user picked) into internal rows is a boundary. Boundaries must log once, structured, at the end of the operation — even on the happy path. Silent drops are the bug we pay for later.
+
+- **Log before you return.** At every ingest/parse/apply that produces rows, emit one `console.info("[<op>]", { …inputs, …counts, …dropped })`. Counts include `{ blockCount, hunkCount, droppedForX }`; dropped items include their identifiers, not just a count.
+- **Never `.filter()` silently.** If you drop rows (unknown id, failed validation, mismatched bundle), accumulate the dropped ids into the return value and log them by name. Zero rows after a filter is a fact the UI deserves to distinguish from "agent produced zero rows".
+- **Outcome messages are user-facing.** `jobs-listener.tsx` passes a message into `markDone` / `markError`; make it describe what actually happened — "Plan ready. 3 changes." or "no plan matched session bundle X" — not a generic "done".
+- **Errors carry context.** Prefer `throw new Error(\`no plan matched session bundle \${X}; scanned N file(s): …\`)` over bare `throw new Error("not found")`. Anyone reading the status bar should be able to reconstruct the failure.
+
+Search `[ingest-plan]` for the reference shape.
+
 ## Aesthetic invariants (Typesetter's charter)
 
 Editorial, literary, paper-like. Warm off-whites, serif type, margin-note layout.
@@ -89,7 +100,7 @@ When the shape of persisted data changes, the running app will not pick it up on
 
 Two tracks:
 
-1. **SQLite (desktop)** — if you edit or add a `.sql` file, bump it to a new numbered file (`0002_*.sql`, `0003_*.sql`, …) and register it in `src/migrations.rs`. Never edit an already-shipped migration: `CREATE TABLE IF NOT EXISTS` will silently skip existing tables and the new schema will never apply. SQLite does not support dropping a `CHECK` constraint in place — the migration must recreate the table (rename → create new → copy → drop old) or tighten the constraint via `PRAGMA writable_schema` if safe.
+1. **SQLite (desktop)** — if you edit or add a `.sql` file, bump it to a new numbered file (`0002_*.sql`, `0003_*.sql`, …) and register it in `src/migrations.rs`. Never edit an already-shipped migration: `CREATE TABLE IF NOT EXISTS` will silently skip existing tables and the new schema will never apply. SQLite does not support dropping a `CHECK` constraint in place — the migration must recreate the table (rename → create new → copy → drop old) or tighten the constraint via `PRAGMA writable_schema` if safe. `RAISE(ABORT, '…')` is only legal inside a trigger body — to abort a migration on a condition, host the `RAISE()` inside a `CREATE TEMP TRIGGER` fired by a throwaway `INSERT` (see `0007_per_paper_scope.sql`). A bare `SELECT RAISE(...)` throws `code 1: RAISE() may only be used within a trigger-program` and blocks boot.
 2. **Pre-release resets (OK today)** — until Obelus ships publicly, wiping local state is acceptable. The desktop DB and app state live at `~/Library/Application Support/app.obelus.desktop/` (macOS); delete `obelus.db*` and `app-state.json` to start fresh. Web OPFS/IndexedDB can be cleared via devtools → Application → Storage → Clear site data. Mention this to the user if you made an incompatible change.
 
 If you change `ProjectKind`, the bundle schema's `kind` enum, the `annotations` shape, or any persisted row, *both* tracks apply: ship a proper SQLite migration **and** flag the reset for in-flight local state.
