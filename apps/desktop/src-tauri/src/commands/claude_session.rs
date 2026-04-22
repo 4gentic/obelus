@@ -244,7 +244,11 @@ pub async fn claude_draft_writeup(
         ));
     }
 
-    let mut cmd = claude_command(&claude, &root, model.as_deref(), effort.as_deref());
+    // write-review is composition (500–1500 words of reviewer voice), not
+    // reasoning. Sonnet is the right tool here; Opus just doubles wall-clock
+    // for output that reads the same. Explicit user picks still win.
+    let effective_model = model.as_deref().or(Some("sonnet"));
+    let mut cmd = claude_command(&claude, &root, effective_model, effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await

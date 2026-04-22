@@ -143,7 +143,7 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
       }
 
       try {
-        const { filename, json } = await exportBundleV2ForPaper({ repo, paperId });
+        const { filename, json } = await exportBundleV2ForPaper({ repo, paperId, rootId });
         const bytes = new TextEncoder().encode(json);
         await fsWriteBytes(rootId, filename, bytes);
         const paper = await repo.papers.get(paperId);

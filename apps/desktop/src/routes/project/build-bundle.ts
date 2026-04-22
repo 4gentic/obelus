@@ -2,10 +2,16 @@ import type { AnnotationV2Input, PaperRefV2Input, ProjectV2Input } from "@obelus
 import { buildBundleV2 } from "@obelus/bundle-builder";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
 import type { Repository } from "@obelus/repo";
+import { fsReadFile } from "../../ipc/commands";
+import { resolveAnnotationSpan } from "./resolveSourceAnchors";
 
 export interface ExportBundleInput {
   repo: Repository;
   paperId: string;
+  // When provided, annotations whose quote resolves unambiguously to the
+  // paper's main source file are upgraded from `pdf` to `source` anchors so
+  // the plugin skips its Grep/Read fuzzy-match hunt.
+  rootId?: string;
 }
 
 export interface ExportedBundle {
@@ -24,7 +30,7 @@ function isoStampForFilename(now: Date = new Date()): string {
 }
 
 export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<ExportedBundle> {
-  const { repo, paperId } = input;
+  const { repo, paperId, rootId } = input;
   const paper = await repo.papers.get(paperId);
   if (!paper) throw new Error("paper not found");
   if (paper.projectId === undefined) throw new Error("paper has no project");
@@ -64,22 +70,6 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
     },
   ];
 
-  const annotations: AnnotationV2Input[] = rows.map((row) => ({
-    id: row.id,
-    paperId: paper.id,
-    category: row.category,
-    quote: row.quote,
-    contextBefore: row.contextBefore,
-    contextAfter: row.contextAfter,
-    page: row.page,
-    bbox: row.bbox,
-    textItemRange: row.textItemRange,
-    note: row.note,
-    thread: row.thread,
-    createdAt: row.createdAt,
-    ...(row.groupId !== undefined ? { groupId: row.groupId } : {}),
-  }));
-
   // Cached project-tree + per-paper build hints: the plugin reuses these to
   // skip discovery. Absent fields leave the plugin's existing heuristics as
   // the fallback path.
@@ -87,6 +77,52 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
     repo.paperBuild.get(paper.id).catch(() => undefined),
     repo.projectFiles.listForProject(project.id).catch(() => []),
   ]);
+
+  const mainRelPath = paperBuild?.mainRelPath ?? undefined;
+  const mainSource =
+    rootId !== undefined && mainRelPath !== undefined
+      ? await fsReadFile(rootId, mainRelPath)
+          .then((buf) => new TextDecoder().decode(buf))
+          .catch(() => undefined)
+      : undefined;
+
+  let resolvedCount = 0;
+  const annotations: AnnotationV2Input[] = rows.map((row) => {
+    const base: AnnotationV2Input = {
+      id: row.id,
+      paperId: paper.id,
+      category: row.category,
+      quote: row.quote,
+      contextBefore: row.contextBefore,
+      contextAfter: row.contextAfter,
+      page: row.page,
+      bbox: row.bbox,
+      textItemRange: row.textItemRange,
+      note: row.note,
+      thread: row.thread,
+      createdAt: row.createdAt,
+      ...(row.groupId !== undefined ? { groupId: row.groupId } : {}),
+    };
+    if (mainSource !== undefined && mainRelPath !== undefined) {
+      const resolved = resolveAnnotationSpan(mainRelPath, mainSource, {
+        quote: row.quote,
+        contextBefore: row.contextBefore,
+        contextAfter: row.contextAfter,
+      });
+      if (resolved.kind === "resolved" && resolved.span !== undefined) {
+        resolvedCount += 1;
+        return { ...base, sourceAnchor: resolved.span };
+      }
+    }
+    return base;
+  });
+
+  console.info("[export-bundle]", {
+    paperId: paper.id,
+    annotationCount: annotations.length,
+    sourceAnchorsResolved: resolvedCount,
+    mainRelPath: mainRelPath ?? null,
+  });
 
   const projectInput: ProjectV2Input = {
     id: project.id,

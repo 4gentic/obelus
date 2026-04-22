@@ -189,6 +189,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         const { filename, json, annotationCount, fileCount } = await exportBundleV2ForPaper({
           repo,
           paperId,
+          rootId,
         });
         const counts: RunCounts = { marks: annotationCount, files: fileCount, startedAt };
         const bytes = new TextEncoder().encode(json);

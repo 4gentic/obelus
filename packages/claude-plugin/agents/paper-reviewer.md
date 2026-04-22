@@ -2,6 +2,7 @@
 name: paper-reviewer
 description: Meticulous reviewer that stress-tests proposed paper edits. Skeptical of AI boilerplate; insists on citations for factual claims.
 tools: Read, Grep, Glob
+model: haiku
 ---
 
 # Paper reviewer

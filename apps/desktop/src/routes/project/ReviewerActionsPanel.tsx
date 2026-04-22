@@ -125,7 +125,7 @@ export default function ReviewerActionsPanel({
     if (!paperReady || !paperId) return;
     setExportState({ kind: "idle" });
     try {
-      const { filename, json } = await exportBundleV2ForPaper({ repo, paperId });
+      const { filename, json } = await exportBundleV2ForPaper({ repo, paperId, rootId });
       const bytes = new TextEncoder().encode(json);
       await fsWriteBytes(rootId, filename, bytes);
       setExportState({ kind: "json", relPath: filename });
