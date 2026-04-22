@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { toJSONSchema } from "zod";
+import { ProjectMeta } from "../dist/project-meta.js";
 import { BundleV1 } from "../dist/schema.js";
 import { BundleV2 } from "../dist/schema-v2.js";
 
@@ -24,6 +25,7 @@ for (const dir of outDirs) mkdirSync(dir, { recursive: true });
 const targets = [
   { schema: BundleV1, file: "bundle-v1.schema.json" },
   { schema: BundleV2, file: "bundle-v2.schema.json" },
+  { schema: ProjectMeta, file: "project-meta.schema.json" },
 ];
 
 for (const { schema, file } of targets) {

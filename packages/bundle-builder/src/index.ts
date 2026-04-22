@@ -100,6 +100,25 @@ export interface PaperRefV2Input {
   pdfSha256: string;
   pageCount: number;
   entrypoint?: string;
+  rubric?: { body: string; label: string; source: "file" | "paste" | "inline" };
+}
+
+export interface ProjectV2FileSummaryInput {
+  relPath: string;
+  format:
+    | "tex"
+    | "md"
+    | "typ"
+    | "bib"
+    | "cls"
+    | "sty"
+    | "bst"
+    | "pdf"
+    | "yml"
+    | "json"
+    | "txt"
+    | "other";
+  role?: "main" | "include" | "bib" | "asset";
 }
 
 export interface ProjectV2Input {
@@ -107,6 +126,9 @@ export interface ProjectV2Input {
   label: string;
   kind: "writer" | "reviewer";
   categories: ReadonlyArray<{ slug: string; label: string; color?: string }>;
+  // Cached tree hint for the Claude plugin (skip globbing when present).
+  main?: string;
+  files?: ReadonlyArray<ProjectV2FileSummaryInput>;
 }
 
 export interface AnnotationV2Input {
@@ -148,6 +170,16 @@ export function buildBundleV2(input: BuildBundleV2Input): Bundle2 {
         label: c.label,
         ...(c.color !== undefined ? { color: c.color } : {}),
       })),
+      ...(input.project.main !== undefined ? { main: input.project.main } : {}),
+      ...(input.project.files !== undefined
+        ? {
+            files: input.project.files.map((f) => ({
+              relPath: f.relPath,
+              format: f.format,
+              ...(f.role !== undefined ? { role: f.role } : {}),
+            })),
+          }
+        : {}),
     },
     papers: input.papers.map((p) => ({
       id: p.id,
@@ -160,6 +192,7 @@ export function buildBundleV2(input: BuildBundleV2Input): Bundle2 {
         pageCount: p.pageCount,
       },
       ...(p.entrypoint !== undefined ? { entrypoint: p.entrypoint } : {}),
+      ...(p.rubric !== undefined ? { rubric: p.rubric } : {}),
     })),
     annotations: input.annotations.map((a) => ({
       id: a.id,
