@@ -15,8 +15,8 @@ use commands::{
         fs_write_text_abs,
     },
     history::{
-        history_checkout, history_detect_divergence, history_gc, history_read_blob,
-        history_snapshot,
+        history_checkout, history_detect_divergence, history_diff_manifests, history_gc,
+        history_read_blob, history_snapshot,
     },
     project::authorize_project_root,
     project_meta::project_scan,
@@ -64,6 +64,7 @@ pub fn run() {
             history_checkout,
             history_gc,
             history_read_blob,
+            history_diff_manifests,
             project_scan,
         ])
         .run(tauri::generate_context!())

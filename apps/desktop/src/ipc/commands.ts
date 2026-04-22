@@ -190,6 +190,30 @@ export function historyReadBlob(rootId: string, sha256: string): Promise<ArrayBu
   return invoke<ArrayBuffer>("history_read_blob", { rootId, sha256 });
 }
 
+export type FileDiffStatus = "added" | "removed" | "modified" | "binary";
+
+export interface FileDiff {
+  rel: string;
+  status: FileDiffStatus;
+  unified: string;
+}
+
+export interface DiffManifestsReport {
+  files: FileDiff[];
+}
+
+export function historyDiffManifests(args: {
+  rootId: string;
+  fromManifestSha: string;
+  toManifestSha: string;
+}): Promise<DiffManifestsReport> {
+  return invoke<DiffManifestsReport>("history_diff_manifests", {
+    rootId: args.rootId,
+    fromManifestSha: args.fromManifestSha,
+    toManifestSha: args.toManifestSha,
+  });
+}
+
 export type ProjectScanFileFormat =
   | "tex"
   | "md"

@@ -571,6 +571,122 @@ pub async fn history_read_blob(
     Ok(Response::new(bytes))
 }
 
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FileDiff {
+    pub rel: String,
+    // "added" | "removed" | "modified" | "binary"
+    pub status: String,
+    pub unified: String,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffManifestsReport {
+    pub files: Vec<FileDiff>,
+}
+
+async fn blob_text(root: &Path, sha: &str) -> AppResult<Option<String>> {
+    let abs = blob_abs(root, sha)?;
+    let bytes = tokio::fs::read(&abs).await.map_err(AppError::from)?;
+    match std::str::from_utf8(&bytes) {
+        Ok(s) => Ok(Some(s.to_owned())),
+        Err(_) => Ok(None),
+    }
+}
+
+async fn do_diff_manifests(
+    root: &Path,
+    from_sha: &str,
+    to_sha: &str,
+) -> AppResult<DiffManifestsReport> {
+    let from = read_manifest(root, from_sha).await?;
+    let to = read_manifest(root, to_sha).await?;
+
+    use std::collections::BTreeMap;
+    let from_map: BTreeMap<&str, &str> = from
+        .files
+        .iter()
+        .map(|f| (f.rel.as_str(), f.sha256.as_str()))
+        .collect();
+    let to_map: BTreeMap<&str, &str> = to
+        .files
+        .iter()
+        .map(|f| (f.rel.as_str(), f.sha256.as_str()))
+        .collect();
+
+    let mut rels: BTreeSet<&str> = BTreeSet::new();
+    rels.extend(from_map.keys().copied());
+    rels.extend(to_map.keys().copied());
+
+    let mut files: Vec<FileDiff> = Vec::new();
+    for rel in rels {
+        match (from_map.get(rel), to_map.get(rel)) {
+            (Some(a), Some(b)) if a == b => continue,
+            (Some(a), Some(b)) => {
+                let old_text = blob_text(root, a).await?;
+                let new_text = blob_text(root, b).await?;
+                match (old_text, new_text) {
+                    (Some(o), Some(n)) => files.push(FileDiff {
+                        rel: rel.to_string(),
+                        status: "modified".into(),
+                        unified: diffy::create_patch(&o, &n).to_string(),
+                    }),
+                    _ => files.push(FileDiff {
+                        rel: rel.to_string(),
+                        status: "binary".into(),
+                        unified: String::new(),
+                    }),
+                }
+            }
+            (None, Some(b)) => {
+                let new_text = blob_text(root, b).await?;
+                match new_text {
+                    Some(n) => files.push(FileDiff {
+                        rel: rel.to_string(),
+                        status: "added".into(),
+                        unified: diffy::create_patch("", &n).to_string(),
+                    }),
+                    None => files.push(FileDiff {
+                        rel: rel.to_string(),
+                        status: "binary".into(),
+                        unified: String::new(),
+                    }),
+                }
+            }
+            (Some(a), None) => {
+                let old_text = blob_text(root, a).await?;
+                match old_text {
+                    Some(o) => files.push(FileDiff {
+                        rel: rel.to_string(),
+                        status: "removed".into(),
+                        unified: diffy::create_patch(&o, "").to_string(),
+                    }),
+                    None => files.push(FileDiff {
+                        rel: rel.to_string(),
+                        status: "binary".into(),
+                        unified: String::new(),
+                    }),
+                }
+            }
+            (None, None) => {}
+        }
+    }
+
+    Ok(DiffManifestsReport { files })
+}
+
+#[tauri::command]
+pub async fn history_diff_manifests(
+    root_id: String,
+    from_manifest_sha: String,
+    to_manifest_sha: String,
+    state: State<'_, AppState>,
+) -> AppResult<DiffManifestsReport> {
+    let root = root_path_for(&root_id, &state)?;
+    do_diff_manifests(&root, &from_manifest_sha, &to_manifest_sha).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -676,6 +792,50 @@ mod tests {
             .unwrap();
         assert!(div.modified.is_empty());
         assert!(div.missing.is_empty());
+    }
+
+    #[tokio::test]
+    async fn diff_manifests_classifies_added_removed_modified() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        write(&root.join("kept.tex"), "line 1\nline 2\n").await;
+        write(&root.join("old.md"), "about to vanish\n").await;
+        let snap_a = do_snapshot(&root, &[], &[]).await.unwrap();
+
+        // Modify kept.tex, delete old.md, add new.md
+        write(&root.join("kept.tex"), "line 1\nline 2 changed\n").await;
+        tokio::fs::remove_file(root.join("old.md")).await.unwrap();
+        write(&root.join("new.md"), "hello\n").await;
+        let snap_b = do_snapshot(&root, &[], &[]).await.unwrap();
+
+        let report = do_diff_manifests(&root, &snap_a.manifest_sha256, &snap_b.manifest_sha256)
+            .await
+            .unwrap();
+        let by_rel: std::collections::BTreeMap<_, _> =
+            report.files.iter().map(|f| (f.rel.as_str(), f)).collect();
+        assert_eq!(by_rel["kept.tex"].status, "modified");
+        assert!(by_rel["kept.tex"].unified.contains("line 2 changed"));
+        assert_eq!(by_rel["old.md"].status, "removed");
+        assert_eq!(by_rel["new.md"].status, "added");
+        assert!(by_rel["new.md"].unified.contains("+hello"));
+    }
+
+    #[tokio::test]
+    async fn diff_manifests_skips_unchanged_files() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        write(&root.join("a.tex"), "same\n").await;
+        write(&root.join("b.tex"), "also same\n").await;
+        let snap_a = do_snapshot(&root, &[], &[]).await.unwrap();
+
+        write(&root.join("b.tex"), "now different\n").await;
+        let snap_b = do_snapshot(&root, &[], &[]).await.unwrap();
+
+        let report = do_diff_manifests(&root, &snap_a.manifest_sha256, &snap_b.manifest_sha256)
+            .await
+            .unwrap();
+        assert_eq!(report.files.len(), 1);
+        assert_eq!(report.files[0].rel, "b.tex");
     }
 
     #[tokio::test]

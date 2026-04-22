@@ -2420,3 +2420,137 @@ button.files__row {
 .review-column__start--danger {
   color: var(--rubric);
 }
+
+/* -------- Compare drafts -------- */
+
+.compare-drafts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+  overflow-y: auto;
+}
+
+.compare-drafts__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.compare-drafts__back {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--rule-soft);
+}
+
+.compare-drafts__back:hover {
+  color: var(--ink);
+}
+
+.compare-drafts__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-1);
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.compare-drafts__status {
+  margin: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  font-style: italic;
+}
+
+.compare-drafts__status--err {
+  color: var(--rubric);
+  font-style: normal;
+}
+
+.compare-drafts__files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.compare-drafts__file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.compare-drafts__file-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px dashed var(--rule-soft);
+}
+
+.compare-drafts__file-path {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-drafts__status-tag {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.compare-drafts__status-tag--added {
+  color: var(--diff-new-rule, var(--ink));
+}
+
+.compare-drafts__status-tag--removed {
+  color: var(--diff-old-rule, var(--rubric));
+}
+
+.compare-drafts__status-tag--modified {
+  color: var(--ink-soft);
+}
+
+.compare-drafts__status-tag--binary {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.compare-drafts__hunks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.compare-drafts__hunk {
+  margin: 0;
+  background: var(--panel);
+  border: 1px solid var(--rule-soft);
+}
+
+.compare-drafts__binary {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-style: italic;
+}

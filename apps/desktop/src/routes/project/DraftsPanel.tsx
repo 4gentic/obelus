@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { useCallback, useMemo, useState } from "react";
 import { historyCheckout, historyDetectDivergence } from "../../ipc/commands";
 import { useBuffersStore } from "./buffers-store-context";
+import CompareDrafts from "./CompareDrafts";
 import { useProject } from "./context";
 import DraftEntry, { type DraftEntryState } from "./DraftEntry";
 import { scanAfterCheckout } from "./history-actions";
@@ -18,6 +19,7 @@ export default function DraftsPanel(): JSX.Element {
     { kind: "idle" } | { kind: "working"; message: string } | { kind: "error"; message: string }
   >({ kind: "idle" });
   const [showDiscarded, setShowDiscarded] = useState(false);
+  const [compareTarget, setCompareTarget] = useState<PaperEditRow | null>(null);
 
   const runnerKind = runner.status.kind;
   const runnerBusy =
@@ -129,6 +131,24 @@ export default function DraftsPanel(): JSX.Element {
     [repo, edits.refresh],
   );
 
+  const compareParent = useMemo<PaperEditRow | null>(() => {
+    if (!compareTarget?.parentEditId) return null;
+    const all = [...edits.live, ...edits.tombstoned];
+    return all.find((e) => e.id === compareTarget.parentEditId) ?? null;
+  }, [compareTarget, edits.live, edits.tombstoned]);
+
+  if (compareTarget && compareParent) {
+    return (
+      <div className="drafts-panel">
+        <CompareDrafts
+          from={compareParent}
+          to={compareTarget}
+          onClose={() => setCompareTarget(null)}
+        />
+      </div>
+    );
+  }
+
   if (edits.live.length === 0 && runnerKind !== "running" && runnerKind !== "working") {
     return (
       <div className="drafts-panel">
@@ -193,6 +213,7 @@ export default function DraftsPanel(): JSX.Element {
               dateLabel={relativeTime(d.createdAt)}
               absoluteDate={absoluteTime(d.createdAt)}
               onOpen={() => onOpen(d)}
+              onCompare={() => setCompareTarget(d)}
               onRename={(n) => onRename(d, n)}
             />
           </li>
@@ -216,6 +237,7 @@ export default function DraftsPanel(): JSX.Element {
                   dateLabel={relativeTime(d.createdAt)}
                   absoluteDate={absoluteTime(d.createdAt)}
                   {...(dState === "past" ? { onOpen: () => onOpen(d) } : {})}
+                  onCompare={() => setCompareTarget(d)}
                   onRename={(n) => onRename(d, n)}
                   {...(dState === "past" && d.id !== headId && edits.head && d.id !== edits.head.id
                     ? { onFold: () => onFold(d) }
