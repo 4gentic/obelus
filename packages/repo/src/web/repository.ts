@@ -2,7 +2,11 @@ import {
   type AskThreadsRepo,
   type DesksRepo,
   type DiffHunksRepo,
+  type FilePinsRepo,
   NotSupportedError,
+  type PaperBuildRepo,
+  type PaperEditsRepo,
+  type ProjectFilesRepo,
   type ProjectsRepo,
   type Repository,
   type RepositoryFeature,
@@ -16,8 +20,8 @@ const projectsStub: ProjectsRepo = {
   get: () => Promise.reject(new NotSupportedError("projects")),
   create: () => Promise.reject(new NotSupportedError("projects")),
   rename: () => Promise.reject(new NotSupportedError("projects")),
+  setPinned: () => Promise.reject(new NotSupportedError("projects")),
   forget: () => Promise.reject(new NotSupportedError("projects")),
-  repoint: () => Promise.reject(new NotSupportedError("projects")),
   moveToDesk: () => Promise.reject(new NotSupportedError("projects")),
   touchLastOpened: () => Promise.reject(new NotSupportedError("projects")),
   setLastOpenedFile: () => Promise.reject(new NotSupportedError("projects")),
@@ -30,13 +34,12 @@ const desksStub: DesksRepo = {
   rename: () => Promise.reject(new NotSupportedError("desks")),
   remove: () => Promise.reject(new NotSupportedError("desks")),
   touchLastOpened: () => Promise.reject(new NotSupportedError("desks")),
-  countProjects: () => Promise.reject(new NotSupportedError("desks")),
 };
 
 const reviewSessionsStub: ReviewSessionsRepo = {
-  list: () => Promise.reject(new NotSupportedError("reviewSessions")),
+  listForPaper: () => Promise.reject(new NotSupportedError("reviewSessions")),
   get: () => Promise.reject(new NotSupportedError("reviewSessions")),
-  latestForProject: () => Promise.reject(new NotSupportedError("reviewSessions")),
+  latestForPaper: () => Promise.reject(new NotSupportedError("reviewSessions")),
   create: () => Promise.reject(new NotSupportedError("reviewSessions")),
   complete: () => Promise.reject(new NotSupportedError("reviewSessions")),
   markApplied: () => Promise.reject(new NotSupportedError("reviewSessions")),
@@ -66,6 +69,38 @@ const writeUpsStub: WriteUpsRepo = {
   upsert: () => Promise.reject(new NotSupportedError("writeUps")),
 };
 
+const filePinsStub: FilePinsRepo = {
+  listForProject: () => Promise.reject(new NotSupportedError("filePins")),
+  pin: () => Promise.reject(new NotSupportedError("filePins")),
+  unpin: () => Promise.reject(new NotSupportedError("filePins")),
+  isPinned: () => Promise.reject(new NotSupportedError("filePins")),
+};
+
+const paperEditsStub: PaperEditsRepo = {
+  listForPaper: () => Promise.reject(new NotSupportedError("paperEdits")),
+  get: () => Promise.reject(new NotSupportedError("paperEdits")),
+  head: () => Promise.reject(new NotSupportedError("paperEdits")),
+  baseline: () => Promise.reject(new NotSupportedError("paperEdits")),
+  create: () => Promise.reject(new NotSupportedError("paperEdits")),
+  setNote: () => Promise.reject(new NotSupportedError("paperEdits")),
+  setSummary: () => Promise.reject(new NotSupportedError("paperEdits")),
+  tombstoneDescendantsOf: () => Promise.reject(new NotSupportedError("paperEdits")),
+  tombstoneMany: () => Promise.reject(new NotSupportedError("paperEdits")),
+  restore: () => Promise.reject(new NotSupportedError("paperEdits")),
+  countForPaper: () => Promise.reject(new NotSupportedError("paperEdits")),
+};
+
+const projectFilesStub: ProjectFilesRepo = {
+  listForProject: () => Promise.reject(new NotSupportedError("projectFiles")),
+  replaceAll: () => Promise.reject(new NotSupportedError("projectFiles")),
+};
+
+const paperBuildStub: PaperBuildRepo = {
+  get: () => Promise.reject(new NotSupportedError("paperBuild")),
+  upsert: () => Promise.reject(new NotSupportedError("paperBuild")),
+  setMain: () => Promise.reject(new NotSupportedError("paperBuild")),
+};
+
 export function buildWebRepository(): Repository {
   const self: Repository = {
     papers,
@@ -78,6 +113,10 @@ export function buildWebRepository(): Repository {
     diffHunks: diffHunksStub,
     askThreads: askThreadsStub,
     writeUps: writeUpsStub,
+    filePins: filePinsStub,
+    paperEdits: paperEditsStub,
+    projectFiles: projectFilesStub,
+    paperBuild: paperBuildStub,
     supports(_feature: RepositoryFeature): boolean {
       return false;
     },

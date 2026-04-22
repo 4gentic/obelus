@@ -1,6 +1,14 @@
 export { migrateV1ToV2 } from "./migrations.js";
 export type { ParseResult } from "./parse.js";
 export { parseBundle } from "./parse.js";
+export {
+  PaperBuildCompiler,
+  PaperBuildFormat,
+  PROJECT_META_VERSION,
+  ProjectMeta,
+  ProjectMetaCompile,
+  ProjectMetaFile,
+} from "./project-meta.js";
 export { AnnotationV1, BUNDLE_VERSION, BundleV1, CategoryV1 } from "./schema.js";
 export {
   Anchor,
@@ -8,8 +16,12 @@ export {
   BUNDLE_VERSION_V2,
   BundleV2,
   HtmlAnchor,
+  PaperRubricV2,
   PdfAnchor,
   ProjectCategory,
+  ProjectFileFormat,
+  ProjectFileRole,
+  ProjectFileSummary,
   ProjectKind,
   SourceAnchor,
 } from "./schema-v2.js";
@@ -20,6 +32,7 @@ export type {
   Bundle2,
   HtmlAnchor2,
   PaperRef2,
+  PaperRubric2,
   PdfAnchor2,
   Project2,
   ProjectCategory2,

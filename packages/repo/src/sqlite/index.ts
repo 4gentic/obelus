@@ -4,7 +4,11 @@ import { buildAskThreadsRepo } from "./ask-threads";
 import type { Database } from "./db";
 import { buildDesksRepo } from "./desks";
 import { buildDiffHunksRepo } from "./diff-hunks";
+import { buildFilePinsRepo } from "./file-pins";
+import { buildPaperBuildRepo } from "./paper-build";
+import { buildPaperEditsRepo } from "./paper-edits";
 import { buildPapersRepo } from "./papers";
+import { buildProjectFilesRepo } from "./project-files";
 import { buildProjectsRepo } from "./projects";
 import { buildReviewSessionsRepo } from "./review-sessions";
 import { buildRevisionsRepo } from "./revisions";
@@ -18,6 +22,10 @@ const SUPPORTED: ReadonlySet<RepositoryFeature> = new Set([
   "diffHunks",
   "askThreads",
   "writeUps",
+  "filePins",
+  "paperEdits",
+  "projectFiles",
+  "paperBuild",
 ]);
 
 export function buildSqliteRepository(db: Database): Repository {
@@ -32,6 +40,10 @@ export function buildSqliteRepository(db: Database): Repository {
     diffHunks: buildDiffHunksRepo(db),
     askThreads: buildAskThreadsRepo(db),
     writeUps: buildWriteUpsRepo(db),
+    filePins: buildFilePinsRepo(db),
+    paperEdits: buildPaperEditsRepo(db),
+    projectFiles: buildProjectFilesRepo(db),
+    paperBuild: buildPaperBuildRepo(db),
     supports(feature: RepositoryFeature): boolean {
       return SUPPORTED.has(feature);
     },

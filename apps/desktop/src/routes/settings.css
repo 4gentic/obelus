@@ -61,6 +61,27 @@
   border-left: 3px solid var(--rubric);
 }
 
+.settings__details {
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.settings__details > summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.settings__raw {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) 0 0;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .settings__button {
   align-self: flex-start;
   font-family: var(--font-body);

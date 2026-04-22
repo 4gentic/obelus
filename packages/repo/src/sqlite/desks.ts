@@ -83,13 +83,5 @@ export function buildDesksRepo(db: Database): DesksRepo {
         id,
       ]);
     },
-
-    async countProjects(id: string): Promise<number> {
-      const rows = await db.select<{ count: number }[]>(
-        "SELECT COUNT(*) AS count FROM projects WHERE desk_id = $1",
-        [id],
-      );
-      return rows[0]?.count ?? 0;
-    },
   };
 }

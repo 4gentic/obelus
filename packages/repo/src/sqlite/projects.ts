@@ -88,12 +88,12 @@ export function buildProjectsRepo(db: Database): ProjectsRepo {
       await db.execute("UPDATE projects SET label = $1 WHERE id = $2", [label, id]);
     },
 
-    async forget(id: string): Promise<void> {
-      await db.execute("DELETE FROM projects WHERE id = $1", [id]);
+    async setPinned(id: string, pinned: boolean): Promise<void> {
+      await db.execute("UPDATE projects SET pinned = $1 WHERE id = $2", [pinned ? 1 : 0, id]);
     },
 
-    async repoint(id: string, newRoot: string): Promise<void> {
-      await db.execute("UPDATE projects SET root = $1 WHERE id = $2", [newRoot, id]);
+    async forget(id: string): Promise<void> {
+      await db.execute("DELETE FROM projects WHERE id = $1", [id]);
     },
 
     async moveToDesk(id: string, deskId: string): Promise<void> {

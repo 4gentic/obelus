@@ -1,8 +1,10 @@
 import { check } from "@tauri-apps/plugin-updater";
 
 // Possible states when the app asks the updater about a new release.
-// `unconfigured` only surfaces when tauri.conf.json still has an empty
-// `pubkey`; in that state we refuse to trust manifests and keep quiet.
+// `unconfigured` surfaces when tauri.conf.json still has an empty pubkey;
+// `offline` and `no-release` distinguish the two benign failure modes
+// the Tauri plugin doesn't itself name, so the UI can render calm copy
+// instead of leaking a raw deserializer error.
 export type UpdaterState =
   | { kind: "idle" }
   | { kind: "checking" }
@@ -10,11 +12,25 @@ export type UpdaterState =
   | { kind: "available"; version: string; notes: string | null }
   | { kind: "downloading"; downloaded: number; total: number | null }
   | { kind: "installed" }
-  | { kind: "error"; message: string }
+  | { kind: "offline" }
+  | { kind: "no-release" }
+  | { kind: "error"; message: string; raw: string }
   | { kind: "unconfigured" };
 
-// Thin wrapper that normalizes the plugin's thrown "no key configured"
-// error into a quiet `unconfigured` state so the UI can hide the control.
+function classifyError(err: unknown): UpdaterState {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (/pubkey|public key|signing|signature|minisign/i.test(raw)) {
+    return { kind: "unconfigured" };
+  }
+  if (/network|failed to fetch|connection|dns|timeout|unreachable/i.test(raw)) {
+    return { kind: "offline" };
+  }
+  if (/404|not found|expected value|eof|unexpected|json|deserialize|missing field/i.test(raw)) {
+    return { kind: "no-release" };
+  }
+  return { kind: "error", message: "Update check failed.", raw };
+}
+
 export async function checkForUpdate(): Promise<UpdaterState> {
   try {
     const update = await check();
@@ -25,11 +41,7 @@ export async function checkForUpdate(): Promise<UpdaterState> {
       notes: update.body ?? null,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (/pubkey|public key|signing/i.test(message)) {
-      return { kind: "unconfigured" };
-    }
-    return { kind: "error", message };
+    return classifyError(err);
   }
 }
 
@@ -54,7 +66,6 @@ export async function downloadAndInstall(
     });
     return { kind: "installed" };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { kind: "error", message };
+    return classifyError(err);
   }
 }

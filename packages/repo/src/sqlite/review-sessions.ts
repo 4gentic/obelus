@@ -5,8 +5,8 @@ import type { Database } from "./db";
 interface ReviewSessionSqlRow {
   id: string;
   project_id: string;
+  paper_id: string;
   bundle_id: string;
-  claude_version: string | null;
   model: string | null;
   effort: string | null;
   started_at: string;
@@ -18,8 +18,8 @@ function toRow(r: ReviewSessionSqlRow): ReviewSessionRow {
   return {
     id: r.id,
     projectId: r.project_id,
+    paperId: r.paper_id,
     bundleId: r.bundle_id,
-    claudeVersion: r.claude_version,
     model: r.model,
     effort: r.effort,
     startedAt: r.started_at,
@@ -29,14 +29,14 @@ function toRow(r: ReviewSessionSqlRow): ReviewSessionRow {
 }
 
 const SELECT =
-  "SELECT id, project_id, bundle_id, claude_version, model, effort, started_at, completed_at, applied_at FROM review_sessions";
+  "SELECT id, project_id, paper_id, bundle_id, model, effort, started_at, completed_at, applied_at FROM review_sessions";
 
 export function buildReviewSessionsRepo(db: Database): ReviewSessionsRepo {
   return {
-    async list(projectId: string): Promise<ReviewSessionRow[]> {
+    async listForPaper(paperId: string): Promise<ReviewSessionRow[]> {
       const rows = await db.select<ReviewSessionSqlRow[]>(
-        `${SELECT} WHERE project_id = $1 ORDER BY started_at DESC`,
-        [projectId],
+        `${SELECT} WHERE paper_id = $1 ORDER BY started_at DESC`,
+        [paperId],
       );
       return rows.map(toRow);
     },
@@ -47,10 +47,10 @@ export function buildReviewSessionsRepo(db: Database): ReviewSessionsRepo {
       return row ? toRow(row) : undefined;
     },
 
-    async latestForProject(projectId: string): Promise<ReviewSessionRow | undefined> {
+    async latestForPaper(paperId: string): Promise<ReviewSessionRow | undefined> {
       const rows = await db.select<ReviewSessionSqlRow[]>(
-        `${SELECT} WHERE project_id = $1 ORDER BY started_at DESC LIMIT 1`,
-        [projectId],
+        `${SELECT} WHERE paper_id = $1 ORDER BY started_at DESC LIMIT 1`,
+        [paperId],
       );
       const row = rows[0];
       return row ? toRow(row) : undefined;
@@ -60,23 +60,15 @@ export function buildReviewSessionsRepo(db: Database): ReviewSessionsRepo {
       const id = crypto.randomUUID();
       const startedAt = new Date().toISOString();
       await db.execute(
-        `INSERT INTO review_sessions (id, project_id, bundle_id, claude_version, model, effort, started_at)
+        `INSERT INTO review_sessions (id, project_id, paper_id, bundle_id, model, effort, started_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          id,
-          input.projectId,
-          input.bundleId,
-          input.claudeVersion,
-          input.model,
-          input.effort,
-          startedAt,
-        ],
+        [id, input.projectId, input.paperId, input.bundleId, input.model, input.effort, startedAt],
       );
       return {
         id,
         projectId: input.projectId,
+        paperId: input.paperId,
         bundleId: input.bundleId,
-        claudeVersion: input.claudeVersion,
         model: input.model,
         effort: input.effort,
         startedAt,

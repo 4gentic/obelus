@@ -130,13 +130,27 @@ export default function Settings(): JSX.Element {
           </pre>
         ) : null}
         {updater.kind === "current" ? <pre className="settings__pane">Up to date.</pre> : null}
+        {updater.kind === "no-release" ? (
+          <pre className="settings__pane">No release published yet. Check back shortly.</pre>
+        ) : null}
+        {updater.kind === "offline" ? (
+          <pre className="settings__pane settings__pane--warn">
+            Could not reach GitHub. Obelus stays offline; try again when you're online.
+          </pre>
+        ) : null}
         {updater.kind === "unconfigured" ? (
           <pre className="settings__pane settings__pane--warn">
             Updater not configured. Embed a minisign public key in tauri.conf.json.
           </pre>
         ) : null}
         {updater.kind === "error" ? (
-          <pre className="settings__pane settings__pane--warn">{updater.message}</pre>
+          <div className="settings__pane settings__pane--warn">
+            {updater.message}
+            <details className="settings__details">
+              <summary>Details</summary>
+              <pre className="settings__raw">{updater.raw}</pre>
+            </details>
+          </div>
         ) : null}
         {updater.kind === "available" ? (
           <button type="button" className="settings__button" onClick={() => void onInstallUpdate()}>

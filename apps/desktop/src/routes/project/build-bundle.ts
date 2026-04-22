@@ -5,7 +5,7 @@ import type { Repository } from "@obelus/repo";
 
 export interface ExportBundleInput {
   repo: Repository;
-  projectId: string;
+  paperId: string;
 }
 
 export interface ExportedBundle {
@@ -23,28 +23,28 @@ function isoStampForFilename(now: Date = new Date()): string {
   );
 }
 
-export async function exportBundleV2ForProject(input: ExportBundleInput): Promise<ExportedBundle> {
-  const { repo, projectId } = input;
-  const project = await repo.projects.get(projectId);
+export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<ExportedBundle> {
+  const { repo, paperId } = input;
+  const paper = await repo.papers.get(paperId);
+  if (!paper) throw new Error("paper not found");
+  if (paper.projectId === undefined) throw new Error("paper has no project");
+  if (paper.pdfRelPath === undefined || paper.pageCount === undefined) {
+    throw new Error("paper has no PDF artifact yet");
+  }
+  const project = await repo.projects.get(paper.projectId);
   if (!project) throw new Error("project not found");
 
-  const allPapers = await repo.papers.list();
-  const projectPapers = allPapers.filter(
-    (p) => p.projectId === projectId && p.pdfRelPath !== undefined && p.pageCount !== undefined,
-  );
-  if (projectPapers.length === 0) {
-    throw new Error("no papers in this project yet");
+  const revisions = await repo.revisions.listForPaper(paper.id);
+  const latest = revisions[revisions.length - 1];
+  if (!latest) throw new Error("paper has no revision");
+
+  const rows = await repo.annotations.listForRevision(latest.id);
+  if (rows.length === 0) {
+    throw new Error("no annotations to review");
   }
 
-  const papers: PaperRefV2Input[] = [];
-  const annotations: AnnotationV2Input[] = [];
-
-  for (const paper of projectPapers) {
-    const revisions = await repo.revisions.listForPaper(paper.id);
-    const latest = revisions[revisions.length - 1];
-    if (!latest) continue;
-    if (paper.pdfRelPath === undefined || paper.pageCount === undefined) continue;
-    papers.push({
+  const papers: PaperRefV2Input[] = [
+    {
       id: paper.id,
       title: paper.title,
       revisionNumber: latest.revisionNumber,
@@ -52,30 +52,41 @@ export async function exportBundleV2ForProject(input: ExportBundleInput): Promis
       pdfRelPath: paper.pdfRelPath,
       pdfSha256: paper.pdfSha256,
       pageCount: paper.pageCount,
-    });
-    const rows = await repo.annotations.listForRevision(latest.id);
-    for (const row of rows) {
-      annotations.push({
-        id: row.id,
-        paperId: paper.id,
-        category: row.category,
-        quote: row.quote,
-        contextBefore: row.contextBefore,
-        contextAfter: row.contextAfter,
-        page: row.page,
-        bbox: row.bbox,
-        textItemRange: row.textItemRange,
-        note: row.note,
-        thread: row.thread,
-        createdAt: row.createdAt,
-        ...(row.groupId !== undefined ? { groupId: row.groupId } : {}),
-      });
-    }
-  }
+      ...(paper.rubric !== undefined
+        ? {
+            rubric: {
+              body: paper.rubric.body,
+              label: paper.rubric.label,
+              source: paper.rubric.source,
+            },
+          }
+        : {}),
+    },
+  ];
 
-  if (annotations.length === 0) {
-    throw new Error("no annotations to review");
-  }
+  const annotations: AnnotationV2Input[] = rows.map((row) => ({
+    id: row.id,
+    paperId: paper.id,
+    category: row.category,
+    quote: row.quote,
+    contextBefore: row.contextBefore,
+    contextAfter: row.contextAfter,
+    page: row.page,
+    bbox: row.bbox,
+    textItemRange: row.textItemRange,
+    note: row.note,
+    thread: row.thread,
+    createdAt: row.createdAt,
+    ...(row.groupId !== undefined ? { groupId: row.groupId } : {}),
+  }));
+
+  // Cached project-tree + per-paper build hints: the plugin reuses these to
+  // skip discovery. Absent fields leave the plugin's existing heuristics as
+  // the fallback path.
+  const [paperBuild, projectFiles] = await Promise.all([
+    repo.paperBuild.get(paper.id).catch(() => undefined),
+    repo.projectFiles.listForProject(project.id).catch(() => []),
+  ]);
 
   const projectInput: ProjectV2Input = {
     id: project.id,
@@ -85,6 +96,18 @@ export async function exportBundleV2ForProject(input: ExportBundleInput): Promis
       slug: c.id,
       label: c.label,
     })),
+    ...(paperBuild?.mainRelPath ? { main: paperBuild.mainRelPath } : {}),
+    ...(projectFiles.length > 0
+      ? {
+          files: projectFiles
+            .filter((f) => f.format !== "pdf")
+            .map((f) => ({
+              relPath: f.relPath,
+              format: f.format,
+              ...(f.role !== null ? { role: f.role } : {}),
+            })),
+        }
+      : {}),
   };
 
   const bundle = buildBundleV2({

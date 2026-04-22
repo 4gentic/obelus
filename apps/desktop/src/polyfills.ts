@@ -10,6 +10,9 @@ type AsyncStreamProto = ReadableStream<unknown> & {
 };
 
 if (typeof ReadableStream !== "undefined") {
+  // Why: lib.dom's ReadableStream prototype doesn't expose `Symbol.asyncIterator`
+  // / `values`. The cast lets us probe for and install them; without it TS would
+  // forbid both the read and the write on the built-in prototype.
   const proto = ReadableStream.prototype as unknown as AsyncStreamProto;
   if (typeof proto[Symbol.asyncIterator] !== "function") {
     const asyncIterator = function asyncIterator(

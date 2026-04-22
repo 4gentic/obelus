@@ -1,6 +1,9 @@
 // Storage row shapes shared by every Repository implementation (Dexie today,
 // SQLite later). Implementations map these to/from their native rows.
 
+import type * as BundleSchema from "@obelus/bundle-schema";
+import type { z } from "zod";
+
 export interface PaperRubric {
   body: string;
   source: "file" | "paste" | "inline";
@@ -48,6 +51,9 @@ export interface AnnotationRow {
   createdAt: string;
   // Present when a cross-page selection produced multiple linked marks.
   groupId?: string;
+  // Set when a draft has landed the hunk this mark spawned; archives it from
+  // the active Marks tab but keeps it addressable.
+  resolvedInEditId?: string;
 }
 
 export interface SettingRow {
@@ -81,8 +87,8 @@ export interface DeskRow {
 export interface ReviewSessionRow {
   id: string;
   projectId: string;
+  paperId: string;
   bundleId: string;
-  claudeVersion: string | null;
   model: string | null;
   effort: string | null;
   startedAt: string;
@@ -129,5 +135,57 @@ export interface WriteUpRow {
   projectId: string;
   paperId: string;
   bodyMd: string;
+  updatedAt: string;
+}
+
+export interface FilePinRow {
+  projectId: string;
+  relPath: string;
+  pinnedAt: string;
+}
+
+export type PaperEditKind = "baseline" | "ai" | "manual";
+export type PaperEditState = "live" | "tombstoned";
+
+export interface PaperEditRow {
+  id: string;
+  projectId: string;
+  paperId: string;
+  parentEditId: string | null;
+  ordinal: number;
+  kind: PaperEditKind;
+  sessionId: string | null;
+  manifestSha256: string;
+  summary: string;
+  noteMd: string;
+  state: PaperEditState;
+  createdAt: string;
+}
+
+export type ProjectFileFormat = z.infer<typeof BundleSchema.ProjectFileFormat>;
+export type ProjectFileRole = z.infer<typeof BundleSchema.ProjectFileRole>;
+
+export interface ProjectFileRow {
+  projectId: string;
+  relPath: string;
+  format: ProjectFileFormat;
+  role: ProjectFileRole | null;
+  size: number;
+  mtimeMs: number;
+  scannedAt: string;
+}
+
+export type PaperBuildFormat = z.infer<typeof BundleSchema.PaperBuildFormat>;
+export type PaperBuildCompiler = z.infer<typeof BundleSchema.PaperBuildCompiler>;
+
+export interface PaperBuildRow {
+  paperId: string;
+  format: PaperBuildFormat | null;
+  mainRelPath: string | null;
+  mainIsPinned: boolean;
+  compiler: PaperBuildCompiler | null;
+  compilerArgs: string[];
+  outputRelDir: string | null;
+  scannedAt: string | null;
   updatedAt: string;
 }

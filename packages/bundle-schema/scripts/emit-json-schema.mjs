@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { toJSONSchema } from "zod";
+import { ProjectMeta } from "../dist/project-meta.js";
 import { BundleV1 } from "../dist/schema.js";
 import { BundleV2 } from "../dist/schema-v2.js";
 
@@ -18,12 +19,19 @@ import { BundleV2 } from "../dist/schema-v2.js";
 // and returns empty shapes against Zod 4 internals.
 
 const here = dirname(fileURLToPath(import.meta.url));
-const outDirs = [resolve(here, "../schemas"), resolve(here, "../../claude-plugin/schemas")];
+// Default targets are the two committed schema directories. The guard script
+// (`scripts/guard-schema-emit.mjs`) overrides these via argv so it can emit to
+// a temp dir and diff against the committed copies without touching them.
+const outDirs =
+  process.argv.length > 2
+    ? process.argv.slice(2).map((p) => resolve(p))
+    : [resolve(here, "../schemas"), resolve(here, "../../claude-plugin/schemas")];
 for (const dir of outDirs) mkdirSync(dir, { recursive: true });
 
 const targets = [
   { schema: BundleV1, file: "bundle-v1.schema.json" },
   { schema: BundleV2, file: "bundle-v2.schema.json" },
+  { schema: ProjectMeta, file: "project-meta.schema.json" },
 ];
 
 for (const { schema, file } of targets) {

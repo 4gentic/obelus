@@ -4,7 +4,12 @@ import { create, type StoreApi, type UseBoundStore } from "zustand";
 export type ApplyStatus =
   | { kind: "idle" }
   | { kind: "applying" }
-  | { kind: "applied"; filesWritten: number; hunksApplied: number }
+  | {
+      kind: "applied";
+      filesWritten: number;
+      hunksApplied: number;
+      draftOrdinal?: number;
+    }
   | { kind: "error"; message: string };
 
 export interface DiffState {
@@ -37,6 +42,7 @@ export interface DiffState {
   commitNote(): Promise<void>;
   cancelNote(): void;
   setApplyStatus(status: ApplyStatus): void;
+  markApplied(info: { filesWritten: number; hunksApplied: number; draftOrdinal?: number }): void;
 }
 
 export type DiffStore = UseBoundStore<StoreApi<DiffState>>;
@@ -207,6 +213,23 @@ export function createDiffStore(repo: DiffHunksRepo): DiffStore {
 
     setApplyStatus(status: ApplyStatus): void {
       set({ applyStatus: status });
+    },
+
+    markApplied({ filesWritten, hunksApplied, draftOrdinal }): void {
+      set({
+        sessionId: null,
+        hunks: [],
+        focusedIndex: 0,
+        editingId: null,
+        editingText: "",
+        noteId: null,
+        noteText: "",
+        counts: emptyCounts(),
+        applyStatus:
+          draftOrdinal === undefined
+            ? { kind: "applied", filesWritten, hunksApplied }
+            : { kind: "applied", filesWritten, hunksApplied, draftOrdinal },
+      });
     },
   }));
 }

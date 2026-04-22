@@ -45,6 +45,7 @@ interface RowItemProps {
   onForget: (id: string) => void;
   onRepoint: (id: string) => void;
   onMove: (id: string, deskId: string) => void;
+  onTogglePin: (id: string, pinned: boolean) => void;
 }
 
 function RowItem({
@@ -54,6 +55,7 @@ function RowItem({
   onForget,
   onRepoint,
   onMove,
+  onTogglePin,
 }: RowItemProps): JSX.Element {
   const { project, missing } = row;
   const [editing, setEditing] = useState(false);
@@ -152,6 +154,14 @@ function RowItem({
             ) : null}
             <button
               type="button"
+              className="home__row-action"
+              onClick={() => onTogglePin(project.id, !project.pinned)}
+              aria-label={project.pinned ? `Unpin ${project.label}` : `Pin ${project.label}`}
+            >
+              {project.pinned ? "Unpin" : "Pin"}
+            </button>
+            <button
+              type="button"
               className="home__row-rename"
               onClick={() => {
                 setValue(project.label);
@@ -179,6 +189,7 @@ interface SectionProps {
   onForget: (id: string) => void;
   onRepoint: (id: string) => void;
   onMove: (id: string, deskId: string) => void;
+  onTogglePin: (id: string, pinned: boolean) => void;
 }
 
 function Section({
@@ -189,6 +200,7 @@ function Section({
   onForget,
   onRepoint,
   onMove,
+  onTogglePin,
 }: SectionProps): JSX.Element | null {
   if (rows.length === 0) return null;
   return (
@@ -204,6 +216,7 @@ function Section({
             onForget={onForget}
             onRepoint={onRepoint}
             onMove={onMove}
+            onTogglePin={onTogglePin}
           />
         ))}
       </ul>
@@ -214,57 +227,18 @@ function Section({
 interface DesksAsideProps {
   desks: DeskRow[];
   currentDeskId: string;
-  canDeleteCurrent: boolean;
   onSwitch: (id: string) => void;
   onCreate: (name: string) => void;
-  onRename: (id: string, name: string) => void;
-  onDelete: (id: string) => void;
 }
 
-function DesksAside({
-  desks,
-  currentDeskId,
-  canDeleteCurrent,
-  onSwitch,
-  onCreate,
-  onRename,
-  onDelete,
-}: DesksAsideProps): JSX.Element {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
+function DesksAside({ desks, currentDeskId, onSwitch, onCreate }: DesksAsideProps): JSX.Element {
   const [creating, setCreating] = useState(false);
   const [createValue, setCreateValue] = useState("");
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
-  const editRef = useRef<HTMLInputElement | null>(null);
   const createRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    if (editingId) editRef.current?.select();
-  }, [editingId]);
 
   useEffect(() => {
     if (creating) createRef.current?.focus();
   }, [creating]);
-
-  function startRename(desk: DeskRow): void {
-    setEditValue(desk.name);
-    setEditingId(desk.id);
-    setConfirmingDeleteId(null);
-  }
-
-  function commitRename(): void {
-    if (!editingId) return;
-    const next = editValue.trim();
-    const desk = desks.find((d) => d.id === editingId);
-    if (next && desk && next !== desk.name) onRename(editingId, next);
-    setEditingId(null);
-    setEditValue("");
-  }
-
-  function cancelRename(): void {
-    setEditingId(null);
-    setEditValue("");
-  }
 
   function commitCreate(): void {
     const next = createValue.trim();
@@ -318,86 +292,123 @@ function DesksAside({
         ) : null}
         {desks.map((desk) => {
           const isCurrent = desk.id === currentDeskId;
-          const isEditing = editingId === desk.id;
-          const isConfirmingDelete = confirmingDeleteId === desk.id;
           const liClass = isCurrent ? "home__desks-li home__desks-li--active" : "home__desks-li";
           return (
             <li key={desk.id} className={liClass}>
-              {isEditing ? (
-                <input
-                  ref={editRef}
-                  className="home__desks-input"
-                  type="text"
-                  value={editValue}
-                  aria-label={`Rename desk ${desk.name}`}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      commitRename();
-                    } else if (e.key === "Escape") {
-                      e.preventDefault();
-                      cancelRename();
-                    }
-                  }}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className={
-                    isCurrent ? "home__desks-item home__desks-item--active" : "home__desks-item"
-                  }
-                  aria-current={isCurrent ? "page" : undefined}
-                  onClick={() => {
-                    if (!isCurrent) onSwitch(desk.id);
-                  }}
-                >
-                  {desk.name}
-                </button>
-              )}
-              {isCurrent && !isEditing ? (
-                <span className="home__desks-actions">
-                  <button
-                    type="button"
-                    className="home__desks-action"
-                    onClick={() => startRename(desk)}
-                    aria-label={`Rename desk ${desk.name}`}
-                  >
-                    Rename
-                  </button>
-                  {isConfirmingDelete ? (
-                    <button
-                      type="button"
-                      className="home__desks-action home__desks-action--danger"
-                      onClick={() => {
-                        setConfirmingDeleteId(null);
-                        onDelete(desk.id);
-                      }}
-                      onBlur={() => setConfirmingDeleteId(null)}
-                    >
-                      Click to confirm
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="home__desks-action"
-                      disabled={!canDeleteCurrent}
-                      title={
-                        canDeleteCurrent ? undefined : "Move or forget this desk's projects first."
-                      }
-                      onClick={() => setConfirmingDeleteId(desk.id)}
-                    >
-                      Delete
-                    </button>
-                  )}
-                </span>
-              ) : null}
+              <button
+                type="button"
+                className={
+                  isCurrent ? "home__desks-item home__desks-item--active" : "home__desks-item"
+                }
+                aria-current={isCurrent ? "page" : undefined}
+                onClick={() => {
+                  if (!isCurrent) onSwitch(desk.id);
+                }}
+              >
+                {desk.name}
+              </button>
             </li>
           );
         })}
       </ul>
     </aside>
+  );
+}
+
+interface DeskTitleProps {
+  desk: DeskRow;
+  canDelete: boolean;
+  onRename: (id: string, name: string) => void;
+  onDelete: (id: string) => void;
+}
+
+function DeskTitle({ desk, canDelete, onRename, onDelete }: DeskTitleProps): JSX.Element {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(desk.name);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  function startEdit(): void {
+    setValue(desk.name);
+    setEditing(true);
+    setConfirmingDelete(false);
+  }
+
+  function commit(): void {
+    const next = value.trim();
+    if (next && next !== desk.name) onRename(desk.id, next);
+    setEditing(false);
+  }
+
+  function cancel(): void {
+    setValue(desk.name);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        className="home__title-input"
+        type="text"
+        value={value}
+        aria-label={`Rename desk ${desk.name}`}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            cancel();
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <span className="home__title-wrap">
+      <h1 className="home__title">{desk.name}</h1>
+      <span className="home__title-actions">
+        <button
+          type="button"
+          className="home__title-action"
+          onClick={startEdit}
+          aria-label={`Edit desk ${desk.name}`}
+        >
+          Edit
+        </button>
+        {confirmingDelete ? (
+          <button
+            type="button"
+            className="home__title-action home__title-action--danger"
+            onClick={() => {
+              setConfirmingDelete(false);
+              onDelete(desk.id);
+            }}
+            onBlur={() => setConfirmingDelete(false)}
+          >
+            Click to confirm
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="home__title-action home__title-action--danger"
+            disabled={!canDelete}
+            title={canDelete ? undefined : "Move or forget this desk's projects first."}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            Delete
+          </button>
+        )}
+      </span>
+    </span>
   );
 }
 
@@ -473,6 +484,16 @@ export default function Home(): JSX.Element {
     setRows((prev) => (prev ? prev.filter((r) => r.project.id !== id) : prev));
   }
 
+  async function onTogglePin(id: string, pinned: boolean): Promise<void> {
+    const repo = await getRepository();
+    await repo.projects.setPinned(id, pinned);
+    setRows((prev) =>
+      prev
+        ? prev.map((r) => (r.project.id === id ? { ...r, project: { ...r.project, pinned } } : r))
+        : prev,
+    );
+  }
+
   async function onSwitchDesk(id: string): Promise<void> {
     if (id === currentDeskId) return;
     const repo = await getRepository();
@@ -532,15 +553,17 @@ export default function Home(): JSX.Element {
       <DesksAside
         desks={desks}
         currentDeskId={currentDeskId}
-        canDeleteCurrent={canDeleteCurrent}
         onSwitch={(id) => void onSwitchDesk(id)}
         onCreate={(name) => void onCreateDesk(name)}
-        onRename={(id, name) => void onRenameDesk(id, name)}
-        onDelete={(id) => void onDeleteDesk(id)}
       />
       <div className="home__main">
         <header className="home__header">
-          <h1 className="home__title">{current.name}</h1>
+          <DeskTitle
+            desk={current}
+            canDelete={canDeleteCurrent}
+            onRename={(id, name) => void onRenameDesk(id, name)}
+            onDelete={(id) => void onDeleteDesk(id)}
+          />
           <Link to="/wizard?add=1" className="home__add">
             + New project
           </Link>
@@ -556,6 +579,7 @@ export default function Home(): JSX.Element {
           onForget={(id) => void onForget(id)}
           onRepoint={(id) => void onRepoint(id)}
           onMove={(id, deskId) => void onMove(id, deskId)}
+          onTogglePin={(id, pinned) => void onTogglePin(id, pinned)}
         />
         <Section
           title="Recent Projects"
@@ -565,6 +589,7 @@ export default function Home(): JSX.Element {
           onForget={(id) => void onForget(id)}
           onRepoint={(id) => void onRepoint(id)}
           onMove={(id, deskId) => void onMove(id, deskId)}
+          onTogglePin={(id, pinned) => void onTogglePin(id, pinned)}
         />
         <Section
           title="Archive"
@@ -574,6 +599,7 @@ export default function Home(): JSX.Element {
           onForget={(id) => void onForget(id)}
           onRepoint={(id) => void onRepoint(id)}
           onMove={(id, deskId) => void onMove(id, deskId)}
+          onTogglePin={(id, pinned) => void onTogglePin(id, pinned)}
         />
       </div>
     </section>

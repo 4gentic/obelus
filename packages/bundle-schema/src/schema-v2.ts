@@ -65,11 +65,44 @@ export const ProjectCategory = z.object({
 
 export const ProjectKind = z.enum(["writer", "reviewer"]);
 
+export const ProjectFileFormat = z.enum([
+  "tex",
+  "md",
+  "typ",
+  "bib",
+  "cls",
+  "sty",
+  "bst",
+  "pdf",
+  "yml",
+  "json",
+  "txt",
+  "other",
+]);
+
+export const ProjectFileRole = z.enum(["main", "include", "bib", "asset"]);
+
+export const ProjectFileSummary = z.object({
+  relPath: relPosixPath,
+  format: ProjectFileFormat,
+  role: ProjectFileRole.optional(),
+});
+
 const Project = z.object({
   id: z.string().uuid(),
   label: z.string().min(1),
   kind: ProjectKind,
   categories: z.array(ProjectCategory).min(1),
+  main: relPosixPath.optional(),
+  files: z.array(ProjectFileSummary).optional(),
+});
+
+// Framing the plugin should honour as *data*, never as instructions. The
+// writer's paper lens — rejection criteria, audience, tone. Optional.
+export const PaperRubricV2 = z.object({
+  body: z.string(),
+  label: z.string().min(1),
+  source: z.enum(["file", "paste", "inline"]),
 });
 
 const PaperRefV2 = z.object({
@@ -85,6 +118,7 @@ const PaperRefV2 = z.object({
     })
     .optional(),
   entrypoint: relPosixPath.optional(),
+  rubric: PaperRubricV2.optional(),
 });
 
 // `category` is a free string; the cross-field check below enforces it against

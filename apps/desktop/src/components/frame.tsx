@@ -1,4 +1,5 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
+import JobsDock from "./jobs-dock";
 import "./frame.css";
 
 import type { JSX } from "react";
@@ -28,6 +29,7 @@ export default function Frame(): JSX.Element {
       <main className={isWizard ? "frame__main frame__main--wide" : "frame__main"}>
         <Outlet />
       </main>
+      {isWizard ? null : <JobsDock />}
     </div>
   );
 }

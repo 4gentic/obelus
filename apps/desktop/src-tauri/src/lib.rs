@@ -15,7 +15,13 @@ use commands::{
         fs_list_pdfs, fs_read_dir, fs_read_file, fs_stat, fs_write_bytes, fs_write_text,
         fs_write_text_abs,
     },
+    history::{
+        history_checkout, history_detect_divergence, history_diff_manifests, history_gc,
+        history_read_blob, history_snapshot,
+    },
     project::authorize_project_root,
+    project_meta::project_scan,
+    reset_local_state::reset_local_state,
     typst::compile_typst,
 };
 use state::AppState;
@@ -55,6 +61,14 @@ pub fn run() {
             apply_hunks,
             compile_typst,
             db_tx_batch,
+            history_snapshot,
+            history_detect_divergence,
+            history_checkout,
+            history_gc,
+            history_read_blob,
+            history_diff_manifests,
+            project_scan,
+            reset_local_state,
             factory_reset,
         ])
         .run(tauri::generate_context!())

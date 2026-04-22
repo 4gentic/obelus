@@ -5,11 +5,12 @@ import type { JSX, MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { readClaudeStatus } from "../../boot/detect";
 import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
-import { exportBundleV2ForProject } from "./build-bundle";
+import { exportBundleV2ForPaper } from "./build-bundle";
 import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
 import RubricPanel from "./RubricPanel";
+import WidenToggle from "./WidenToggle";
 import { useWriteUpProgress, useWriteUpRunner, useWriteUpStore } from "./writeup-store-context";
 
 function slugify(name: string): string {
@@ -121,10 +122,10 @@ export default function ReviewerActionsPanel({
   }
 
   async function onExportJSON(): Promise<void> {
-    if (!paperReady) return;
+    if (!paperReady || !paperId) return;
     setExportState({ kind: "idle" });
     try {
-      const { filename, json } = await exportBundleV2ForProject({ repo, projectId: project.id });
+      const { filename, json } = await exportBundleV2ForPaper({ repo, paperId });
       const bytes = new TextEncoder().encode(json);
       await fsWriteBytes(rootId, filename, bytes);
       setExportState({ kind: "json", relPath: filename });
@@ -261,17 +262,7 @@ export default function ReviewerActionsPanel({
         <h2 className="reviewer-actions__heading">Reviewer's letter</h2>
         <div className="reviewer-actions__head-tools">
           {claudeReady ? <ClaudeChip /> : null}
-          <button
-            type="button"
-            className="reviewer-actions__widen"
-            onClick={onToggleWide}
-            aria-pressed={wide}
-            aria-label={wide ? "Restore review pane width" : "Widen review pane"}
-            title={wide ? "Restore width" : "Widen"}
-          >
-            <WidenIcon expanded={wide} />
-            <span className="reviewer-actions__widen-label">{wide ? "Narrow" : "Widen"}</span>
-          </button>
+          <WidenToggle wide={wide} onToggle={onToggleWide} />
         </div>
       </header>
       <RubricPanel paper={paperRowForRubric} />
@@ -493,39 +484,6 @@ function ClaudeAction({
         </p>
       ) : null}
     </div>
-  );
-}
-
-function WidenIcon({ expanded }: { expanded: boolean }): JSX.Element {
-  return (
-    <svg
-      aria-hidden="true"
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="8" y1="2" x2="8" y2="14" />
-      {expanded ? (
-        <>
-          <polyline points="12,4 10,8 12,12" />
-          <line x1="10" y1="8" x2="14" y2="8" />
-          <polyline points="4,4 6,8 4,12" />
-          <line x1="2" y1="8" x2="6" y2="8" />
-        </>
-      ) : (
-        <>
-          <polyline points="10,4 12,8 10,12" />
-          <line x1="14" y1="8" x2="10" y2="8" />
-          <polyline points="6,4 4,8 6,12" />
-          <line x1="2" y1="8" x2="6" y2="8" />
-        </>
-      )}
-    </svg>
   );
 }
 
