@@ -4,6 +4,7 @@ pub mod claude_session;
 pub mod claude_user_settings;
 pub mod db_tx;
 pub mod dialog;
+pub mod factory_reset;
 pub mod fs_scoped;
 pub mod project;
 pub mod typst;
