@@ -104,6 +104,9 @@ importers:
       '@tauri-apps/plugin-updater':
         specifier: 2.10.1
         version: 2.10.1
+      diff:
+        specifier: 8.0.2
+        version: 8.0.2
       pdfjs-dist:
         specifier: 5.6.205
         version: 5.6.205
@@ -123,6 +126,9 @@ importers:
       '@tauri-apps/cli':
         specifier: 2.10.1
         version: 2.10.1
+      '@types/diff':
+        specifier: 8.0.0
+        version: 8.0.0
       '@types/react':
         specifier: 19.2.14
         version: 19.2.14
@@ -325,9 +331,15 @@ importers:
 
   packages/repo:
     dependencies:
+      '@obelus/bundle-schema':
+        specifier: workspace:*
+        version: link:../bundle-schema
       dexie:
         specifier: 4.4.2
         version: 4.4.2
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
     devDependencies:
       '@tauri-apps/api':
         specifier: 2.10.1
@@ -1590,6 +1602,10 @@ packages:
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
+  '@types/diff@8.0.0':
+    resolution: {integrity: sha512-o7jqJM04gfaYrdCecCVMbZhNdG6T1MHg/oQoRFdERLV+4d+V7FijhiEAbFu0Usww84Yijk9yH58U4Jk4HbtzZw==}
+    deprecated: This is a stub types definition. diff provides its own type definitions, so you do not need this installed.
+
   '@types/estree@0.0.39':
     resolution: {integrity: sha512-EYNwp3bU+98cpU4lAWYYL7Zz+2gryWH1qbdDTidVd6hkiR6weksdbMadyXKXNPEkQFhXM+hVO9ZygomHXp+AIw==}
 
@@ -1867,6 +1883,10 @@ packages:
 
   dexie@4.4.2:
     resolution: {integrity: sha512-zMtV8q79EFE5U8FKZvt0Y/77PCU/Hr/RDxv1EDeo228L+m/HTbeN2AjoQm674rhQCX8n3ljK87lajt7UQuZfvw==}
+
+  diff@8.0.2:
+    resolution: {integrity: sha512-sSuxWU5j5SR9QQji/o2qMvqRNYRDOcBTgsJ/DeCf4iSN4gW+gNMXM7wFIP+fdXZxoNiAnHUTGjCr+TSWXdRDKg==}
+    engines: {node: '>=0.3.1'}
 
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
@@ -4422,6 +4442,10 @@ snapshots:
 
   '@types/deep-eql@4.0.2': {}
 
+  '@types/diff@8.0.0':
+    dependencies:
+      diff: 8.0.2
+
   '@types/estree@0.0.39': {}
 
   '@types/estree@1.0.8': {}
@@ -4696,6 +4720,8 @@ snapshots:
       dequal: 2.0.3
 
   dexie@4.4.2: {}
+
+  diff@8.0.2: {}
 
   dunder-proto@1.0.1:
     dependencies:

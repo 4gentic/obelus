@@ -57,6 +57,9 @@ pub async fn apply_hunks(
     hunks: Vec<HunkInput>,
     state: State<'_, AppState>,
 ) -> AppResult<ApplyReport> {
+    let lock = state.root_lock(&root_id);
+    let _guard = lock.lock().await;
+
     let mut grouped: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for h in hunks {
         grouped.entry(h.file).or_default().push(h.patch);

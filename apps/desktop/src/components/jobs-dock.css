@@ -1,0 +1,294 @@
+.jobs-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border-top: var(--rule-soft);
+  box-shadow: 0 -1px 0 rgba(43, 42, 38, 0.04);
+  pointer-events: auto;
+}
+
+.jobs-dock--open {
+  box-shadow: 0 -1px 0 var(--ink-soft);
+}
+
+/* ── collapsed bar ─────────────────────────────────────────────────── */
+
+.jobs-dock__bar {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: stretch;
+  min-height: 36px;
+}
+
+.jobs-dock__lede {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  border-right: var(--rule-soft);
+  background: var(--panel);
+}
+
+.jobs-dock__lede-kbd {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.jobs-dock__lede-count {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+}
+
+.jobs-dock__segments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.jobs-dock__segments > li {
+  display: flex;
+  border-right: var(--rule-soft);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.jobs-dock__segments > li:last-child {
+  border-right: 0;
+}
+
+.jobs-dock__seg {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-4);
+  background: transparent;
+  border: 0;
+  box-shadow: inset 0 2px 0 transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  min-width: 0;
+  white-space: nowrap;
+  transition:
+    background 120ms linear,
+    box-shadow 120ms linear;
+}
+
+.jobs-dock__seg:hover {
+  background: color-mix(in oklab, var(--panel) 60%, var(--paper));
+}
+
+.jobs-dock__seg--running {
+  box-shadow: inset 0 2px 0 var(--rubric);
+}
+
+.jobs-dock__seg--ingesting {
+  box-shadow: inset 0 2px 0 var(--hl-unclear);
+}
+
+.jobs-dock__seg--done {
+  box-shadow: inset 0 2px 0 var(--hl-cite);
+}
+
+.jobs-dock__seg--error {
+  box-shadow: inset 0 2px 0 var(--hl-wrong);
+}
+
+.jobs-dock__seg--cancelled {
+  box-shadow: inset 0 2px 0 var(--ink-soft);
+  opacity: 0.75;
+}
+
+.jobs-dock__seg--open {
+  background: var(--panel);
+}
+
+.jobs-dock__seg-kind {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.jobs-dock__seg-title {
+  font-family: var(--font-display);
+  font-size: var(--step-0);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jobs-dock__seg-phase {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jobs-dock__seg-elapsed {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── expanded panel ────────────────────────────────────────────────── */
+
+.jobs-dock__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: var(--rule-soft);
+  max-height: 42vh;
+  overflow-y: auto;
+}
+
+.jobs-dock__panel-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.jobs-dock__panel-kind {
+  margin: 0 0 var(--space-1) 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.jobs-dock__panel-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.jobs-dock__panel-meta {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  font-family: var(--font-body);
+}
+
+.jobs-dock__panel-meta > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.jobs-dock__panel-meta dt {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.jobs-dock__panel-meta dd {
+  margin: 0;
+  font-size: var(--step--1);
+  color: var(--ink);
+}
+
+.jobs-dock__phases {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-4);
+  max-height: 26vh;
+  overflow-y: auto;
+}
+
+.jobs-dock__phases > li {
+  display: contents;
+}
+
+.jobs-dock__phase-when {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  padding-top: 3px;
+}
+
+.jobs-dock__phase-what {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+  min-width: 0;
+}
+
+.jobs-dock__panel-empty {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.jobs-dock__panel-message {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--panel);
+  border-left: 2px solid var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+}
+
+.jobs-dock__panel--error .jobs-dock__panel-message {
+  border-left-color: var(--hl-wrong);
+}
+
+.jobs-dock__panel-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.jobs-dock__btn {
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  border: var(--rule-soft);
+  border-radius: var(--radius-1);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    border-color 120ms linear;
+}
+
+.jobs-dock__btn:hover {
+  color: var(--rubric);
+  border-color: var(--rubric);
+}
+
+.jobs-dock__btn--danger:hover {
+  color: var(--hl-wrong);
+  border-color: var(--hl-wrong);
+}

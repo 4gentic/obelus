@@ -23,7 +23,9 @@ import {
 import { type JSX, useEffect, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
 import { useBuffersStore } from "./buffers-store-context";
+import CompileMainButton from "./CompileMainButton";
 import { useProject } from "./context";
+import DraftsRail from "./DraftsRail";
 import { editorTheme } from "./editor-theme";
 import { extensionOf } from "./openable";
 import SwitchResolveBanner from "./SwitchResolveBanner";
@@ -174,6 +176,7 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
         />
       )}
       <div className="source-pane__editor" ref={hostRef} />
+      <DraftsRail />
       <footer className="source-pane__foot">
         <span className="source-pane__foot-path">
           {dirty && (
@@ -183,6 +186,7 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
           )}
           {relPath}
         </span>
+        <CompileMainButton />
         <button
           type="button"
           className="btn btn--subtle"

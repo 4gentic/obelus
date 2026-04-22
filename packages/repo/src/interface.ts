@@ -5,8 +5,16 @@ import type {
   DeskRow,
   DiffHunkRow,
   DiffHunkState,
+  FilePinRow,
+  PaperBuildCompiler,
+  PaperBuildFormat,
+  PaperBuildRow,
+  PaperEditKind,
+  PaperEditRow,
   PaperRow,
   PaperRubric,
+  ProjectFileFormat,
+  ProjectFileRow,
   ProjectKind,
   ProjectRow,
   ReviewSessionRow,
@@ -49,9 +57,18 @@ export interface RevisionsRepo {
 }
 
 export interface AnnotationsRepo {
-  listForRevision(revisionId: string): Promise<AnnotationRow[]>;
+  // `visibleFromEditId` makes "resolved" relative to the currently-viewed
+  // draft: an annotation whose `resolved_in_edit_id` is NOT an ancestor of
+  // `visibleFromEditId` is treated as active (reappears after a revert).
+  // When omitted, falls back to "resolved iff resolved_in_edit_id IS NOT NULL".
+  // `includeResolved` overrides both and returns every row on the revision.
+  listForRevision(
+    revisionId: string,
+    opts?: { includeResolved?: boolean; visibleFromEditId?: string },
+  ): Promise<AnnotationRow[]>;
   bulkPut(revisionId: string, rows: AnnotationRow[]): Promise<void>;
   remove(id: string): Promise<void>;
+  markResolvedInEdit(ids: ReadonlyArray<string>, editId: string): Promise<void>;
 }
 
 export interface SettingsRepo {
@@ -71,8 +88,8 @@ export interface ProjectsRepo {
   get(id: string): Promise<ProjectRow | undefined>;
   create(input: ProjectCreateInput): Promise<ProjectRow>;
   rename(id: string, label: string): Promise<void>;
+  setPinned(id: string, pinned: boolean): Promise<void>;
   forget(id: string): Promise<void>;
-  repoint(id: string, newRoot: string): Promise<void>;
   moveToDesk(id: string, deskId: string): Promise<void>;
   touchLastOpened(id: string): Promise<void>;
   setLastOpenedFile(id: string, path: string | null): Promise<void>;
@@ -89,21 +106,20 @@ export interface DesksRepo {
   rename(id: string, name: string): Promise<void>;
   remove(id: string): Promise<void>;
   touchLastOpened(id: string): Promise<void>;
-  countProjects(id: string): Promise<number>;
 }
 
 export interface ReviewSessionCreateInput {
   projectId: string;
+  paperId: string;
   bundleId: string;
-  claudeVersion: string | null;
   model: string | null;
   effort: string | null;
 }
 
 export interface ReviewSessionsRepo {
-  list(projectId: string): Promise<ReviewSessionRow[]>;
+  listForPaper(paperId: string): Promise<ReviewSessionRow[]>;
   get(id: string): Promise<ReviewSessionRow | undefined>;
-  latestForProject(projectId: string): Promise<ReviewSessionRow | undefined>;
+  latestForPaper(paperId: string): Promise<ReviewSessionRow | undefined>;
   create(input: ReviewSessionCreateInput): Promise<ReviewSessionRow>;
   complete(id: string): Promise<void>;
   markApplied(id: string): Promise<void>;
@@ -139,13 +155,73 @@ export interface WriteUpsRepo {
   upsert(input: { projectId: string; paperId: string; bodyMd: string }): Promise<WriteUpRow>;
 }
 
+export interface FilePinsRepo {
+  listForProject(projectId: string): Promise<FilePinRow[]>;
+  pin(projectId: string, relPath: string): Promise<void>;
+  unpin(projectId: string, relPath: string): Promise<void>;
+  isPinned(projectId: string, relPath: string): Promise<boolean>;
+}
+
+export interface PaperEditCreateInput {
+  projectId: string;
+  paperId: string;
+  parentEditId: string | null;
+  kind: PaperEditKind;
+  sessionId: string | null;
+  manifestSha256: string;
+  summary: string;
+  noteMd?: string;
+}
+
+export interface PaperEditsRepo {
+  listForPaper(paperId: string, opts?: { includeTombstoned?: boolean }): Promise<PaperEditRow[]>;
+  get(id: string): Promise<PaperEditRow | undefined>;
+  head(paperId: string): Promise<PaperEditRow | undefined>;
+  baseline(paperId: string): Promise<PaperEditRow | undefined>;
+  create(input: PaperEditCreateInput): Promise<PaperEditRow>;
+  setNote(id: string, noteMd: string): Promise<void>;
+  setSummary(id: string, summary: string): Promise<void>;
+  tombstoneDescendantsOf(editId: string): Promise<{ tombstoned: string[] }>;
+  tombstoneMany(ids: ReadonlyArray<string>): Promise<void>;
+  restore(id: string): Promise<void>;
+  countForPaper(paperId: string, opts?: { includeTombstoned?: boolean }): Promise<number>;
+}
+
+export interface ProjectFilesRepo {
+  listForProject(
+    projectId: string,
+    opts?: { format?: ProjectFileFormat },
+  ): Promise<ProjectFileRow[]>;
+  replaceAll(projectId: string, rows: ReadonlyArray<ProjectFileRow>): Promise<void>;
+}
+
+export interface PaperBuildPatch {
+  format?: PaperBuildFormat | null;
+  mainRelPath?: string | null;
+  mainIsPinned?: boolean;
+  compiler?: PaperBuildCompiler | null;
+  compilerArgs?: string[];
+  outputRelDir?: string | null;
+  scannedAt?: string | null;
+}
+
+export interface PaperBuildRepo {
+  get(paperId: string): Promise<PaperBuildRow | undefined>;
+  upsert(paperId: string, patch: PaperBuildPatch): Promise<PaperBuildRow>;
+  setMain(paperId: string, relPath: string | null, pinned: boolean): Promise<PaperBuildRow>;
+}
+
 export type RepositoryFeature =
   | "projects"
   | "desks"
   | "reviewSessions"
   | "diffHunks"
   | "askThreads"
-  | "writeUps";
+  | "writeUps"
+  | "filePins"
+  | "paperEdits"
+  | "projectFiles"
+  | "paperBuild";
 
 export interface Repository {
   papers: PapersRepo;
@@ -158,6 +234,10 @@ export interface Repository {
   diffHunks: DiffHunksRepo;
   askThreads: AskThreadsRepo;
   writeUps: WriteUpsRepo;
+  filePins: FilePinsRepo;
+  paperEdits: PaperEditsRepo;
+  projectFiles: ProjectFilesRepo;
+  paperBuild: PaperBuildRepo;
   supports(feature: RepositoryFeature): boolean;
   transaction<T>(fn: (tx: Repository) => Promise<T>): Promise<T>;
 }

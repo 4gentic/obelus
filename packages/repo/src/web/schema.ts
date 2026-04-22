@@ -41,6 +41,18 @@ export class ObelusDb extends Dexie {
         settings: "key",
       })
       .upgrade(() => {});
+    // v4 adds optional `resolvedInEditId` on annotations. The desktop owns
+    // the PaperEdit DAG, so this field is always undefined on web today; the
+    // schema stays aligned with the shared row type so a future desktop→web
+    // bundle import doesn't drop the field silently.
+    this.version(4)
+      .stores({
+        papers: "id, createdAt, pdfSha256",
+        revisions: "id, paperId, pdfSha256, createdAt",
+        annotations: "id, revisionId, page, category, createdAt",
+        settings: "key",
+      })
+      .upgrade(() => {});
   }
 }
 

@@ -73,7 +73,14 @@ export default function Wizard(): JSX.Element {
       if (existing) {
         await repo.projects.touchLastOpened(existing.id);
       } else {
+        // `currentDeskId` lives in app-state.json and can drift out of sync with
+        // the SQLite desks table (partial wipe, manual DB edit, migration reset).
+        // Verify the row still exists before reusing the id; otherwise the next
+        // INSERT into projects trips the desk_id FK.
         let deskId = await getAppState("currentDeskId");
+        if (deskId && !(await repo.desks.get(deskId))) {
+          deskId = undefined;
+        }
         if (!deskId) {
           const name = (wizardDeskName ?? "").trim() || "Desk";
           const existingDesks = await repo.desks.list();

@@ -104,3 +104,8 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
 export function useOpenPaper(): OpenPaperState {
   return useContext(OpenPaperContext);
 }
+
+export function usePaperId(): string | null {
+  const op = useContext(OpenPaperContext);
+  return op.kind === "ready" ? op.paper.id : null;
+}

@@ -1,11 +1,15 @@
 import type { DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { type CSSProperties, useEffect, useRef } from "react";
+import { buildDisplayLines } from "./patch-with-context";
+
+const CONTEXT_LINES = 3;
 
 interface Props {
   hunk: DiffHunkRow;
   indexInFile: number;
   totalInFile: number;
+  sourceText: string | null;
   focused: boolean;
   editing: boolean;
   editingText: string;
@@ -24,22 +28,32 @@ interface Props {
   onCancelNote: () => void;
 }
 
-function DiffLines({ patch }: { patch: string }): JSX.Element {
-  const lines = patch === "" ? [] : patch.split("\n");
-  if (lines.length === 0) {
+function DiffLines({
+  patch,
+  sourceText,
+}: {
+  patch: string;
+  sourceText: string | null;
+}): JSX.Element {
+  const display = buildDisplayLines(patch, sourceText, CONTEXT_LINES);
+  if (display.length === 0) {
     return <p className="diff-block__empty">No patch (reviewer skipped or flagged).</p>;
   }
   return (
     <pre className="diff-block__patch">
-      {lines.map((raw, i) => {
-        let cls = "diff-line";
-        if (raw.startsWith("@@")) cls = "diff-line diff-line--hunk";
-        else if (raw.startsWith("-") && !raw.startsWith("---")) cls = "diff-line diff-line--old";
-        else if (raw.startsWith("+") && !raw.startsWith("+++")) cls = "diff-line diff-line--new";
+      {display.map((line, i) => {
+        const cls =
+          line.kind === "header"
+            ? "diff-line diff-line--hunk"
+            : line.kind === "old"
+              ? "diff-line diff-line--old"
+              : line.kind === "new"
+                ? "diff-line diff-line--new"
+                : "diff-line diff-line--ctx";
         return (
           // biome-ignore lint/suspicious/noArrayIndexKey: diff lines are static per render; raw content is insufficient because identical lines may repeat inside a single hunk.
-          <div key={`${i}:${raw}`} className={cls}>
-            {raw}
+          <div key={`${i}:${line.text}`} className={cls}>
+            {line.text}
           </div>
         );
       })}
@@ -52,6 +66,7 @@ export default function HunkBlock(props: Props): JSX.Element {
     hunk,
     indexInFile,
     totalInFile,
+    sourceText,
     focused,
     editing,
     editingText,
@@ -116,7 +131,7 @@ export default function HunkBlock(props: Props): JSX.Element {
         {hunk.ambiguous && <span className="diff-block__tag">ambiguous</span>}
         <span className="hunk-block__state">{hunk.state}</span>
       </header>
-      <DiffLines patch={hunk.modifiedPatchText ?? hunk.patch} />
+      <DiffLines patch={hunk.modifiedPatchText ?? hunk.patch} sourceText={sourceText} />
       {editing ? (
         <div className="hunk-block__edit">
           <textarea

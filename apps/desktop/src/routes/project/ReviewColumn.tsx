@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useProject } from "./context";
 import DiffReview from "./DiffReview";
+import DraftsPanel from "./DraftsPanel";
 import { useDiffStore } from "./diff-store-context";
 import { useOpenPaper } from "./OpenPaper";
 import ReviewDraft from "./ReviewDraft";
@@ -10,13 +11,15 @@ import ReviewList from "./ReviewList";
 import { useReviewRunner } from "./review-runner-context";
 import StartReviewButton from "./StartReviewButton";
 import { useReviewStore } from "./store-context";
+import type { ForkInfo } from "./use-diff-actions";
 
-type WriterView = "marks" | "diff";
+type WriterView = "marks" | "diff" | "drafts";
 type ReviewerView = "marks" | "review";
 
 interface Props {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
+  forkInfo: ForkInfo | null;
   wide: boolean;
   onToggleWide: () => void;
 }
@@ -24,11 +27,15 @@ interface Props {
 interface WriterProps {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
+  forkInfo: ForkInfo | null;
+  wide: boolean;
+  onToggleWide: () => void;
 }
 
 export default function ReviewColumn({
   onApply,
   onRepass,
+  forkInfo,
   wide,
   onToggleWide,
 }: Props): JSX.Element {
@@ -36,11 +43,23 @@ export default function ReviewColumn({
   return project.kind === "reviewer" ? (
     <ReviewerColumn wide={wide} onToggleWide={onToggleWide} />
   ) : (
-    <WriterColumn onApply={onApply} onRepass={onRepass} />
+    <WriterColumn
+      onApply={onApply}
+      onRepass={onRepass}
+      forkInfo={forkInfo}
+      wide={wide}
+      onToggleWide={onToggleWide}
+    />
   );
 }
 
-function WriterColumn({ onApply, onRepass }: WriterProps): JSX.Element {
+function WriterColumn({
+  onApply,
+  onRepass,
+  forkInfo,
+  wide,
+  onToggleWide,
+}: WriterProps): JSX.Element {
   const store = useReviewStore();
   const diffStore = useDiffStore();
   const runner = useReviewRunner();
@@ -49,6 +68,7 @@ function WriterColumn({ onApply, onRepass }: WriterProps): JSX.Element {
   const sessionId = diffStore((s) => s.sessionId);
   const runnerKind = runner.status.kind;
   const [view, setView] = useState<WriterView>("marks");
+  const autoWidenedRef = useRef(false);
 
   useEffect(() => {
     if (
@@ -68,6 +88,16 @@ function WriterColumn({ onApply, onRepass }: WriterProps): JSX.Element {
   const resolvedView: WriterView = view === "diff" && !diffAvailable ? "marks" : view;
   const fallbackWhenNoPaper: WriterView = diffAvailable ? "diff" : "marks";
   const effectiveView: WriterView = paperOpen ? resolvedView : fallbackWhenNoPaper;
+
+  // One-shot auto-widen the first time the Diff tab is shown. Users can narrow
+  // again with the toggle; we don't re-widen on subsequent entries so their
+  // preference sticks for the session.
+  useEffect(() => {
+    if (effectiveView !== "diff") return;
+    if (autoWidenedRef.current) return;
+    autoWidenedRef.current = true;
+    if (!wide) onToggleWide();
+  }, [effectiveView, wide, onToggleWide]);
 
   return (
     <aside className="review-column">
@@ -90,16 +120,31 @@ function WriterColumn({ onApply, onRepass }: WriterProps): JSX.Element {
                 Diff
               </button>
             )}
+            <button
+              type="button"
+              className={`review-column__tab${effectiveView === "drafts" ? " review-column__tab--on" : ""}`}
+              onClick={() => setView("drafts")}
+            >
+              Drafts
+            </button>
           </>
         )}
       </nav>
       {effectiveView === "marks" ? (
         <>
-          {selected ? <ReviewDraft /> : <ReviewList />}
           <StartReviewButton />
+          {selected ? <ReviewDraft /> : <ReviewList />}
         </>
+      ) : effectiveView === "drafts" ? (
+        <DraftsPanel />
       ) : (
-        <DiffReview onApply={onApply} onRepass={onRepass} />
+        <DiffReview
+          onApply={onApply}
+          onRepass={onRepass}
+          forkInfo={forkInfo}
+          wide={wide}
+          onToggleWide={onToggleWide}
+        />
       )}
     </aside>
   );

@@ -6,6 +6,12 @@ interface WriteMessage {
   bytes: ArrayBuffer;
 }
 
+// Why: with `lib: ["webworker"]`, `self` is `WorkerGlobalScope & typeof globalThis`,
+// which doesn't expose `postMessage` — that lives on `DedicatedWorkerGlobalScope`.
+// We're authored as a dedicated worker; the cast widens `self` to a type with the
+// method we know is there.
+const post = self as unknown as Worker;
+
 self.onmessage = async (event: MessageEvent<WriteMessage>) => {
   const { id, sha256, bytes } = event.data;
   try {
@@ -20,9 +26,9 @@ self.onmessage = async (event: MessageEvent<WriteMessage>) => {
     } finally {
       access.close();
     }
-    (self as unknown as Worker).postMessage({ id, ok: true });
+    post.postMessage({ id, ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    (self as unknown as Worker).postMessage({ id, ok: false, error: message });
+    post.postMessage({ id, ok: false, error: message });
   }
 };

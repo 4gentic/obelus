@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "projectId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "writer",
+        "reviewer"
+      ]
+    },
+    "format": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "tex",
+            "md",
+            "typ"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "main": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mainIsPinned": {
+      "type": "boolean"
+    },
+    "compile": {
+      "type": "object",
+      "properties": {
+        "compiler": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "typst",
+                "latexmk",
+                "pandoc",
+                "xelatex",
+                "pdflatex"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "args": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outputRelDir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "compiler",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "relPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "tex",
+              "md",
+              "typ",
+              "bib",
+              "cls",
+              "sty",
+              "bst",
+              "pdf",
+              "yml",
+              "json",
+              "txt",
+              "other"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "main",
+              "include",
+              "bib",
+              "asset"
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "mtimeMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "relPath",
+          "format",
+          "size",
+          "mtimeMs"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "scannedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+    }
+  },
+  "required": [
+    "version",
+    "projectId",
+    "label",
+    "kind",
+    "format",
+    "main",
+    "mainIsPinned",
+    "compile",
+    "files",
+    "scannedAt"
+  ],
+  "additionalProperties": false
+}
