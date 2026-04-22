@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { useEffect } from "react";
 import { Route, Routes, useNavigate } from "react-router-dom";
 import Frame from "./components/frame";
+import JobsListener from "./components/jobs-listener";
 import { registerDeepLinkHandler } from "./lib/deep-link";
 import Boot from "./routes/boot";
 import Home from "./routes/home";
@@ -28,14 +29,16 @@ function useDeepLinks(): void {
 export default function App(): JSX.Element {
   useDeepLinks();
   return (
-    <Routes>
-      <Route element={<Frame />}>
-        <Route path="/" element={<Boot />} />
-        <Route path="/wizard" element={<Wizard />} />
-        <Route path="/home" element={<Home />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/project/:id" element={<ProjectRoute />} />
-      </Route>
-    </Routes>
+    <JobsListener>
+      <Routes>
+        <Route element={<Frame />}>
+          <Route path="/" element={<Boot />} />
+          <Route path="/wizard" element={<Wizard />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/project/:id" element={<ProjectRoute />} />
+        </Route>
+      </Routes>
+    </JobsListener>
   );
 }
