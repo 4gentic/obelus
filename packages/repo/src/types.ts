@@ -1,6 +1,9 @@
 // Storage row shapes shared by every Repository implementation (Dexie today,
 // SQLite later). Implementations map these to/from their native rows.
 
+import type { z } from "zod";
+import type * as BundleSchema from "@obelus/bundle-schema";
+
 export interface PaperRubric {
   body: string;
   source: "file" | "paste" | "inline";
@@ -159,21 +162,8 @@ export interface PaperEditRow {
   createdAt: string;
 }
 
-export type ProjectFileFormat =
-  | "tex"
-  | "md"
-  | "typ"
-  | "bib"
-  | "cls"
-  | "sty"
-  | "bst"
-  | "pdf"
-  | "yml"
-  | "json"
-  | "txt"
-  | "other";
-
-export type ProjectFileRole = "main" | "include" | "bib" | "asset";
+export type ProjectFileFormat = z.infer<typeof BundleSchema.ProjectFileFormat>;
+export type ProjectFileRole = z.infer<typeof BundleSchema.ProjectFileRole>;
 
 export interface ProjectFileRow {
   projectId: string;
@@ -185,8 +175,8 @@ export interface ProjectFileRow {
   scannedAt: string;
 }
 
-export type PaperBuildFormat = "tex" | "md" | "typ";
-export type PaperBuildCompiler = "typst" | "latexmk" | "pandoc" | "xelatex" | "pdflatex";
+export type PaperBuildFormat = z.infer<typeof BundleSchema.PaperBuildFormat>;
+export type PaperBuildCompiler = z.infer<typeof BundleSchema.PaperBuildCompiler>;
 
 export interface PaperBuildRow {
   paperId: string;
