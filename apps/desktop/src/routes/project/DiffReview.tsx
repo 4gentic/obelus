@@ -8,10 +8,12 @@ import { useProject } from "./context";
 import { useDiffStore } from "./diff-store-context";
 import HunkBlock from "./HunkBlock";
 import { useReviewProgress, useReviewRunner } from "./review-runner-context";
+import type { ForkInfo } from "./use-diff-actions";
 
 interface Props {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
+  forkInfo: ForkInfo | null;
 }
 
 function groupByFile(hunks: ReadonlyArray<DiffHunkRow>): Map<string, DiffHunkRow[]> {
@@ -229,6 +231,13 @@ export default function DiffReview(props: Props): JSX.Element {
         <p className="diff-review__banner diff-review__banner--err">{applyStatus.message}</p>
       )}
       {applyStatus.kind === "applying" && <p className="diff-review__banner">Applying…</p>}
+      {applyStatus.kind !== "applied" && props.forkInfo !== null && (
+        <p className="diff-review__banner diff-review__banner--warn">
+          You're viewing Draft {props.forkInfo.currentDraftOrdinal}. Applying forks the history —
+          Draft{props.forkInfo.orphanedOrdinals.length === 1 ? "" : "s"}{" "}
+          {props.forkInfo.orphanedOrdinals.join(", ")} stay as an alternate branch.
+        </p>
+      )}
 
       <section className="diff-review__list">
         {visibleHunks.map((h, vi) => {

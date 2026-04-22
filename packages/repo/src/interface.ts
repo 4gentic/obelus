@@ -58,9 +58,14 @@ export interface RevisionsRepo {
 }
 
 export interface AnnotationsRepo {
+  // `visibleFromEditId` makes "resolved" relative to the currently-viewed
+  // draft: an annotation whose `resolved_in_edit_id` is NOT an ancestor of
+  // `visibleFromEditId` is treated as active (reappears after a revert).
+  // When omitted, falls back to "resolved iff resolved_in_edit_id IS NOT NULL".
+  // `includeResolved` overrides both and returns every row on the revision.
   listForRevision(
     revisionId: string,
-    opts?: { includeResolved?: boolean },
+    opts?: { includeResolved?: boolean; visibleFromEditId?: string },
   ): Promise<AnnotationRow[]>;
   bulkPut(revisionId: string, rows: AnnotationRow[]): Promise<void>;
   remove(id: string): Promise<void>;

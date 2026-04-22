@@ -1,5 +1,5 @@
 import type { DiffHunkRow } from "@obelus/repo";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { applyHunks } from "../../ipc/commands";
 import { useBuffersStore } from "./buffers-store-context";
 import { buildRepassPrompt } from "./build-repass-prompt";
@@ -8,10 +8,20 @@ import { useDiffStore } from "./diff-store-context";
 import { ensureBaselineEdit, snapshotAfterApply } from "./history-actions";
 import { useReviewRunner } from "./review-runner-context";
 import { useReviewStore } from "./store-context";
+import { descendantsOf, usePaperEdits } from "./use-paper-edits";
+
+export interface ForkInfo {
+  currentDraftId: string;
+  currentDraftOrdinal: number;
+  orphanedOrdinals: number[];
+}
 
 export interface DiffActions {
   apply: () => Promise<void>;
   repass: () => Promise<void>;
+  // Non-null when the user is viewing an older draft than the head, so the next
+  // apply will fork the DAG. UI uses this to warn before the user clicks.
+  forkInfo: ForkInfo | null;
 }
 
 function effectivePatch(h: DiffHunkRow): string {
@@ -24,6 +34,22 @@ export function useDiffActions(): DiffActions {
   const runner = useReviewRunner();
   const buffers = useBuffersStore();
   const reviewStore = useReviewStore();
+  const edits = usePaperEdits(repo, project.id);
+
+  const currentDraft = useMemo(
+    () => edits.live.find((e) => e.id === edits.currentDraftId),
+    [edits.live, edits.currentDraftId],
+  );
+
+  const forkInfo = useMemo<ForkInfo | null>(() => {
+    if (!currentDraft || !edits.head) return null;
+    if (currentDraft.id === edits.head.id) return null;
+    return {
+      currentDraftId: currentDraft.id,
+      currentDraftOrdinal: currentDraft.ordinal,
+      orphanedOrdinals: descendantsOf(edits.live, currentDraft.id).map((e) => e.ordinal),
+    };
+  }, [currentDraft, edits.head, edits.live]);
 
   const apply = useCallback(async (): Promise<void> => {
     const state = store.getState();
@@ -57,12 +83,18 @@ export function useDiffActions(): DiffActions {
     state.setApplyStatus({ kind: "applying" });
     try {
       // Baseline captures the pre-pass tree so "restore what I started with"
-      // works on a project's first AI pass. Head is computed *after* the
-      // baseline pass so first-pass parentEdit points at the baseline.
+      // works on a project's first AI pass.
       await ensureBaselineEdit(repo, project.id, rootId);
-      const parentEdit = await repo.paperEdits.head(project.id);
+      // Parent the new draft off whatever bytes are actually on disk — the
+      // draft the user is viewing, not the DAG's head. If these differ,
+      // snapshotAfterApply will introduce a second live leaf (a branch) and
+      // the existing DAG tail sticks around as an alternate.
+      const parentId = currentDraft?.id;
+      const parentEdit = parentId
+        ? await repo.paperEdits.get(parentId)
+        : await repo.paperEdits.head(project.id);
       if (!parentEdit) {
-        throw new Error("head draft missing after ensureBaselineEdit");
+        throw new Error("parent draft missing after ensureBaselineEdit");
       }
 
       const payload = toApply
@@ -79,14 +111,21 @@ export function useDiffActions(): DiffActions {
         landedHunks: toApply,
       });
 
+      // Working tree now matches the new draft. Keep the stored cursor in sync
+      // so DraftsRail highlights the right chip and future divergence checks
+      // compare against the right manifest.
+      await edits.setCurrentDraftId(draft.id);
+      await edits.refresh();
+
       await repo.reviewSessions.markApplied(sessionId);
       const touchedFiles = [...new Set(payload.map((p) => p.file))];
       await buffers.getState().refreshFromDisk(touchedFiles);
-      // Reload annotations so marks whose hunks just landed (now stamped with
-      // resolved_in_edit_id) drop out of the active Marks tab.
+      // Reload annotations with the new draft as the ancestry root so marks
+      // whose hunks just landed (stamped with resolved_in_edit_id = draft.id)
+      // drop out of the active Marks tab.
       const revisionId = reviewStore.getState().revisionId;
       if (revisionId !== null) {
-        await reviewStore.getState().load(revisionId);
+        await reviewStore.getState().load(revisionId, draft.id);
       }
       state.markApplied({
         filesWritten: report.filesWritten,
@@ -99,7 +138,7 @@ export function useDiffActions(): DiffActions {
         message: err instanceof Error ? err.message : "Apply failed.",
       });
     }
-  }, [repo, rootId, project, store, runner.status.kind, buffers, reviewStore]);
+  }, [repo, rootId, project, store, runner.status.kind, buffers, reviewStore, currentDraft, edits]);
 
   const repass = useCallback(async (): Promise<void> => {
     const state = store.getState();
@@ -121,5 +160,5 @@ export function useDiffActions(): DiffActions {
     await runner.start({ extraPromptBody: body });
   }, [repo, store, runner.start, runner.status.kind]);
 
-  return { apply, repass };
+  return { apply, repass, forkInfo };
 }

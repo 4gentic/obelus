@@ -29,7 +29,7 @@ export type ReviewState = {
   draftCategory: Category | null;
   draftNote: string;
   focusedAnnotationId: string | null;
-  load: (revisionId: string) => Promise<void>;
+  load: (revisionId: string, visibleFromEditId?: string) => Promise<void>;
   setSelectedAnchor: (draft: DraftInput | null) => void;
   setDraftCategory: (category: Category | null) => void;
   setDraftNote: (note: string) => void;
@@ -57,8 +57,11 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
     draftNote: "",
     focusedAnnotationId: null,
 
-    async load(revisionId) {
-      const rows = await repo.listForRevision(revisionId);
+    async load(revisionId, visibleFromEditId) {
+      const rows = await repo.listForRevision(
+        revisionId,
+        visibleFromEditId !== undefined ? { visibleFromEditId } : undefined,
+      );
       set({
         revisionId,
         annotations: rows,

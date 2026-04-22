@@ -69,14 +69,44 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
   return {
     async listForRevision(
       revisionId: string,
-      opts?: { includeResolved?: boolean },
+      opts?: { includeResolved?: boolean; visibleFromEditId?: string },
     ): Promise<AnnotationRow[]> {
-      const sql = opts?.includeResolved
-        ? `SELECT ${SELECT_COLS} FROM annotations WHERE revision_id = $1 ORDER BY created_at ASC`
-        : `SELECT ${SELECT_COLS} FROM annotations
-           WHERE revision_id = $1 AND resolved_in_edit_id IS NULL
-           ORDER BY created_at ASC`;
-      const rows = await db.select<AnnotationSqlRow[]>(sql, [revisionId]);
+      if (opts?.includeResolved) {
+        const rows = await db.select<AnnotationSqlRow[]>(
+          `SELECT ${SELECT_COLS} FROM annotations WHERE revision_id = $1
+           ORDER BY created_at ASC`,
+          [revisionId],
+        );
+        return rows.map(toAnnotationRow);
+      }
+      // Ancestry-scoped resolution: a mark is "resolved" only when its fix
+      // landed in an edit that's part of the currently-viewed draft's history.
+      // Reverting to an older draft un-hides marks that were resolved in the
+      // forward branches the user stepped off.
+      if (opts?.visibleFromEditId !== undefined) {
+        const rows = await db.select<AnnotationSqlRow[]>(
+          `WITH RECURSIVE ancestors(id) AS (
+             SELECT id FROM paper_edits WHERE id = $2
+             UNION
+             SELECT p.parent_edit_id FROM paper_edits p
+               JOIN ancestors a ON p.id = a.id
+               WHERE p.parent_edit_id IS NOT NULL
+           )
+           SELECT ${SELECT_COLS} FROM annotations
+           WHERE revision_id = $1
+             AND (resolved_in_edit_id IS NULL
+                  OR resolved_in_edit_id NOT IN (SELECT id FROM ancestors))
+           ORDER BY created_at ASC`,
+          [revisionId, opts.visibleFromEditId],
+        );
+        return rows.map(toAnnotationRow);
+      }
+      const rows = await db.select<AnnotationSqlRow[]>(
+        `SELECT ${SELECT_COLS} FROM annotations
+         WHERE revision_id = $1 AND resolved_in_edit_id IS NULL
+         ORDER BY created_at ASC`,
+        [revisionId],
+      );
       return rows.map(toAnnotationRow);
     },
 

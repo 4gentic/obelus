@@ -11,6 +11,7 @@ import ReviewList from "./ReviewList";
 import { useReviewRunner } from "./review-runner-context";
 import StartReviewButton from "./StartReviewButton";
 import { useReviewStore } from "./store-context";
+import type { ForkInfo } from "./use-diff-actions";
 
 type WriterView = "marks" | "diff" | "drafts";
 type ReviewerView = "marks" | "review";
@@ -18,6 +19,7 @@ type ReviewerView = "marks" | "review";
 interface Props {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
+  forkInfo: ForkInfo | null;
   wide: boolean;
   onToggleWide: () => void;
 }
@@ -25,11 +27,13 @@ interface Props {
 interface WriterProps {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
+  forkInfo: ForkInfo | null;
 }
 
 export default function ReviewColumn({
   onApply,
   onRepass,
+  forkInfo,
   wide,
   onToggleWide,
 }: Props): JSX.Element {
@@ -37,11 +41,11 @@ export default function ReviewColumn({
   return project.kind === "reviewer" ? (
     <ReviewerColumn wide={wide} onToggleWide={onToggleWide} />
   ) : (
-    <WriterColumn onApply={onApply} onRepass={onRepass} />
+    <WriterColumn onApply={onApply} onRepass={onRepass} forkInfo={forkInfo} />
   );
 }
 
-function WriterColumn({ onApply, onRepass }: WriterProps): JSX.Element {
+function WriterColumn({ onApply, onRepass, forkInfo }: WriterProps): JSX.Element {
   const store = useReviewStore();
   const diffStore = useDiffStore();
   const runner = useReviewRunner();
@@ -109,7 +113,7 @@ function WriterColumn({ onApply, onRepass }: WriterProps): JSX.Element {
       ) : effectiveView === "drafts" ? (
         <DraftsPanel />
       ) : (
-        <DiffReview onApply={onApply} onRepass={onRepass} />
+        <DiffReview onApply={onApply} onRepass={onRepass} forkInfo={forkInfo} />
       )}
     </aside>
   );

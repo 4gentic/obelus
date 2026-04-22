@@ -13,7 +13,7 @@ export default function ProjectShell(): JSX.Element {
   const { project } = useProject();
   const openPaper = useOpenPaper();
   useLoadRevision();
-  const { apply, repass } = useDiffActions();
+  const { apply, repass, forkInfo } = useDiffActions();
   const reviewStore = useReviewStore();
   const [reviewWide, setReviewWide] = useState(false);
   const onToggleReviewWide = useCallback(() => setReviewWide((w) => !w), []);
@@ -64,6 +64,7 @@ export default function ProjectShell(): JSX.Element {
           <ReviewColumn
             onApply={apply}
             onRepass={repass}
+            forkInfo={forkInfo}
             wide={reviewWide}
             onToggleWide={onToggleReviewWide}
           />

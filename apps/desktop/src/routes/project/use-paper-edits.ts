@@ -1,5 +1,6 @@
 import type { PaperEditRow, Repository } from "@obelus/repo";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { create, type StoreApi, type UseBoundStore } from "zustand";
 
 export interface PaperEditsData {
   live: PaperEditRow[];
@@ -12,49 +13,81 @@ export interface PaperEditsData {
   setCurrentDraftId(id: string): Promise<void>;
 }
 
+interface PaperEditsStoreState {
+  all: PaperEditRow[];
+  currentDraftId: string | undefined;
+  _set(patch: Partial<Pick<PaperEditsStoreState, "all" | "currentDraftId">>): void;
+}
+
+type PaperEditsStore = UseBoundStore<StoreApi<PaperEditsStoreState>>;
+
 const CURRENT_KEY = (projectId: string) => `project.${projectId}.currentDraftId`;
 
-export function usePaperEdits(repo: Repository, projectId: string): PaperEditsData {
-  const [all, setAll] = useState<PaperEditRow[]>([]);
-  const [currentDraftId, setCurrentDraftIdState] = useState<string | undefined>(undefined);
+// Single source of truth per project. Mounting a second `usePaperEdits` with
+// the same projectId subscribes to the same store, so `setCurrentDraftId` in
+// one caller fans out to every subscriber (DraftsRail, DraftsPanel, the
+// annotations ancestry filter, the apply-flow fork warning, etc.).
+const stores = new Map<string, PaperEditsStore>();
+const loaders = new Map<string, () => Promise<void>>();
 
-  const load = useCallback(async () => {
+function getStore(repo: Repository, projectId: string): PaperEditsStore {
+  const existing = stores.get(projectId);
+  if (existing) return existing;
+  const store = create<PaperEditsStoreState>((set) => ({
+    all: [],
+    currentDraftId: undefined,
+    _set: (patch) => set(patch),
+  }));
+  stores.set(projectId, store);
+  const load = async (): Promise<void> => {
     const [edits, persisted] = await Promise.all([
       repo.paperEdits.listForProject(projectId, { includeTombstoned: true }),
       repo.settings.get<string>(CURRENT_KEY(projectId)),
     ]);
-    setAll(edits);
     const live = edits.filter((e) => e.state === "live");
     const head = computeHead(live);
     const fallback = head?.id;
     const resolved = persisted && live.some((e) => e.id === persisted) ? persisted : fallback;
-    setCurrentDraftIdState(resolved);
-  }, [repo, projectId]);
+    store.getState()._set({ all: edits, currentDraftId: resolved });
+  };
+  loaders.set(projectId, load);
+  void load();
+  return store;
+}
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const setCurrentDraftId = useCallback(
-    async (id: string) => {
-      await repo.settings.set(CURRENT_KEY(projectId), id);
-      setCurrentDraftIdState(id);
-    },
-    [repo, projectId],
+export function usePaperEdits(repo: Repository, projectId: string): PaperEditsData {
+  const store = getStore(repo, projectId);
+  const all = useSyncExternalStore(
+    store.subscribe,
+    () => store.getState().all,
+    () => store.getState().all,
+  );
+  const currentDraftId = useSyncExternalStore(
+    store.subscribe,
+    () => store.getState().currentDraftId,
+    () => store.getState().currentDraftId,
   );
 
-  const live = all.filter((e) => e.state === "live");
-  const tombstoned = all.filter((e) => e.state === "tombstoned");
-  const head = computeHead(live);
+  const refresh = useCallback(async (): Promise<void> => {
+    const load = loaders.get(projectId);
+    if (load) await load();
+  }, [projectId]);
+  const setCurrentDraftId = useCallback(
+    async (id: string): Promise<void> => {
+      await repo.settings.set(CURRENT_KEY(projectId), id);
+      store.getState()._set({ currentDraftId: id });
+    },
+    [repo, projectId, store],
+  );
 
-  return {
-    live,
-    tombstoned,
-    head,
-    currentDraftId,
-    refresh: load,
-    setCurrentDraftId,
-  };
+  const live = useMemo(() => all.filter((e) => e.state === "live"), [all]);
+  const tombstoned = useMemo(() => all.filter((e) => e.state === "tombstoned"), [all]);
+  const head = useMemo(() => computeHead(live), [live]);
+
+  return useMemo(
+    () => ({ live, tombstoned, head, currentDraftId, refresh, setCurrentDraftId }),
+    [live, tombstoned, head, currentDraftId, refresh, setCurrentDraftId],
+  );
 }
 
 // Head = the unique live edit with no live child. If the DB is empty returns
