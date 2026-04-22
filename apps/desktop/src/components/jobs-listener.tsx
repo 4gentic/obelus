@@ -77,8 +77,13 @@ async function handleExit(
       const message = await ingestReview(job.rootId, job.reviewSessionId);
       store.markDone(sessionId, message);
     } else {
-      await ingestWriteup(job.rootId, job.paperId, job.projectId);
-      store.markDone(sessionId, "Write-up ready.");
+      const ingested = await ingestWriteup(sessionId, job.rootId, job.paperId, job.projectId);
+      const bytes = new TextEncoder().encode(ingested.body).byteLength;
+      const fileName = ingested.path.replace(/^\.obelus\//, "");
+      store.markDone(
+        sessionId,
+        `Write-up ready. ${bytes.toLocaleString()} bytes from ${fileName}.`,
+      );
     }
   } catch (err) {
     console.warn("[ingest]", { sessionId, kind: job.kind, err });
@@ -118,10 +123,11 @@ async function ingestReview(rootId: string, reviewSessionId: string | undefined)
 }
 
 async function ingestWriteup(
+  sessionId: string,
   rootId: string,
   paperId: string | undefined,
   projectId: string,
-): Promise<void> {
+): Promise<{ path: string; body: string }> {
   if (!paperId) throw new Error("writeup job is missing paperId");
   const ingested = await ingestWriteupFile({ rootId, paperId });
   if (!ingested) {
@@ -129,4 +135,14 @@ async function ingestWriteup(
   }
   const repo = await getRepository();
   await repo.writeUps.upsert({ projectId, paperId, bodyMd: ingested.body });
+
+  console.info("[ingest-writeup]", {
+    sessionId,
+    paperId,
+    projectId,
+    path: ingested.path,
+    byteLength: new TextEncoder().encode(ingested.body).byteLength,
+  });
+
+  return ingested;
 }

@@ -58,6 +58,7 @@ export async function runProjectScan(args: {
   // Seed a per-paper build row for any paper that hasn't had one yet. Papers
   // with an existing row keep whatever the user has pinned; we only refresh
   // `scannedAt` so stale rows don't lie about age.
+  let papersSeeded = 0;
   for (const paper of projectPapers) {
     const existing = await repo.paperBuild.get(paper.id).catch(() => undefined);
     if (!existing) {
@@ -68,10 +69,24 @@ export async function runProjectScan(args: {
         compiler: report.compiler,
         scannedAt: report.scannedAt,
       });
+      papersSeeded += 1;
     } else {
       await repo.paperBuild.upsert(paper.id, { scannedAt: report.scannedAt });
     }
   }
+
+  console.info("[project-scan]", {
+    projectId,
+    rootId,
+    kind,
+    fileCount: rows.length,
+    paperCount: projectPapers.length,
+    papersSeeded,
+    format: report.format,
+    mainRelPath: report.mainRelPath,
+    compiler: report.compiler,
+    scannedAt: report.scannedAt,
+  });
 
   return report;
 }

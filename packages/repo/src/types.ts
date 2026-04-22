@@ -1,8 +1,8 @@
 // Storage row shapes shared by every Repository implementation (Dexie today,
 // SQLite later). Implementations map these to/from their native rows.
 
-import type { z } from "zod";
 import type * as BundleSchema from "@obelus/bundle-schema";
+import type { z } from "zod";
 
 export interface PaperRubric {
   body: string;
