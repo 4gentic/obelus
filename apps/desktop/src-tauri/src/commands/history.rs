@@ -288,6 +288,8 @@ pub async fn history_snapshot(
     state: State<'_, AppState>,
 ) -> AppResult<HistorySnapshotReport> {
     let root = root_path_for(&root_id, &state)?;
+    let lock = state.root_lock(&root_id);
+    let _guard = lock.lock().await;
     do_snapshot(&root, &explicit_rel_paths, &tombstoned_rel_paths).await
 }
 
@@ -438,6 +440,8 @@ pub async fn history_checkout(
     state: State<'_, AppState>,
 ) -> AppResult<HistoryCheckoutReport> {
     let root = root_path_for(&root_id, &state)?;
+    let lock = state.root_lock(&root_id);
+    let _guard = lock.lock().await;
     do_checkout(
         &root,
         &target_manifest_sha,
