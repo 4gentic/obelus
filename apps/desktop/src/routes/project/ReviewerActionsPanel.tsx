@@ -267,19 +267,10 @@ export default function ReviewerActionsPanel({
       </header>
       <RubricPanel paper={paperRowForRubric} />
       <p className="reviewer-actions__hint">
-        {claudeReady
-          ? "Hand your marks to Claude Code and get back a journal-style reviewer's letter. The agent does not edit any paper source — it only writes the review."
+        {claudeReady === true
+          ? "Hand your marks to Claude Code for a journal-style reviewer's letter — draft it here, or copy the command and run it yourself."
           : "Hand your marks to a coding agent and get back a journal-style reviewer's letter. Pick a handoff below."}
       </p>
-
-      {claudeReady === false ? (
-        <ExportChips
-          onExportJSON={() => void onExportJSON()}
-          onExportMarkdown={() => void onExportMarkdown()}
-          onCopyPrompt={() => void onCopyPrompt()}
-          state={exportState}
-        />
-      ) : null}
 
       {claudeReady === true ? (
         <ClaudeAction
@@ -296,6 +287,17 @@ export default function ReviewerActionsPanel({
           error={status.kind === "error" ? status.message : null}
         />
       ) : null}
+
+      {claudeReady === true ? (
+        <p className="reviewer-actions__handoff-label">Or hand off manually</p>
+      ) : null}
+
+      <ExportChips
+        onExportJSON={() => void onExportJSON()}
+        onExportMarkdown={() => void onExportMarkdown()}
+        onCopyPrompt={() => void onCopyPrompt()}
+        state={exportState}
+      />
     </section>
   );
 }

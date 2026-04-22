@@ -1931,6 +1931,15 @@ button.files__row {
   margin: 0;
 }
 
+.reviewer-actions__handoff-label {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: var(--step--2);
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+
 .reviewer-actions__chips {
   display: flex;
   flex-direction: column;
