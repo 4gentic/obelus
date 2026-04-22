@@ -4,6 +4,7 @@ import { type DirEntry, fsReadDir } from "../../ipc/commands";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
 import { extensionOf, isSource, NOISE_DIRS } from "./openable";
+import { useProjectBuild } from "./use-project-build";
 
 interface TreeState {
   expanded: Set<string>;
@@ -109,6 +110,32 @@ function PinButton({ pinned, onToggle }: PinButtonProps): JSX.Element {
   );
 }
 
+interface MainButtonProps {
+  isMain: boolean;
+  onToggle: () => void;
+}
+
+// Compileable-source extensions only. Bib / cls / sty are not candidates.
+const MAIN_EXTS = new Set(["tex", "md", "typ"]);
+
+function MainButton({ isMain, onToggle }: MainButtonProps): JSX.Element {
+  return (
+    <button
+      type="button"
+      className="files__main-star"
+      data-main={isMain ? "true" : "false"}
+      aria-label={isMain ? "main file (click to unpin)" : "set as main file"}
+      title={isMain ? "Main file — click to unpin" : "Set as main file"}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+    >
+      {isMain ? "★" : "☆"}
+    </button>
+  );
+}
+
 interface FlatRowProps {
   path: string;
   name: string;
@@ -160,9 +187,11 @@ interface EntryRowProps {
   depth: number;
   tree: TreeState;
   pinned: Set<string>;
+  mainRelPath: string | null;
   onToggle: (path: string) => void;
   onOpenFile: (path: string) => void;
   onTogglePin: (path: string) => void;
+  onToggleMain: (path: string) => void;
 }
 
 function filterChildren(
@@ -179,7 +208,18 @@ function filterChildren(
 }
 
 function EntryRow(props: EntryRowProps): JSX.Element {
-  const { path, entry, depth, tree, pinned, onToggle, onOpenFile, onTogglePin } = props;
+  const {
+    path,
+    entry,
+    depth,
+    tree,
+    pinned,
+    mainRelPath,
+    onToggle,
+    onOpenFile,
+    onTogglePin,
+    onToggleMain,
+  } = props;
   const { openFilePath } = useProject();
   const buffers = useBuffersStore();
   const dirty = buffers((s) => s.isDirty(path));
@@ -210,9 +250,11 @@ function EntryRow(props: EntryRowProps): JSX.Element {
               depth={depth + 1}
               tree={tree}
               pinned={pinned}
+              mainRelPath={mainRelPath}
               onToggle={onToggle}
               onOpenFile={onOpenFile}
               onTogglePin={onTogglePin}
+              onToggleMain={onToggleMain}
             />
           ))}
       </>
@@ -220,6 +262,9 @@ function EntryRow(props: EntryRowProps): JSX.Element {
   }
   const selected = openFilePath === path;
   const isPinned = pinned.has(path);
+  const ext = extensionOf(entry.name);
+  const mainCandidate = ext !== null && MAIN_EXTS.has(ext);
+  const isMain = mainRelPath === path;
   return (
     <div
       className={`files__row files__row--file${selected ? " files__row--selected" : ""}`}
@@ -227,6 +272,7 @@ function EntryRow(props: EntryRowProps): JSX.Element {
     >
       <span className="files__caret" aria-hidden="true" />
       <PinButton pinned={isPinned} onToggle={() => onTogglePin(path)} />
+      {mainCandidate && <MainButton isMain={isMain} onToggle={() => onToggleMain(path)} />}
       {dirty && (
         <span className="files__dirty-dot" role="img" aria-label="unsaved changes">
           •
@@ -247,6 +293,7 @@ function EntryRow(props: EntryRowProps): JSX.Element {
 export default function FilesColumn(): JSX.Element {
   const { project, rootId, repo, setOpenFilePath, openFilePath } = useProject();
   const buffers = useBuffersStore();
+  const { build, setMain } = useProjectBuild(repo, project.id);
 
   const [tree, setTree] = useState<TreeState>(() => ({
     expanded: new Set(),
@@ -336,6 +383,14 @@ export default function FilesColumn(): JSX.Element {
       if (proceed) setOpenFilePath(path);
     },
     [buffers, setOpenFilePath],
+  );
+
+  const toggleMain = useCallback(
+    (path: string) => {
+      const wasMain = build?.mainRelPath === path;
+      void setMain(wasMain ? null : path, !wasMain);
+    },
+    [build?.mainRelPath, setMain],
   );
 
   const togglePin = useCallback(
@@ -455,9 +510,11 @@ export default function FilesColumn(): JSX.Element {
                 depth={0}
                 tree={tree}
                 pinned={pinned}
+                mainRelPath={build?.mainRelPath ?? null}
                 onToggle={toggle}
                 onOpenFile={openFile}
                 onTogglePin={togglePin}
+                onToggleMain={toggleMain}
               />
             ))}
           </div>

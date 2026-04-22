@@ -1,8 +1,10 @@
 import type { DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { fsReadFile } from "../../ipc/commands";
 import { useKeyNav } from "../../lib/use-key-nav";
 import ClaudeChip from "./ClaudeChip";
+import { useProject } from "./context";
 import { useDiffStore } from "./diff-store-context";
 import HunkBlock from "./HunkBlock";
 import { useReviewProgress, useReviewRunner } from "./review-runner-context";
@@ -24,6 +26,7 @@ function groupByFile(hunks: ReadonlyArray<DiffHunkRow>): Map<string, DiffHunkRow
 }
 
 export default function DiffReview(props: Props): JSX.Element {
+  const { rootId } = useProject();
   const store = useDiffStore();
   const runner = useReviewRunner();
   const sessionId = store((s) => s.sessionId);
@@ -41,18 +44,46 @@ export default function DiffReview(props: Props): JSX.Element {
   const grouped = useMemo(() => groupByFile(hunks), [hunks]);
   const files = useMemo(() => [...grouped.keys()], [grouped]);
 
-  useEffect(() => {
-    if (activeFile === null && files.length > 0) {
-      const first = files[0];
-      if (first !== undefined) setActiveFile(first);
-    }
-  }, [activeFile, files]);
-
   const focusedHunk = hunks[focusedIndex];
   const visibleHunks = useMemo(() => {
     if (activeFile === null) return hunks;
     return hunks.filter((h) => (h.file === "" ? "(unresolved)" : h.file) === activeFile);
   }, [hunks, activeFile]);
+
+  const [sourceByFile, setSourceByFile] = useState<ReadonlyMap<string, string>>(
+    () => new Map<string, string>(),
+  );
+  useEffect(() => {
+    const wanted = new Set<string>();
+    for (const h of hunks) {
+      if (h.file !== "") wanted.add(h.file);
+    }
+    const missing = [...wanted].filter((f) => !sourceByFile.has(f));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const loaded: Array<[string, string]> = [];
+      for (const file of missing) {
+        try {
+          const buf = await fsReadFile(rootId, file);
+          const text = new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(buf));
+          loaded.push([file, text]);
+        } catch {
+          // Source unreadable (moved, deleted, or binary); skip — HunkBlock
+          // falls back to the minimal patch with no context.
+        }
+      }
+      if (cancelled || loaded.length === 0) return;
+      setSourceByFile((prev) => {
+        const next = new Map(prev);
+        for (const [f, t] of loaded) next.set(f, t);
+        return next;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hunks, rootId, sourceByFile]);
 
   const modeless = editingId === null && noteId === null;
 
@@ -101,6 +132,22 @@ export default function DiffReview(props: Props): JSX.Element {
   }
 
   if (sessionId === null || hunks.length === 0) {
+    if (applyStatus.kind === "applied") {
+      return (
+        <div className="diff-review diff-review--applied">
+          <p className="diff-review__banner diff-review__banner--ok">
+            {applyStatus.draftOrdinal !== undefined
+              ? `Draft ${applyStatus.draftOrdinal} is saved. `
+              : ""}
+            {applyStatus.hunksApplied} change{applyStatus.hunksApplied === 1 ? "" : "s"} to{" "}
+            {applyStatus.filesWritten} file{applyStatus.filesWritten === 1 ? "" : "s"}.
+          </p>
+          <p className="review-column__hint">
+            The marks that shipped are stored with this draft. Start a new review when you're ready.
+          </p>
+        </div>
+      );
+    }
     return <p className="review-column__hint">Plan loaded but no hunks were produced.</p>;
   }
 
@@ -119,6 +166,18 @@ export default function DiffReview(props: Props): JSX.Element {
     <div className="diff-review">
       <header className="diff-review__head">
         <nav className="diff-review__tabs">
+          <span className="diff-review__tabs-label">files</span>
+          <button
+            type="button"
+            className={`diff-review__tab${activeFile === null ? " diff-review__tab--on" : ""}`}
+            onClick={() => setActiveFile(null)}
+            title="Show hunks across every file"
+          >
+            <span className="diff-review__tab-label">all</span>
+            <span className="diff-review__tab-count">
+              {acceptedTotal}/{hunks.length}
+            </span>
+          </button>
           {files.map((file) => {
             const bucket = grouped.get(file) ?? [];
             const accepted = bucket.filter(
@@ -130,8 +189,9 @@ export default function DiffReview(props: Props): JSX.Element {
                 type="button"
                 className={`diff-review__tab${activeFile === file ? " diff-review__tab--on" : ""}`}
                 onClick={() => setActiveFile(file)}
+                title={file}
               >
-                {file}
+                <span className="diff-review__tab-label">{file}</span>
                 <span className="diff-review__tab-count">
                   {accepted}/{bucket.length}
                 </span>
@@ -150,15 +210,19 @@ export default function DiffReview(props: Props): JSX.Element {
             disabled={!applicable}
             onClick={() => void props.onApply()}
           >
-            apply · .
+            keep these changes · .
           </button>
         </div>
       </header>
 
       {applyStatus.kind === "applied" && (
         <p className="diff-review__banner diff-review__banner--ok">
-          Written to {applyStatus.filesWritten} file{applyStatus.filesWritten === 1 ? "" : "s"}.
-          Nothing was sent anywhere.
+          {applyStatus.draftOrdinal !== undefined
+            ? `Draft ${applyStatus.draftOrdinal} is saved. `
+            : ""}
+          {applyStatus.hunksApplied} change{applyStatus.hunksApplied === 1 ? "" : "s"} to{" "}
+          {applyStatus.filesWritten} file{applyStatus.filesWritten === 1 ? "" : "s"}. Nothing was
+          sent anywhere.
         </p>
       )}
       {applyStatus.kind === "error" && (
@@ -167,34 +231,53 @@ export default function DiffReview(props: Props): JSX.Element {
       {applyStatus.kind === "applying" && <p className="diff-review__banner">Applying…</p>}
 
       <section className="diff-review__list">
-        {visibleHunks.map((h) => {
+        {visibleHunks.map((h, vi) => {
           const global = hunks.indexOf(h);
           const key = h.file === "" ? "(unresolved)" : h.file;
           const bucket = grouped.get(key) ?? [];
           const indexInFile = bucket.indexOf(h);
+          const prev = vi === 0 ? null : visibleHunks[vi - 1];
+          const prevKey =
+            prev === undefined || prev === null
+              ? null
+              : prev.file === ""
+                ? "(unresolved)"
+                : prev.file;
+          const isFileBoundary = prevKey !== key;
+          const source = h.file === "" ? null : (sourceByFile.get(h.file) ?? null);
           return (
-            <HunkBlock
-              key={h.id}
-              hunk={h}
-              indexInFile={indexInFile}
-              totalInFile={bucket.length}
-              focused={focusedHunk?.id === h.id}
-              editing={editingId === h.id}
-              editingText={editingText}
-              noting={noteId === h.id}
-              noteText={noteText}
-              onFocus={() => store.getState().focus(global)}
-              onAccept={() => void store.getState().accept(h.id)}
-              onReject={() => void store.getState().reject(h.id)}
-              onStartEdit={() => store.getState().startEdit(h.id)}
-              onEditChange={(t) => store.getState().setEditingText(t)}
-              onCommitEdit={() => void store.getState().commitEdit()}
-              onCancelEdit={() => store.getState().cancelEdit()}
-              onStartNote={() => store.getState().startNote(h.id)}
-              onNoteChange={(t) => store.getState().setNoteText(t)}
-              onCommitNote={() => void store.getState().commitNote()}
-              onCancelNote={() => store.getState().cancelNote()}
-            />
+            <div key={h.id} className="diff-review__group">
+              {isFileBoundary && (
+                <h3 className="diff-review__file-header" title={key}>
+                  <span className="diff-review__file-header-path">{key}</span>
+                  <span className="diff-review__file-header-count">
+                    {bucket.length} hunk{bucket.length === 1 ? "" : "s"}
+                  </span>
+                </h3>
+              )}
+              <HunkBlock
+                hunk={h}
+                indexInFile={indexInFile}
+                totalInFile={bucket.length}
+                sourceText={source}
+                focused={focusedHunk?.id === h.id}
+                editing={editingId === h.id}
+                editingText={editingText}
+                noting={noteId === h.id}
+                noteText={noteText}
+                onFocus={() => store.getState().focus(global)}
+                onAccept={() => void store.getState().accept(h.id)}
+                onReject={() => void store.getState().reject(h.id)}
+                onStartEdit={() => store.getState().startEdit(h.id)}
+                onEditChange={(t) => store.getState().setEditingText(t)}
+                onCommitEdit={() => void store.getState().commitEdit()}
+                onCancelEdit={() => store.getState().cancelEdit()}
+                onStartNote={() => store.getState().startNote(h.id)}
+                onNoteChange={(t) => store.getState().setNoteText(t)}
+                onCommitNote={() => void store.getState().commitNote()}
+                onCancelNote={() => store.getState().cancelNote()}
+              />
+            </div>
           );
         })}
       </section>

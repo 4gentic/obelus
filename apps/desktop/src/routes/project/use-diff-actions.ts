@@ -5,7 +5,9 @@ import { useBuffersStore } from "./buffers-store-context";
 import { buildRepassPrompt } from "./build-repass-prompt";
 import { useProject } from "./context";
 import { useDiffStore } from "./diff-store-context";
+import { ensureBaselineEdit, snapshotAfterApply } from "./history-actions";
 import { useReviewRunner } from "./review-runner-context";
+import { useReviewStore } from "./store-context";
 
 export interface DiffActions {
   apply: () => Promise<void>;
@@ -17,10 +19,11 @@ function effectivePatch(h: DiffHunkRow): string {
 }
 
 export function useDiffActions(): DiffActions {
-  const { repo, rootId } = useProject();
+  const { repo, rootId, project } = useProject();
   const store = useDiffStore();
   const runner = useReviewRunner();
   const buffers = useBuffersStore();
+  const reviewStore = useReviewStore();
 
   const apply = useCallback(async (): Promise<void> => {
     const state = store.getState();
@@ -53,17 +56,42 @@ export function useDiffActions(): DiffActions {
     if (toApply.length === 0) return;
     state.setApplyStatus({ kind: "applying" });
     try {
+      // Baseline captures the pre-pass tree so "restore what I started with"
+      // works on a project's first AI pass. Head is computed *after* the
+      // baseline pass so first-pass parentEdit points at the baseline.
+      await ensureBaselineEdit(repo, project.id, rootId);
+      const parentEdit = await repo.paperEdits.head(project.id);
+      if (!parentEdit) {
+        throw new Error("head draft missing after ensureBaselineEdit");
+      }
+
       const payload = toApply
         .filter((h) => h.file !== "" && effectivePatch(h) !== "")
         .map((h) => ({ file: h.file, patch: effectivePatch(h) }));
       const report = await applyHunks({ rootId, sessionId, hunks: payload });
+
+      const draft = await snapshotAfterApply({
+        repo,
+        project,
+        rootId,
+        sessionId,
+        parentEdit,
+        landedHunks: toApply,
+      });
+
       await repo.reviewSessions.markApplied(sessionId);
       const touchedFiles = [...new Set(payload.map((p) => p.file))];
       await buffers.getState().refreshFromDisk(touchedFiles);
-      state.setApplyStatus({
-        kind: "applied",
+      // Reload annotations so marks whose hunks just landed (now stamped with
+      // resolved_in_edit_id) drop out of the active Marks tab.
+      const revisionId = reviewStore.getState().revisionId;
+      if (revisionId !== null) {
+        await reviewStore.getState().load(revisionId);
+      }
+      state.markApplied({
         filesWritten: report.filesWritten,
         hunksApplied: report.hunksApplied,
+        draftOrdinal: draft.ordinal,
       });
     } catch (err) {
       state.setApplyStatus({
@@ -71,7 +99,7 @@ export function useDiffActions(): DiffActions {
         message: err instanceof Error ? err.message : "Apply failed.",
       });
     }
-  }, [repo, rootId, store, runner.status.kind, buffers]);
+  }, [repo, rootId, project, store, runner.status.kind, buffers, reviewStore]);
 
   const repass = useCallback(async (): Promise<void> => {
     const state = store.getState();

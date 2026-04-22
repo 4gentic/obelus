@@ -52,6 +52,15 @@ export async function exportBundleV2ForProject(input: ExportBundleInput): Promis
       pdfRelPath: paper.pdfRelPath,
       pdfSha256: paper.pdfSha256,
       pageCount: paper.pageCount,
+      ...(paper.rubric !== undefined
+        ? {
+            rubric: {
+              body: paper.rubric.body,
+              label: paper.rubric.label,
+              source: paper.rubric.source,
+            },
+          }
+        : {}),
     });
     const rows = await repo.annotations.listForRevision(latest.id);
     for (const row of rows) {
@@ -77,6 +86,14 @@ export async function exportBundleV2ForProject(input: ExportBundleInput): Promis
     throw new Error("no annotations to review");
   }
 
+  // Cached project-tree hints: the plugin reuses these to skip discovery.
+  // Absent fields (e.g. the scan hasn't run yet) leave the plugin's existing
+  // heuristics as the fallback path.
+  const [projectBuild, projectFiles] = await Promise.all([
+    repo.projectBuild.get(projectId).catch(() => undefined),
+    repo.projectFiles.listForProject(projectId).catch(() => []),
+  ]);
+
   const projectInput: ProjectV2Input = {
     id: project.id,
     label: project.label,
@@ -85,6 +102,18 @@ export async function exportBundleV2ForProject(input: ExportBundleInput): Promis
       slug: c.id,
       label: c.label,
     })),
+    ...(projectBuild?.mainRelPath ? { main: projectBuild.mainRelPath } : {}),
+    ...(projectFiles.length > 0
+      ? {
+          files: projectFiles
+            .filter((f) => f.format !== "pdf")
+            .map((f) => ({
+              relPath: f.relPath,
+              format: f.format,
+              ...(f.role !== null ? { role: f.role } : {}),
+            })),
+        }
+      : {}),
   };
 
   const bundle = buildBundleV2({

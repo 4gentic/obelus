@@ -4,8 +4,6 @@ import {
   claudeDraftWriteup,
   extractDeltaText,
   isContentBlockStop,
-  onClaudeExit,
-  onClaudeStderr,
   onClaudeStdout,
   parseStreamLine,
 } from "@obelus/claude-sidecar";
@@ -19,11 +17,11 @@ import {
   useMemo,
 } from "react";
 import { fsWriteBytes, fsWriteText } from "../../ipc/commands";
+import { useJobsStore } from "../../lib/jobs-store";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { createWriteUpStore, type WriteUpStore } from "../../lib/writeup-store";
 import { exportBundleV2ForProject } from "./build-bundle";
 import { useProject } from "./context";
-import { ingestWriteupFile } from "./ingest-writeup";
 import { createReviewProgressStore, type ReviewProgressStore } from "./review-progress-store";
 
 export interface WriteUpRunner {
@@ -40,33 +38,29 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
   const store = useMemo(() => createWriteUpStore(repo.writeUps), [repo]);
   const progressStore = useMemo(() => createReviewProgressStore(), []);
 
+  // While the user is on this page, pipe Claude's stdout for the active
+  // draft job into the live transcript + the detailed progress panel. The
+  // global JobsListener is what actually owns the job lifecycle and persists
+  // the final write-up on exit; this subscription is a view-only adornment.
   useEffect(() => {
-    // `onClaude*` are async: if the effect re-runs (HMR, store memo invalidation,
-    // remount) before the first `.then` resolves, cleanup sees `unlisten*` still
-    // null and the first listener stays alive — producing a doubled stream. The
-    // `cancelled` flag + in-callback guard keeps a single live sink regardless
-    // of when the registration promises resolve.
     let cancelled = false;
     let unlistenStdout: (() => void) | null = null;
-    let unlistenStderr: (() => void) | null = null;
-    let unlistenExit: (() => void) | null = null;
 
-    const matchSession = (sid: string): boolean => {
-      const s = store.getState().status;
-      return s.kind === "streaming" && s.claudeSessionId === sid;
+    const matchesOurDraft = (sid: string): boolean => {
+      const state = store.getState();
+      if (state.projectId !== project.id) return false;
+      if (!state.paperId) return false;
+      const job = useJobsStore.getState().get(sid);
+      if (!job || job.kind !== "writeup") return false;
+      return job.projectId === project.id && job.paperId === state.paperId;
     };
 
     void onClaudeStdout((ev: ClaudeStreamEvent) => {
       if (cancelled) return;
-      if (!matchSession(ev.sessionId)) return;
+      if (!matchesOurDraft(ev.sessionId)) return;
       const parsed = parseStreamLine(ev.line);
       if (!parsed) return;
       progressStore.getState().ingest(parsed);
-      // Raw Claude output (preamble, narration, the letter itself) streams
-      // into `transcript` — a live view the user can expand. The final clean
-      // letter comes from the .obelus/writeup-*.md file on exit, never from
-      // the stdout stream. Block seams get a blank line so consecutive turns
-      // don't collide ("…composition logic.Now I'll compose…").
       const delta = extractDeltaText(parsed);
       if (delta) {
         store.getState().appendTranscript(delta);
@@ -83,65 +77,71 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
       else unlistenStdout = fn;
     });
 
-    void onClaudeStderr((ev: ClaudeStreamEvent) => {
-      if (cancelled) return;
-      void ev;
-    }).then((fn) => {
-      if (cancelled) fn();
-      else unlistenStderr = fn;
-    });
-
-    void onClaudeExit((ev) => {
-      if (cancelled) return;
-      if (!matchSession(ev.sessionId)) return;
-      if (ev.cancelled) {
-        progressStore.getState().reset();
-        void store.getState().finishDrafting({ cancelled: true });
-        return;
-      }
-      if (ev.code !== 0) {
-        progressStore.getState().reset();
-        store.getState().failDrafting(`Claude exited with code ${ev.code ?? "?"}.`);
-        return;
-      }
-      void (async () => {
-        try {
-          const { paperId } = store.getState();
-          if (!paperId) return;
-          const ingested = await ingestWriteupFile({ rootId, paperId });
-          if (ingested) {
-            store.getState().setBody(ingested.body);
-          } else {
-            store
-              .getState()
-              .failDrafting("Claude finished but no .obelus/writeup-*.md file was written.");
-            progressStore.getState().reset();
-            return;
-          }
-          progressStore.getState().reset();
-          await store.getState().finishDrafting();
-        } catch (err) {
-          progressStore.getState().reset();
-          store
-            .getState()
-            .failDrafting(err instanceof Error ? err.message : "Could not read writeup file.");
-        }
-      })();
-    }).then((fn) => {
-      if (cancelled) fn();
-      else unlistenExit = fn;
-    });
-
     return () => {
       cancelled = true;
       unlistenStdout?.();
-      unlistenStderr?.();
-      unlistenExit?.();
     };
-  }, [store, progressStore, rootId]);
+  }, [store, progressStore, project.id]);
+
+  // If the user re-enters the project while a draft is still running, the
+  // local store status is idle (just loaded from DB) even though the job is
+  // in flight. Bring the two back in sync by flipping to streaming and
+  // subscribing to terminal transitions.
+  useEffect(() => {
+    const syncToActive = (): void => {
+      const { projectId, paperId, status } = store.getState();
+      if (!projectId || !paperId) return;
+      for (const job of Object.values(useJobsStore.getState().jobs)) {
+        if (job.kind !== "writeup") continue;
+        if (job.projectId !== projectId || job.paperId !== paperId) continue;
+        if (job.status !== "running" && job.status !== "ingesting") continue;
+        if (status.kind === "streaming" && status.claudeSessionId === job.claudeSessionId) return;
+        store.getState().startDrafting(job.claudeSessionId);
+        return;
+      }
+    };
+    // Catch the "already running at mount" case and any later paper swap.
+    syncToActive();
+    const unsubStore = store.subscribe(() => syncToActive());
+    const unsubJobs = useJobsStore.subscribe((state, prev) => {
+      syncToActive();
+      for (const [id, job] of Object.entries(state.jobs)) {
+        if (job.kind !== "writeup") continue;
+        if (job.projectId !== project.id) continue;
+        const previous = prev.jobs[id];
+        if (previous && previous.status === job.status) continue;
+        if (job.status === "done") {
+          const { projectId, paperId } = store.getState();
+          if (projectId && paperId && paperId === job.paperId) {
+            void store.getState().load(projectId, paperId);
+          }
+          progressStore.getState().reset();
+        } else if (job.status === "error") {
+          store.getState().failDrafting(job.message ?? "Draft failed.");
+          progressStore.getState().reset();
+        } else if (job.status === "cancelled") {
+          void store.getState().finishDrafting({ cancelled: true });
+          progressStore.getState().reset();
+        }
+      }
+    });
+    return () => {
+      unsubStore();
+      unsubJobs();
+    };
+  }, [store, progressStore, project.id]);
 
   const beginDraft = useCallback(
     async (paperId: string, paperTitle: string): Promise<void> => {
+      // One-job-per-project guardrail: if a write-up is already running for
+      // any paper in this project, bail. The pill in the dock shows the user
+      // what is running.
+      for (const j of Object.values(useJobsStore.getState().jobs)) {
+        if (j.projectId !== project.id) continue;
+        if (j.kind !== "writeup") continue;
+        if (j.status === "running" || j.status === "ingesting") return;
+      }
+
       try {
         const { filename, json } = await exportBundleV2ForProject({ repo, projectId: project.id });
         const bytes = new TextEncoder().encode(json);
@@ -165,6 +165,16 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
         });
         await store.getState().load(project.id, paperId);
         store.getState().startDrafting(claudeSessionId);
+        useJobsStore.getState().register({
+          claudeSessionId,
+          projectId: project.id,
+          projectLabel: project.label,
+          rootId,
+          kind: "writeup",
+          startedAt: Date.now(),
+          paperId,
+          paperTitle,
+        });
       } catch (err) {
         progressStore.getState().reset();
         store
@@ -172,14 +182,19 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
           .failDrafting(err instanceof Error ? err.message : "Could not start write-up.");
       }
     },
-    [repo, project.id, rootId, store, progressStore],
+    [repo, project.id, project.label, rootId, store, progressStore],
   );
 
   const cancelDraft = useCallback(async (): Promise<void> => {
-    const s = store.getState().status;
-    if (s.kind !== "streaming") return;
-    await claudeCancel(s.claudeSessionId);
-  }, [store]);
+    for (const j of Object.values(useJobsStore.getState().jobs)) {
+      if (j.projectId !== project.id) continue;
+      if (j.kind !== "writeup") continue;
+      if (j.status === "running" || j.status === "ingesting") {
+        await claudeCancel(j.claudeSessionId);
+        return;
+      }
+    }
+  }, [project.id]);
 
   const value: WriteUpRunner = useMemo(
     () => ({ store, progressStore, beginDraft, cancelDraft }),

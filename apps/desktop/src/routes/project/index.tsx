@@ -9,6 +9,7 @@ import { ProjectProvider } from "./context";
 import { DiffStoreProvider } from "./diff-store-context";
 import { OpenPaperProvider } from "./OpenPaper";
 import ProjectShell from "./ProjectShell";
+import { runProjectScan } from "./project-scan-actions";
 import { ReviewRunnerProvider } from "./review-runner";
 import { ReviewStoreProvider } from "./store-context";
 import { WriteUpStoreProvider } from "./writeup-store-context";
@@ -43,6 +44,17 @@ export default function ProjectRoute(): JSX.Element {
         }
         const rootId = await authorizeProjectRoot(project.root);
         await repo.projects.touchLastOpened(id);
+        // Refresh the project-metadata cache (file tree, main-file detection,
+        // .obelus/project.json mirror) before the shell mounts. Silent on
+        // failure: a missing cache is recoverable via the manual Rescan action
+        // and must not block the project from opening.
+        void runProjectScan({
+          repo,
+          rootId,
+          projectId: project.id,
+          label: project.label,
+          kind: project.kind,
+        }).catch(() => {});
         const stored = project.lastOpenedFilePath;
         if (stored) {
           if (!cancelled) setOpenFilePath(stored);

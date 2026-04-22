@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useProject } from "./context";
 import DiffReview from "./DiffReview";
+import DraftsPanel from "./DraftsPanel";
 import { useDiffStore } from "./diff-store-context";
 import { useOpenPaper } from "./OpenPaper";
 import ReviewDraft from "./ReviewDraft";
@@ -11,7 +12,7 @@ import { useReviewRunner } from "./review-runner-context";
 import StartReviewButton from "./StartReviewButton";
 import { useReviewStore } from "./store-context";
 
-type WriterView = "marks" | "diff";
+type WriterView = "marks" | "diff" | "drafts";
 type ReviewerView = "marks" | "review";
 
 interface Props {
@@ -90,14 +91,23 @@ function WriterColumn({ onApply, onRepass }: WriterProps): JSX.Element {
                 Diff
               </button>
             )}
+            <button
+              type="button"
+              className={`review-column__tab${effectiveView === "drafts" ? " review-column__tab--on" : ""}`}
+              onClick={() => setView("drafts")}
+            >
+              Drafts
+            </button>
           </>
         )}
       </nav>
       {effectiveView === "marks" ? (
         <>
-          {selected ? <ReviewDraft /> : <ReviewList />}
           <StartReviewButton />
+          {selected ? <ReviewDraft /> : <ReviewList />}
         </>
+      ) : effectiveView === "drafts" ? (
+        <DraftsPanel />
       ) : (
         <DiffReview onApply={onApply} onRepass={onRepass} />
       )}
