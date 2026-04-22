@@ -21,6 +21,8 @@ export type RunStatus =
   | { kind: "error"; message: string };
 
 export interface RunOptions {
+  paperId: string;
+  indications?: string;
   extraPromptBody?: string;
 }
 

@@ -96,10 +96,6 @@ export function buildProjectsRepo(db: Database): ProjectsRepo {
       await db.execute("DELETE FROM projects WHERE id = $1", [id]);
     },
 
-    async repoint(id: string, newRoot: string): Promise<void> {
-      await db.execute("UPDATE projects SET root = $1 WHERE id = $2", [newRoot, id]);
-    },
-
     async moveToDesk(id: string, deskId: string): Promise<void> {
       await db.execute("UPDATE projects SET desk_id = $1 WHERE id = $2", [deskId, id]);
     },

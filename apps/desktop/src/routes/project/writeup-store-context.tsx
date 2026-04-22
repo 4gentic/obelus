@@ -20,7 +20,7 @@ import { fsWriteBytes, fsWriteText } from "../../ipc/commands";
 import { useJobsStore } from "../../lib/jobs-store";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { createWriteUpStore, type WriteUpStore } from "../../lib/writeup-store";
-import { exportBundleV2ForProject } from "./build-bundle";
+import { exportBundleV2ForPaper } from "./build-bundle";
 import { useProject } from "./context";
 import { createReviewProgressStore, type ReviewProgressStore } from "./review-progress-store";
 
@@ -143,7 +143,7 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
       }
 
       try {
-        const { filename, json } = await exportBundleV2ForProject({ repo, projectId: project.id });
+        const { filename, json } = await exportBundleV2ForPaper({ repo, paperId });
         const bytes = new TextEncoder().encode(json);
         await fsWriteBytes(rootId, filename, bytes);
         const paper = await repo.papers.get(paperId);

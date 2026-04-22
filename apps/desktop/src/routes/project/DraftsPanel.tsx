@@ -7,14 +7,16 @@ import CompareDrafts from "./CompareDrafts";
 import { useProject } from "./context";
 import DraftEntry, { type DraftEntryState } from "./DraftEntry";
 import { scanAfterCheckout } from "./history-actions";
+import { usePaperId } from "./OpenPaper";
 import { useReviewRunner } from "./review-runner-context";
 import { descendantsOf, usePaperEdits } from "./use-paper-edits";
 
 export default function DraftsPanel(): JSX.Element {
   const { project, repo, rootId } = useProject();
+  const paperId = usePaperId();
   const runner = useReviewRunner();
   const buffers = useBuffersStore();
-  const edits = usePaperEdits(repo, project.id);
+  const edits = usePaperEdits(repo, paperId);
   const [banner, setBanner] = useState<
     { kind: "idle" } | { kind: "working"; message: string } | { kind: "error"; message: string }
   >({ kind: "idle" });
@@ -118,6 +120,7 @@ export default function DraftsPanel(): JSX.Element {
       }
       chainIds.push(target.id);
 
+      if (!paperId) return;
       setBanner({ kind: "working", message: "Folding drafts…" });
       try {
         // Create the replacement first so there's never a moment with no live
@@ -125,6 +128,7 @@ export default function DraftsPanel(): JSX.Element {
         // recover; if create fails, nothing was disturbed.
         await repo.paperEdits.create({
           projectId: project.id,
+          paperId,
           parentEditId: target.parentEditId,
           kind: "manual",
           sessionId: null,
@@ -141,7 +145,7 @@ export default function DraftsPanel(): JSX.Element {
         });
       }
     },
-    [busy, edits.head, edits.live, edits.refresh, repo, project.id],
+    [busy, edits.head, edits.live, edits.refresh, repo, project.id, paperId],
   );
 
   const onRecover = useCallback(
@@ -166,6 +170,17 @@ export default function DraftsPanel(): JSX.Element {
           to={compareTarget}
           onClose={() => setCompareTarget(null)}
         />
+      </div>
+    );
+  }
+
+  if (!paperId) {
+    return (
+      <div className="drafts-panel">
+        <h3 className="drafts-panel__heading">Drafts</h3>
+        <p className="drafts-panel__empty-hint">
+          <em>Open a paper to see its drafts.</em>
+        </p>
       </div>
     );
   }

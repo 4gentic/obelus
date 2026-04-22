@@ -1,10 +1,12 @@
+import type { PaperRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type DirEntry, fsReadDir } from "../../ipc/commands";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
+import { useOpenPaper } from "./OpenPaper";
 import { extensionOf, isSource, NOISE_DIRS } from "./openable";
-import { useProjectBuild } from "./use-project-build";
+import { usePaperBuild } from "./use-paper-build";
 
 interface TreeState {
   expanded: Set<string>;
@@ -292,8 +294,46 @@ function EntryRow(props: EntryRowProps): JSX.Element {
 
 export default function FilesColumn(): JSX.Element {
   const { project, rootId, repo, setOpenFilePath, openFilePath } = useProject();
+  const openPaper = useOpenPaper();
+  const activePaperId = openPaper.kind === "ready" ? openPaper.paper.id : null;
   const buffers = useBuffersStore();
-  const { build, setMain } = useProjectBuild(repo, project.id);
+  const { build, setMain } = usePaperBuild(repo, activePaperId);
+  const [papers, setPapers] = useState<PaperRow[]>([]);
+  const [markCounts, setMarkCounts] = useState<Map<string, number>>(new Map());
+
+  const reloadPapers = useCallback(async () => {
+    const all = await repo.papers.list().catch(() => [] as PaperRow[]);
+    const mine = all.filter((p) => p.projectId === project.id);
+    setPapers(mine);
+    // Lazily compute unresolved-mark counts per paper. Small N; single pass.
+    const counts = new Map<string, number>();
+    for (const p of mine) {
+      try {
+        const revs = await repo.revisions.listForPaper(p.id);
+        const latest = revs[revs.length - 1];
+        if (!latest) {
+          counts.set(p.id, 0);
+          continue;
+        }
+        const anns = await repo.annotations.listForRevision(latest.id);
+        counts.set(p.id, anns.length);
+      } catch (err) {
+        console.warn("FilesColumn: mark count failed for paper", p.id, err);
+        counts.set(p.id, 0);
+      }
+    }
+    setMarkCounts(counts);
+  }, [repo, project.id]);
+
+  useEffect(() => {
+    void reloadPapers();
+  }, [reloadPapers]);
+
+  // When the open paper changes, its mark count may have moved too; refresh
+  // cheaply. The full reload is fine for the small N of papers per project.
+  useEffect(() => {
+    if (openPaper.kind === "ready") void reloadPapers();
+  }, [openPaper.kind, reloadPapers]);
 
   const [tree, setTree] = useState<TreeState>(() => ({
     expanded: new Set(),
@@ -311,9 +351,10 @@ export default function FilesColumn(): JSX.Element {
         const rows = await repo.filePins.listForProject(project.id);
         if (cancelled) return;
         setPinned(new Set(rows.map((r) => r.relPath)));
-      } catch {
+      } catch (err) {
         if (cancelled) return;
         setPinned(new Set());
+        setError(err instanceof Error ? err.message : "Could not load pinned files.");
       }
     })();
     return () => {
@@ -406,12 +447,13 @@ export default function FilesColumn(): JSX.Element {
           const already = await repo.filePins.isPinned(project.id, path);
           if (already) await repo.filePins.unpin(project.id, path);
           else await repo.filePins.pin(project.id, path);
-        } catch {
+        } catch (err) {
+          console.warn("FilesColumn: pin toggle failed; resyncing", path, err);
           try {
             const rows = await repo.filePins.listForProject(project.id);
             setPinned(new Set(rows.map((r) => r.relPath)));
-          } catch {
-            // ignore
+          } catch (resyncErr) {
+            console.warn("FilesColumn: pin resync failed", resyncErr);
           }
         }
       })();
@@ -420,6 +462,40 @@ export default function FilesColumn(): JSX.Element {
   );
 
   const pdfs = useMemo(() => collectPdfs(tree.entries), [tree.entries]);
+
+  const visiblePapers = useMemo(
+    () => papers.filter((p) => (markCounts.get(p.id) ?? 0) > 0),
+    [papers, markCounts],
+  );
+
+  const paperNameCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of visiblePapers) {
+      if (!p.pdfRelPath) continue;
+      const { name } = splitPath(p.pdfRelPath);
+      m.set(name, (m.get(name) ?? 0) + 1);
+    }
+    return m;
+  }, [visiblePapers]);
+
+  const removePaper = useCallback(
+    async (paper: PaperRow) => {
+      const marks = markCounts.get(paper.id) ?? 0;
+      const ok = window.confirm(
+        `Remove ${paper.title} and delete ${marks} mark${marks === 1 ? "" : "s"}?`,
+      );
+      if (!ok) return;
+      if (paper.pdfRelPath && openFilePath === paper.pdfRelPath) setOpenFilePath(null);
+      try {
+        await repo.papers.remove(paper.id);
+      } catch (err) {
+        console.warn("FilesColumn: remove paper failed", paper.id, err);
+      }
+      await reloadPapers();
+    },
+    [markCounts, openFilePath, setOpenFilePath, repo.papers, reloadPapers],
+  );
+
   const pinnedList = useMemo(
     () =>
       Array.from(pinned).sort((a, b) => {
@@ -437,6 +513,58 @@ export default function FilesColumn(): JSX.Element {
   return (
     <aside className="files">
       {error && <p className="files__error">{error}</p>}
+
+      {visiblePapers.length > 0 && (
+        <section className="files__section files__section--papers">
+          <div className="files__section-header">
+            <span className="files__header-title">
+              Papers <span className="files__count">({visiblePapers.length})</span>
+            </span>
+          </div>
+          <ul className="files__flat">
+            {visiblePapers.map((paper) => {
+              const path = paper.pdfRelPath;
+              if (!path) return null;
+              const isActive = paper.id === activePaperId;
+              const marks = markCounts.get(paper.id) ?? 0;
+              const { dir, name } = splitPath(path);
+              const collides = (paperNameCounts.get(name) ?? 0) > 1;
+              return (
+                <li key={`paper:${paper.id}`} className="files__flat-item">
+                  <div
+                    className={`files__row files__row--paper${isActive ? " files__row--selected" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      className="files__row-open"
+                      onClick={() => openFile(path)}
+                      title={path}
+                    >
+                      <span className="files__name">{paper.title}</span>
+                      {collides && dir !== "." && <span className="files__path-hint">({dir})</span>}
+                      <span className="files__paper-meta">
+                        {marks} mark{marks === 1 ? "" : "s"}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="files__remove"
+                      aria-label={`Remove ${paper.title}`}
+                      title="Remove paper — deletes all marks"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void removePaper(paper);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {pinned.size > 0 && (
         <section className="files__section files__section--pinned">

@@ -121,17 +121,17 @@ export default function ProjectRoute(): JSX.Element {
     >
       <BuffersStoreProvider>
         <ReviewStoreProvider>
-          <DiffStoreProvider>
-            <AskStoreProvider>
-              <WriteUpStoreProvider>
-                <ReviewRunnerProvider>
-                  <OpenPaperProvider>
+          <AskStoreProvider>
+            <WriteUpStoreProvider>
+              <OpenPaperProvider>
+                <DiffStoreProvider>
+                  <ReviewRunnerProvider>
                     <ProjectShell />
-                  </OpenPaperProvider>
-                </ReviewRunnerProvider>
-              </WriteUpStoreProvider>
-            </AskStoreProvider>
-          </DiffStoreProvider>
+                  </ReviewRunnerProvider>
+                </DiffStoreProvider>
+              </OpenPaperProvider>
+            </WriteUpStoreProvider>
+          </AskStoreProvider>
         </ReviewStoreProvider>
       </BuffersStoreProvider>
     </ProjectProvider>

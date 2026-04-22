@@ -294,13 +294,11 @@ async fn detect_main(root: &Path, files: &[ScannedFile]) -> (Option<String>, Opt
         winners.push(("md", rel, score, mtime));
     }
 
-    if winners.is_empty() {
-        return (None, None);
-    }
     // Pick the most recently modified candidate to break format ties; within a
     // single format this collapses to the sole winner.
-    winners.sort_by(|a, b| b.3.cmp(&a.3));
-    let (fmt, rel, _, _) = winners.into_iter().next().expect("non-empty");
+    let Some((fmt, rel, _, _)) = winners.into_iter().max_by_key(|w| w.3) else {
+        return (None, None);
+    };
     (Some(fmt.to_string()), Some(rel))
 }
 

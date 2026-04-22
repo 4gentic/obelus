@@ -84,8 +84,8 @@ export interface DeskRow {
 export interface ReviewSessionRow {
   id: string;
   projectId: string;
+  paperId: string;
   bundleId: string;
-  claudeVersion: string | null;
   model: string | null;
   effort: string | null;
   startedAt: string;
@@ -147,6 +147,7 @@ export type PaperEditState = "live" | "tombstoned";
 export interface PaperEditRow {
   id: string;
   projectId: string;
+  paperId: string;
   parentEditId: string | null;
   ordinal: number;
   kind: PaperEditKind;
@@ -184,15 +185,15 @@ export interface ProjectFileRow {
   scannedAt: string;
 }
 
-export type ProjectBuildFormat = "tex" | "md" | "typ";
-export type ProjectBuildCompiler = "typst" | "latexmk" | "pandoc" | "xelatex" | "pdflatex";
+export type PaperBuildFormat = "tex" | "md" | "typ";
+export type PaperBuildCompiler = "typst" | "latexmk" | "pandoc" | "xelatex" | "pdflatex";
 
-export interface ProjectBuildRow {
-  projectId: string;
-  format: ProjectBuildFormat | null;
+export interface PaperBuildRow {
+  paperId: string;
+  format: PaperBuildFormat | null;
   mainRelPath: string | null;
   mainIsPinned: boolean;
-  compiler: ProjectBuildCompiler | null;
+  compiler: PaperBuildCompiler | null;
   compilerArgs: string[];
   outputRelDir: string | null;
   scannedAt: string | null;

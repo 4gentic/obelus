@@ -1,20 +1,20 @@
-import type { ProjectBuildPatch, ProjectBuildRepo } from "../interface";
-import type { ProjectBuildCompiler, ProjectBuildFormat, ProjectBuildRow } from "../types";
+import type { PaperBuildPatch, PaperBuildRepo } from "../interface";
+import type { PaperBuildCompiler, PaperBuildFormat, PaperBuildRow } from "../types";
 import type { Database } from "./db";
 
-interface ProjectBuildSqlRow {
-  project_id: string;
-  format: ProjectBuildFormat | null;
+interface PaperBuildSqlRow {
+  paper_id: string;
+  format: PaperBuildFormat | null;
   main_rel_path: string | null;
   main_is_pinned: number;
-  compiler: ProjectBuildCompiler | null;
+  compiler: PaperBuildCompiler | null;
   compiler_args_json: string;
   output_rel_dir: string | null;
   scanned_at: string | null;
   updated_at: string;
 }
 
-function toRow(r: ProjectBuildSqlRow): ProjectBuildRow {
+function toRow(r: PaperBuildSqlRow): PaperBuildRow {
   let compilerArgs: string[] = [];
   try {
     const parsed = JSON.parse(r.compiler_args_json) as unknown;
@@ -25,7 +25,7 @@ function toRow(r: ProjectBuildSqlRow): ProjectBuildRow {
     compilerArgs = [];
   }
   return {
-    projectId: r.project_id,
+    paperId: r.paper_id,
     format: r.format,
     mainRelPath: r.main_rel_path,
     mainIsPinned: r.main_is_pinned !== 0,
@@ -37,24 +37,24 @@ function toRow(r: ProjectBuildSqlRow): ProjectBuildRow {
   };
 }
 
-const SELECT_COLS = `project_id, format, main_rel_path, main_is_pinned,
+const SELECT_COLS = `paper_id, format, main_rel_path, main_is_pinned,
                      compiler, compiler_args_json, output_rel_dir,
                      scanned_at, updated_at`;
 
-async function loadRow(db: Database, projectId: string): Promise<ProjectBuildRow | undefined> {
-  const rows = await db.select<ProjectBuildSqlRow[]>(
-    `SELECT ${SELECT_COLS} FROM project_build WHERE project_id = $1 LIMIT 1`,
-    [projectId],
+async function loadRow(db: Database, paperId: string): Promise<PaperBuildRow | undefined> {
+  const rows = await db.select<PaperBuildSqlRow[]>(
+    `SELECT ${SELECT_COLS} FROM paper_build WHERE paper_id = $1 LIMIT 1`,
+    [paperId],
   );
   return rows[0] ? toRow(rows[0]) : undefined;
 }
 
-export function buildProjectBuildRepo(db: Database): ProjectBuildRepo {
-  async function upsert(projectId: string, patch: ProjectBuildPatch): Promise<ProjectBuildRow> {
-    const existing = await loadRow(db, projectId);
+export function buildPaperBuildRepo(db: Database): PaperBuildRepo {
+  async function upsert(paperId: string, patch: PaperBuildPatch): Promise<PaperBuildRow> {
+    const existing = await loadRow(db, paperId);
     const now = new Date().toISOString();
-    const next: ProjectBuildRow = {
-      projectId,
+    const next: PaperBuildRow = {
+      paperId,
       format: patch.format !== undefined ? patch.format : (existing?.format ?? null),
       mainRelPath:
         patch.mainRelPath !== undefined ? patch.mainRelPath : (existing?.mainRelPath ?? null),
@@ -69,11 +69,11 @@ export function buildProjectBuildRepo(db: Database): ProjectBuildRepo {
       updatedAt: now,
     };
     await db.execute(
-      `INSERT INTO project_build
-         (project_id, format, main_rel_path, main_is_pinned,
+      `INSERT INTO paper_build
+         (paper_id, format, main_rel_path, main_is_pinned,
           compiler, compiler_args_json, output_rel_dir, scanned_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT(project_id) DO UPDATE SET
+       ON CONFLICT(paper_id) DO UPDATE SET
          format = excluded.format,
          main_rel_path = excluded.main_rel_path,
          main_is_pinned = excluded.main_is_pinned,
@@ -83,7 +83,7 @@ export function buildProjectBuildRepo(db: Database): ProjectBuildRepo {
          scanned_at = excluded.scanned_at,
          updated_at = excluded.updated_at`,
       [
-        next.projectId,
+        next.paperId,
         next.format,
         next.mainRelPath,
         next.mainIsPinned ? 1 : 0,
@@ -98,18 +98,18 @@ export function buildProjectBuildRepo(db: Database): ProjectBuildRepo {
   }
 
   return {
-    async get(projectId: string): Promise<ProjectBuildRow | undefined> {
-      return loadRow(db, projectId);
+    async get(paperId: string): Promise<PaperBuildRow | undefined> {
+      return loadRow(db, paperId);
     },
 
     upsert,
 
     async setMain(
-      projectId: string,
+      paperId: string,
       relPath: string | null,
       pinned: boolean,
-    ): Promise<ProjectBuildRow> {
-      return upsert(projectId, { mainRelPath: relPath, mainIsPinned: pinned });
+    ): Promise<PaperBuildRow> {
+      return upsert(paperId, { mainRelPath: relPath, mainIsPinned: pinned });
     },
   };
 }

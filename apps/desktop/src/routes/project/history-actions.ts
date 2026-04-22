@@ -3,19 +3,21 @@ import { historySnapshot } from "../../ipc/commands";
 import { autoNoteFromSession } from "./auto-note-from-session";
 import { runProjectScan } from "./project-scan-actions";
 
-// If the project has no PaperEdit yet, snapshot the current working tree as
-// the baseline so "restore to what I started with" works after the first AI
-// pass. Idempotent: returns the existing baseline if one already exists.
+// If the paper has no PaperEdit yet, snapshot the current working tree as the
+// baseline so "restore to what I started with" works after the first AI pass.
+// Idempotent: returns the existing baseline if one already exists.
 export async function ensureBaselineEdit(
   repo: Repository,
   projectId: string,
+  paperId: string,
   rootId: string,
 ): Promise<PaperEditRow> {
-  const existing = await repo.paperEdits.baseline(projectId);
+  const existing = await repo.paperEdits.baseline(paperId);
   if (existing) return existing;
   const snap = await historySnapshot({ rootId });
   return repo.paperEdits.create({
     projectId,
+    paperId,
     parentEditId: null,
     kind: "baseline",
     sessionId: null,
@@ -31,16 +33,18 @@ export async function ensureBaselineEdit(
 export async function snapshotAfterApply(args: {
   repo: Repository;
   project: ProjectRow;
+  paperId: string;
   rootId: string;
   sessionId: string;
   parentEdit: PaperEditRow;
   landedHunks: ReadonlyArray<DiffHunkRow>;
 }): Promise<PaperEditRow> {
-  const { repo, project, rootId, sessionId, parentEdit, landedHunks } = args;
+  const { repo, project, paperId, rootId, sessionId, parentEdit, landedHunks } = args;
   const snap = await historySnapshot({ rootId });
   const summary = autoNoteFromSession(landedHunks);
   const draft = await repo.paperEdits.create({
     projectId: project.id,
+    paperId,
     parentEditId: parentEdit.id,
     kind: "ai",
     sessionId,

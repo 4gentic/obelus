@@ -6,6 +6,7 @@ import { buildRepassPrompt } from "./build-repass-prompt";
 import { useProject } from "./context";
 import { useDiffStore } from "./diff-store-context";
 import { ensureBaselineEdit, snapshotAfterApply } from "./history-actions";
+import { usePaperId } from "./OpenPaper";
 import { useReviewRunner } from "./review-runner-context";
 import { useReviewStore } from "./store-context";
 import { descendantsOf, usePaperEdits } from "./use-paper-edits";
@@ -30,11 +31,12 @@ function effectivePatch(h: DiffHunkRow): string {
 
 export function useDiffActions(): DiffActions {
   const { repo, rootId, project } = useProject();
+  const paperId = usePaperId();
   const store = useDiffStore();
   const runner = useReviewRunner();
   const buffers = useBuffersStore();
   const reviewStore = useReviewStore();
-  const edits = usePaperEdits(repo, project.id);
+  const edits = usePaperEdits(repo, paperId);
 
   const currentDraft = useMemo(
     () => edits.live.find((e) => e.id === edits.currentDraftId),
@@ -56,6 +58,13 @@ export function useDiffActions(): DiffActions {
     const { sessionId, hunks, applyStatus } = state;
     if (!sessionId) return;
     if (applyStatus.kind === "applying") return;
+    if (!paperId) {
+      state.setApplyStatus({
+        kind: "error",
+        message: "Open a paper before applying hunks.",
+      });
+      return;
+    }
     // A re-review is in flight — the on-screen hunks don't match the version
     // Claude is about to overwrite. Patches would apply against stale bytes.
     const runnerKind = runner.status.kind;
@@ -83,8 +92,8 @@ export function useDiffActions(): DiffActions {
     state.setApplyStatus({ kind: "applying" });
     try {
       // Baseline captures the pre-pass tree so "restore what I started with"
-      // works on a project's first AI pass.
-      await ensureBaselineEdit(repo, project.id, rootId);
+      // works on a paper's first AI pass.
+      await ensureBaselineEdit(repo, project.id, paperId, rootId);
       // Parent the new draft off whatever bytes are actually on disk — the
       // draft the user is viewing, not the DAG's head. If these differ,
       // snapshotAfterApply will introduce a second live leaf (a branch) and
@@ -92,7 +101,7 @@ export function useDiffActions(): DiffActions {
       const parentId = currentDraft?.id;
       const parentEdit = parentId
         ? await repo.paperEdits.get(parentId)
-        : await repo.paperEdits.head(project.id);
+        : await repo.paperEdits.head(paperId);
       if (!parentEdit) {
         throw new Error("parent draft missing after ensureBaselineEdit");
       }
@@ -105,6 +114,7 @@ export function useDiffActions(): DiffActions {
       const draft = await snapshotAfterApply({
         repo,
         project,
+        paperId,
         rootId,
         sessionId,
         parentEdit,
@@ -138,13 +148,31 @@ export function useDiffActions(): DiffActions {
         message: err instanceof Error ? err.message : "Apply failed.",
       });
     }
-  }, [repo, rootId, project, store, runner.status.kind, buffers, reviewStore, currentDraft, edits]);
+  }, [
+    repo,
+    rootId,
+    project,
+    paperId,
+    store,
+    runner.status.kind,
+    buffers,
+    reviewStore,
+    currentDraft,
+    edits,
+  ]);
 
   const repass = useCallback(async (): Promise<void> => {
     const state = store.getState();
     const { sessionId, applyStatus } = state;
     if (!sessionId) return;
     if (applyStatus.kind === "applying") return;
+    if (!paperId) {
+      state.setApplyStatus({
+        kind: "error",
+        message: "Open a paper before repassing.",
+      });
+      return;
+    }
     const runnerKind = runner.status.kind;
     if (runnerKind === "working" || runnerKind === "running" || runnerKind === "ingesting") {
       return;
@@ -157,8 +185,8 @@ export function useDiffActions(): DiffActions {
       });
       return;
     }
-    await runner.start({ extraPromptBody: body });
-  }, [repo, store, runner.start, runner.status.kind]);
+    await runner.start({ paperId, extraPromptBody: body });
+  }, [repo, paperId, store, runner.start, runner.status.kind]);
 
   return { apply, repass, forkInfo };
 }

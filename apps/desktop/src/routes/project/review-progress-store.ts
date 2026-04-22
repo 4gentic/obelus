@@ -17,7 +17,7 @@ export interface ReviewProgressState {
   lastThinkingAt: number | null;
   startedAt: number | null;
   _pendingPhase: string | null;
-  _pendingTimer: number | null;
+  _pendingTimer: ReturnType<typeof setTimeout> | null;
   _lastPhaseAt: number;
 
   start(): void;
@@ -51,7 +51,7 @@ export function createReviewProgressStore(): ReviewProgressStore {
       const timer = setTimeout(() => {
         const queued = get()._pendingPhase;
         if (queued !== null) flushPhase(queued);
-      }, remaining) as unknown as number;
+      }, remaining);
       set({ _pendingPhase: next, _pendingTimer: timer });
     }
 

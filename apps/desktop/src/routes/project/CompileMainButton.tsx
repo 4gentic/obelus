@@ -2,7 +2,8 @@ import type { JSX } from "react";
 import { useState } from "react";
 import { compileTypst } from "../../ipc/commands";
 import { useProject } from "./context";
-import { useProjectBuild } from "./use-project-build";
+import { usePaperId } from "./OpenPaper";
+import { usePaperBuild } from "./use-paper-build";
 
 type CompileState =
   | { kind: "idle" }
@@ -11,12 +12,14 @@ type CompileState =
   | { kind: "error"; message: string };
 
 // Surfaces the "compile whatever you usually compile" affordance from any
-// source file: resolves the main file via project_build and dispatches to the
-// appropriate compiler. LaTeX/Pandoc are recognised but intentionally unwired
-// in this pass — we surface an actionable hint instead of a silent no-op.
+// source file: resolves the main file via the open paper's paper_build row and
+// dispatches to the appropriate compiler. LaTeX/Pandoc are recognised but
+// intentionally unwired in this pass — we surface an actionable hint instead
+// of a silent no-op.
 export default function CompileMainButton(): JSX.Element | null {
-  const { project, repo, rootId, setOpenFilePath } = useProject();
-  const { build } = useProjectBuild(repo, project.id);
+  const { repo, rootId, setOpenFilePath } = useProject();
+  const paperId = usePaperId();
+  const { build } = usePaperBuild(repo, paperId);
   const [state, setState] = useState<CompileState>({ kind: "idle" });
 
   if (!build || !build.mainRelPath || !build.compiler) {

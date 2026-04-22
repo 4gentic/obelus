@@ -4,6 +4,7 @@ import { historyCheckout, historyDetectDivergence } from "../../ipc/commands";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
 import { scanAfterCheckout } from "./history-actions";
+import { usePaperId } from "./OpenPaper";
 import { useReviewRunner } from "./review-runner-context";
 import { usePaperEdits } from "./use-paper-edits";
 
@@ -14,9 +15,10 @@ import { usePaperEdits } from "./use-paper-edits";
 // already snapshots every source file.
 export default function DraftsRail(): JSX.Element | null {
   const { project, repo, rootId } = useProject();
+  const paperId = usePaperId();
   const runner = useReviewRunner();
   const buffers = useBuffersStore();
-  const edits = usePaperEdits(repo, project.id);
+  const edits = usePaperEdits(repo, paperId);
   const [banner, setBanner] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
 

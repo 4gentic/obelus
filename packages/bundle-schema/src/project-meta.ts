@@ -8,8 +8,8 @@ import { ProjectFileFormat, ProjectFileRole, ProjectKind } from "./schema-v2.js"
 
 export const PROJECT_META_VERSION = 1 as const;
 
-export const ProjectBuildFormat = z.enum(["tex", "md", "typ"]);
-export const ProjectBuildCompiler = z.enum(["typst", "latexmk", "pandoc", "xelatex", "pdflatex"]);
+export const PaperBuildFormat = z.enum(["tex", "md", "typ"]);
+export const PaperBuildCompiler = z.enum(["typst", "latexmk", "pandoc", "xelatex", "pdflatex"]);
 
 const relPosixPath = z
   .string()
@@ -32,7 +32,7 @@ export const ProjectMetaFile = z.object({
 });
 
 export const ProjectMetaCompile = z.object({
-  compiler: ProjectBuildCompiler.nullable(),
+  compiler: PaperBuildCompiler.nullable(),
   args: z.array(z.string()).default([]),
   outputRelDir: z.string().nullable().optional(),
 });
@@ -42,7 +42,7 @@ export const ProjectMeta = z.object({
   projectId: z.string().uuid(),
   label: z.string().min(1),
   kind: ProjectKind,
-  format: ProjectBuildFormat.nullable(),
+  format: PaperBuildFormat.nullable(),
   main: relPosixPath.nullable(),
   mainIsPinned: z.boolean(),
   compile: ProjectMetaCompile,

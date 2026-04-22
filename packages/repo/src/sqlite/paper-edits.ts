@@ -6,6 +6,7 @@ import { dbTxBatch, type TxStmt } from "./transaction";
 interface PaperEditSqlRow {
   id: string;
   project_id: string;
+  paper_id: string;
   parent_edit_id: string | null;
   ordinal: number;
   kind: PaperEditKind;
@@ -21,6 +22,7 @@ function toRow(r: PaperEditSqlRow): PaperEditRow {
   return {
     id: r.id,
     projectId: r.project_id,
+    paperId: r.paper_id,
     parentEditId: r.parent_edit_id,
     ordinal: r.ordinal,
     kind: r.kind,
@@ -33,29 +35,28 @@ function toRow(r: PaperEditSqlRow): PaperEditRow {
   };
 }
 
-const SELECT_COLS = `id, project_id, parent_edit_id, ordinal, kind, session_id,
+const SELECT_COLS = `id, project_id, paper_id, parent_edit_id, ordinal, kind, session_id,
                      manifest_sha256, summary, note_md, state, created_at`;
 
 function randomUuid(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
-  // Deterministic fallback shouldn't fire in the Tauri runtime, but stay safe.
   throw new Error("crypto.randomUUID unavailable");
 }
 
 export function buildPaperEditsRepo(db: Database): PaperEditsRepo {
   return {
-    async listForProject(
-      projectId: string,
+    async listForPaper(
+      paperId: string,
       opts?: { includeTombstoned?: boolean },
     ): Promise<PaperEditRow[]> {
       const sql = opts?.includeTombstoned
         ? `SELECT ${SELECT_COLS} FROM paper_edits
-           WHERE project_id = $1 ORDER BY ordinal ASC`
+           WHERE paper_id = $1 ORDER BY ordinal ASC`
         : `SELECT ${SELECT_COLS} FROM paper_edits
-           WHERE project_id = $1 AND state = 'live' ORDER BY ordinal ASC`;
-      const rows = await db.select<PaperEditSqlRow[]>(sql, [projectId]);
+           WHERE paper_id = $1 AND state = 'live' ORDER BY ordinal ASC`;
+      const rows = await db.select<PaperEditSqlRow[]>(sql, [paperId]);
       return rows.map(toRow);
     },
 
@@ -67,27 +68,26 @@ export function buildPaperEditsRepo(db: Database): PaperEditsRepo {
       return rows[0] ? toRow(rows[0]) : undefined;
     },
 
-    async head(projectId: string): Promise<PaperEditRow | undefined> {
-      // Head = the live edit with no live child.
+    async head(paperId: string): Promise<PaperEditRow | undefined> {
       const rows = await db.select<PaperEditSqlRow[]>(
         `SELECT ${SELECT_COLS} FROM paper_edits p
-         WHERE p.project_id = $1 AND p.state = 'live'
+         WHERE p.paper_id = $1 AND p.state = 'live'
            AND NOT EXISTS (
              SELECT 1 FROM paper_edits c
              WHERE c.parent_edit_id = p.id AND c.state = 'live'
            )
          ORDER BY ordinal DESC LIMIT 1`,
-        [projectId],
+        [paperId],
       );
       return rows[0] ? toRow(rows[0]) : undefined;
     },
 
-    async baseline(projectId: string): Promise<PaperEditRow | undefined> {
+    async baseline(paperId: string): Promise<PaperEditRow | undefined> {
       const rows = await db.select<PaperEditSqlRow[]>(
         `SELECT ${SELECT_COLS} FROM paper_edits
-         WHERE project_id = $1 AND kind = 'baseline'
+         WHERE paper_id = $1 AND kind = 'baseline'
          ORDER BY ordinal ASC LIMIT 1`,
-        [projectId],
+        [paperId],
       );
       return rows[0] ? toRow(rows[0]) : undefined;
     },
@@ -95,40 +95,26 @@ export function buildPaperEditsRepo(db: Database): PaperEditsRepo {
     async create(input: PaperEditCreateInput): Promise<PaperEditRow> {
       const id = randomUuid();
       const createdAt = new Date().toISOString();
-      const row: PaperEditRow = {
-        id,
-        projectId: input.projectId,
-        parentEditId: input.parentEditId,
-        // Ordinal is computed by the DB statement below. Start with 0 here;
-        // the value returned from `get(id)` below is authoritative.
-        ordinal: 0,
-        kind: input.kind,
-        sessionId: input.sessionId,
-        manifestSha256: input.manifestSha256,
-        summary: input.summary,
-        noteMd: input.noteMd ?? "",
-        state: "live",
-        createdAt,
-      };
       await db.execute(
         `INSERT INTO paper_edits
-           (id, project_id, parent_edit_id, ordinal, kind, session_id,
+           (id, project_id, paper_id, parent_edit_id, ordinal, kind, session_id,
             manifest_sha256, summary, note_md, state, created_at)
          VALUES (
-           $1, $2, $3,
-           (SELECT COALESCE(MAX(ordinal), 0) + 1 FROM paper_edits WHERE project_id = $2),
-           $4, $5, $6, $7, $8, 'live', $9
+           $1, $2, $3, $4,
+           (SELECT COALESCE(MAX(ordinal), 0) + 1 FROM paper_edits WHERE paper_id = $3),
+           $5, $6, $7, $8, $9, 'live', $10
          )`,
         [
-          row.id,
-          row.projectId,
-          row.parentEditId,
-          row.kind,
-          row.sessionId,
-          row.manifestSha256,
-          row.summary,
-          row.noteMd,
-          row.createdAt,
+          id,
+          input.projectId,
+          input.paperId,
+          input.parentEditId,
+          input.kind,
+          input.sessionId,
+          input.manifestSha256,
+          input.summary,
+          input.noteMd ?? "",
+          createdAt,
         ],
       );
       const persisted = await this.get(id);
@@ -145,8 +131,6 @@ export function buildPaperEditsRepo(db: Database): PaperEditsRepo {
     },
 
     async tombstoneDescendantsOf(editId: string): Promise<{ tombstoned: string[] }> {
-      // Walk descendants BFS (SQLite recursive CTEs would work too; plain
-      // iteration keeps the query language portable to the web stub).
       const toTombstone: string[] = [];
       const frontier: string[] = [editId];
       while (frontier.length > 0) {
@@ -184,15 +168,12 @@ export function buildPaperEditsRepo(db: Database): PaperEditsRepo {
       await db.execute(`UPDATE paper_edits SET state = 'live' WHERE id = $1`, [id]);
     },
 
-    async countForProject(
-      projectId: string,
-      opts?: { includeTombstoned?: boolean },
-    ): Promise<number> {
+    async countForPaper(paperId: string, opts?: { includeTombstoned?: boolean }): Promise<number> {
       const sql = opts?.includeTombstoned
-        ? `SELECT COUNT(*) AS count FROM paper_edits WHERE project_id = $1`
+        ? `SELECT COUNT(*) AS count FROM paper_edits WHERE paper_id = $1`
         : `SELECT COUNT(*) AS count FROM paper_edits
-           WHERE project_id = $1 AND state = 'live'`;
-      const rows = await db.select<{ count: number }[]>(sql, [projectId]);
+           WHERE paper_id = $1 AND state = 'live'`;
+      const rows = await db.select<{ count: number }[]>(sql, [paperId]);
       return rows[0]?.count ?? 0;
     },
   };

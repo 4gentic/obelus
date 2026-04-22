@@ -15,10 +15,11 @@ import { usePaperEdits } from "./use-paper-edits";
 export default function ProjectShell(): JSX.Element {
   const { project, repo, rootId } = useProject();
   const openPaper = useOpenPaper();
+  const paperId = openPaper.kind === "ready" ? openPaper.paper.id : null;
   useLoadRevision();
   const { apply, repass, forkInfo } = useDiffActions();
   const reviewStore = useReviewStore();
-  const edits = usePaperEdits(repo, project.id);
+  const edits = usePaperEdits(repo, paperId);
   const currentDraft = useMemo(
     () => edits.live.find((e) => e.id === edits.currentDraftId),
     [edits.live, edits.currentDraftId],

@@ -21,28 +21,47 @@ interface PaperEditsStoreState {
 
 type PaperEditsStore = UseBoundStore<StoreApi<PaperEditsStoreState>>;
 
-const CURRENT_KEY = (projectId: string) => `project.${projectId}.currentDraftId`;
+const CURRENT_KEY = (paperId: string) => `paper.${paperId}.currentDraftId`;
 
-// Single source of truth per project. Mounting a second `usePaperEdits` with
-// the same projectId subscribes to the same store, so `setCurrentDraftId` in
-// one caller fans out to every subscriber (DraftsRail, DraftsPanel, the
-// annotations ancestry filter, the apply-flow fork warning, etc.).
+// Single source of truth per paper. Mounting a second `usePaperEdits` with the
+// same paperId subscribes to the same store, so `setCurrentDraftId` in one
+// caller fans out to every subscriber.
+//
+// The Maps are module-global so the store outlives unmounted components, but
+// we cap them at MAX_CACHED_PAPERS and evict in insertion order. A re-opened
+// paper just re-loads from the repo — cheap and correct.
+const MAX_CACHED_PAPERS = 32;
 const stores = new Map<string, PaperEditsStore>();
 const loaders = new Map<string, () => Promise<void>>();
 
-function getStore(repo: Repository, projectId: string): PaperEditsStore {
-  const existing = stores.get(projectId);
+const EMPTY_DATA: PaperEditsData = {
+  live: [],
+  tombstoned: [],
+  head: undefined,
+  currentDraftId: undefined,
+  refresh: () => Promise.resolve(),
+  setCurrentDraftId: () => Promise.resolve(),
+};
+
+function getStore(repo: Repository, paperId: string): PaperEditsStore {
+  const existing = stores.get(paperId);
   if (existing) return existing;
+  while (stores.size >= MAX_CACHED_PAPERS) {
+    const oldest = stores.keys().next().value;
+    if (oldest === undefined) break;
+    stores.delete(oldest);
+    loaders.delete(oldest);
+  }
   const store = create<PaperEditsStoreState>((set) => ({
     all: [],
     currentDraftId: undefined,
     _set: (patch) => set(patch),
   }));
-  stores.set(projectId, store);
+  stores.set(paperId, store);
   const load = async (): Promise<void> => {
     const [edits, persisted] = await Promise.all([
-      repo.paperEdits.listForProject(projectId, { includeTombstoned: true }),
-      repo.settings.get<string>(CURRENT_KEY(projectId)),
+      repo.paperEdits.listForPaper(paperId, { includeTombstoned: true }),
+      repo.settings.get<string>(CURRENT_KEY(paperId)),
     ]);
     const live = edits.filter((e) => e.state === "live");
     const head = computeHead(live);
@@ -50,34 +69,38 @@ function getStore(repo: Repository, projectId: string): PaperEditsStore {
     const resolved = persisted && live.some((e) => e.id === persisted) ? persisted : fallback;
     store.getState()._set({ all: edits, currentDraftId: resolved });
   };
-  loaders.set(projectId, load);
+  loaders.set(paperId, load);
   void load();
   return store;
 }
 
-export function usePaperEdits(repo: Repository, projectId: string): PaperEditsData {
-  const store = getStore(repo, projectId);
+export function usePaperEdits(repo: Repository, paperId: string | null): PaperEditsData {
+  // When no paper is open, return an inert stable object. Callers render the
+  // "open a paper" empty state rather than wiring conditional hooks.
+  const store = paperId ? getStore(repo, paperId) : null;
   const all = useSyncExternalStore(
-    store.subscribe,
-    () => store.getState().all,
-    () => store.getState().all,
+    (cb) => store?.subscribe(cb) ?? (() => {}),
+    () => store?.getState().all ?? EMPTY_DATA.live,
+    () => store?.getState().all ?? EMPTY_DATA.live,
   );
   const currentDraftId = useSyncExternalStore(
-    store.subscribe,
-    () => store.getState().currentDraftId,
-    () => store.getState().currentDraftId,
+    (cb) => store?.subscribe(cb) ?? (() => {}),
+    () => store?.getState().currentDraftId,
+    () => store?.getState().currentDraftId,
   );
 
   const refresh = useCallback(async (): Promise<void> => {
-    const load = loaders.get(projectId);
+    if (!paperId) return;
+    const load = loaders.get(paperId);
     if (load) await load();
-  }, [projectId]);
+  }, [paperId]);
   const setCurrentDraftId = useCallback(
     async (id: string): Promise<void> => {
-      await repo.settings.set(CURRENT_KEY(projectId), id);
+      if (!paperId || !store) return;
+      await repo.settings.set(CURRENT_KEY(paperId), id);
       store.getState()._set({ currentDraftId: id });
     },
-    [repo, projectId, store],
+    [repo, paperId, store],
   );
 
   const live = useMemo(() => all.filter((e) => e.state === "live"), [all]);

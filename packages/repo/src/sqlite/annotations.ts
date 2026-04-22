@@ -10,7 +10,6 @@ interface AnnotationSqlRow {
   quote: string;
   context_before: string;
   context_after: string;
-  anchor_kind: "pdf" | "source" | "html";
   anchor_json: string;
   note: string;
   thread_json: string;
@@ -64,7 +63,7 @@ function toAnchorJson(row: AnnotationRow): string {
 
 export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
   const SELECT_COLS = `id, revision_id, category, quote, context_before, context_after,
-                       anchor_kind, anchor_json, note, thread_json, group_id, created_at,
+                       anchor_json, note, thread_json, group_id, created_at,
                        resolved_in_edit_id`;
   return {
     async listForRevision(
@@ -115,15 +114,14 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
       const stmts: TxStmt[] = rows.map((row) => ({
         sql: `INSERT INTO annotations (id, revision_id, category, quote,
                                        context_before, context_after,
-                                       anchor_kind, anchor_json,
+                                       anchor_json,
                                        note, thread_json, group_id, created_at)
-              VALUES ($1, $2, $3, $4, $5, $6, 'pdf', $7, $8, $9, $10, $11)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
               ON CONFLICT(id) DO UPDATE SET
                 category = excluded.category,
                 quote = excluded.quote,
                 context_before = excluded.context_before,
                 context_after = excluded.context_after,
-                anchor_kind = excluded.anchor_kind,
                 anchor_json = excluded.anchor_json,
                 note = excluded.note,
                 thread_json = excluded.thread_json,

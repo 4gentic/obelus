@@ -74,25 +74,47 @@ async function handleExit(
   store.markIngesting(sessionId);
   try {
     if (job.kind === "review") {
-      await ingestReview(job.rootId, job.reviewSessionId);
-      store.markDone(sessionId, "Plan ready.");
+      const message = await ingestReview(job.rootId, job.reviewSessionId);
+      store.markDone(sessionId, message);
     } else {
       await ingestWriteup(job.rootId, job.paperId, job.projectId);
       store.markDone(sessionId, "Write-up ready.");
     }
   } catch (err) {
+    console.warn("[ingest]", { sessionId, kind: job.kind, err });
     store.markError(sessionId, err instanceof Error ? err.message : "Could not ingest output.");
   }
 }
 
-async function ingestReview(rootId: string, reviewSessionId: string | undefined): Promise<void> {
+async function ingestReview(rootId: string, reviewSessionId: string | undefined): Promise<string> {
   if (!reviewSessionId) throw new Error("review job is missing reviewSessionId");
   const repo = await getRepository();
   const result = await ingestPlanFile({ repo, rootId, sessionId: reviewSessionId });
   await repo.reviewSessions.complete(reviewSessionId);
-  if (result.hunkCount === 0) {
-    // Keep going — the job is technically done, just with an empty plan.
+
+  console.info("[ingest-plan]", {
+    sessionId: reviewSessionId,
+    planPath: result.planPath,
+    planBundleId: result.planBundleId,
+    sessionBundleId: result.sessionBundleId,
+    blockCount: result.blockCount,
+    hunkCount: result.hunkCount,
+    droppedForUnknownAnnotation: result.droppedForUnknownAnnotation,
+    scannedPlans: result.scannedPlans,
+  });
+
+  if (result.droppedForUnknownAnnotation.length > 0 && result.hunkCount === 0) {
+    throw new Error(
+      `plan referenced ${result.droppedForUnknownAnnotation.length} unknown annotation(s) and produced no hunks for this session`,
+    );
   }
+  if (result.blockCount === 0) {
+    return "Plan ready. Reviewer proposed no changes.";
+  }
+  if (result.droppedForUnknownAnnotation.length > 0) {
+    return `Plan ready. ${result.hunkCount} change${result.hunkCount === 1 ? "" : "s"} (dropped ${result.droppedForUnknownAnnotation.length} stale block${result.droppedForUnknownAnnotation.length === 1 ? "" : "s"}).`;
+  }
+  return `Plan ready. ${result.hunkCount} change${result.hunkCount === 1 ? "" : "s"} proposed.`;
 }
 
 async function ingestWriteup(

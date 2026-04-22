@@ -2,9 +2,9 @@ export { migrateV1ToV2 } from "./migrations.js";
 export type { ParseResult } from "./parse.js";
 export { parseBundle } from "./parse.js";
 export {
+  PaperBuildCompiler,
+  PaperBuildFormat,
   PROJECT_META_VERSION,
-  ProjectBuildCompiler,
-  ProjectBuildFormat,
   ProjectMeta,
   ProjectMetaCompile,
   ProjectMetaFile,

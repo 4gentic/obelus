@@ -4,8 +4,8 @@ import {
   type DiffHunksRepo,
   type FilePinsRepo,
   NotSupportedError,
+  type PaperBuildRepo,
   type PaperEditsRepo,
-  type ProjectBuildRepo,
   type ProjectFilesRepo,
   type ProjectsRepo,
   type Repository,
@@ -22,7 +22,6 @@ const projectsStub: ProjectsRepo = {
   rename: () => Promise.reject(new NotSupportedError("projects")),
   setPinned: () => Promise.reject(new NotSupportedError("projects")),
   forget: () => Promise.reject(new NotSupportedError("projects")),
-  repoint: () => Promise.reject(new NotSupportedError("projects")),
   moveToDesk: () => Promise.reject(new NotSupportedError("projects")),
   touchLastOpened: () => Promise.reject(new NotSupportedError("projects")),
   setLastOpenedFile: () => Promise.reject(new NotSupportedError("projects")),
@@ -35,13 +34,12 @@ const desksStub: DesksRepo = {
   rename: () => Promise.reject(new NotSupportedError("desks")),
   remove: () => Promise.reject(new NotSupportedError("desks")),
   touchLastOpened: () => Promise.reject(new NotSupportedError("desks")),
-  countProjects: () => Promise.reject(new NotSupportedError("desks")),
 };
 
 const reviewSessionsStub: ReviewSessionsRepo = {
-  list: () => Promise.reject(new NotSupportedError("reviewSessions")),
+  listForPaper: () => Promise.reject(new NotSupportedError("reviewSessions")),
   get: () => Promise.reject(new NotSupportedError("reviewSessions")),
-  latestForProject: () => Promise.reject(new NotSupportedError("reviewSessions")),
+  latestForPaper: () => Promise.reject(new NotSupportedError("reviewSessions")),
   create: () => Promise.reject(new NotSupportedError("reviewSessions")),
   complete: () => Promise.reject(new NotSupportedError("reviewSessions")),
   markApplied: () => Promise.reject(new NotSupportedError("reviewSessions")),
@@ -79,7 +77,7 @@ const filePinsStub: FilePinsRepo = {
 };
 
 const paperEditsStub: PaperEditsRepo = {
-  listForProject: () => Promise.reject(new NotSupportedError("paperEdits")),
+  listForPaper: () => Promise.reject(new NotSupportedError("paperEdits")),
   get: () => Promise.reject(new NotSupportedError("paperEdits")),
   head: () => Promise.reject(new NotSupportedError("paperEdits")),
   baseline: () => Promise.reject(new NotSupportedError("paperEdits")),
@@ -89,19 +87,18 @@ const paperEditsStub: PaperEditsRepo = {
   tombstoneDescendantsOf: () => Promise.reject(new NotSupportedError("paperEdits")),
   tombstoneMany: () => Promise.reject(new NotSupportedError("paperEdits")),
   restore: () => Promise.reject(new NotSupportedError("paperEdits")),
-  countForProject: () => Promise.reject(new NotSupportedError("paperEdits")),
+  countForPaper: () => Promise.reject(new NotSupportedError("paperEdits")),
 };
 
 const projectFilesStub: ProjectFilesRepo = {
   listForProject: () => Promise.reject(new NotSupportedError("projectFiles")),
   replaceAll: () => Promise.reject(new NotSupportedError("projectFiles")),
-  setRole: () => Promise.reject(new NotSupportedError("projectFiles")),
 };
 
-const projectBuildStub: ProjectBuildRepo = {
-  get: () => Promise.reject(new NotSupportedError("projectBuild")),
-  upsert: () => Promise.reject(new NotSupportedError("projectBuild")),
-  setMain: () => Promise.reject(new NotSupportedError("projectBuild")),
+const paperBuildStub: PaperBuildRepo = {
+  get: () => Promise.reject(new NotSupportedError("paperBuild")),
+  upsert: () => Promise.reject(new NotSupportedError("paperBuild")),
+  setMain: () => Promise.reject(new NotSupportedError("paperBuild")),
 };
 
 export function buildWebRepository(): Repository {
@@ -119,7 +116,7 @@ export function buildWebRepository(): Repository {
     filePins: filePinsStub,
     paperEdits: paperEditsStub,
     projectFiles: projectFilesStub,
-    projectBuild: projectBuildStub,
+    paperBuild: paperBuildStub,
     supports(_feature: RepositoryFeature): boolean {
       return false;
     },

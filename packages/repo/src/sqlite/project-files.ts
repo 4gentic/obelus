@@ -73,12 +73,5 @@ export function buildProjectFilesRepo(db: Database): ProjectFilesRepo {
       }
       await dbTxBatch(stmts);
     },
-
-    async setRole(projectId: string, relPath: string, role: ProjectFileRole | null): Promise<void> {
-      await db.execute(
-        `UPDATE project_files SET role = $1 WHERE project_id = $2 AND rel_path = $3`,
-        [role, projectId, relPath],
-      );
-    },
   };
 }
