@@ -20,5 +20,23 @@ pub fn all() -> Vec<Migration> {
             sql: include_str!("../migrations/0003_file_pins.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "paper_edits",
+            sql: include_str!("../migrations/0004_paper_edits.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 5,
+            description: "annotations_resolved_in",
+            sql: include_str!("../migrations/0005_annotations_resolved_in.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 6,
+            description: "project_metadata",
+            sql: include_str!("../migrations/0006_project_metadata.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
