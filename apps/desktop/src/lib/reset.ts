@@ -1,4 +1,4 @@
-import { dbTxBatch } from "@obelus/repo/sqlite";
+import { invoke } from "@tauri-apps/api/core";
 import { clearAppState } from "../store/app-state";
 
 // Clears the Tauri plugin-store only: wizard checkpoint + Claude-detect cache.
@@ -7,19 +7,9 @@ export async function wizardReset(): Promise<void> {
   await clearAppState();
 }
 
-// Wipes every row of user data: SQLite tables + Tauri plugin-store.
+// Wipes every user row in SQLite (schema and migration ledger stay intact)
+// and every key in the Tauri plugin-store. Source files on disk are untouched.
 export async function factoryReset(): Promise<void> {
-  await dbTxBatch([
-    { sql: "DELETE FROM writeups" },
-    { sql: "DELETE FROM ask_messages" },
-    { sql: "DELETE FROM ask_threads" },
-    { sql: "DELETE FROM diff_hunks" },
-    { sql: "DELETE FROM review_sessions" },
-    { sql: "DELETE FROM annotations" },
-    { sql: "DELETE FROM revisions" },
-    { sql: "DELETE FROM papers" },
-    { sql: "DELETE FROM projects" },
-    { sql: "DELETE FROM settings" },
-  ]);
+  await invoke("factory_reset");
   await clearAppState();
 }

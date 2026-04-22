@@ -66,7 +66,7 @@ export default function Settings(): JSX.Element {
 
   async function onFactoryReset(): Promise<void> {
     const ok = await ask(
-      "Factory reset erases every project, paper, annotation, review, and write-up. This cannot be undone. Continue?",
+      "Factory reset erases everything Obelus has stored on this device — every desk, project, paper, annotation, review session, write-up, and pinned file. Source files on disk are untouched. This cannot be undone. Continue?",
       {
         title: "Factory reset",
         kind: "warning",
@@ -187,8 +187,9 @@ export default function Settings(): JSX.Element {
       <article className="settings__block">
         <h2 className="settings__block-title">Factory reset</h2>
         <p className="settings__body">
-          Wipes every project, paper, annotation, review session, and write-up on this device, and
-          re-runs the wizard. Source files on disk are untouched. This cannot be undone.
+          Wipes everything Obelus has stored on this device — desks, projects, papers, annotations,
+          review sessions, write-ups, and pinned files — and re-runs the wizard. Source files on
+          disk are untouched. This cannot be undone.
         </p>
         <button
           type="button"

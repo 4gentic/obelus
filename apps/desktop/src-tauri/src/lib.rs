@@ -10,6 +10,7 @@ use commands::{
     claude_user_settings::read_claude_user_settings,
     db_tx::db_tx_batch,
     dialog::{open_folder_picker, open_pdf_picker, open_rubric_picker},
+    factory_reset::factory_reset,
     fs_scoped::{
         fs_list_pdfs, fs_read_dir, fs_read_file, fs_stat, fs_write_bytes, fs_write_text,
         fs_write_text_abs,
@@ -68,6 +69,7 @@ pub fn run() {
             history_diff_manifests,
             project_scan,
             reset_local_state,
+            factory_reset,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Obelus");
