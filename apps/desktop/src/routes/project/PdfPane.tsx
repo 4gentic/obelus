@@ -1,11 +1,12 @@
 import type { Anchor } from "@obelus/anchor";
-import { PdfDocument, SelectionListener } from "@obelus/pdf-view";
+import { type FindMatch, PdfDocument, SelectionListener } from "@obelus/pdf-view";
 import type { AnnotationRow } from "@obelus/repo";
 import type { DraftInput } from "@obelus/review-store";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { TextItem } from "pdfjs-dist/types/src/display/api";
 import type { JSX } from "react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useFindStore } from "./find-store-context";
 import { useReviewStore } from "./store-context";
 
 interface Props {
@@ -52,6 +53,20 @@ export default function PdfPane({ doc, onAnchor }: Props): JSX.Element {
   const draftCategory = store((s) => s.draftCategory);
   const focusedId = store((s) => s.focusedAnnotationId);
   const setFocused = store((s) => s.setFocusedAnnotation);
+  const findStore = useFindStore();
+  const findMatches = findStore((s) => s.matches);
+  const findCurrentIndex = findStore((s) => s.currentIndex);
+  const findScrollTick = findStore((s) => s.scrollTick);
+
+  const findMatchesByPage = useMemo(() => {
+    const byPage = new Map<number, FindMatch[]>();
+    for (const m of findMatches) {
+      const bucket = byPage.get(m.pageIndex);
+      if (bucket) bucket.push(m);
+      else byPage.set(m.pageIndex, [m]);
+    }
+    return byPage;
+  }, [findMatches]);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,10 +141,45 @@ export default function PdfPane({ doc, onAnchor }: Props): JSX.Element {
               />
             ))
           : null}
+        {(findMatchesByPage.get(pageIndex) ?? []).flatMap((m) =>
+          m.rects.map((r) => {
+            const isCurrent = m.matchIndex === findCurrentIndex;
+            const cls = isCurrent
+              ? "pdf-hl pdf-hl--find pdf-hl--find-current"
+              : "pdf-hl pdf-hl--find";
+            return (
+              <div
+                key={rectKey(`find-${m.matchIndex}`, r)}
+                className={cls}
+                style={{
+                  left: r[0] * s,
+                  top: r[1] * s,
+                  width: r[2] * s,
+                  height: r[3] * s,
+                }}
+              />
+            );
+          }),
+        )}
       </>
     ),
-    [annotations, draft, draftCategory, focusedId],
+    [annotations, draft, draftCategory, focusedId, findMatchesByPage, findCurrentIndex],
   );
+
+  // Scroll to the current match's page. `findScrollTick` is listed so a
+  // single-match document still re-scrolls when the user presses Next and
+  // `findCurrentIndex` stays at 0.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: findScrollTick drives re-fire on navigation; the body intentionally doesn't read it.
+  useEffect(() => {
+    if (findCurrentIndex < 0) return;
+    const match = findMatches[findCurrentIndex];
+    if (!match) return;
+    const pane = paneRef.current;
+    if (!pane) return;
+    const pageEl = pane.querySelector<HTMLElement>(`[data-page-index="${match.pageIndex}"]`);
+    if (!pageEl) return;
+    pageEl.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [findScrollTick, findCurrentIndex, findMatches]);
 
   // Hit-test focus for highlights. Per-rect onClick doesn't fire because
   // pdfjs's text layer sits above the overlay (z-index 2 vs 1) and intercepts

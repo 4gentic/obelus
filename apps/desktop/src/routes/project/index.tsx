@@ -7,6 +7,7 @@ import { AskStoreProvider } from "./ask-store-context";
 import { BuffersStoreProvider } from "./buffers-store-context";
 import { ProjectProvider } from "./context";
 import { DiffStoreProvider } from "./diff-store-context";
+import { FindStoreProvider } from "./find-store-context";
 import { OpenPaperProvider } from "./OpenPaper";
 import ProjectShell from "./ProjectShell";
 import { runProjectScan } from "./project-scan-actions";
@@ -124,11 +125,13 @@ export default function ProjectRoute(): JSX.Element {
           <AskStoreProvider>
             <WriteUpStoreProvider>
               <OpenPaperProvider>
-                <DiffStoreProvider>
-                  <ReviewRunnerProvider>
-                    <ProjectShell />
-                  </ReviewRunnerProvider>
-                </DiffStoreProvider>
+                <FindStoreProvider>
+                  <DiffStoreProvider>
+                    <ReviewRunnerProvider>
+                      <ProjectShell />
+                    </ReviewRunnerProvider>
+                  </DiffStoreProvider>
+                </FindStoreProvider>
               </OpenPaperProvider>
             </WriteUpStoreProvider>
           </AskStoreProvider>
