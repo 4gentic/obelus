@@ -1,9 +1,60 @@
 import type { AnnotationV2Input, PaperRefV2Input, ProjectV2Input } from "@obelus/bundle-builder";
 import { buildBundleV2 } from "@obelus/bundle-builder";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
-import type { Repository } from "@obelus/repo";
+import type { ProjectFileRow, Repository } from "@obelus/repo";
 import { fsReadFile } from "../../ipc/commands";
-import { resolveAnnotationSpan } from "./resolveSourceAnchors";
+import { resolveAcrossFiles } from "./resolveSourceAnchors";
+
+// Source file formats the pre-resolver can index. PDFs and binaries are
+// excluded upstream; this keeps the candidate set to searchable text.
+const SOURCE_FORMATS = new Set(["typ", "tex", "md"]);
+
+function dirnameOf(relPath: string): string {
+  const i = relPath.lastIndexOf("/");
+  return i < 0 ? "" : relPath.slice(0, i);
+}
+
+// Candidate source files to try when the paper's `mainRelPath` either isn't
+// set or doesn't contain the quote. Scoped to siblings of the paper's PDF —
+// the common split-document layout puts `paper/short/main.typ` alongside
+// `00-abstract.typ` ... `09-conclusion.typ`, and the quote lives in one of
+// them. Tight scoping keeps noise out (avoids matching a stray phrase in an
+// unrelated `paper/notes/literature/*.md`) and keeps the scan fast (~10–30
+// files, a few hundred KB total).
+export function selectSiblingSourceCandidates(
+  projectFiles: ReadonlyArray<Pick<ProjectFileRow, "relPath" | "format">>,
+  pdfRelPath: string,
+  skipRelPath: string | undefined,
+): string[] {
+  const pdfDir = dirnameOf(pdfRelPath);
+  return projectFiles
+    .filter(
+      (f) =>
+        SOURCE_FORMATS.has(f.format) &&
+        dirnameOf(f.relPath) === pdfDir &&
+        f.relPath !== skipRelPath,
+    )
+    .map((f) => f.relPath);
+}
+
+interface LoadedSource {
+  relPath: string;
+  text: string;
+}
+
+async function loadSources(rootId: string, relPaths: readonly string[]): Promise<LoadedSource[]> {
+  const loaded = await Promise.all(
+    relPaths.map(async (relPath): Promise<LoadedSource | null> => {
+      try {
+        const buf = await fsReadFile(rootId, relPath);
+        return { relPath, text: new TextDecoder().decode(buf) };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return loaded.filter((x): x is LoadedSource => x !== null);
+}
 
 export interface ExportBundleInput {
   repo: Repository;
@@ -79,13 +130,23 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
   ]);
 
   const mainRelPath = paperBuild?.mainRelPath ?? undefined;
-  const mainSource =
-    rootId !== undefined && mainRelPath !== undefined
-      ? await fsReadFile(rootId, mainRelPath)
-          .then((buf) => new TextDecoder().decode(buf))
-          .catch(() => undefined)
-      : undefined;
+  // Candidates, in priority order:
+  //   1. `mainRelPath` (the paper's declared entrypoint, when known)
+  //   2. PDF-sibling source files from `project.files`
+  // Siblings cover the common split-document case where `mainRelPath` is
+  // either unset or is an entrypoint that `#include`s the files actually
+  // holding the prose (so the quote is never in `main.typ` itself).
+  const siblingRelPaths = selectSiblingSourceCandidates(
+    projectFiles,
+    paper.pdfRelPath,
+    mainRelPath,
+  );
+  const candidateRelPaths =
+    mainRelPath !== undefined ? [mainRelPath, ...siblingRelPaths] : siblingRelPaths;
+  const candidates: LoadedSource[] =
+    rootId !== undefined ? await loadSources(rootId, candidateRelPaths) : [];
 
+  const resolutionsByFile = new Map<string, number>();
   let resolvedCount = 0;
   const annotations: AnnotationV2Input[] = rows.map((row) => {
     const base: AnnotationV2Input = {
@@ -103,14 +164,18 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
       createdAt: row.createdAt,
       ...(row.groupId !== undefined ? { groupId: row.groupId } : {}),
     };
-    if (mainSource !== undefined && mainRelPath !== undefined) {
-      const resolved = resolveAnnotationSpan(mainRelPath, mainSource, {
+    if (candidates.length > 0) {
+      const resolved = resolveAcrossFiles(candidates, {
         quote: row.quote,
         contextBefore: row.contextBefore,
         contextAfter: row.contextAfter,
       });
       if (resolved.kind === "resolved" && resolved.span !== undefined) {
         resolvedCount += 1;
+        resolutionsByFile.set(
+          resolved.span.file,
+          (resolutionsByFile.get(resolved.span.file) ?? 0) + 1,
+        );
         return { ...base, sourceAnchor: resolved.span };
       }
     }
@@ -122,6 +187,8 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
     annotationCount: annotations.length,
     sourceAnchorsResolved: resolvedCount,
     mainRelPath: mainRelPath ?? null,
+    candidatesScanned: candidates.length,
+    resolutionsByFile: Object.fromEntries(resolutionsByFile),
   });
 
   const projectInput: ProjectV2Input = {
