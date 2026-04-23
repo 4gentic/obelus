@@ -33,6 +33,7 @@
     "@obelus/claude-sidecar": "workspace:*",
     "@obelus/design-tokens": "workspace:*",
     "@obelus/pdf-view": "workspace:*",
+    "@obelus/prompts": "workspace:*",
     "@obelus/repo": "workspace:*",
     "@obelus/review-store": "workspace:*",
     "@tauri-apps/api": "2.10.1",

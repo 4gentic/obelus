@@ -1,0 +1,14 @@
+{
+  "name": "@obelus/claude-plugin-drafter",
+  "version": "0.0.1",
+  "description": "Claude Code plugin (preview) for the Obelus drafter workflow — spec, research, draft, critique, iterate, assemble.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "files": [
+    ".claude-plugin",
+    "agents",
+    "commands",
+    "README.md"
+  ]
+}

@@ -23,7 +23,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@obelus/bundle-schema": "workspace:*"
+    "@obelus/bundle-schema": "workspace:*",
+    "@obelus/prompts": "workspace:*"
   },
   "devDependencies": {
     "vitest": "4.1.4"

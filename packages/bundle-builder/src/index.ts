@@ -144,6 +144,16 @@ export interface AnnotationV2Input {
     start: readonly [number, number];
     end: readonly [number, number];
   };
+  // Desktop-resolved source-file span. When present, the emitted annotation
+  // carries a `source` anchor and the plugin skips its fuzzy PDF→source hunt.
+  // Omit to fall through to the default PDF anchor.
+  sourceAnchor?: {
+    file: string;
+    lineStart: number;
+    colStart: number;
+    lineEnd: number;
+    colEnd: number;
+  };
   note: string;
   thread: ReadonlyArray<{ at: string; body: string }>;
   createdAt: string;
@@ -201,12 +211,22 @@ export function buildBundleV2(input: BuildBundleV2Input): Bundle2 {
       quote: a.quote,
       contextBefore: a.contextBefore,
       contextAfter: a.contextAfter,
-      anchor: {
-        kind: "pdf" as const,
-        page: a.page,
-        bbox: a.bbox,
-        textItemRange: a.textItemRange,
-      },
+      anchor:
+        a.sourceAnchor !== undefined
+          ? {
+              kind: "source" as const,
+              file: a.sourceAnchor.file,
+              lineStart: a.sourceAnchor.lineStart,
+              colStart: a.sourceAnchor.colStart,
+              lineEnd: a.sourceAnchor.lineEnd,
+              colEnd: a.sourceAnchor.colEnd,
+            }
+          : {
+              kind: "pdf" as const,
+              page: a.page,
+              bbox: a.bbox,
+              textItemRange: a.textItemRange,
+            },
       note: a.note,
       thread: a.thread,
       createdAt: a.createdAt,

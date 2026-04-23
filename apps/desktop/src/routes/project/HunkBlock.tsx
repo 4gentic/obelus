@@ -10,6 +10,7 @@ interface Props {
   indexInFile: number;
   totalInFile: number;
   sourceText: string | null;
+  hasSources: boolean;
   focused: boolean;
   editing: boolean;
   editingText: string;
@@ -31,13 +32,19 @@ interface Props {
 function DiffLines({
   patch,
   sourceText,
+  emptyVariant,
 }: {
   patch: string;
   sourceText: string | null;
+  emptyVariant: "no-sources" | "flagged";
 }): JSX.Element {
   const display = buildDisplayLines(patch, sourceText, CONTEXT_LINES);
   if (display.length === 0) {
-    return <p className="diff-block__empty">No patch (reviewer skipped or flagged).</p>;
+    const message =
+      emptyVariant === "no-sources"
+        ? "Note only — this paper has no source files to patch."
+        : "No patch (reviewer skipped or flagged).";
+    return <p className="diff-block__empty">{message}</p>;
   }
   return (
     <pre className="diff-block__patch">
@@ -67,6 +74,7 @@ export default function HunkBlock(props: Props): JSX.Element {
     indexInFile,
     totalInFile,
     sourceText,
+    hasSources,
     focused,
     editing,
     editingText,
@@ -109,10 +117,13 @@ export default function HunkBlock(props: Props): JSX.Element {
           ? "hunk-block--modified"
           : "";
 
+  const isNoteOnly = hunk.ambiguous && !hasSources;
+  const isTrulyAmbiguous = hunk.ambiguous && hasSources;
+
   return (
     <article
       ref={ref}
-      className={`diff-block hunk-block ${focused ? "hunk-block--focused" : ""} ${stateClass}${hunk.ambiguous ? " diff-block--ambiguous" : ""}`}
+      className={`diff-block hunk-block ${focused ? "hunk-block--focused" : ""} ${stateClass}${isTrulyAmbiguous ? " diff-block--ambiguous" : ""}`}
       style={{ "--ordinal": hunk.ordinal } as CSSProperties}
       onClick={onFocus}
       onKeyDown={(e) => {
@@ -128,10 +139,15 @@ export default function HunkBlock(props: Props): JSX.Element {
           hunk {indexInFile + 1}/{totalInFile}
         </span>
         <span className="diff-block__cat">{hunk.category ?? "—"}</span>
-        {hunk.ambiguous && <span className="diff-block__tag">ambiguous</span>}
+        {isNoteOnly && <span className="diff-block__tag">note</span>}
+        {isTrulyAmbiguous && <span className="diff-block__tag">ambiguous</span>}
         <span className="hunk-block__state">{hunk.state}</span>
       </header>
-      <DiffLines patch={hunk.modifiedPatchText ?? hunk.patch} sourceText={sourceText} />
+      <DiffLines
+        patch={hunk.modifiedPatchText ?? hunk.patch}
+        sourceText={sourceText}
+        emptyVariant={isNoteOnly ? "no-sources" : "flagged"}
+      />
       {editing ? (
         <div className="hunk-block__edit">
           <textarea

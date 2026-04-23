@@ -41,12 +41,20 @@ export type RevisionCreateInput =
   | { source: "bytes"; pdfBytes: ArrayBuffer; note?: string }
   | { source: "ondisk"; pdfRelPath: string; pdfSha256: string; pageCount: number; note?: string };
 
+export interface PaperPathsPatch {
+  pdfRelPath?: string | null;
+  entrypointRelPath?: string | null;
+}
+
 export interface PapersRepo {
   list(): Promise<PaperRow[]>;
   get(id: string): Promise<PaperRow | undefined>;
   rename(id: string, title: string): Promise<void>;
   create(input: PaperCreateInput): Promise<{ paper: PaperRow; revision: RevisionRow }>;
   setRubric(id: string, rubric: PaperRubric | null): Promise<void>;
+  // Updates on-disk path references after a file/folder move. Keys set to
+  // `null` clear the column; omitted keys are left untouched.
+  setPaths(id: string, patch: PaperPathsPatch): Promise<void>;
   remove(id: string): Promise<void>;
 }
 

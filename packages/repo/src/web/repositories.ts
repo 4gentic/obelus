@@ -1,4 +1,4 @@
-import type { PaperCreateInput, RevisionCreateInput } from "../interface";
+import type { PaperCreateInput, PaperPathsPatch, RevisionCreateInput } from "../interface";
 import type { PaperRubric } from "../types";
 import { deletePdf, putPdf } from "./opfs";
 import { requestPersistOnce } from "./persist";
@@ -47,6 +47,22 @@ export const papers = {
       await db.revisions.add(revision);
     });
     return { paper, revision };
+  },
+
+  async setPaths(id: string, patch: PaperPathsPatch): Promise<void> {
+    const db = getDb();
+    const row = await db.papers.get(id);
+    if (!row) return;
+    const next = { ...row };
+    if ("pdfRelPath" in patch) {
+      if (patch.pdfRelPath) next.pdfRelPath = patch.pdfRelPath;
+      else delete next.pdfRelPath;
+    }
+    if ("entrypointRelPath" in patch) {
+      if (patch.entrypointRelPath) next.entrypointRelPath = patch.entrypointRelPath;
+      else delete next.entrypointRelPath;
+    }
+    await db.papers.put(next);
   },
 
   async setRubric(id: string, rubric: PaperRubric | null): Promise<void> {

@@ -1,11 +1,16 @@
 import { PlanFileSchema } from "@obelus/claude-sidecar";
 import type { DiffHunkRow, Repository } from "@obelus/repo";
 import { fsReadDir, fsReadFile } from "../../ipc/commands";
+import { paperHasSources } from "../../lib/paper-has-sources";
 
 export interface IngestPlanInput {
   repo: Repository;
   rootId: string;
   sessionId: string;
+  // Optional path the plugin printed in its `OBELUS_WROTE: <path>` marker. We
+  // try it first; if it parses as a PlanFile and its bundleId matches the
+  // session, we skip the directory scan entirely.
+  hintPath?: string;
 }
 
 export interface IngestPlanResult {
@@ -16,6 +21,7 @@ export interface IngestPlanResult {
   hunkCount: number;
   droppedForUnknownAnnotation: string[];
   scannedPlans: string[];
+  hasSources: boolean;
 }
 
 function basename(p: string): string {
@@ -24,11 +30,14 @@ function basename(p: string): string {
 }
 
 export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlanResult> {
-  const { repo, rootId, sessionId } = input;
+  const { repo, rootId, sessionId, hintPath } = input;
 
   const session = await repo.reviewSessions.get(sessionId);
   if (!session) throw new Error(`review session ${sessionId} not found`);
   const sessionBundleBasename = basename(session.bundleId);
+
+  const paperBuild = (await repo.paperBuild.get(session.paperId)) ?? null;
+  const hasSources = paperHasSources(paperBuild);
 
   const revisions = await repo.revisions.listForPaper(session.paperId);
   const latest = revisions[revisions.length - 1];
@@ -38,41 +47,73 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   });
   const knownAnnotationIds = new Set(annotations.map((a) => a.id));
 
-  const entries = await fsReadDir(rootId, ".obelus").catch(() => []);
-  const planNames = entries
-    .map((e) => e.name)
-    .filter((n) => /^plan-.*\.json$/.test(n))
-    .sort()
-    .reverse();
-
-  if (planNames.length === 0) {
-    throw new Error("no plan file found under .obelus/");
-  }
-
-  // Walk plans newest-first; stop at the first one whose bundleId basename
-  // matches the session's bundle. A corrupt historic plan is skipped so it
-  // can't mask a valid later match.
   let picked: { name: string; plan: ReturnType<typeof PlanFileSchema.parse> } | null = null;
   const scannedPlans: string[] = [];
-  for (const name of planNames) {
+
+  if (hintPath?.endsWith(".json")) {
     try {
-      const buffer = await fsReadFile(rootId, `.obelus/${name}`);
+      const buffer = await fsReadFile(rootId, hintPath);
       const text = new TextDecoder().decode(new Uint8Array(buffer));
       const plan = PlanFileSchema.parse(JSON.parse(text));
       const planBundle = basename(plan.bundleId);
-      scannedPlans.push(`${name} -> ${planBundle}`);
+      scannedPlans.push(`${hintPath} (marker) -> ${planBundle}`);
       if (planBundle === sessionBundleBasename) {
-        picked = { name, plan };
-        break;
+        picked = { name: basename(hintPath), plan };
       }
     } catch (err) {
-      scannedPlans.push(`${name} -> unreadable (${err instanceof Error ? err.message : "?"})`);
+      scannedPlans.push(
+        `${hintPath} (marker) -> unreadable (${err instanceof Error ? err.message : "?"})`,
+      );
+    }
+  }
+
+  let directoryNames: string[] = [];
+  if (!picked) {
+    const entries = await fsReadDir(rootId, ".obelus").catch(() => []);
+    directoryNames = entries.map((e) => e.name);
+    // Timestamped plans first (newest → oldest), then the bare fallback. A
+    // plain lex sort would put `plan.json` ahead of `plan-<iso>.json` after
+    // reverse because `-` < `.`, which lets a stale bare plan shadow the
+    // current timestamped one.
+    const timestamped = directoryNames
+      .filter((n) => /^plan-.+\.json$/.test(n))
+      .sort()
+      .reverse();
+    const planNames = directoryNames.includes("plan.json")
+      ? [...timestamped, "plan.json"]
+      : timestamped;
+
+    if (planNames.length === 0 && scannedPlans.length === 0) {
+      throw new Error(
+        `no plan file found under .obelus/; directory contents: ${directoryNames.join(", ") || "(empty)"}`,
+      );
+    }
+
+    // Walk plans newest-first; stop at the first one whose bundleId basename
+    // matches the session's bundle. A corrupt historic plan is skipped so it
+    // can't mask a valid later match.
+    for (const name of planNames) {
+      try {
+        const buffer = await fsReadFile(rootId, `.obelus/${name}`);
+        const text = new TextDecoder().decode(new Uint8Array(buffer));
+        const plan = PlanFileSchema.parse(JSON.parse(text));
+        const planBundle = basename(plan.bundleId);
+        scannedPlans.push(`${name} -> ${planBundle}`);
+        if (planBundle === sessionBundleBasename) {
+          picked = { name, plan };
+          break;
+        }
+      } catch (err) {
+        scannedPlans.push(`${name} -> unreadable (${err instanceof Error ? err.message : "?"})`);
+      }
     }
   }
 
   if (!picked) {
+    const dirSummary =
+      directoryNames.length > 0 ? `; .obelus/ contains: ${directoryNames.join(", ")}` : "";
     throw new Error(
-      `no plan matched session bundle ${sessionBundleBasename}; scanned ${scannedPlans.length} plan file(s): ${scannedPlans.join("; ")}`,
+      `no plan matched session bundle ${sessionBundleBasename}; scanned ${scannedPlans.length} plan file(s): ${scannedPlans.join("; ") || "(none)"}${dirSummary}`,
     );
   }
 
@@ -107,5 +148,6 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     hunkCount: rows.length,
     droppedForUnknownAnnotation,
     scannedPlans,
+    hasSources,
   };
 }

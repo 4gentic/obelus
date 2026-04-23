@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useEffect, useRef, useState } from "react";
+import { type ComponentType, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useProject } from "./context";
 import DiffReview from "./DiffReview";
 import DraftsPanel from "./DraftsPanel";
@@ -13,8 +13,17 @@ import StartReviewButton from "./StartReviewButton";
 import { useReviewStore } from "./store-context";
 import type { ForkInfo } from "./use-diff-actions";
 
-type WriterView = "marks" | "diff" | "drafts";
-type ReviewerView = "marks" | "review";
+// Drafter mode is in preview behind a build-time flag — see
+// `docs/drafter-design.md` and `DrafterTab.tsx`. The flag must gate the
+// import path itself, not just the JSX, so production builds can fully
+// dead-code-eliminate the drafter module. `import.meta.env.VITE_DRAFTER_PREVIEW`
+// is a Vite build-time replacement: when unset, the conditional below resolves
+// to `null` at compile time and the dynamic `import()` is never emitted.
+const DrafterTab: ComponentType | null =
+  import.meta.env.VITE_DRAFTER_PREVIEW === "1" ? lazy(() => import("./DrafterTab")) : null;
+
+type WriterView = "marks" | "diff" | "drafts" | "drafter";
+type ReviewerView = "marks" | "review" | "drafter";
 
 interface Props {
   onApply: () => void | Promise<void>;
@@ -127,6 +136,15 @@ function WriterColumn({
             >
               Drafts
             </button>
+            {DrafterTab !== null && (
+              <button
+                type="button"
+                className={`review-column__tab${effectiveView === "drafter" ? " review-column__tab--on" : ""}`}
+                onClick={() => setView("drafter")}
+              >
+                Draft
+              </button>
+            )}
           </>
         )}
       </nav>
@@ -137,6 +155,10 @@ function WriterColumn({
         </>
       ) : effectiveView === "drafts" ? (
         <DraftsPanel />
+      ) : effectiveView === "drafter" && DrafterTab !== null ? (
+        <Suspense fallback={null}>
+          <DrafterTab />
+        </Suspense>
       ) : (
         <DiffReview
           onApply={onApply}
@@ -197,6 +219,15 @@ function ReviewerColumn({ wide, onToggleWide }: ReviewerColumnProps): JSX.Elemen
             >
               Review
             </button>
+            {DrafterTab !== null && (
+              <button
+                type="button"
+                className={`review-column__tab${effectiveView === "drafter" ? " review-column__tab--on" : ""}`}
+                onClick={() => setView("drafter")}
+              >
+                Draft
+              </button>
+            )}
           </>
         )}
       </nav>
@@ -206,6 +237,10 @@ function ReviewerColumn({ wide, onToggleWide }: ReviewerColumnProps): JSX.Elemen
         ) : (
           <ReviewList />
         )
+      ) : effectiveView === "drafter" && DrafterTab !== null ? (
+        <Suspense fallback={null}>
+          <DrafterTab />
+        </Suspense>
       ) : (
         <ReviewerActionsPanel wide={wide} onToggleWide={onToggleWide} />
       )}

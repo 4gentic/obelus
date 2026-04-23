@@ -12,8 +12,8 @@ use commands::{
     dialog::{open_folder_picker, open_pdf_picker, open_rubric_picker},
     factory_reset::factory_reset,
     fs_scoped::{
-        fs_create_file, fs_list_pdfs, fs_read_dir, fs_read_file, fs_stat, fs_write_bytes,
-        fs_write_text, fs_write_text_abs,
+        fs_create_file, fs_list_pdfs, fs_move_path, fs_read_dir, fs_read_file, fs_stat,
+        fs_write_bytes, fs_write_text, fs_write_text_abs,
     },
     history::{
         history_checkout, history_detect_divergence, history_diff_manifests, history_gc,
@@ -52,6 +52,7 @@ pub fn run() {
             fs_write_text,
             fs_write_text_abs,
             fs_create_file,
+            fs_move_path,
             fs_list_pdfs,
             fs_stat,
             claude_spawn,

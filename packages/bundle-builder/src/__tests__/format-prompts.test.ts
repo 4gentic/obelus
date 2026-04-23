@@ -58,7 +58,7 @@ describe("formatReviewPrompt", () => {
   it("forbids editing source files and skips edit-shape guidance", () => {
     const text = formatReviewPrompt(plainInput());
     expect(text).toContain("Generate a peer-review letter");
-    expect(text).toContain("**Do not** edit any source file");
+    expect(text).toContain("Do not edit any source file");
     expect(text).not.toContain("Edit shape by category");
     expect(text).not.toContain("Apply the following review notes");
   });

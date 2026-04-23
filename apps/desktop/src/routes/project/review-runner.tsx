@@ -5,7 +5,7 @@ import {
   onClaudeStdout,
   parseStreamLine,
 } from "@obelus/claude-sidecar";
-import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { fsWriteBytes } from "../../ipc/commands";
 import { useJobsStore } from "../../lib/jobs-store";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
@@ -13,7 +13,6 @@ import { useBuffersStore } from "./buffers-store-context";
 import { exportBundleV2ForPaper } from "./build-bundle";
 import { buildPriorDraftsPrompt } from "./build-prior-drafts-prompt";
 import { useProject } from "./context";
-import { useDiffStore } from "./diff-store-context";
 import { usePaperId } from "./OpenPaper";
 import { createReviewProgressStore } from "./review-progress-store";
 import {
@@ -33,11 +32,8 @@ type Local =
 
 export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX.Element {
   const { repo, project, rootId } = useProject();
-  const diffStore = useDiffStore();
   const buffers = useBuffersStore();
   const activePaperId = usePaperId();
-  const activePaperIdRef = useRef<string | null>(activePaperId);
-  activePaperIdRef.current = activePaperId;
   const progressStore = useMemo(() => createReviewProgressStore(), []);
   const [local, setLocal] = useState<Local>({ kind: "idle" });
 
@@ -113,6 +109,11 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
     };
   }, [project.id, progressStore]);
 
+  // Reset the per-review progress store as soon as Claude exits. The diff
+  // store is loaded elsewhere — `diff-store-context` subscribes to the jobs
+  // store and picks up the session once it transitions to `done`, which
+  // happens only after `ingestReview` has written rows to `diff_hunks`.
+  // Loading here would race that ingest and leave the diff view empty.
   useEffect(() => {
     let cancelled = false;
     let unlistenExit: (() => void) | null = null;
@@ -121,24 +122,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
       if (cancelled) return;
       const record = useJobsStore.getState().get(ev.sessionId);
       if (!record || record.kind !== "review" || record.projectId !== project.id) return;
-      if (ev.cancelled || ev.code !== 0) {
-        progressStore.getState().reset();
-        return;
-      }
-      const sid = record.reviewSessionId;
-      if (!sid) return;
-      // Only fold the completed review into the live diff store if the user
-      // is still looking at the paper it ran against; otherwise another
-      // paper's results would overwrite the one currently in view. The diff
-      // store's own paper-scoped auto-load will pick it up on switch.
-      const shouldLoad = record.paperId === activePaperIdRef.current;
-      void (async () => {
-        try {
-          if (shouldLoad) await diffStore.getState().load(sid);
-        } finally {
-          progressStore.getState().reset();
-        }
-      })();
+      progressStore.getState().reset();
     }).then((fn) => {
       if (cancelled) fn();
       else unlistenExit = fn;
@@ -148,7 +132,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
       cancelled = true;
       unlistenExit?.();
     };
-  }, [project.id, diffStore, progressStore]);
+  }, [project.id, progressStore]);
 
   const start = useCallback(
     async (opts?: RunOptions): Promise<void> => {
@@ -189,6 +173,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         const { filename, json, annotationCount, fileCount } = await exportBundleV2ForPaper({
           repo,
           paperId,
+          rootId,
         });
         const counts: RunCounts = { marks: annotationCount, files: fileCount, startedAt };
         const bytes = new TextEncoder().encode(json);
