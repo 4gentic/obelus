@@ -12,13 +12,24 @@ export interface BufferEntry {
   externalVersion: number;
 }
 
+// Returned from a `writeGuard` to veto a save. The string is surfaced on the
+// error thrown back to the caller so the UI can explain why the write was
+// blocked. `null` means "no opinion" — the save proceeds.
+export type WriteGuardReason = string | null;
+
 export interface BuffersState {
   rootId: string;
   buffers: Map<string, BufferEntry>;
   currentPath: string | null;
   pendingSwitch: string | null;
+  // Defense-in-depth against writes while a review is pending. The source
+  // pane's CodeMirror is already set to read-only in that state, so most
+  // paths never reach here — but the save command and any future "save all"
+  // control would, so the store itself owns the veto.
+  writeGuard: ((path: string) => WriteGuardReason) | null;
 
   setCurrentPath(path: string | null): void;
+  setWriteGuard(guard: ((path: string) => WriteGuardReason) | null): void;
   hydrate(path: string, text: string): void;
   setText(path: string, text: string): void;
   save(path: string): Promise<void>;
@@ -43,9 +54,14 @@ export function createBuffersStore(rootId: string): BuffersStore {
     buffers: new Map(),
     currentPath: null,
     pendingSwitch: null,
+    writeGuard: null,
 
     setCurrentPath(path: string | null): void {
       set({ currentPath: path, pendingSwitch: null });
+    },
+
+    setWriteGuard(guard): void {
+      set({ writeGuard: guard });
     },
 
     hydrate(path: string, text: string): void {
@@ -77,6 +93,13 @@ export function createBuffersStore(rootId: string): BuffersStore {
     async save(path: string): Promise<void> {
       const current = get().buffers.get(path);
       if (!current) return;
+      const veto = get().writeGuard?.(path) ?? null;
+      if (veto !== null) {
+        // Surface as a thrown error rather than a silent no-op — the caller
+        // (⌘S handler or save button) can display it; a silent ignore would
+        // leave the user wondering why their keystroke did nothing.
+        throw new Error(veto);
+      }
       const bytes = new TextEncoder().encode(current.text);
       await fsWriteBytes(get().rootId, path, bytes);
       const next = new Map(get().buffers);
