@@ -2,6 +2,13 @@
 
 All notable changes to the Obelus Claude Code plugin are documented here. This file is generated from Conventional Commits touching `packages/claude-plugin/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4](https://github.com/4gentic/obelus/compare/plugin-v0.1.3...plugin-v0.1.4) (2026-04-23)
+
+
+### Features
+
+* auto-compile Typst drafts + richer plan/apply pipeline ([#45](https://github.com/4gentic/obelus/issues/45)) ([1298a68](https://github.com/4gentic/obelus/commit/1298a6804a4648ae251e7359f8216d05707a0b4d))
+
 ## [0.1.3](https://github.com/4gentic/obelus/compare/plugin-v0.1.2...plugin-v0.1.3) (2026-04-23)
 
 
