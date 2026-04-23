@@ -85,7 +85,7 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
 
     if (planNames.length === 0 && scannedPlans.length === 0) {
       throw new Error(
-        `no plan file found under .obelus/; directory contents: ${directoryNames.join(", ") || "(empty)"}`,
+        `Claude finished without writing a plan file under .obelus/. This usually means the spawn prompt reached Claude without the "Run apply-revision" trigger — check the job log. Directory contents: ${directoryNames.join(", ") || "(empty)"}`,
       );
     }
 
@@ -112,8 +112,13 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   if (!picked) {
     const dirSummary =
       directoryNames.length > 0 ? `; .obelus/ contains: ${directoryNames.join(", ")}` : "";
+    const scannedSummary = scannedPlans.join("; ") || "(none)";
+    const wroteAnyPlan = scannedPlans.length > 0;
+    const leadIn = wroteAnyPlan
+      ? `Claude finished but no plan file matched this session's bundle ${sessionBundleBasename}; the plans on disk reference older bundles.`
+      : `Claude finished but wrote no plan file matching bundle ${sessionBundleBasename}. This usually means the spawn prompt reached Claude without the "Run apply-revision" trigger — check the job log.`;
     throw new Error(
-      `no plan matched session bundle ${sessionBundleBasename}; scanned ${scannedPlans.length} plan file(s): ${scannedPlans.join("; ") || "(none)"}${dirSummary}`,
+      `${leadIn} Scanned ${scannedPlans.length} plan file(s): ${scannedSummary}${dirSummary}`,
     );
   }
 

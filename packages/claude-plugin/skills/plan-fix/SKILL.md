@@ -16,7 +16,7 @@ Emit **two** artefacts per run, both under `.obelus/`, both stamped with the **s
 - `.obelus/plan-<iso-timestamp>.md` — human-readable.
 - `.obelus/plan-<iso-timestamp>.json` — machine-readable companion. Consumed by the desktop diff-review UI (the `.md` is still what `apply-fix` reads).
 
-**Pre-flight.** Before composing, ensure `.obelus/` exists. If it does not, create `.obelus/.gitkeep` (empty body) via `Write`. This is cheap and idempotent.
+**Pre-flight.** Before composing, ensure `.obelus/` exists. If it does not, create `.obelus/.gitkeep` (empty body) via `Write`. **Do not use `Bash`** to probe the directory — it is not in this session's allow-list and a denied call forces a re-plan round-trip that users see as a stuck phase label. `Write` creates the parent directory idempotently; just call it. The caller (`apply-revision`) has already emitted `[obelus:phase] preflight`; this skill inherits that label until it emits `[obelus:phase] locating-spans`.
 
 **Use `Write`.** Both files must reach disk via the `Write` tool. If `Write` fails, **stop and report the failure** — do not paste the contents into stdout as a fallback.
 

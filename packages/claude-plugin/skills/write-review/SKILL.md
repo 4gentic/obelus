@@ -19,7 +19,7 @@ The deliverable is a **file**, not stdout text. The desktop app polls the filesy
 1. **Path.** Write to `.obelus/writeup-<paper-id>-<iso-timestamp>.md` relative to the current working directory.
 2. **Timestamp format.** Compact UTC: `YYYYMMDD-HHmmss` — e.g. `20260423-143012`. No colons, no `T`, no `Z`. Generate it once at the start of the run and reuse it.
 3. **Worked example.** For `paper-id = paper-1` at 14:30:12 UTC on 2026-04-23, the path is exactly `.obelus/writeup-paper-1-20260423-143012.md`.
-4. **Pre-flight.** Before composing, ensure `.obelus/` exists. If it does not, create `.obelus/.gitkeep` (empty body) via `Write` to materialise the directory. This is cheap and idempotent.
+4. **Pre-flight.** Before composing, ensure `.obelus/` exists. If it does not, create `.obelus/.gitkeep` (empty body) via `Write` to materialise the directory. This is cheap and idempotent. **Do not use `Bash`** to probe the directory — `Bash` is not in this session's allow-list and a denied call forces a re-plan round-trip that users see as a stuck phase label. `Write` creates the parent directory on its own; just call it.
 5. **Use `Write`.** The review body must reach disk via the `Write` tool. If `Write` fails for any reason, **stop and report the failure** — do **not** paste the body into stdout as a fallback. Stdout is not a substitute for the file.
 6. **Final marker line.** After `Write` succeeds, print exactly one line on stdout in this form, with nothing else on the line:
 

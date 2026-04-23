@@ -20,7 +20,10 @@ This skill delegates the actual planning to `plan-fix`, which writes the plan fi
 
 1. **Plan path.** `.obelus/plan-<iso-timestamp>.md` (human) and `.obelus/plan-<iso-timestamp>.json` (machine), both relative to the current working directory.
 2. **Timestamp format.** Compact UTC: `YYYYMMDD-HHmmss` — e.g. `20260423-143012`. Generate it once and use the same value for both files.
-3. **Pre-flight.** Before invoking `plan-fix`, ensure `.obelus/` exists. If it does not, create `.obelus/.gitkeep` (empty body) via `Write`.
+3. **Pre-flight.** Before invoking `plan-fix`, emit the phase marker and ensure `.obelus/` exists. Two rules:
+
+   - **Emit `[obelus:phase] preflight` on its own line, before any tool call.** Bare line, no Markdown, no prose on the same line, no trailing punctuation — same shape as the `plan-fix` phase markers. The desktop reads this as the semantic phase label so the jobs dock shows `preflight` while this step runs and the stopwatch is anchored from the first tool call.
+   - **Do not use `Bash` to check the directory.** `Bash` is not in this session's allow-list. A denied `Bash` call forces a re-plan round-trip that users see as a multi-minute stuck phase. Just call `Write` with `.obelus/.gitkeep` (empty body); `Write` creates the parent directory idempotently.
 4. **Final marker line.** Once `plan-fix` reports the two paths, print exactly one line on stdout in this form, with nothing else on the line:
 
    ```
