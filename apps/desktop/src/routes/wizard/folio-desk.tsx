@@ -11,7 +11,7 @@ export default function FolioDesk({ desk, onChange, onAdvance, onBack }: Props):
   return (
     <article className="folio">
       <header className="folio__head">
-        <p className="folio__eyebrow">II.</p>
+        <p className="folio__eyebrow">III.</p>
         <h1 className="folio__title">Name the desk.</h1>
       </header>
       <p className="folio__body">Optional. A word to see when you open the app.</p>

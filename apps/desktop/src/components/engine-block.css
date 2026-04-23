@@ -1,0 +1,168 @@
+.engine-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+}
+
+.engine-block + .engine-block {
+  border-top: var(--rule-soft);
+}
+
+.engine-block__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.engine-block__title {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-weight: 500;
+  margin: 0;
+}
+
+.engine-block__chip {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--radius-1);
+  border: 1px solid var(--ink-soft);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.engine-block__chip--managed {
+  color: var(--ink);
+  border-color: var(--ink);
+  background: var(--panel);
+}
+
+.engine-block__chip--system {
+  color: var(--ink-soft);
+  border-color: var(--ink-soft);
+}
+
+.engine-block__chip--none {
+  color: var(--rubric);
+  border-color: var(--rubric);
+}
+
+.engine-block__desc {
+  color: var(--ink-soft);
+  max-width: 60ch;
+  margin: 0;
+}
+
+.engine-block__status {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  margin: 0;
+  word-break: break-all;
+}
+
+.engine-block__unsupported {
+  color: var(--rubric);
+  font-size: var(--step--1);
+  margin: 0;
+}
+
+.engine-block__note {
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  margin: 0;
+  font-style: italic;
+}
+
+.engine-block__actions {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-top: var(--space-1);
+}
+
+.engine-block__btn {
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  color: var(--ink);
+  padding: var(--space-2) 0;
+  background: none;
+  border: none;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  transition: color 120ms linear;
+  cursor: pointer;
+}
+
+.engine-block__btn:hover {
+  color: var(--rubric);
+}
+
+.engine-block__btn:disabled {
+  color: var(--ink-soft);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.engine-block__btn--quiet {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.engine-block__btn--quiet:hover {
+  color: var(--rubric);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.engine-block__progress {
+  position: relative;
+  height: 14px;
+  background: var(--panel);
+  border-radius: var(--radius-1);
+  border: 1px solid var(--ink-soft);
+  overflow: hidden;
+}
+
+.engine-block__progress-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  opacity: 0.85;
+  transition: width 120ms linear;
+}
+
+.engine-block__progress-label {
+  position: relative;
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--paper);
+  text-align: center;
+  line-height: 14px;
+  mix-blend-mode: difference;
+}
+
+.engine-block__error {
+  color: var(--rubric);
+  font-size: var(--step--1);
+  margin: 0;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.engine-block--compact {
+  padding: var(--space-3) 0;
+}
+
+.engine-block--compact .engine-block__desc {
+  font-size: var(--step--1);
+}

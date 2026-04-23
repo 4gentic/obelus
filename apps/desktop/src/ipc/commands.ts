@@ -153,6 +153,7 @@ export function compileTypst(rootId: string, relPath: string): Promise<TypstComp
 export interface LatexCompileReport {
   outputRelPath: string;
   stderr: string;
+  engine: "latexmk" | "tectonic";
 }
 
 export type LatexCompiler = "latexmk" | "pdflatex" | "xelatex";
@@ -163,6 +164,44 @@ export function compileLatex(
   compiler: LatexCompiler,
 ): Promise<LatexCompileReport> {
   return invoke<LatexCompileReport>("compile_latex", { rootId, relPath, compiler });
+}
+
+export type EngineName = "typst" | "tectonic";
+export type EngineKind = "managed" | "system" | "none";
+
+export interface EngineStatus {
+  engine: EngineName;
+  kind: EngineKind;
+  path: string | null;
+  version: string | null;
+  availableVersion: string;
+  platformSupported: boolean;
+}
+
+export function engineStatus(name: EngineName): Promise<EngineStatus> {
+  return invoke<EngineStatus>("engine_status", { name });
+}
+
+export function engineList(): Promise<EngineStatus[]> {
+  return invoke<EngineStatus[]>("engine_list");
+}
+
+export function engineInstall(name: EngineName): Promise<void> {
+  return invoke<void>("engine_install", { name });
+}
+
+export function engineUninstall(name: EngineName): Promise<void> {
+  return invoke<void>("engine_uninstall", { name });
+}
+
+export type EngineProgressStage = "downloading" | "verifying" | "extracting" | "done" | "error";
+
+export interface EngineProgressEvent {
+  engine: EngineName;
+  stage: EngineProgressStage;
+  bytesDone: number | null;
+  bytesTotal: number | null;
+  message: string | null;
 }
 
 export interface HistorySnapshotReport {

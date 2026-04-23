@@ -12,6 +12,7 @@ use commands::{
     claude_user_settings::read_claude_user_settings,
     db_tx::db_tx_batch,
     dialog::{open_folder_picker, open_pdf_picker, open_rubric_picker},
+    engines::{engine_install, engine_list, engine_status, engine_uninstall},
     factory_reset::factory_reset,
     fs_scoped::{
         fs_create_file, fs_list_pdfs, fs_move_path, fs_read_dir, fs_read_file, fs_stat,
@@ -67,6 +68,10 @@ pub fn run() {
             apply_hunks,
             compile_typst,
             compile_latex,
+            engine_status,
+            engine_list,
+            engine_install,
+            engine_uninstall,
             db_tx_batch,
             history_snapshot,
             history_detect_divergence,
