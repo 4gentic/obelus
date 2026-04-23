@@ -74,7 +74,14 @@ pub async fn apply_hunks(
 
         let mut working = current.clone();
         for patch_text in &patches {
-            let patch = diffy::Patch::from_bytes(patch_text.as_bytes())
+            // plan-fix historically emits patches whose last body line lacks a
+            // trailing newline. diffy parses those but then either refuses the
+            // hunk (when the last line is context) or applies it corruptly
+            // (when the last line is an add, silently jamming the insert into
+            // the following source line). A bare `\n` append is a no-op on a
+            // well-formed patch and a fix on a malformed one.
+            let normalized = ensure_trailing_newline(patch_text);
+            let patch = diffy::Patch::from_bytes(normalized.as_bytes())
                 .map_err(|e| AppError::Apply(format!("parse {rel_path}: {e}")))?;
             working = diffy::apply_bytes(&working, &patch)
                 .map_err(|e| AppError::Apply(format!("apply {rel_path}: {e}")))?;
@@ -149,6 +156,64 @@ pub async fn apply_hunks(
 async fn rollback(written: &[(PathBuf, Vec<u8>)]) {
     for (abs, orig) in written {
         let _ = atomic_write(abs, orig).await;
+    }
+}
+
+// Ensure the patch ends with exactly one `\n`. Unified-diff parsers treat a
+// missing terminator as `\ No newline at end of file`, which means the inserted
+// bytes run into the following source line — and for context-terminated hunks,
+// the parser rejects the apply outright.
+fn ensure_trailing_newline(patch: &str) -> std::borrow::Cow<'_, str> {
+    if patch.is_empty() || patch.ends_with('\n') {
+        std::borrow::Cow::Borrowed(patch)
+    } else {
+        std::borrow::Cow::Owned(format!("{patch}\n"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ensure_trailing_newline;
+
+    #[test]
+    fn leaves_well_formed_patches_alone() {
+        let p = "@@ -1 +1 @@\n-foo\n+bar\n";
+        assert!(matches!(ensure_trailing_newline(p), std::borrow::Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn appends_newline_when_missing() {
+        let p = "@@ -1 +1 @@\n-foo\n+bar";
+        let out = ensure_trailing_newline(p);
+        assert!(out.ends_with('\n'));
+        assert_eq!(out.as_ref(), "@@ -1 +1 @@\n-foo\n+bar\n");
+    }
+
+    #[test]
+    fn context_terminated_patch_applies_after_normalization() {
+        // The abstract-patch shape from plan-fix: last body line is context.
+        // Without normalization, diffy rejects hunk #1. With it, the apply
+        // succeeds.
+        let source = "#par[\n  original line.\n]\n";
+        let malformed = "@@ -1,3 +1,3 @@\n #par[\n-  original line.\n+  replaced line.\n ]";
+        let normalized = ensure_trailing_newline(malformed);
+        let patch = diffy::Patch::from_bytes(normalized.as_bytes()).expect("parse");
+        let applied = diffy::apply_bytes(source.as_bytes(), &patch).expect("apply");
+        assert_eq!(String::from_utf8(applied).unwrap(), "#par[\n  replaced line.\n]\n");
+    }
+
+    #[test]
+    fn add_terminated_patch_does_not_jam_next_line_after_normalization() {
+        // The more-examples patch shape: last body line is an add. Without the
+        // trailing newline, diffy "succeeds" but produces corrupt bytes — the
+        // insert jams into the next source line. With the trailing newline the
+        // apply produces the expected output.
+        let source = "line a\nline b\nline c\n";
+        let malformed = "@@ -1,2 +1,3 @@\n line a\n-line b\n+line b1\n+line b2";
+        let normalized = ensure_trailing_newline(malformed);
+        let patch = diffy::Patch::from_bytes(normalized.as_bytes()).expect("parse");
+        let applied = diffy::apply_bytes(source.as_bytes(), &patch).expect("apply");
+        assert_eq!(String::from_utf8(applied).unwrap(), "line a\nline b1\nline b2\nline c\n");
     }
 }
 
