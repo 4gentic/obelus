@@ -1,4 +1,5 @@
 import type { Category } from "@obelus/bundle-schema";
+import { descriptionFor } from "@obelus/categories";
 import type { AnnotationRow } from "@obelus/repo";
 import "./MarginNote.css";
 
@@ -18,6 +19,9 @@ const categoryVar: Record<Category, string> = {
   "citation-needed": "--hl-cite",
   rephrase: "--hl-rephrase",
   praise: "--hl-praise",
+  enhancement: "--hl-enhancement",
+  aside: "--hl-aside",
+  flag: "--hl-flag",
 };
 
 const categoryLabel: Record<Category, string> = {
@@ -27,6 +31,9 @@ const categoryLabel: Record<Category, string> = {
   "citation-needed": "citation needed",
   rephrase: "rephrase",
   praise: "praise",
+  enhancement: "enhancement",
+  aside: "aside",
+  flag: "flag",
 };
 
 function isCategory(value: string): value is Category {
@@ -46,7 +53,9 @@ export default function MarginNote({ annotation, top, onSelect, onRef }: Props):
       onClick={() => onSelect?.(annotation.id)}
       ref={(el) => onRef?.(annotation.id, el)}
     >
-      <span className="margin-note__chip">{categoryLabel[cat]}</span>
+      <span className="margin-note__chip cat-tooltip" data-cat-tooltip={descriptionFor(cat)}>
+        {categoryLabel[cat]}
+      </span>
       <span className="margin-note__body">
         {annotation.note.length > 0 ? annotation.note : <em>(no note)</em>}
       </span>

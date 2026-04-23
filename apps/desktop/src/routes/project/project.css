@@ -777,6 +777,15 @@ button.files__row {
 .pdf-hl[data-category="rephrase"] {
   --hl-color: var(--hl-rephrase);
 }
+.pdf-hl[data-category="enhancement"] {
+  --hl-color: var(--hl-enhancement);
+}
+.pdf-hl[data-category="aside"] {
+  --hl-color: var(--hl-aside);
+}
+.pdf-hl[data-category="flag"] {
+  --hl-color: var(--hl-flag);
+}
 
 .pdf-hl--draft {
   background: color-mix(in srgb, var(--hl-color) 20%, transparent);
@@ -1578,6 +1587,41 @@ button.files__row {
   cursor: pointer;
   user-select: none;
   --chip-accent: var(--ink-soft);
+}
+
+/* Hover description for category chips. Highlights themselves are
+   pointer-events:none to keep PDF text selection alive, so the tooltip
+   lives on the adjacent chip in the picker and the margin gutter. */
+.cat-tooltip {
+  position: relative;
+}
+
+.cat-tooltip[data-cat-tooltip]::after {
+  content: attr(data-cat-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  max-width: 260px;
+  width: max-content;
+  padding: var(--space-2) var(--space-3);
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--radius-1);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  font-style: italic;
+  line-height: 1.4;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 100;
+  transition: opacity 120ms ease 400ms;
+}
+
+.cat-tooltip[data-cat-tooltip]:hover::after,
+.cat-tooltip[data-cat-tooltip]:focus-visible::after {
+  opacity: 1;
 }
 
 .category-chip input {

@@ -35,6 +35,12 @@ function phraseFor(category: string): string {
       return "reshaped sentences";
     case "praise":
       return "kept praised passages";
+    case "enhancement":
+      return "proposed enhancements";
+    case "aside":
+      return "added asides";
+    case "flag":
+      return "flagged passages";
     default:
       return category;
   }

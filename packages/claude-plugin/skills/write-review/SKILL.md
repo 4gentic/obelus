@@ -64,6 +64,9 @@ The deliverable is a **file**, not stdout text. The desktop app polls the filesy
 | `unclear` | Major comments (default); Minor only for a local-phrasing complaint |
 | `rephrase` | Minor comments |
 | `citation-needed` | Minor comments |
+| `enhancement` | Major comments (forward-looking suggestion — an opportunity, not a defect) |
+| `aside` | Minor comments (may be omitted if nothing actionable surfaces) |
+| `flag` | Minor comments (may be omitted if nothing actionable surfaces) |
 | *(anything else)* | Minor comments |
 <!-- /@prompts:category-map -->
 

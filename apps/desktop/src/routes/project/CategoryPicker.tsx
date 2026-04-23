@@ -26,8 +26,9 @@ export default function CategoryPicker({
         {DEFAULT_CATEGORIES.map((c) => (
           <label
             key={c.id}
-            className={`category-chip${value === c.id ? " category-chip--on" : ""}`}
+            className={`category-chip cat-tooltip${value === c.id ? " category-chip--on" : ""}`}
             style={{ ["--chip-accent" as string]: `var(${c.tokenVar})` }}
+            data-cat-tooltip={c.description}
           >
             <input
               type="radio"
