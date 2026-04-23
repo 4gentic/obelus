@@ -86,6 +86,13 @@ export function fsWriteText(rootId: string, relPath: string, body: string): Prom
   return invoke<void>("fs_write_text", { rootId, relPath, body });
 }
 
+// Creates a new empty file. Rejects with the AppError::AlreadyExists string
+// ("file already exists") if a file already lives at relPath; callers can
+// match on the message to render an inline error.
+export function fsCreateFile(rootId: string, relPath: string): Promise<void> {
+  return invoke<void>("fs_create_file", { rootId, relPath });
+}
+
 // Writes text to an absolute path the user picked via the native save dialog.
 // Bypasses the project-root scope of `fs_write_text`; the dialog is the trust
 // boundary. The Rust side rejects non-absolute paths.
