@@ -13,6 +13,9 @@ const V1_CATEGORY_LABELS: Record<Category, string> = {
   "citation-needed": "citation needed",
   rephrase: "rephrase",
   praise: "praise",
+  enhancement: "enhancement",
+  aside: "aside",
+  flag: "flag",
 };
 
 /**

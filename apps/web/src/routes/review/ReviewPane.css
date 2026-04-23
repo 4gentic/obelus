@@ -316,6 +316,26 @@
   color: var(--rubric);
 }
 
+.review-pane__item .catpick__legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.review-pane__item .catpick {
+  gap: var(--space-1);
+}
+
+.review-pane__item .catpick__chip {
+  padding: 2px var(--space-2);
+}
+
 .review-pane__item-quotes {
   display: flex;
   flex-direction: column;

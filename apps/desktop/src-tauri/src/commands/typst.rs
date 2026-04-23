@@ -4,13 +4,13 @@
 // reviewer's PDF viewer is almost always already pointing at that sibling
 // path, so a successful compile overwrites the file they're reviewing.
 
+use crate::commands::engines::resolve_engine;
 use crate::commands::fs_scoped::{atomic_write, is_descendant, resolve, resolve_for_write, root_path_for};
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 use serde::Serialize;
-use std::path::PathBuf;
 use std::process::Stdio;
-use tauri::State;
+use tauri::{AppHandle, State};
 use tokio::process::Command;
 
 #[derive(Serialize, Debug)]
@@ -28,18 +28,18 @@ fn pdf_rel_for(source_rel: &str) -> String {
     }
 }
 
-fn locate_typst() -> Option<PathBuf> {
-    which::which("typst").ok()
-}
-
 #[tauri::command]
 pub async fn compile_typst(
+    app: AppHandle,
     root_id: String,
     rel_path: String,
     state: State<'_, AppState>,
 ) -> AppResult<TypstCompileReport> {
-    let typst = locate_typst()
-        .ok_or_else(|| AppError::Other("typst binary not found on PATH".into()))?;
+    let typst = resolve_engine(&app, "typst").ok_or_else(|| {
+        AppError::Other(
+            "typst is not installed — install it from Settings → Engines or put it on PATH".into(),
+        )
+    })?;
 
     let input_abs = resolve(&root_id, &rel_path, &state)?;
     let root_abs = root_path_for(&root_id, &state)?;

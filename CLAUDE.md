@@ -6,7 +6,7 @@ Writing AI-assisted papers is cheap; reviewing them is the work. Obelus is an of
 
 ## Non-negotiable invariants
 
-1. **Offline-first, no runtime network** — zero network calls at runtime. No telemetry, no analytics, no CDN, no Google Fonts.
+1. **Offline-first, no runtime network** — zero network calls at runtime. No telemetry, no analytics, no CDN, no Google Fonts. *Exception:* the user-triggered `engine_install` flow fetches pinned tarballs from the engines' official GitHub Releases (Typst, Tectonic). No implicit, automatic, or background network activity; no silent updates. The choice is the user's and the download is visible.
 2. **Paper bytes never leave the device** — PDFs live in OPFS, annotations in IndexedDB via Dexie. `navigator.storage.persist()` is called on first write.
 3. **Format-agnostic handoff** — the review bundle is a JSON contract; the Claude Code plugin detects source format (`.tex` / `.md` / `.typ`) at run time.
 4. **Pristine, OSS-readable code** — the repo is itself a document. Biome clean, strict TS, no dead flags, no backwards-compat shims.
@@ -87,6 +87,10 @@ docs/marketing/     Twitter / LinkedIn / HN copy, all tracked in-repo.
 - `pnpm dev:desktop` — run the Tauri desktop app (compiles Rust first pass).
 - `pnpm verify` — lint, typecheck, test, network-guard, build.
 - `pnpm guard:network` — grep for forbidden network-call strings anywhere in the web or desktop app. Fails CI if any hit.
+
+## Managed engines
+
+Typst and Tectonic (the LaTeX fallback) can be installed by the app itself into `<app_data>/bin/` via the Wizard's **II.** folio or **Settings → Compile engines**. Resolution order at compile time: managed install → PATH. The install flow lives under `apps/desktop/src-tauri/src/commands/engines/`; pinned versions and per-platform URLs are in `docs/pinned-engines.md`.
 
 ## Storage changes need a migration
 

@@ -121,12 +121,24 @@ export function fsStat(rootId: string, relPath: string): Promise<FsStat> {
   return invoke<FsStat>("fs_stat", { rootId, relPath });
 }
 
+export interface HunkFailure {
+  file: string;
+  index: number;
+  reason: string;
+}
+
+export interface ApplyReport {
+  filesWritten: number;
+  hunksApplied: number;
+  hunksFailed: HunkFailure[];
+}
+
 export async function applyHunks(args: {
   rootId: string;
   sessionId: string;
   hunks: Array<{ file: string; patch: string }>;
-}): Promise<{ filesWritten: number; hunksApplied: number }> {
-  return invoke<{ filesWritten: number; hunksApplied: number }>("apply_hunks", args);
+}): Promise<ApplyReport> {
+  return invoke<ApplyReport>("apply_hunks", args);
 }
 
 export interface TypstCompileReport {
@@ -136,6 +148,60 @@ export interface TypstCompileReport {
 
 export function compileTypst(rootId: string, relPath: string): Promise<TypstCompileReport> {
   return invoke<TypstCompileReport>("compile_typst", { rootId, relPath });
+}
+
+export interface LatexCompileReport {
+  outputRelPath: string;
+  stderr: string;
+  engine: "latexmk" | "tectonic";
+}
+
+export type LatexCompiler = "latexmk" | "pdflatex" | "xelatex";
+
+export function compileLatex(
+  rootId: string,
+  relPath: string,
+  compiler: LatexCompiler,
+): Promise<LatexCompileReport> {
+  return invoke<LatexCompileReport>("compile_latex", { rootId, relPath, compiler });
+}
+
+export type EngineName = "typst" | "tectonic";
+export type EngineKind = "managed" | "system" | "none";
+
+export interface EngineStatus {
+  engine: EngineName;
+  kind: EngineKind;
+  path: string | null;
+  version: string | null;
+  availableVersion: string;
+  platformSupported: boolean;
+}
+
+export function engineStatus(name: EngineName): Promise<EngineStatus> {
+  return invoke<EngineStatus>("engine_status", { name });
+}
+
+export function engineList(): Promise<EngineStatus[]> {
+  return invoke<EngineStatus[]>("engine_list");
+}
+
+export function engineInstall(name: EngineName): Promise<void> {
+  return invoke<void>("engine_install", { name });
+}
+
+export function engineUninstall(name: EngineName): Promise<void> {
+  return invoke<void>("engine_uninstall", { name });
+}
+
+export type EngineProgressStage = "downloading" | "verifying" | "extracting" | "done" | "error";
+
+export interface EngineProgressEvent {
+  engine: EngineName;
+  stage: EngineProgressStage;
+  bytesDone: number | null;
+  bytesTotal: number | null;
+  message: string | null;
 }
 
 export interface HistorySnapshotReport {

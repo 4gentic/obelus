@@ -16,7 +16,7 @@ export interface ClaudeDetectCache {
 }
 
 export interface WizardCheckpoint {
-  folio: 1 | 2 | 3 | "done";
+  folio: 1 | 2 | 3 | 4 | "done";
   seenOnce: boolean;
 }
 

@@ -292,6 +292,7 @@ export default function DiffReview(props: Props): JSX.Element {
     acceptedTotal > 0 &&
     applyStatus.kind !== "applying" &&
     applyStatus.kind !== "applied" &&
+    applyStatus.kind !== "partial" &&
     !runnerBusy;
 
   return (
@@ -385,18 +386,38 @@ export default function DiffReview(props: Props): JSX.Element {
           sent anywhere.
         </p>
       )}
+      {applyStatus.kind === "partial" && (
+        <div className="diff-review__banner diff-review__banner--warn diff-review__banner--partial">
+          <p>
+            Applied {applyStatus.hunksApplied} of{" "}
+            {applyStatus.hunksApplied + applyStatus.hunksFailed.length}.{" "}
+            {applyStatus.hunksFailed.length} could not apply against the current source — the chips
+            below name each failure. Edit manually in place, or dismiss the failures to close this
+            review.
+          </p>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void store.getState().dismissApplyFailures()}
+          >
+            dismiss failed changes
+          </button>
+        </div>
+      )}
       {applyStatus.kind === "error" && (
         <p className="diff-review__banner diff-review__banner--err">{applyStatus.message}</p>
       )}
       {applyStatus.kind === "applying" && <p className="diff-review__banner">Applying…</p>}
       <CompileStatusBanner status={compileStatus} />
-      {applyStatus.kind !== "applied" && props.forkInfo !== null && (
-        <p className="diff-review__banner diff-review__banner--warn">
-          You're viewing Draft {props.forkInfo.currentDraftOrdinal}. Applying forks the history —
-          Draft{props.forkInfo.orphanedOrdinals.length === 1 ? "" : "s"}{" "}
-          {props.forkInfo.orphanedOrdinals.join(", ")} stay as an alternate branch.
-        </p>
-      )}
+      {applyStatus.kind !== "applied" &&
+        applyStatus.kind !== "partial" &&
+        props.forkInfo !== null && (
+          <p className="diff-review__banner diff-review__banner--warn">
+            You're viewing Draft {props.forkInfo.currentDraftOrdinal}. Applying forks the history —
+            Draft{props.forkInfo.orphanedOrdinals.length === 1 ? "" : "s"}{" "}
+            {props.forkInfo.orphanedOrdinals.join(", ")} stay as an alternate branch.
+          </p>
+        )}
 
       <section className="diff-review__list">
         {visibleHunks.map((h) => {

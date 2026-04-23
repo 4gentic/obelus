@@ -13,6 +13,18 @@ export const CATEGORY_MAP: ReadonlyArray<CategoryDestination> = [
   },
   { category: "`rephrase`", destination: "Minor comments" },
   { category: "`citation-needed`", destination: "Minor comments" },
+  {
+    category: "`enhancement`",
+    destination: "Major comments (forward-looking suggestion — an opportunity, not a defect)",
+  },
+  {
+    category: "`aside`",
+    destination: "Minor comments (may be omitted if nothing actionable surfaces)",
+  },
+  {
+    category: "`flag`",
+    destination: "Minor comments (may be omitted if nothing actionable surfaces)",
+  },
   { category: "*(anything else)*", destination: "Minor comments" },
 ];
 

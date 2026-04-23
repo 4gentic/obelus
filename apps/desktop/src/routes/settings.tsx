@@ -2,6 +2,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useEffect, useState } from "react";
 import { readClaudeStatus } from "../boot/detect";
+import EngineBlock from "../components/engine-block";
 import type { ClaudeStatus } from "../ipc/commands";
 import { factoryReset, wizardReset } from "../lib/reset";
 import { checkForUpdate, downloadAndInstall, type UpdaterState } from "../lib/updater";
@@ -112,6 +113,16 @@ export default function Settings(): JSX.Element {
       </article>
 
       <ClaudeConfigBlock />
+
+      <article className="settings__block">
+        <h2 className="settings__block-title">Compile engines</h2>
+        <p className="settings__body">
+          Install a compile engine managed by Obelus, or rely on a system-installed one. Obelus
+          prefers a managed install so paper rendering doesn't depend on what's on your PATH.
+        </p>
+        <EngineBlock engine="typst" />
+        <EngineBlock engine="tectonic" />
+      </article>
 
       <article className="settings__block">
         <h2 className="settings__block-title">Updates</h2>

@@ -130,19 +130,27 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
       if (!revisionId) return;
       const current = get().annotations.find((a) => a.id === id);
       if (!current) return;
+      if (current.resolvedInEditId !== undefined) return;
+
       const next: AnnotationRow = { ...current, ...patch, id, revisionId };
-      if (patch.note !== undefined && current.groupId) {
+
+      const mirrored: Partial<Pick<AnnotationRow, "note" | "category">> = {};
+      if (patch.note !== undefined) mirrored.note = patch.note;
+      if (patch.category !== undefined) mirrored.category = patch.category;
+
+      if (current.groupId && Object.keys(mirrored).length > 0) {
         const groupId = current.groupId;
         const siblings = get().annotations.filter((a) => a.groupId === groupId);
-        const mirrored = siblings.map((s) => ({ ...s, note: patch.note ?? "" }));
-        await repo.bulkPut(revisionId, mirrored);
+        const updatedSiblings = siblings.map((s) => ({ ...s, ...mirrored }));
+        await repo.bulkPut(revisionId, updatedSiblings);
         set({
           annotations: get().annotations.map((a) =>
-            a.groupId === groupId ? { ...a, note: patch.note ?? "" } : a,
+            a.groupId === groupId ? { ...a, ...mirrored } : a,
           ),
         });
         return;
       }
+
       await repo.bulkPut(revisionId, [next]);
       set({
         annotations: get().annotations.map((a) => (a.id === id ? next : a)),

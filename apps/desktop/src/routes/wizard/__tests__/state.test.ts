@@ -27,20 +27,24 @@ describe("wizardReducer", () => {
     expect(next.folio).toBe(1);
   });
 
-  it("ADVANCE walks 1 → 2 → 3 → done and stops there", () => {
+  it("ADVANCE walks 1 → 2 → 3 → 4 → done and stops there", () => {
     let s = initialWizardState;
     s = wizardReducer(s, { type: "ADVANCE" });
     expect(s.folio).toBe(2);
     s = wizardReducer(s, { type: "ADVANCE" });
     expect(s.folio).toBe(3);
     s = wizardReducer(s, { type: "ADVANCE" });
+    expect(s.folio).toBe(4);
+    s = wizardReducer(s, { type: "ADVANCE" });
     expect(s.folio).toBe("done");
     s = wizardReducer(s, { type: "ADVANCE" });
     expect(s.folio).toBe("done");
   });
 
-  it("BACK from 3 goes to 2, from 2 to 1, stays at 1", () => {
-    let s: typeof initialWizardState = { ...initialWizardState, folio: 3 };
+  it("BACK walks 4 → 3 → 2 → 1, stays at 1", () => {
+    let s: typeof initialWizardState = { ...initialWizardState, folio: 4 };
+    s = wizardReducer(s, { type: "BACK" });
+    expect(s.folio).toBe(3);
     s = wizardReducer(s, { type: "BACK" });
     expect(s.folio).toBe(2);
     s = wizardReducer(s, { type: "BACK" });
@@ -85,9 +89,9 @@ describe("wizardReducer", () => {
     expect(s.folio).toBe("done");
   });
 
-  it("add-mode starts at folio 3 with no desk name set", () => {
-    const s = makeInitialWizardState(3);
-    expect(s.folio).toBe(3);
+  it("add-mode starts at folio 4 with no desk name set", () => {
+    const s = makeInitialWizardState(4);
+    expect(s.folio).toBe(4);
     expect(s.desk).toBeUndefined();
   });
 });

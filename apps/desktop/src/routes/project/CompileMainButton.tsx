@@ -1,6 +1,12 @@
 import type { JSX } from "react";
 import { useState } from "react";
-import { compileTypst } from "../../ipc/commands";
+import {
+  compileLatex,
+  compileTypst,
+  type LatexCompileReport,
+  type LatexCompiler,
+  type TypstCompileReport,
+} from "../../ipc/commands";
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
 import { usePaperBuild } from "./use-paper-build";
@@ -11,11 +17,12 @@ type CompileState =
   | { kind: "done"; outputRelPath: string }
   | { kind: "error"; message: string };
 
+const LATEX_COMPILERS = new Set<string>(["latexmk", "pdflatex", "xelatex"]);
+
 // Surfaces the "compile whatever you usually compile" affordance from any
 // source file: resolves the main file via the open paper's paper_build row and
-// dispatches to the appropriate compiler. LaTeX/Pandoc are recognised but
-// intentionally unwired in this pass — we surface an actionable hint instead
-// of a silent no-op.
+// dispatches to the appropriate compiler. Pandoc is still unwired — we surface
+// an actionable hint instead of a silent no-op.
 export default function CompileMainButton(): JSX.Element | null {
   const { repo, rootId, setOpenFilePath } = useProject();
   const paperId = usePaperId();
@@ -30,19 +37,19 @@ export default function CompileMainButton(): JSX.Element | null {
     if (!build.mainRelPath || !build.compiler) return;
     setState({ kind: "compiling" });
     try {
-      if (build.compiler !== "typst") {
+      const report = await runCompile(rootId, build.mainRelPath, build.compiler);
+      if (report === null) {
         setState({
           kind: "error",
-          message: `${build.compiler} compile is not wired yet — install typst or set the main file to a .typ for now.`,
+          message: `${build.compiler} compile is not wired yet — install typst/latexmk or set the main file to a supported format.`,
         });
         return;
       }
-      const report = await compileTypst(rootId, build.mainRelPath);
       setState({ kind: "done", outputRelPath: report.outputRelPath });
       // Reload (same path, freshly-written bytes) when we were already viewing
       // the compile target — OpenPaper's useEffect only refires on a path
       // change, so null-then-restore is the way to re-read the PDF. When the
-      // user was on a different file (e.g. the source `.typ`), this swaps
+      // user was on a different file (e.g. the source `.tex`), this swaps
       // them over to the fresh PDF, which is what they pressed the button for.
       setOpenFilePath(null);
       requestAnimationFrame(() => setOpenFilePath(report.outputRelPath));
@@ -71,6 +78,20 @@ export default function CompileMainButton(): JSX.Element | null {
       {state.kind === "error" && <span className="compile-main__err">{state.message}</span>}
     </div>
   );
+}
+
+async function runCompile(
+  rootId: string,
+  mainRelPath: string,
+  compiler: string,
+): Promise<TypstCompileReport | LatexCompileReport | null> {
+  if (compiler === "typst") {
+    return compileTypst(rootId, mainRelPath);
+  }
+  if (LATEX_COMPILERS.has(compiler)) {
+    return compileLatex(rootId, mainRelPath, compiler as LatexCompiler);
+  }
+  return null;
 }
 
 function shortLabel(rel: string): string {

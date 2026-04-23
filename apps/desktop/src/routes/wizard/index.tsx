@@ -4,6 +4,7 @@ import { readClaudeStatus } from "../../boot/detect";
 import { getRepository } from "../../lib/repo";
 import { getAppState, setAppState } from "../../store/app-state";
 import FolioDesk from "./folio-desk";
+import FolioEngines from "./folio-engines";
 import FolioMachinist from "./folio-machinist";
 import FolioProject from "./folio-project";
 import FolioRenderHint from "./folio-render-hint";
@@ -15,7 +16,7 @@ export default function Wizard(): JSX.Element {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const addMode = searchParams.get("add") === "1";
-  const initial = useMemo(() => makeInitialWizardState(addMode ? 3 : 1), [addMode]);
+  const initial = useMemo(() => makeInitialWizardState(addMode ? 4 : 1), [addMode]);
   const [state, dispatch] = useReducer(wizardReducer, initial);
   const loaded = useRef(false);
 
@@ -32,11 +33,8 @@ export default function Wizard(): JSX.Element {
       const saved = await getAppState("wizard");
       if (!cancelled && saved && saved.folio !== "done") {
         // Resume at the saved folio by replaying ADVANCE until we reach it.
-        if (saved.folio === 2) dispatch({ type: "ADVANCE" });
-        if (saved.folio === 3) {
-          dispatch({ type: "ADVANCE" });
-          dispatch({ type: "ADVANCE" });
-        }
+        const steps = typeof saved.folio === "number" ? saved.folio - 1 : 0;
+        for (let i = 0; i < steps; i++) dispatch({ type: "ADVANCE" });
       }
       loaded.current = true;
       const status = await readClaudeStatus();
@@ -115,6 +113,12 @@ export default function Wizard(): JSX.Element {
           />
         ) : null}
         {state.folio === 2 ? (
+          <FolioEngines
+            onAdvance={() => dispatch({ type: "ADVANCE" })}
+            onBack={() => dispatch({ type: "BACK" })}
+          />
+        ) : null}
+        {state.folio === 3 ? (
           <FolioDesk
             desk={state.desk ?? ""}
             onChange={(desk) => dispatch({ type: "SET_DESK", desk })}
@@ -122,7 +126,7 @@ export default function Wizard(): JSX.Element {
             onBack={() => dispatch({ type: "BACK" })}
           />
         ) : null}
-        {state.folio === 3 ? (
+        {state.folio === 4 ? (
           state.project && state.project.kind === "writer" ? (
             <FolioRenderHint
               label={state.project.label}

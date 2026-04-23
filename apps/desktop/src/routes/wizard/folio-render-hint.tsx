@@ -12,7 +12,7 @@ export default function FolioRenderHint({ label, firstProject, onFinish }: Props
   return (
     <article className="folio">
       <header className="folio__head">
-        <p className="folio__eyebrow">III.</p>
+        <p className="folio__eyebrow">IV.</p>
         <h1 className="folio__title">The desk is set.</h1>
       </header>
       <p className="folio__body">

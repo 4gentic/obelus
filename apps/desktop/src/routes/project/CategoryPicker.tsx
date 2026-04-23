@@ -4,6 +4,7 @@ import type { JSX } from "react";
 interface Props {
   value: string | null;
   onChange: (slug: string) => void;
+  name?: string;
   invalid?: boolean;
   errorId?: string;
 }
@@ -11,6 +12,7 @@ interface Props {
 export default function CategoryPicker({
   value,
   onChange,
+  name = "category",
   invalid = false,
   errorId,
 }: Props): JSX.Element {
@@ -26,12 +28,13 @@ export default function CategoryPicker({
         {DEFAULT_CATEGORIES.map((c) => (
           <label
             key={c.id}
-            className={`category-chip${value === c.id ? " category-chip--on" : ""}`}
+            className={`category-chip cat-tooltip${value === c.id ? " category-chip--on" : ""}`}
             style={{ ["--chip-accent" as string]: `var(${c.tokenVar})` }}
+            data-cat-tooltip={c.description}
           >
             <input
               type="radio"
-              name="category"
+              name={name}
               value={c.id}
               checked={value === c.id}
               onChange={() => onChange(c.id)}
