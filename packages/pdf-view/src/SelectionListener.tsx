@@ -9,8 +9,10 @@
 import {
   type Anchor,
   type EndpointSnapshot,
+  findItemIndex,
   normalizeQuote,
   type PageSnapshot,
+  pageIndexOf,
   planPage,
   resolveEndpointToAnchor,
   snapshotEndpoint,
@@ -55,6 +57,26 @@ function pagesForBand(
     .map(([index, el]) => ({ index, el }));
 }
 
+// Ask the browser where the caret would land at (x, y). This is authoritative
+// for character offsets because it uses the real glyph advances of whatever
+// font pdfjs chose for the span — variable-width in the general case, so the
+// proportional `(x - left) / width * len` math below is wrong by up to a few
+// characters and chops the head/tail off selections.
+function caretFromPoint(x: number, y: number): { node: Node; offset: number } | null {
+  if (typeof document.caretRangeFromPoint === "function") {
+    const r = document.caretRangeFromPoint(x, y);
+    if (r) return { node: r.startContainer, offset: r.startOffset };
+  }
+  const moz = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+  };
+  if (typeof moz.caretPositionFromPoint === "function") {
+    const p = moz.caretPositionFromPoint(x, y);
+    if (p) return { node: p.offsetNode, offset: p.offset };
+  }
+  return null;
+}
+
 // Geometric fallback for an endpoint whose Range container lost its
 // `data-item-index`. Happens when the user releases between sibling spans —
 // pdfjs positions spans absolutely with small kerning gaps, so a release in
@@ -63,6 +85,18 @@ function pagesForBand(
 // back to the y-band's last intersected item and widens the selection to the
 // end of the visual line.
 function fallbackFromPoint(host: HTMLElement, x: number, y: number): EndpointSnapshot | null {
+  // Fast path: when the point lands directly on a text-layer span, the browser
+  // gives us a character-exact offset from real font metrics. The proportional
+  // math below only runs for points that fall in kerning gaps or past line end.
+  const caret = caretFromPoint(x, y);
+  if (caret && host.contains(caret.node)) {
+    const hitPage = pageIndexOf(caret.node);
+    const hitItem = findItemIndex(caret.node);
+    if (hitPage !== null && hitItem !== null) {
+      return { pageIndex: hitPage, itemIndex: hitItem, offset: caret.offset };
+    }
+  }
+
   let pageEl: HTMLElement | null = null;
   let pageIndex: number | null = null;
   for (const el of host.querySelectorAll<HTMLElement>("[data-page-index]")) {

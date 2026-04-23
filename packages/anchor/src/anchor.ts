@@ -6,7 +6,7 @@ import type { Anchor } from "./types";
 // nodes (which are usually text nodes inside a span) to find it.
 const ITEM_INDEX_ATTR = "data-item-index";
 
-function findItemIndex(node: Node | null): number | null {
+export function findItemIndex(node: Node | null): number | null {
   let current: Node | null = node;
   while (current) {
     if (current.nodeType === Node.ELEMENT_NODE) {
