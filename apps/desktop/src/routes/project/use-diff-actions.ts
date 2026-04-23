@@ -92,6 +92,7 @@ export function useDiffActions(): DiffActions {
     const toApply = hunks.filter((h) => h.state === "accepted" || h.state === "modified");
     if (toApply.length === 0) return;
     state.setApplyStatus({ kind: "applying" });
+    let stage: "baseline" | "parent-edit" | "apply-hunks" | "snapshot" | "post-apply" = "baseline";
     try {
       // Baseline captures the pre-pass tree so "restore what I started with"
       // works on a paper's first AI pass.
@@ -100,6 +101,7 @@ export function useDiffActions(): DiffActions {
       // draft the user is viewing, not the DAG's head. If these differ,
       // snapshotAfterApply will introduce a second live leaf (a branch) and
       // the existing DAG tail sticks around as an alternate.
+      stage = "parent-edit";
       const parentId = currentDraft?.id;
       const parentEdit = parentId
         ? await repo.paperEdits.get(parentId)
@@ -111,7 +113,9 @@ export function useDiffActions(): DiffActions {
       const payload = toApply
         .filter((h) => h.file !== "" && effectivePatch(h) !== "")
         .map((h) => ({ file: h.file, patch: effectivePatch(h) }));
+      stage = "apply-hunks";
       const report = await applyHunks({ rootId, sessionId, hunks: payload });
+      stage = "snapshot";
 
       const draft = await snapshotAfterApply({
         repo,
@@ -122,6 +126,7 @@ export function useDiffActions(): DiffActions {
         parentEdit,
         landedHunks: toApply,
       });
+      stage = "post-apply";
 
       // Working tree now matches the new draft. Keep the stored cursor in sync
       // so DraftsRail highlights the right chip and future divergence checks
@@ -195,10 +200,23 @@ export function useDiffActions(): DiffActions {
         }
       });
     } catch (err) {
-      state.setApplyStatus({
-        kind: "error",
-        message: err instanceof Error ? err.message : "Apply failed.",
-      });
+      const detail =
+        err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+      // Tauri command errors arrive as plain strings (see AppError Serialize
+      // impl in apps/desktop/src-tauri/src/error.rs) — without stringifying
+      // the non-Error branch the banner would collapse to a generic "Apply
+      // failed." and the user would have no way to tell a context-mismatch
+      // from a missing-root from a malformed patch.
+      const stageLabel: Record<typeof stage, string> = {
+        baseline: "while capturing the pre-pass baseline",
+        "parent-edit": "while resolving the parent draft",
+        "apply-hunks": "while applying hunks to source files",
+        snapshot: "while snapshotting the new draft",
+        "post-apply": "after the new draft landed (compile/refresh step)",
+      };
+      const message = `Apply failed ${stageLabel[stage]}: ${detail}`;
+      console.warn("[apply]", { sessionId, paperId, stage, detail });
+      state.setApplyStatus({ kind: "error", message });
     }
   }, [
     repo,
@@ -257,10 +275,10 @@ export function useDiffActions(): DiffActions {
       });
       state.clear();
     } catch (err) {
-      state.setApplyStatus({
-        kind: "error",
-        message: err instanceof Error ? err.message : "Could not discard review.",
-      });
+      const detail =
+        err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+      console.warn("[discard]", { sessionId, detail });
+      state.setApplyStatus({ kind: "error", message: `Could not discard review: ${detail}` });
     }
   }, [repo, store]);
 

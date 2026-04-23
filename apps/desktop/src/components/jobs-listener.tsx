@@ -190,11 +190,12 @@ async function handleExit(
       );
     }
   } catch (err) {
-    console.warn("[ingest]", { sessionId, kind: job.kind, err });
-    const msg = err instanceof Error ? err.message : "Could not ingest output.";
-    store.markError(sessionId, msg);
+    const detail =
+      err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+    console.warn("[ingest]", { sessionId, kind: job.kind, detail });
+    store.markError(sessionId, detail);
     if (reviewSessionId) {
-      await markReviewStatus(reviewSessionId, "failed", msg);
+      await markReviewStatus(reviewSessionId, "failed", detail);
     }
   } finally {
     clearSession(sessionId);

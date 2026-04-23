@@ -290,7 +290,10 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         setLocal({ kind: "idle" });
       } catch (err) {
         progressStore.getState().reset();
-        const message = err instanceof Error ? err.message : "Could not start review.";
+        const detail =
+          err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+        const message = `Could not start review: ${detail}`;
+        console.warn("[review-start]", { paperId, sessionId: createdSessionId, detail });
         if (createdSessionId !== null) {
           await repo.reviewSessions.setStatus(createdSessionId, "failed", message);
           console.info("[review-session]", {
