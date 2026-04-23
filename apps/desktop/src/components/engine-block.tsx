@@ -202,11 +202,7 @@ export default function EngineBlock(props: EngineBlockProps): JSX.Element {
           </>
         )}
         {status?.kind !== "managed" && status?.platformSupported && !isInstalling && (
-          <button
-            type="button"
-            className="engine-block__btn"
-            onClick={() => void handleInstall()}
-          >
+          <button type="button" className="engine-block__btn" onClick={() => void handleInstall()}>
             {status?.kind === "system" ? "Install managed copy" : "Install"}
           </button>
         )}
