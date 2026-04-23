@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { type JobRecord, useJobsStore } from "../lib/jobs-store";
 import { emitOpenFile } from "../lib/open-file-event";
 import { getRepository } from "../lib/repo";
+import { useInlineConfirm } from "../routes/project/use-inline-confirm";
 import "./jobs-dock.css";
 
 export default function JobsDock(): JSX.Element | null {
@@ -140,8 +141,9 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
   const navigate = useNavigate();
   const live = isLive(job);
   const title = job.kind === "writeup" ? (job.paperTitle ?? job.projectLabel) : job.projectLabel;
+  const cancelConfirm = useInlineConfirm();
 
-  const handleCancel = useCallback(async (): Promise<void> => {
+  const runCancel = useCallback(async (): Promise<void> => {
     try {
       await claudeCancel(job.claudeSessionId);
     } catch {
@@ -149,6 +151,14 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
       // exit event will still arrive and mark the job cancelled/errored.
     }
   }, [job.claudeSessionId]);
+
+  const handleCancelClick = useCallback((): void => {
+    if (cancelConfirm.armed) {
+      void cancelConfirm.confirm(runCancel);
+    } else {
+      cancelConfirm.arm();
+    }
+  }, [cancelConfirm, runCancel]);
 
   const handleOpen = useCallback(async (): Promise<void> => {
     let paperRelPath: string | null = null;
@@ -179,6 +189,14 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
       className={`jobs-dock__panel jobs-dock__panel--${job.status}`}
       aria-label={`${job.kind === "writeup" ? "Draft" : "Review"} details`}
     >
+      <button
+        type="button"
+        className="jobs-dock__panel-close"
+        onClick={onClose}
+        aria-label="Close job details"
+      >
+        ×
+      </button>
       <header className="jobs-dock__panel-head">
         <div>
           <p className="jobs-dock__panel-kind">
@@ -219,9 +237,10 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
           <button
             type="button"
             className="jobs-dock__btn jobs-dock__btn--danger"
-            onClick={() => void handleCancel()}
+            onClick={handleCancelClick}
+            {...cancelConfirm.bind()}
           >
-            Cancel
+            {cancelConfirm.armed ? "Click to confirm" : "Cancel"}
           </button>
         ) : (
           <button type="button" className="jobs-dock__btn" onClick={onDismiss}>
