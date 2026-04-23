@@ -1,5 +1,5 @@
 import type { DiffHunksRepo } from "../interface";
-import type { DiffHunkRow, DiffHunkState } from "../types";
+import type { DiffHunkApplyFailure, DiffHunkRow, DiffHunkState } from "../types";
 import type { Database } from "./db";
 import { dbTxBatch, type TxStmt } from "./transaction";
 
@@ -15,6 +15,25 @@ interface DiffHunkSqlRow {
   ambiguous: number;
   note_text: string;
   ordinal: number;
+  apply_failure_json: string | null;
+}
+
+function parseApplyFailure(raw: string | null): DiffHunkApplyFailure | null {
+  if (raw === null || raw === "") return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      typeof (parsed as { reason?: unknown }).reason === "string" &&
+      typeof (parsed as { attemptedAt?: unknown }).attemptedAt === "string"
+    ) {
+      return parsed as DiffHunkApplyFailure;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function toRow(r: DiffHunkSqlRow): DiffHunkRow {
@@ -30,11 +49,13 @@ function toRow(r: DiffHunkSqlRow): DiffHunkRow {
     ambiguous: r.ambiguous === 1,
     noteText: r.note_text,
     ordinal: r.ordinal,
+    applyFailure: parseApplyFailure(r.apply_failure_json),
   };
 }
 
 const SELECT = `SELECT id, session_id, annotation_id, file, category, patch,
-         modified_patch_text, state, ambiguous, note_text, ordinal
+         modified_patch_text, state, ambiguous, note_text, ordinal,
+         apply_failure_json
   FROM diff_hunks`;
 
 export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
@@ -55,8 +76,9 @@ export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
         stmts.push({
           sql: `INSERT INTO diff_hunks
                   (id, session_id, annotation_id, file, category, patch,
-                   modified_patch_text, state, ambiguous, note_text, ordinal)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                   modified_patch_text, state, ambiguous, note_text, ordinal,
+                   apply_failure_json)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
           params: [
             r.id,
             sessionId,
@@ -69,6 +91,7 @@ export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
             r.ambiguous ? 1 : 0,
             r.noteText,
             r.ordinal,
+            r.applyFailure === null ? null : JSON.stringify(r.applyFailure),
           ],
         });
       }
@@ -112,6 +135,19 @@ export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
       };
       for (const r of rows) counts[r.state] = r.count;
       return counts;
+    },
+
+    async setApplyFailure(id: string, failure: DiffHunkApplyFailure | null): Promise<void> {
+      await db.execute("UPDATE diff_hunks SET apply_failure_json = $1 WHERE id = $2", [
+        failure === null ? null : JSON.stringify(failure),
+        id,
+      ]);
+    },
+
+    async clearApplyFailures(sessionId: string): Promise<void> {
+      await db.execute("UPDATE diff_hunks SET apply_failure_json = NULL WHERE session_id = $1", [
+        sessionId,
+      ]);
     },
   };
 }
