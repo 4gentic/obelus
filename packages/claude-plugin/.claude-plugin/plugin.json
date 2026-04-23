@@ -1,6 +1,6 @@
 {
   "name": "obelus",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Apply an Obelus review bundle to your paper source. Format-agnostic (LaTeX, Markdown, Typst), offline, minimal-diff.",
   "author": {
     "name": "Obelus contributors"
