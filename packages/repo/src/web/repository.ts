@@ -43,6 +43,9 @@ const reviewSessionsStub: ReviewSessionsRepo = {
   create: () => Promise.reject(new NotSupportedError("reviewSessions")),
   complete: () => Promise.reject(new NotSupportedError("reviewSessions")),
   markApplied: () => Promise.reject(new NotSupportedError("reviewSessions")),
+  setStatus: () => Promise.reject(new NotSupportedError("reviewSessions")),
+  setClaudeSessionId: () => Promise.reject(new NotSupportedError("reviewSessions")),
+  setAppliedSnapshot: () => Promise.reject(new NotSupportedError("reviewSessions")),
 };
 
 const diffHunksStub: DiffHunksRepo = {

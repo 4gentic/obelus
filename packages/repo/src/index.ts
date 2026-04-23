@@ -26,6 +26,7 @@ export type {
 export { NotSupportedError } from "./interface";
 export type {
   AnnotationRow,
+  AppliedSnapshot,
   AskMessageRole,
   AskMessageRow,
   AskThreadRow,
@@ -47,6 +48,7 @@ export type {
   ProjectKind,
   ProjectRow,
   ReviewSessionRow,
+  ReviewSessionStatus,
   RevisionRow,
   SettingRow,
   WriteUpRow,

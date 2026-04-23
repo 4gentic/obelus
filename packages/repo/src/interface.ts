@@ -1,5 +1,6 @@
 import type {
   AnnotationRow,
+  AppliedSnapshot,
   AskMessageRow,
   AskThreadRow,
   DeskRow,
@@ -18,6 +19,7 @@ import type {
   ProjectKind,
   ProjectRow,
   ReviewSessionRow,
+  ReviewSessionStatus,
   RevisionRow,
   WriteUpRow,
 } from "./types";
@@ -131,6 +133,9 @@ export interface ReviewSessionsRepo {
   create(input: ReviewSessionCreateInput): Promise<ReviewSessionRow>;
   complete(id: string): Promise<void>;
   markApplied(id: string): Promise<void>;
+  setStatus(id: string, status: ReviewSessionStatus, lastError?: string | null): Promise<void>;
+  setClaudeSessionId(id: string, claudeSessionId: string | null): Promise<void>;
+  setAppliedSnapshot(id: string, snapshot: AppliedSnapshot | null): Promise<void>;
 }
 
 export interface DiffHunksRepo {

@@ -19,6 +19,7 @@ import WidenToggle from "./WidenToggle";
 interface Props {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
+  onDiscard: () => void | Promise<void>;
   forkInfo: ForkInfo | null;
   wide: boolean;
   onToggleWide: () => void;
@@ -319,6 +320,14 @@ export default function DiffReview(props: Props): JSX.Element {
           </span>
           <div className="diff-review__head-tools">
             <WidenToggle wide={props.wide} onToggle={props.onToggleWide} />
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void props.onDiscard()}
+              title="Dismiss this review. Hunks stay in history; the active diff clears."
+            >
+              discard
+            </button>
             <button
               type="button"
               className="btn btn--primary"

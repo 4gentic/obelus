@@ -28,6 +28,7 @@ type ReviewerView = "marks" | "review" | "drafter";
 interface Props {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
+  onDiscard: () => void | Promise<void>;
   forkInfo: ForkInfo | null;
   wide: boolean;
   onToggleWide: () => void;
@@ -36,6 +37,7 @@ interface Props {
 interface WriterProps {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
+  onDiscard: () => void | Promise<void>;
   forkInfo: ForkInfo | null;
   wide: boolean;
   onToggleWide: () => void;
@@ -44,6 +46,7 @@ interface WriterProps {
 export default function ReviewColumn({
   onApply,
   onRepass,
+  onDiscard,
   forkInfo,
   wide,
   onToggleWide,
@@ -55,6 +58,7 @@ export default function ReviewColumn({
     <WriterColumn
       onApply={onApply}
       onRepass={onRepass}
+      onDiscard={onDiscard}
       forkInfo={forkInfo}
       wide={wide}
       onToggleWide={onToggleWide}
@@ -65,6 +69,7 @@ export default function ReviewColumn({
 function WriterColumn({
   onApply,
   onRepass,
+  onDiscard,
   forkInfo,
   wide,
   onToggleWide,
@@ -163,6 +168,7 @@ function WriterColumn({
         <DiffReview
           onApply={onApply}
           onRepass={onRepass}
+          onDiscard={onDiscard}
           forkInfo={forkInfo}
           wide={wide}
           onToggleWide={onToggleWide}

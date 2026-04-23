@@ -21,6 +21,7 @@ export interface ForkInfo {
 export interface DiffActions {
   apply: () => Promise<void>;
   repass: () => Promise<void>;
+  discard: () => Promise<void>;
   // Non-null when the user is viewing an older draft than the head, so the next
   // apply will fork the DAG. UI uses this to warn before the user clicks.
   forkInfo: ForkInfo | null;
@@ -129,6 +130,18 @@ export function useDiffActions(): DiffActions {
       await edits.refresh();
 
       await repo.reviewSessions.markApplied(sessionId);
+      await repo.reviewSessions.setAppliedSnapshot(sessionId, {
+        filesWritten: report.filesWritten,
+        hunksApplied: report.hunksApplied,
+        draftOrdinal: draft.ordinal,
+      });
+      console.info("[review-session]", {
+        sessionId,
+        status: "applied",
+        filesWritten: report.filesWritten,
+        hunksApplied: report.hunksApplied,
+        draftOrdinal: draft.ordinal,
+      });
       const touchedFiles = [...new Set(payload.map((p) => p.file))];
       await buffers.getState().refreshFromDisk(touchedFiles);
       // Reload annotations with the new draft as the ancestry root so marks
@@ -229,5 +242,27 @@ export function useDiffActions(): DiffActions {
     await runner.start({ paperId, extraPromptBody: body });
   }, [repo, paperId, store, runner.start, runner.status.kind]);
 
-  return { apply, repass, forkInfo };
+  const discard = useCallback(async (): Promise<void> => {
+    const state = store.getState();
+    const { sessionId } = state;
+    if (!sessionId) return;
+    if (state.applyStatus.kind === "applying") return;
+    try {
+      await repo.reviewSessions.setStatus(sessionId, "discarded", "Dismissed by user.");
+      await repo.reviewSessions.setAppliedSnapshot(sessionId, null);
+      console.info("[review-session]", {
+        sessionId,
+        status: "discarded",
+        lastError: "Dismissed by user.",
+      });
+      state.clear();
+    } catch (err) {
+      state.setApplyStatus({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Could not discard review.",
+      });
+    }
+  }, [repo, store]);
+
+  return { apply, repass, discard, forkInfo };
 }

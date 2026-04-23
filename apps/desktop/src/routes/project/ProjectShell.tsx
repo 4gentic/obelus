@@ -35,7 +35,7 @@ export default function ProjectShell(): JSX.Element {
     window.addEventListener(OPEN_FILE_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_FILE_EVENT, onOpen);
   }, [project.id, buffers, setOpenFilePath]);
-  const { apply, repass, forkInfo } = useDiffActions();
+  const { apply, repass, discard, forkInfo } = useDiffActions();
   const reviewStore = useReviewStore();
   const edits = usePaperEdits(repo, paperId);
   const currentDraft = useMemo(
@@ -136,6 +136,7 @@ export default function ProjectShell(): JSX.Element {
           <ReviewColumn
             onApply={apply}
             onRepass={repass}
+            onDiscard={discard}
             forkInfo={forkInfo}
             wide={reviewWide}
             onToggleWide={onToggleReviewWide}

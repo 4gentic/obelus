@@ -1,5 +1,6 @@
 import {
   claudeCancel,
+  claudeIsAlive,
   claudeSpawn,
   onClaudeExit,
   onClaudeStdout,
@@ -134,6 +135,64 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
     };
   }, [project.id, progressStore]);
 
+  // Reattach to in-flight reviews after a WebView refresh: the Rust process
+  // outlives the refresh, so the Claude subprocess (and its stdout/exit
+  // stream) keeps running. Without this, the new jobs-listener gets the
+  // events but has no job record to update — the apply-revision quietly
+  // ingests into a session the UI doesn't show. Run once per active paper.
+  useEffect(() => {
+    if (!activePaperId) return;
+    let cancelled = false;
+    void (async () => {
+      const sessions = await repo.reviewSessions.listForPaper(activePaperId);
+      if (cancelled) return;
+      const inFlight = sessions.filter((s) => s.status === "running" || s.status === "ingesting");
+      for (const s of inFlight) {
+        if (!s.claudeSessionId) continue;
+        // Skip if jobs-listener already knows about it (HMR / StrictMode).
+        if (useJobsStore.getState().get(s.claudeSessionId)) continue;
+        const alive = await claudeIsAlive(s.claudeSessionId).catch(() => false);
+        if (cancelled) return;
+        const paper = await repo.papers.get(s.paperId);
+        if (cancelled) return;
+        if (alive) {
+          useJobsStore.getState().register({
+            claudeSessionId: s.claudeSessionId,
+            projectId: s.projectId,
+            projectLabel: project.label,
+            rootId,
+            kind: "review",
+            startedAt: new Date(s.startedAt).getTime(),
+            reviewSessionId: s.id,
+            paperId: s.paperId,
+            ...(paper?.title ? { paperTitle: paper.title } : {}),
+          });
+          if (s.status === "ingesting") {
+            useJobsStore.getState().markIngesting(s.claudeSessionId);
+          }
+          console.info("[review-session]", {
+            sessionId: s.id,
+            paperId: s.paperId,
+            status: "reattached",
+            dbStatus: s.status,
+          });
+        } else {
+          const msg = "Previous review run did not complete (app was closed mid-flight).";
+          await repo.reviewSessions.setStatus(s.id, "failed", msg);
+          console.info("[review-session]", {
+            sessionId: s.id,
+            paperId: s.paperId,
+            status: "failed",
+            lastError: msg,
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [repo, project.label, rootId, activePaperId]);
+
   const start = useCallback(
     async (opts?: RunOptions): Promise<void> => {
       if (!opts?.paperId) {
@@ -169,6 +228,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         step: "Exporting bundle…",
         counts: { marks: 0, files: 0, startedAt },
       });
+      let createdSessionId: string | null = null;
       try {
         const { filename, json, annotationCount, fileCount } = await exportBundleV2ForPaper({
           repo,
@@ -188,6 +248,13 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           model: overrides.model,
           effort: overrides.effort,
         });
+        createdSessionId = session.id;
+        console.info("[review-session]", {
+          sessionId: session.id,
+          paperId,
+          status: "running",
+          bundleId: filename,
+        });
 
         setLocal({ kind: "working", paperId, step: "Spawning Claude…", counts });
         const paper = await repo.papers.get(paperId);
@@ -206,6 +273,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           model: overrides.model,
           effort: overrides.effort,
         });
+        await repo.reviewSessions.setClaudeSessionId(session.id, claudeSessionId);
 
         useJobsStore.getState().register({
           claudeSessionId,
@@ -222,11 +290,17 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         setLocal({ kind: "idle" });
       } catch (err) {
         progressStore.getState().reset();
-        setLocal({
-          kind: "error",
-          paperId,
-          message: err instanceof Error ? err.message : "Could not start review.",
-        });
+        const message = err instanceof Error ? err.message : "Could not start review.";
+        if (createdSessionId !== null) {
+          await repo.reviewSessions.setStatus(createdSessionId, "failed", message);
+          console.info("[review-session]", {
+            sessionId: createdSessionId,
+            paperId,
+            status: "failed",
+            lastError: message,
+          });
+        }
+        setLocal({ kind: "error", paperId, message });
       }
     },
     [repo, project.id, project.label, rootId, buffers, progressStore],

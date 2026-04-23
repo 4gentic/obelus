@@ -18,6 +18,7 @@ import {
 } from "react";
 import { fsWriteBytes, fsWriteText } from "../../ipc/commands";
 import { useJobsStore } from "../../lib/jobs-store";
+import { getRepository } from "../../lib/repo";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { createWriteUpStore, type WriteUpStore } from "../../lib/writeup-store";
 import { exportBundleV2ForPaper } from "./build-bundle";
@@ -116,6 +117,10 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
             void store.getState().load(projectId, paperId);
           }
           progressStore.getState().reset();
+          // A finished writeup is the user signalling "I'm moving on" — any
+          // forgotten in-flight review on the same paper is stale by now and
+          // would otherwise sit as a misleading "running" indicator forever.
+          if (job.paperId) void discardInFlightReviews(job.paperId);
         } else if (job.status === "error") {
           store.getState().failDrafting(job.message ?? "Draft failed.");
           progressStore.getState().reset();
@@ -216,4 +221,27 @@ export function useWriteUpStore(): WriteUpStore {
 
 export function useWriteUpProgress(): ReviewProgressStore {
   return useWriteUpRunner().progressStore;
+}
+
+async function discardInFlightReviews(paperId: string): Promise<void> {
+  try {
+    const repo = await getRepository();
+    const sessions = await repo.reviewSessions.listForPaper(paperId);
+    for (const s of sessions) {
+      if (s.status !== "running" && s.status !== "ingesting") continue;
+      await repo.reviewSessions.setStatus(s.id, "discarded", "Superseded by new writeup draft.");
+      console.info("[review-session]", {
+        sessionId: s.id,
+        paperId,
+        status: "discarded",
+        lastError: "Superseded by new writeup draft.",
+      });
+    }
+  } catch (err) {
+    console.warn("[review-session]", {
+      paperId,
+      op: "discardInFlight",
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
 }

@@ -324,3 +324,18 @@ pub async fn claude_cancel(
     }
     Ok(())
 }
+
+// Whether a previously spawned Claude subprocess is still running. The Rust
+// process outlives a WebView refresh; on writer-mode mount we use this to
+// decide whether to reattach to an in-flight review or mark its row as failed.
+// Presence in `claude_cancellers` is the source of truth: spawn inserts on
+// line ~123, the wait-for-exit task removes on line ~139.
+#[tauri::command]
+pub async fn claude_is_alive(
+    session_id: String,
+    state: State<'_, AppState>,
+) -> AppResult<bool> {
+    let id = Uuid::parse_str(&session_id)
+        .map_err(|_| AppError::Other(format!("invalid session id: {session_id}")))?;
+    Ok(state.claude_cancellers.contains_key(&id))
+}

@@ -5,6 +5,7 @@ export type {
 } from "@obelus/claude-sidecar";
 export {
   claudeCancel,
+  claudeIsAlive,
   claudeSpawn,
   onClaudeExit,
   onClaudeStderr,
