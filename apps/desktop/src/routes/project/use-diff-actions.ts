@@ -1,6 +1,7 @@
 import type { DiffHunkRow } from "@obelus/repo";
 import { useCallback, useMemo } from "react";
 import { applyHunks } from "../../ipc/commands";
+import { autoCompileAfterDraftChange } from "./auto-compile";
 import { useBuffersStore } from "./buffers-store-context";
 import { buildRepassPrompt } from "./build-repass-prompt";
 import { useProject } from "./context";
@@ -30,7 +31,7 @@ function effectivePatch(h: DiffHunkRow): string {
 }
 
 export function useDiffActions(): DiffActions {
-  const { repo, rootId, project } = useProject();
+  const { repo, rootId, project, openFilePath, setOpenFilePath } = useProject();
   const paperId = usePaperId();
   const store = useDiffStore();
   const runner = useReviewRunner();
@@ -142,6 +143,44 @@ export function useDiffActions(): DiffActions {
         hunksApplied: report.hunksApplied,
         draftOrdinal: draft.ordinal,
       });
+
+      // Auto-compile is fire-and-forget: apply has already succeeded at this
+      // point, so a slow compile must not block the UI flipping to "applied".
+      // Failures surface as `compileStatus` on their own banner.
+      state.setCompileStatus({ kind: "compiling" });
+      const reviewedRelPath = openFilePath;
+      void autoCompileAfterDraftChange({
+        repo,
+        rootId,
+        paperId,
+        trigger: "apply",
+        reviewedRelPath,
+      }).then((outcome) => {
+        const latest = store.getState();
+        switch (outcome.kind) {
+          case "compiled":
+            latest.setCompileStatus({
+              kind: "compiled",
+              outputRelPath: outcome.outputRelPath,
+            });
+            // Reload the viewer on the fresh PDF. When the reviewed path is
+            // the compile target (the common case: `main.pdf` sibling of
+            // `main.typ`), the null-then-restore forces OpenPaper's useEffect
+            // to re-read the new bytes in place.
+            setOpenFilePath(null);
+            requestAnimationFrame(() => setOpenFilePath(outcome.outputRelPath));
+            break;
+          case "error":
+            latest.setCompileStatus({ kind: "error", message: outcome.message });
+            break;
+          case "hint":
+            latest.setCompileStatus({ kind: "hint", message: outcome.message });
+            break;
+          case "noop":
+            latest.setCompileStatus({ kind: "idle" });
+            break;
+        }
+      });
     } catch (err) {
       state.setApplyStatus({
         kind: "error",
@@ -159,6 +198,8 @@ export function useDiffActions(): DiffActions {
     reviewStore,
     currentDraft,
     edits,
+    openFilePath,
+    setOpenFilePath,
   ]);
 
   const repass = useCallback(async (): Promise<void> => {

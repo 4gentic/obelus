@@ -1,6 +1,7 @@
 import type { PaperEditRow } from "@obelus/repo";
 import { type JSX, useCallback, useMemo, useState } from "react";
 import { historyCheckout, historyDetectDivergence } from "../../ipc/commands";
+import { autoCompileAfterDraftChange } from "./auto-compile";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
 import { scanAfterCheckout } from "./history-actions";
@@ -14,7 +15,7 @@ import { usePaperEdits } from "./use-paper-edits";
 // CodeMirror re-read the bytes. No schema change: the existing manifest_sha256
 // already snapshots every source file.
 export default function DraftsRail(): JSX.Element | null {
-  const { project, repo, rootId } = useProject();
+  const { project, repo, rootId, openFilePath, setOpenFilePath } = useProject();
   const paperId = usePaperId();
   const runner = useReviewRunner();
   const buffers = useBuffersStore();
@@ -62,14 +63,55 @@ export default function DraftsRail(): JSX.Element | null {
         await edits.setCurrentDraftId(target.id);
         const openPaths = Array.from(buffers.getState().buffers.keys());
         if (openPaths.length > 0) await buffers.getState().refreshFromDisk(openPaths);
-        void scanAfterCheckout({ repo, project, rootId }).catch(() => {});
+        // Awaited (not fire-and-forget) so the `paper_build` row is fresh
+        // before auto-compile reads it — same reason as `snapshotAfterApply`.
+        await scanAfterCheckout({ repo, project, rootId });
+        if (paperId !== null) {
+          setBanner("Compiling…");
+          const outcome = await autoCompileAfterDraftChange({
+            repo,
+            rootId,
+            paperId,
+            trigger: "switch",
+            reviewedRelPath: openFilePath,
+          });
+          switch (outcome.kind) {
+            case "compiled":
+              setBanner(null);
+              setOpenFilePath(null);
+              requestAnimationFrame(() => setOpenFilePath(outcome.outputRelPath));
+              break;
+            case "error":
+              setBanner(`Compile failed — ${firstLine(outcome.message)}`);
+              break;
+            case "hint":
+              setBanner(outcome.message);
+              break;
+            case "noop":
+              setBanner(null);
+              break;
+          }
+        }
       } catch (err) {
         setBanner(err instanceof Error ? err.message : "Could not open draft.");
       } finally {
         setWorking(false);
       }
     },
-    [runnerBusy, working, currentId, current, edits, buffers, rootId, repo, project],
+    [
+      runnerBusy,
+      working,
+      currentId,
+      current,
+      edits,
+      buffers,
+      rootId,
+      repo,
+      project,
+      paperId,
+      openFilePath,
+      setOpenFilePath,
+    ],
   );
 
   if (sortedLive.length === 0) return null;
@@ -99,4 +141,9 @@ export default function DraftsRail(): JSX.Element | null {
       </ol>
     </div>
   );
+}
+
+function firstLine(s: string): string {
+  const nl = s.indexOf("\n");
+  return nl === -1 ? s : s.slice(0, nl);
 }

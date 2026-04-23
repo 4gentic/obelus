@@ -1158,6 +1158,10 @@ button.files__row {
   color: var(--ink);
 }
 
+.diff-review__banner--hint {
+  color: var(--ink-soft);
+}
+
 .diff-review__list {
   display: flex;
   flex-direction: column;
