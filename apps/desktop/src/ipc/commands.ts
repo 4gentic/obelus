@@ -121,12 +121,24 @@ export function fsStat(rootId: string, relPath: string): Promise<FsStat> {
   return invoke<FsStat>("fs_stat", { rootId, relPath });
 }
 
+export interface HunkFailure {
+  file: string;
+  index: number;
+  reason: string;
+}
+
+export interface ApplyReport {
+  filesWritten: number;
+  hunksApplied: number;
+  hunksFailed: HunkFailure[];
+}
+
 export async function applyHunks(args: {
   rootId: string;
   sessionId: string;
   hunks: Array<{ file: string; patch: string }>;
-}): Promise<{ filesWritten: number; hunksApplied: number }> {
-  return invoke<{ filesWritten: number; hunksApplied: number }>("apply_hunks", args);
+}): Promise<ApplyReport> {
+  return invoke<ApplyReport>("apply_hunks", args);
 }
 
 export interface TypstCompileReport {

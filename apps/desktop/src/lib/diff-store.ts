@@ -1,5 +1,14 @@
-import type { DiffHunkRow, DiffHunkState, DiffHunksRepo } from "@obelus/repo";
+import type { DiffHunkApplyFailure, DiffHunkRow, DiffHunkState, DiffHunksRepo } from "@obelus/repo";
 import { create, type StoreApi, type UseBoundStore } from "zustand";
+
+// A hunk that failed to apply in the most-recent apply attempt. Matches the
+// Rust `HunkFailure` wire shape (see apps/desktop/src/ipc/commands.ts) so the
+// same value can flow from IPC → store → UI without a translation step.
+export interface FailedHunkInfo {
+  file: string;
+  index: number;
+  reason: string;
+}
 
 export type ApplyStatus =
   | { kind: "idle" }
@@ -8,6 +17,17 @@ export type ApplyStatus =
       kind: "applied";
       filesWritten: number;
       hunksApplied: number;
+      draftOrdinal?: number;
+    }
+  | {
+      // Some hunks applied cleanly, others could not match the current source.
+      // The session stays "pending" from the UI's point of view: the applied
+      // hunks are snapshotted as a draft, but the review only closes when the
+      // user dismisses the failures or discards the remaining review.
+      kind: "partial";
+      filesWritten: number;
+      hunksApplied: number;
+      hunksFailed: FailedHunkInfo[];
       draftOrdinal?: number;
     }
   | { kind: "error"; message: string };
@@ -55,6 +75,19 @@ export interface DiffState {
   setApplyStatus(status: ApplyStatus): void;
   setCompileStatus(status: CompileStatus): void;
   markApplied(info: { filesWritten: number; hunksApplied: number; draftOrdinal?: number }): void;
+  // Partial-apply: mark per-hunk failures, keep the session open, transition
+  // the status banner to "partial" so the UI can show a reconciliation CTA.
+  markPartialApplied(info: {
+    filesWritten: number;
+    hunksApplied: number;
+    draftOrdinal?: number;
+    failuresByHunkId: ReadonlyMap<string, DiffHunkApplyFailure>;
+    failures: ReadonlyArray<FailedHunkInfo>;
+  }): void;
+  // Drop all per-hunk failure markers and close the review as if the apply
+  // had been clean. Called when the user clicks "dismiss failures" — they
+  // accept the partial landing and move on.
+  dismissApplyFailures(): Promise<void>;
 }
 
 export type DiffStore = UseBoundStore<StoreApi<DiffState>>;
@@ -249,6 +282,65 @@ export function createDiffStore(repo: DiffHunksRepo): DiffStore {
             ? { kind: "applied", filesWritten, hunksApplied }
             : { kind: "applied", filesWritten, hunksApplied, draftOrdinal },
         compileStatus: { kind: "idle" },
+      });
+    },
+
+    markPartialApplied({
+      filesWritten,
+      hunksApplied,
+      draftOrdinal,
+      failuresByHunkId,
+      failures,
+    }): void {
+      const { hunks } = get();
+      const next = hunks.map((h) => {
+        const failure = failuresByHunkId.get(h.id);
+        return failure ? { ...h, applyFailure: failure } : { ...h, applyFailure: null };
+      });
+      set({
+        hunks: next,
+        counts: recount(next),
+        applyStatus:
+          draftOrdinal === undefined
+            ? { kind: "partial", filesWritten, hunksApplied, hunksFailed: [...failures] }
+            : {
+                kind: "partial",
+                filesWritten,
+                hunksApplied,
+                hunksFailed: [...failures],
+                draftOrdinal,
+              },
+        compileStatus: { kind: "idle" },
+      });
+    },
+
+    async dismissApplyFailures(): Promise<void> {
+      const { sessionId, applyStatus } = get();
+      if (!sessionId) return;
+      if (applyStatus.kind !== "partial") return;
+      await repo.clearApplyFailures(sessionId);
+      set({
+        sessionId: null,
+        hunks: [],
+        focusedIndex: 0,
+        editingId: null,
+        editingText: "",
+        noteId: null,
+        noteText: "",
+        counts: emptyCounts(),
+        applyStatus:
+          applyStatus.draftOrdinal === undefined
+            ? {
+                kind: "applied",
+                filesWritten: applyStatus.filesWritten,
+                hunksApplied: applyStatus.hunksApplied,
+              }
+            : {
+                kind: "applied",
+                filesWritten: applyStatus.filesWritten,
+                hunksApplied: applyStatus.hunksApplied,
+                draftOrdinal: applyStatus.draftOrdinal,
+              },
       });
     },
   }));

@@ -1158,8 +1158,45 @@ button.files__row {
   color: var(--ink);
 }
 
+.diff-review__banner--partial {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.diff-review__banner--partial p {
+  margin: 0;
+}
+
 .diff-review__banner--hint {
   color: var(--ink-soft);
+}
+
+.hunk-block__apply-failure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  background: color-mix(in oklab, var(--rubric) 10%, var(--paper));
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--rubric);
+}
+
+.hunk-block__apply-failure-label {
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.hunk-block__apply-failure-reason {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .diff-review__list {
