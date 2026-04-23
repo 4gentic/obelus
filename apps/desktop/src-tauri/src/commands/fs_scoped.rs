@@ -161,6 +161,29 @@ pub async fn fs_write_text(
     atomic_write(&abs, body.as_bytes()).await
 }
 
+// Creates a new empty file at `rel_path`. Unlike `fs_write_text`, which would
+// clobber an existing file, this uses `create_new` so the caller can't
+// accidentally overwrite user data. The frontend surfaces `AlreadyExists` as
+// an inline error on the create-file input.
+#[tauri::command]
+pub async fn fs_create_file(
+    root_id: String,
+    rel_path: String,
+    state: State<'_, AppState>,
+) -> AppResult<()> {
+    let abs = resolve_for_write(&root_id, &rel_path, &state).await?;
+    let mut opts = tokio::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    match opts.open(&abs).await {
+        Ok(file) => {
+            file.sync_all().await.map_err(AppError::from)?;
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Err(AppError::AlreadyExists),
+        Err(e) => Err(AppError::from(e)),
+    }
+}
+
 // Writes a text file to an absolute path the user just picked via the native
 // `save()` dialog. The dialog is the user-trust boundary; this command only
 // rejects relative paths so a malformed frontend call can't append-to-cwd.

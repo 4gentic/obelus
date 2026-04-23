@@ -570,6 +570,72 @@ button.files__row {
   flex-shrink: 1;
 }
 
+.files__new-button {
+  background: transparent;
+  border: none;
+  padding: 0 var(--space-1);
+  margin: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 1.1em;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 120ms linear;
+}
+
+.files__new-button:hover:not(:disabled),
+.files__new-button:focus-visible {
+  color: var(--rubric);
+}
+
+.files__new-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.files__new-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  line-height: 1.4;
+}
+
+.files__new-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--ink-soft);
+  border-radius: 0;
+  padding: 0 0 1px;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+  outline: none;
+}
+
+.files__new-input::placeholder {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.files__new-input:focus {
+  border-bottom-color: var(--rubric);
+}
+
+.files__new-error {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--rubric);
+  padding-left: var(--space-1);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .pane__path {
   position: sticky;
   top: 0;
