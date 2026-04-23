@@ -68,7 +68,7 @@ export default function FolioProject({
   return (
     <article className="folio">
       <header className="folio__head">
-        <p className="folio__eyebrow">III.</p>
+        <p className="folio__eyebrow">IV.</p>
         <h1 className="folio__title">{firstProject ? "First project." : "New project."}</h1>
       </header>
       <p className="folio__body">Who are you, on this paper?</p>

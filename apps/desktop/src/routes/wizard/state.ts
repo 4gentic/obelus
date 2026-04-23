@@ -1,7 +1,7 @@
 import type { ProjectKind } from "@obelus/repo";
 import type { ClaudeStatus } from "../../ipc/commands";
 
-export type WizardFolio = 1 | 2 | 3 | "done";
+export type WizardFolio = 1 | 2 | 3 | 4 | "done";
 
 export interface PickedProject {
   kind: ProjectKind;
@@ -35,13 +35,15 @@ export const initialWizardState: WizardState = makeInitialWizardState();
 function next(folio: WizardFolio): WizardFolio {
   if (folio === 1) return 2;
   if (folio === 2) return 3;
-  if (folio === 3) return "done";
+  if (folio === 3) return 4;
+  if (folio === 4) return "done";
   return "done";
 }
 
 function prev(folio: WizardFolio): WizardFolio {
   if (folio === 2) return 1;
   if (folio === 3) return 2;
+  if (folio === 4) return 3;
   return folio;
 }
 
