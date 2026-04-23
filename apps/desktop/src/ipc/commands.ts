@@ -138,6 +138,21 @@ export function compileTypst(rootId: string, relPath: string): Promise<TypstComp
   return invoke<TypstCompileReport>("compile_typst", { rootId, relPath });
 }
 
+export interface LatexCompileReport {
+  outputRelPath: string;
+  stderr: string;
+}
+
+export type LatexCompiler = "latexmk" | "pdflatex" | "xelatex";
+
+export function compileLatex(
+  rootId: string,
+  relPath: string,
+  compiler: LatexCompiler,
+): Promise<LatexCompileReport> {
+  return invoke<LatexCompileReport>("compile_latex", { rootId, relPath, compiler });
+}
+
 export interface HistorySnapshotReport {
   manifestSha256: string;
   filesTotal: number;
