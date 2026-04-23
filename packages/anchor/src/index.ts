@@ -1,6 +1,7 @@
 export {
   type CrossPageEndpoint,
   type EndpointSnapshot,
+  findItemIndex,
   normalizeQuote,
   type PageSnapshot,
   pageIndexOf,
