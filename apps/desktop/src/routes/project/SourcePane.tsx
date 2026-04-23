@@ -22,6 +22,7 @@ import {
 } from "@codemirror/view";
 import { type JSX, useEffect, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
+import { setActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
 import CompileMainButton from "./CompileMainButton";
 import { useProject } from "./context";
@@ -132,7 +133,9 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
 
     const view = new EditorView({ state, parent: host });
     viewRef.current = view;
+    setActiveSourceView(view);
     return () => {
+      setActiveSourceView(null);
       view.destroy();
       viewRef.current = null;
     };

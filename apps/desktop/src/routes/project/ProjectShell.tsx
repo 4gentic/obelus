@@ -1,10 +1,14 @@
+import { openSearchPanel } from "@codemirror/search";
 import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { OPEN_FILE_EVENT, type OpenFileEventDetail } from "../../lib/open-file-event";
+import { getActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
 import CenterPane from "./CenterPane";
 import { useProject } from "./context";
 import FilesColumn from "./FilesColumn";
+import FindBar from "./FindBar";
+import { useFindStore } from "./find-store-context";
 import MarginGutter from "./MarginGutter";
 import { useOpenPaper } from "./OpenPaper";
 import ReviewColumn from "./ReviewColumn";
@@ -41,15 +45,53 @@ export default function ProjectShell(): JSX.Element {
   const divergence = useWorkingTreeDivergence(rootId, currentDraft);
   const [reviewWide, setReviewWide] = useState(false);
   const onToggleReviewWide = useCallback(() => setReviewWide((w) => !w), []);
+  const findStore = useFindStore();
+  const pdfOpen = openPaper.kind === "ready";
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent): void => {
+      // Cmd/Ctrl+F: route to CodeMirror when a source editor is mounted; open
+      // the PDF find bar otherwise. When the event originates inside a
+      // CodeMirror editor, its own `searchKeymap` already handled it — bail
+      // out so we don't fire twice.
+      if (
+        (ev.metaKey || ev.ctrlKey) &&
+        !ev.shiftKey &&
+        !ev.altKey &&
+        ev.key.toLowerCase() === "f"
+      ) {
+        const target = ev.target as HTMLElement | null;
+        if (target?.closest(".cm-editor")) return;
+        const view = getActiveSourceView();
+        if (view) {
+          ev.preventDefault();
+          view.focus();
+          openSearchPanel(view);
+          return;
+        }
+        if (pdfOpen) {
+          ev.preventDefault();
+          findStore.getState().open();
+        }
+        return;
+      }
+
       if (ev.key !== "Escape") return;
       const target = ev.target as HTMLElement | null;
       if (target) {
         const tag = target.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-        if (target.isContentEditable) return;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+          // Let the FindBar input handle its own Escape to close; other inputs
+          // keep their native behavior.
+          if (!target.closest(".find-bar")) return;
+        } else if (target.isContentEditable) {
+          return;
+        }
+      }
+      if (findStore.getState().isOpen) {
+        ev.preventDefault();
+        findStore.getState().close();
+        return;
       }
       const state = reviewStore.getState();
       if (state.selectedAnchor || state.focusedAnnotationId) {
@@ -61,7 +103,7 @@ export default function ProjectShell(): JSX.Element {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [reviewStore]);
+  }, [reviewStore, findStore, pdfOpen]);
 
   const hideLeft = project.kind === "reviewer";
   const classes = ["project-shell__body"];
@@ -82,6 +124,9 @@ export default function ProjectShell(): JSX.Element {
       <div className={bodyClass}>
         {project.kind === "writer" ? <FilesColumn /> : null}
         <main className="project-shell__center">
+          <div className="find-bar-anchor">
+            <FindBar />
+          </div>
           <CenterPane />
         </main>
         <div className="project-shell__margin">

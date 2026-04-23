@@ -80,6 +80,7 @@
 }
 
 .project-shell__center {
+  position: relative;
   overflow: auto;
   border-left: 1px solid var(--rule-soft);
   border-right: 1px solid var(--rule-soft);
@@ -781,6 +782,95 @@ button.files__row {
   background: color-mix(in srgb, var(--hl-color) 20%, transparent);
   outline: 1px dashed color-mix(in srgb, var(--hl-color) 60%, transparent);
   outline-offset: 0;
+}
+
+.pdf-hl--find {
+  --hl-color: var(--hl-unclear);
+  background: color-mix(in srgb, var(--hl-unclear) 45%, transparent);
+}
+
+.pdf-hl--find-current {
+  background: color-mix(in srgb, var(--hl-unclear) 65%, transparent);
+  outline: 1.5px solid var(--rubric);
+  outline-offset: 0;
+}
+
+/* Zero-height sticky anchor so the find bar stays pinned to the visible top
+   of the scrolling center pane without scrolling with the PDF pages. */
+.find-bar-anchor {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.find-bar {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--radius-1);
+  box-shadow: 0 4px 16px -8px rgb(43 42 38 / 0.18);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+}
+
+.find-bar__input {
+  width: 18ch;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--radius-1);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+}
+
+.find-bar__input:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
+.find-bar__count {
+  min-width: 4ch;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.find-bar__case {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px var(--space-1);
+  color: var(--ink-soft);
+  cursor: pointer;
+  user-select: none;
+}
+
+.find-bar__case input {
+  display: none;
+}
+
+.find-bar__case:has(input:checked) {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border-radius: var(--radius-1);
+}
+
+.find-bar__nav,
+.find-bar__close {
+  padding: 0 var(--space-2);
+  line-height: 1.4;
 }
 
 .source-pane {
