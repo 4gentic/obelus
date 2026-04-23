@@ -29,9 +29,13 @@ export interface ResolveInput {
 interface NormalizedText {
   normalized: string;
   // For every index i in `normalized`, origIndex[i] is the offset into the
-  // original (un-normalized) string where that character started. Needed to
-  // map a normalized-space match back to an original-text span.
+  // original (un-normalized) string where that character started, and
+  // origEndIndex[i] is the exclusive offset where it ended. Start/end differ
+  // for collapsed runs (dashes, whitespace): a single normalized `-` can map
+  // back to `---` in the source, and the end index captures the full run so
+  // callers get an accurate span rather than truncating after the first char.
   origIndex: number[];
+  origEndIndex: number[];
 }
 
 const LIGATURES: Record<string, string> = {
@@ -106,6 +110,7 @@ function normalizeWithMap(raw: string): NormalizedText {
   const nfkc = raw.normalize("NFKC");
   const normalized: string[] = [];
   const origIndex: number[] = [];
+  const origEndIndex: number[] = [];
   let prevWasSpace = false;
   // Positions at which the current char should be swallowed (markup closer).
   // A stack because a `#par[` wrapper can contain `_emphasis_` runs; we want
@@ -249,6 +254,7 @@ function normalizeWithMap(raw: string): NormalizedText {
       }
       normalized.push("-");
       origIndex.push(i);
+      origEndIndex.push(j);
       prevWasSpace = false;
       i = j;
       continue;
@@ -260,6 +266,7 @@ function normalizeWithMap(raw: string): NormalizedText {
       for (const out of alias) {
         normalized.push(out.toLowerCase());
         origIndex.push(i);
+        origEndIndex.push(i + 1);
       }
       prevWasSpace = false;
       i += 1;
@@ -270,28 +277,31 @@ function normalizeWithMap(raw: string): NormalizedText {
       for (const out of ligature) {
         normalized.push(out.toLowerCase());
         origIndex.push(i);
+        origEndIndex.push(i + 1);
       }
       prevWasSpace = false;
       i += 1;
       continue;
     }
     if (/\s/.test(ch)) {
-      if (prevWasSpace) {
-        i += 1;
-        continue;
+      let j = i + 1;
+      while (j < nfkc.length && /\s/.test(nfkc[j] ?? "")) j += 1;
+      if (!prevWasSpace) {
+        normalized.push(" ");
+        origIndex.push(i);
+        origEndIndex.push(j);
       }
-      normalized.push(" ");
-      origIndex.push(i);
       prevWasSpace = true;
-      i += 1;
+      i = j;
       continue;
     }
     normalized.push(ch.toLowerCase());
     origIndex.push(i);
+    origEndIndex.push(i + 1);
     prevWasSpace = false;
     i += 1;
   }
-  return { normalized: normalized.join(""), origIndex };
+  return { normalized: normalized.join(""), origIndex, origEndIndex };
 }
 
 function normalizeNeedle(raw: string): string {
@@ -347,17 +357,15 @@ function locateSpan(
   sourceFile: string,
   sourceText: string,
   origIndex: readonly number[],
+  origEndIndex: readonly number[],
   matchStartNorm: number,
   matchEndNorm: number,
 ): ResolveResult {
   const startOrig = origIndex[matchStartNorm];
-  // End offset is exclusive in normalized space; map the last char then +1.
-  const lastNormIdx = matchEndNorm - 1;
-  const lastOrig = origIndex[lastNormIdx];
-  if (startOrig === undefined || lastOrig === undefined) {
+  const endOrig = origEndIndex[matchEndNorm - 1];
+  if (startOrig === undefined || endOrig === undefined) {
     return { kind: "ambiguous" };
   }
-  const endOrig = lastOrig + 1;
 
   const startLc = offsetToLineCol(sourceText, startOrig);
   const endLc = offsetToLineCol(sourceText, endOrig);
@@ -379,7 +387,7 @@ export function resolveAnnotationSpan(
   sourceText: string,
   input: ResolveInput,
 ): ResolveResult {
-  const { normalized: haystack, origIndex } = normalizeWithMap(sourceText);
+  const { normalized: haystack, origIndex, origEndIndex } = normalizeWithMap(sourceText);
   const quoteNorm = normalizeNeedle(input.quote);
   if (quoteNorm.length === 0) return { kind: "ambiguous" };
 
@@ -401,6 +409,7 @@ export function resolveAnnotationSpan(
       sourceFile,
       sourceText,
       origIndex,
+      origEndIndex,
       matchStartNorm,
       matchStartNorm + quoteNorm.length,
     );
@@ -427,7 +436,7 @@ export function resolveAnnotationSpan(
   });
   if (viable.length !== 1) return { kind: "ambiguous" };
   const only = viable[0] ?? 0;
-  return locateSpan(sourceFile, sourceText, origIndex, only, only + quoteNorm.length);
+  return locateSpan(sourceFile, sourceText, origIndex, origEndIndex, only, only + quoteNorm.length);
 }
 
 export interface MultiFileCandidate {
@@ -461,14 +470,15 @@ export function resolveAcrossFiles(
     candidate: MultiFileCandidate;
     haystack: string;
     origIndex: number[];
+    origEndIndex: number[];
     hits: number[];
   };
   const filesWithHits: FileHits[] = [];
   for (const c of candidates) {
-    const { normalized: haystack, origIndex } = normalizeWithMap(c.text);
+    const { normalized: haystack, origIndex, origEndIndex } = normalizeWithMap(c.text);
     const hits = findAllOccurrences(haystack, quoteNorm);
     if (hits.length > 0) {
-      filesWithHits.push({ candidate: c, haystack, origIndex, hits });
+      filesWithHits.push({ candidate: c, haystack, origIndex, origEndIndex, hits });
     }
   }
 
@@ -483,6 +493,7 @@ export function resolveAcrossFiles(
       f.candidate.relPath,
       f.candidate.text,
       f.origIndex,
+      f.origEndIndex,
       hit,
       hit + quoteNorm.length,
     );
@@ -512,6 +523,7 @@ export function resolveAcrossFiles(
     chosen.f.candidate.relPath,
     chosen.f.candidate.text,
     chosen.f.origIndex,
+    chosen.f.origEndIndex,
     chosen.hit,
     chosen.hit + quoteNorm.length,
   );

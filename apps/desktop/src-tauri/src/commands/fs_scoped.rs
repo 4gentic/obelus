@@ -184,10 +184,6 @@ pub async fn fs_create_file(
     }
 }
 
-// Moves a file or directory within a project root. Both paths are validated
-// against the same root; the destination's parent is created if missing. The
-// command refuses to overwrite an existing entry (surfaces `AlreadyExists`) or
-// to move a directory into itself or its own descendant.
 #[tauri::command]
 pub async fn fs_move_path(
     root_id: String,
@@ -199,13 +195,24 @@ pub async fn fs_move_path(
         return Ok(());
     }
     let from_abs = resolve(&root_id, &from_rel_path, &state)?;
-    let to_abs = resolve_for_write(&root_id, &to_rel_path, &state).await?;
-    if tokio::fs::try_exists(&to_abs).await.map_err(AppError::from)? {
-        return Err(AppError::AlreadyExists);
+    // Validate the destination before `resolve_for_write` runs its
+    // `create_dir_all`. Otherwise a move that's about to be rejected —
+    // especially move-into-own-descendant — leaves stub directories behind,
+    // worst case inside the folder the user is trying to move.
+    for comp in to_rel_path.split(|c| c == '/' || c == '\\') {
+        if comp == ".." {
+            return Err(AppError::OutOfScope);
+        }
     }
-    if to_abs.starts_with(&from_abs) {
+    let root = root_path_for(&root_id, &state)?;
+    let to_abs_pre = root.join(&to_rel_path);
+    if to_abs_pre.starts_with(&from_abs) {
         return Err(AppError::OutOfScope);
     }
+    if tokio::fs::try_exists(&to_abs_pre).await.map_err(AppError::from)? {
+        return Err(AppError::AlreadyExists);
+    }
+    let to_abs = resolve_for_write(&root_id, &to_rel_path, &state).await?;
     tokio::fs::rename(&from_abs, &to_abs).await.map_err(AppError::from)?;
     Ok(())
 }

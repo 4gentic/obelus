@@ -71,10 +71,17 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   if (!picked) {
     const entries = await fsReadDir(rootId, ".obelus").catch(() => []);
     directoryNames = entries.map((e) => e.name);
-    const planNames = directoryNames
-      .filter((n) => /^plan-.+\.json$/.test(n) || n === "plan.json")
+    // Timestamped plans first (newest → oldest), then the bare fallback. A
+    // plain lex sort would put `plan.json` ahead of `plan-<iso>.json` after
+    // reverse because `-` < `.`, which lets a stale bare plan shadow the
+    // current timestamped one.
+    const timestamped = directoryNames
+      .filter((n) => /^plan-.+\.json$/.test(n))
       .sort()
       .reverse();
+    const planNames = directoryNames.includes("plan.json")
+      ? [...timestamped, "plan.json"]
+      : timestamped;
 
     if (planNames.length === 0 && scannedPlans.length === 0) {
       throw new Error(

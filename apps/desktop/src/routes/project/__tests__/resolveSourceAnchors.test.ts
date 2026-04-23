@@ -292,6 +292,21 @@ describe("normalizeWithMap markup stripping", () => {
     expect(result.span?.lineStart).toBe(1);
   });
 
+  it("emits `colEnd` at the end of a collapsed dash run, not inside it", () => {
+    // The normalizer collapses `---` → `-`; when the match terminates on that
+    // run, the emitted span must cover the whole run in source coordinates.
+    // Previously the endpoint was the start of the run + 1, truncating mid-run.
+    const source = "Three loops --- fast.";
+    const result = resolveAnnotationSpan("paper.typ", source, {
+      quote: "Three loops —",
+      contextBefore: "",
+      contextAfter: "",
+    });
+    expect(result.kind).toBe("resolved");
+    expect(result.span?.colStart).toBe(0);
+    expect(result.span?.colEnd).toBe(15);
+  });
+
   it("keeps `state-of-the-art` intact (single-dash compounds are not collapsed)", () => {
     const source = "This is a state-of-the-art result.";
     const result = resolveAnnotationSpan("paper.typ", source, {
