@@ -3,7 +3,7 @@ name: apply-fix
 description: Apply an approved Obelus plan file to the paper source.
 argument-hint: <plan-path> [--dry-run]
 disable-model-invocation: true
-allowed-tools: Read Edit Write
+allowed-tools: Read Edit Write Bash
 ---
 
 # Apply fix
@@ -54,17 +54,31 @@ The user sees the named path in the summary so they can audit the bundle that pr
 
 3. Do not batch edits. One block, one Edit call. If a block fails to apply, record the reason and continue to the next.
 
-4. Write a summary to `.obelus/apply-<iso-timestamp>.md` (compact UTC: `YYYYMMDD-HHmmss`, e.g. `20260423-143012`):
+4. **Compile verify (Typst only).** Skip this step entirely on `--dry-run`. Otherwise, open the companion `plan-<iso>.json` next to the `.md` plan and read its top-level `format` and `entrypoint` fields. If `format === "typst"`, `entrypoint !== ""`, and at least one block was applied in step 2, run:
+
+   ```
+   typst compile <entrypoint> .obelus/rendered/<entrypoint-basename>.pdf --root .
+   ```
+
+   via `Bash`. First check `typst --version` — if that command fails (non-zero exit or "command not found"), skip compile verify entirely and record `Compile verify: skipped (typst not on PATH)` in the summary. Do not treat typst's absence as an apply failure; the edits still stand.
+
+   On non-zero exit from `typst compile`, parse **the first 5 errors** from stderr. The Typst error format is `<file>:<line>:<col>: error: <message>`, sometimes followed by source context lines and a caret — ignore anything after the `error:` line until you reach the next `<file>:<line>:<col>:` header. For each error, Read the affected file around the line, propose a minimal Edit that resolves it (typical cases: a `@key` or `#cite(<key>)` referencing a missing bib entry → rewrite to `#emph[(citation needed)]`; unbalanced braces → restore them; unknown identifier → restore the name from the `before` side of the plan block that introduced it). Then rerun `typst compile` exactly as above.
+
+   **Retry cap: 2.** After the second failed retry, stop attempting fixes and move on to step 5. Record unresolved errors in the summary as `Compile errors (unresolved)` — do NOT revert earlier edits; the bytes are valid, only the compile is broken, and the user should see what landed.
+
+5. Write a summary to `.obelus/apply-<iso-timestamp>.md` (compact UTC: `YYYYMMDD-HHmmss`, e.g. `20260423-143012`):
    - `Mode: applied` or `Mode: dry-run`
    - `Applied: <n>` — list with `file:line` and the annotation id
    - `Refused (out of scope): <n>` — list with annotation id and the offending path, parenthetical reason
    - `Skipped (ambiguous): <n>` — list with annotation id
    - `Skipped (stale): <n>` — list with annotation id and the file:line we read
    - `Recorded (praise / no-op): <n>` — list with annotation id
+   - `Compile fixes applied: <n>` — list with `file:line — before → after` per follow-up Edit from step 4. Emit even when zero — `Compile fixes applied: 0` is a fact.
+   - `Compile errors (unresolved): <n>` — list with `file:line — message` per error left after the retry cap. Omit the section entirely when zero (distinct from "we didn't run" — which prints as the `Compile verify: skipped (…)` line under `Mode:`).
 
    The summary path `.obelus/apply-<iso-timestamp>.md` is itself inside the repo root, which is why it is safe to Write.
 
-5. **Final marker line.** Print the summary counts to the user, then print exactly one line on stdout in this form, with nothing else on the line:
+6. **Final marker line.** Print the summary counts to the user, then print exactly one line on stdout in this form, with nothing else on the line:
 
    ```
    OBELUS_WROTE: .obelus/apply-<iso-timestamp>.md
@@ -79,6 +93,9 @@ The user sees the named path in the summary so they can audit the bundle that pr
 - Do not rewrite a block the planner flagged `ambiguous`.
 - Do not re-plan. If a block is stale, surface it; the user can re-run `apply-revision`.
 - Do not skip the `OBELUS_WROTE:` marker.
+- Do not revert applied edits because compile verify failed. The bytes are valid; record the unresolved compile errors in the summary and let the user decide.
+- Do not run `typst compile` if `typst --version` fails — record `Compile verify: skipped (typst not on PATH)` and return normally.
+- Do not retry `typst compile` more than twice. Two attempts cap cascading self-edits; beyond that, report rather than fix.
 
 ## Worked example — dry run
 
@@ -103,8 +120,61 @@ OBELUS_WROTE: .obelus/apply-20260423-143012.md
 
 No `Edit` tool calls happened. The summary file describes the planned actions so the user can review before rerunning without `--dry-run`.
 
+## Worked example — Typst compile verify
+
+Plan's companion JSON sets `format: "typst"`, `entrypoint: "main.typ"`. Step 2 applies one `citation-needed` edit at `main.typ:42`, inserting a stale `@smith` cite that no `.bib` entry defines. The plan itself was valid; the source tree shifted under it (a reviewer renamed the bib key after the plan was written). Step 4 runs:
+
+```
+$ typst --version
+typst 0.12.0
+$ typst compile main.typ .obelus/rendered/main.pdf --root .
+error: label `<smith>` does not exist in the document
+   ┌─ main.typ:42:31
+```
+
+The skill Reads `main.typ:40-44`, confirms `@smith` on line 42 is the offending token, and issues an Edit replacing `@smith` with `#emph[(citation needed)]`. Rerun:
+
+```
+$ typst compile main.typ .obelus/rendered/main.pdf --root .
+$ echo $?
+0
+```
+
+Summary:
+
+```md
+Mode: applied
+Applied: 1
+  main.typ:42 — citation-needed (550e8400-...-440042)
+Refused (out of scope): 0
+Skipped (ambiguous): 0
+Skipped (stale): 0
+Recorded (praise / no-op): 0
+Compile fixes applied: 1
+  main.typ:42 — @smith → #emph[(citation needed)]
+```
+
+Then the marker:
+
+```
+OBELUS_WROTE: .obelus/apply-20260423-143012.md
+```
+
+If the second retry had also failed, the summary would instead carry:
+
+```md
+Compile fixes applied: 2
+  main.typ:42 — @smith → #emph[(citation needed)]
+  main.typ:42 — #emph[(citation needed)] → #emph((citation needed))
+Compile errors (unresolved): 1
+  main.typ:42 — expected content, found closing paren
+```
+
+and `apply-fix` still prints its `OBELUS_WROTE:` marker. The user sees what landed, what was tried, and what is still broken.
+
 ## Before returning, verify
 
 - Every block in the plan was either applied, refused, skipped, or recorded — none silently dropped.
 - The `.obelus/apply-<iso>.md` summary exists on disk.
+- If `format === "typst"`, the summary contains either a `Compile fixes applied: <n>` line (runs that attempted compile verify) or a `Compile verify: skipped (…)` line (typst-not-on-PATH path). Never both.
 - The very last stdout line is `OBELUS_WROTE: .obelus/apply-<iso>.md` with nothing else on it.

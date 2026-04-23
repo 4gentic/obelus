@@ -128,13 +128,15 @@ Respect the annotation's `category`. v1 has a fixed enum; v2 carries a free-form
 <!-- @prompts:edit-shape -->
 - `unclear` — rewrite for clarity; preserve every factual claim.
 - `wrong` — propose a correction. If uncertain, skip and flag.
-- `weak-argument` — tighten the argument; any new claim you add must carry a `TODO` citation placeholder.
-- `citation-needed` — insert a format-appropriate placeholder: `\cite{TODO}` in LaTeX, `[@TODO]` in Markdown, `@TODO` in Typst. Do not invent references.
+- `weak-argument` — tighten the argument; any new claim you add must carry a `TODO` citation placeholder (same format-specific forms as `citation-needed` below).
+- `citation-needed` — insert a format-appropriate **compilable** placeholder: `\cite{TODO}` in LaTeX, `[@TODO]` in Markdown, `#emph[(citation needed)]` in Typst. Do not invent references, and do not emit `@TODO` or `#cite(TODO)` in Typst — both forms resolve to a bibliography key and fail to compile when no matching entry exists.
 - `rephrase` — reshape the sentence without changing its claim.
 - `praise` — no edit; leave the line intact.
 <!-- /@prompts:edit-shape -->
 
 For a v2 category slug that is none of the six standard ones, default to the `unclear` treatment (rewrite for clarity). Prefer minimal diffs. A single word swap beats a rewritten paragraph.
+
+**Every emitted `+` line must parse in the target format.** If you are not certain a construct compiles as-is (e.g. a Typst short-form cite `@key` that requires a bibliography entry, a LaTeX macro from a package the paper does not import, a pandoc-specific extension), prefer a plain-text placeholder over a syntactic reference. `apply-fix` verifies Typst output compiles and will refuse to leave the tree in a broken state — but catching the mistake here, before `paper-reviewer` stress-tests, saves a retry round.
 
 ## Output — markdown (`.obelus/plan-<iso>.md`)
 
@@ -169,6 +171,8 @@ Same annotations in the same order, as structured data. Write:
 ```json
 {
   "bundleId": "<absolute path to bundle file, or its sha256>",
+  "format": "<typst | latex | markdown | \"\">",
+  "entrypoint": "<main source path relative to repo root, or \"\">",
   "blocks": [
     {
       "annotationId": "<annotation.id>",
@@ -185,6 +189,8 @@ Same annotations in the same order, as structured data. Write:
 Rules:
 
 - One block per annotation; preserve the `.md` order.
+- `format`: the per-paper format descriptor the caller (`apply-revision`) computed. Exactly one of `"typst"`, `"latex"`, `"markdown"`, or `""` when no format descriptor was available. Do not invent a value — if you did not receive one, emit `""`.
+- `entrypoint`: the main source file the caller identified (e.g. `main.typ`, `paper.tex`). Empty string when no entrypoint was identified, when the run spans multiple papers, or when `format` is `""`. `apply-fix` uses this as the target for post-apply compile verification.
 - `file`: the resolved source path. Empty string for html-only blocks whose anchor did not resolve to a source file.
 - `patch`: a unified diff of the single hunk you proposed (`@@ -L,N +L,N @@\n- before\n+ after\n`). Empty string when `edit: none` (e.g. `praise`) or when `ambiguous: true`. **The patch string must end with `\n`.** Every body line, including the final one, terminates with `\n` — that is the unified-diff format. A patch whose last line lacks `\n` is malformed: when the last line is context (` …`) the apply tool rejects the hunk outright; when the last line is an insert (`+…`) the tool silently runs the inserted bytes into the following source line. Either way the user gets a broken file or an "Apply failed" error. Make the final `\n` explicit, even if JSON encoding makes it look redundant.
 - `ambiguous`: mirrors the `.md` flag.
@@ -226,20 +232,81 @@ The corresponding block in `.obelus/plan-20260423-143012.md`:
 **Ambiguous**: false
 ```
 
-The matching entry in `.obelus/plan-20260423-143012.json`:
+The matching `.obelus/plan-20260423-143012.json` (top-level envelope plus the one block):
 
 ```json
 {
-  "annotationId": "550e8400-e29b-41d4-a716-446655440001",
-  "file": "main.tex",
-  "category": "citation-needed",
-  "patch": "@@ -142,1 +142,1 @@\n- as shown by Vaswani et al.\n+ as shown by Vaswani et al.~\\cite{TODO}\n",
-  "ambiguous": false,
-  "reviewerNotes": "The edit addresses the note by inserting a placeholder rather than guessing a key, and it does not introduce a new claim."
+  "bundleId": "/abs/path/to/obelus-review-20260423.json",
+  "format": "latex",
+  "entrypoint": "main.tex",
+  "blocks": [
+    {
+      "annotationId": "550e8400-e29b-41d4-a716-446655440001",
+      "file": "main.tex",
+      "category": "citation-needed",
+      "patch": "@@ -142,1 +142,1 @@\n- as shown by Vaswani et al.\n+ as shown by Vaswani et al.~\\cite{TODO}\n",
+      "ambiguous": false,
+      "reviewerNotes": "The edit addresses the note by inserting a placeholder rather than guessing a key, and it does not introduce a new claim."
+    }
+  ]
 }
 ```
 
 The two artefacts contain the same blocks in the same order. The `.md` is what `apply-fix` reads; the `.json` is what the desktop diff-review UI consumes.
+
+### Worked example — Typst
+
+Same shape, different format. Input:
+
+```
+id: 550e8400-e29b-41d4-a716-446655440042
+category: citation-needed
+quote: "as shown by Vaswani et al."
+note: "needs full citation"
+anchor: { file: "main.typ", lineStart: 42, lineEnd: 42 }
+```
+
+Block in `.obelus/plan-20260423-143012.md`:
+
+```md
+## 1. citation-needed — 550e8400-e29b-41d4-a716-446655440042
+
+**Where**: `main.typ:42-42`
+**Quote**: "as shown by Vaswani et al."
+**Note**: needs full citation
+
+**Change**:
+```diff
+- as shown by Vaswani et al.
++ as shown by Vaswani et al. #emph[(citation needed)]
+```
+
+**Why**: insert a compilable Typst placeholder per the `citation-needed` rule. `@TODO` and `#cite(<TODO>)` would both fail to compile without a matching bibliography entry; `#emph[(citation needed)]` renders as italic plain text and is grep-able for the author's later pass.
+
+**Reviewer notes**: The edit addresses the note by inserting a placeholder that keeps the file compilable, and it does not introduce a new claim.
+
+**Ambiguous**: false
+```
+
+Matching JSON (top-level envelope plus the one block) — note `format: "typst"` and `entrypoint: "main.typ"`, which `apply-fix` reads to decide whether to run post-apply compile verification:
+
+```json
+{
+  "bundleId": "/abs/path/to/obelus-review-20260423.json",
+  "format": "typst",
+  "entrypoint": "main.typ",
+  "blocks": [
+    {
+      "annotationId": "550e8400-e29b-41d4-a716-446655440042",
+      "file": "main.typ",
+      "category": "citation-needed",
+      "patch": "@@ -42,1 +42,1 @@\n- as shown by Vaswani et al.\n+ as shown by Vaswani et al. #emph[(citation needed)]\n",
+      "ambiguous": false,
+      "reviewerNotes": "The edit addresses the note by inserting a placeholder that keeps the file compilable, and it does not introduce a new claim."
+    }
+  ]
+}
+```
 
 ## Before returning, verify
 
@@ -248,6 +315,7 @@ The two artefacts contain the same blocks in the same order. The `.md` is what `
 - For each substantive source-anchored block, a bounded-window `Read` (`[lineStart - 50, lineEnd + 50]`) was issued rather than a full-file read of the entrypoint.
 - Every non-`praise`, non-`ambiguous` block carries a `reviewerNotes` value taken verbatim from the single batched `paper-reviewer` call.
 - **Every non-empty `patch` string in the JSON ends with `\n`.** Scan each `blocks[i].patch` before writing; if the last character is not `\n`, append one. A missing terminator is the single most common cause of "Apply failed" in the desktop UI.
+- The JSON's top-level `format` and `entrypoint` fields are present as strings (either populated from the caller's format descriptor or `""`). Missing keys break `apply-fix`'s compile-verify branch.
 
 ## Return
 
