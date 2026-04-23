@@ -1,4 +1,10 @@
-import type { DiffHunkApplyFailure, DiffHunkRow, DiffHunkState, DiffHunksRepo } from "@obelus/repo";
+import type {
+  DiffHunkApplyFailure,
+  DiffHunkRow,
+  DiffHunkState,
+  DiffHunksRepo,
+  ReviewSessionsRepo,
+} from "@obelus/repo";
 import { create, type StoreApi, type UseBoundStore } from "zustand";
 
 // A hunk that failed to apply in the most-recent apply attempt. Matches the
@@ -102,7 +108,10 @@ function recount(hunks: ReadonlyArray<DiffHunkRow>): Record<DiffHunkState, numbe
   return counts;
 }
 
-export function createDiffStore(repo: DiffHunksRepo): DiffStore {
+export function createDiffStore(
+  repo: DiffHunksRepo,
+  reviewSessions: ReviewSessionsRepo,
+): DiffStore {
   return create<DiffState>()((set, get) => ({
     sessionId: null,
     hunks: [],
@@ -318,6 +327,12 @@ export function createDiffStore(repo: DiffHunksRepo): DiffStore {
       const { sessionId, applyStatus } = get();
       if (!sessionId) return;
       if (applyStatus.kind !== "partial") return;
+      // Mark the session applied before clearing the per-hunk markers. Without
+      // this, `findLatestVisibleReviewForPaper` (filter: status completed/failed
+      // && applied_at IS NULL) resurrects the session on the next launch, the
+      // partial banner is lost on reload, and the source lock re-engages over
+      // bytes that already reflect the partial landing.
+      await reviewSessions.markApplied(sessionId);
       await repo.clearApplyFailures(sessionId);
       set({
         sessionId: null,
