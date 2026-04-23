@@ -1,0 +1,47 @@
+{
+  "bundleVersion": "2.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.2.0"
+  },
+  "project": {
+    "id": "c0000001-0000-4000-8000-000000000001",
+    "label": "cascade-lexical-terminology",
+    "kind": "writer",
+    "categories": [
+      { "slug": "rephrase", "label": "rephrase" },
+      { "slug": "unclear", "label": "unclear" },
+      { "slug": "praise", "label": "praise" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "c0000001-0000-4000-8000-000000000002",
+      "title": "Agentic AI in the Real World",
+      "revision": 1,
+      "createdAt": "2026-04-23T10:00:00.000Z",
+      "entrypoint": "paper.tex"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "c0000001-0000-4000-8000-000000000003",
+      "paperId": "c0000001-0000-4000-8000-000000000002",
+      "category": "rephrase",
+      "quote": "deployed in settings",
+      "contextBefore": "Agentic AI systems are being ",
+      "contextAfter": " where a single wrong action has irreversible consequences.",
+      "anchor": {
+        "kind": "source",
+        "file": "paper.tex",
+        "lineStart": 13,
+        "colStart": 29,
+        "lineEnd": 13,
+        "colEnd": 49
+      },
+      "note": "Rephrase this use of 'settings' — it reads software-ish (configuration). Use a term appropriate to an AI deployment context, e.g. 'contexts' or 'scenarios'. Apply the same rename to every other occurrence in the paper that refers to the same deployment-context meaning.",
+      "thread": [],
+      "createdAt": "2026-04-23T10:01:00.000Z"
+    }
+  ]
+}

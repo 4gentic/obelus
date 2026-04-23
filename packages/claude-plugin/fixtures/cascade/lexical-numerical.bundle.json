@@ -1,0 +1,47 @@
+{
+  "bundleVersion": "2.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.2.0"
+  },
+  "project": {
+    "id": "c0000002-0000-4000-8000-000000000001",
+    "label": "cascade-lexical-numerical",
+    "kind": "writer",
+    "categories": [
+      { "slug": "wrong", "label": "wrong", "color": "#B84A2E" },
+      { "slug": "rephrase", "label": "rephrase" },
+      { "slug": "praise", "label": "praise" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "c0000002-0000-4000-8000-000000000002",
+      "title": "Scaling Study",
+      "revision": 1,
+      "createdAt": "2026-04-23T10:00:00.000Z",
+      "entrypoint": "paper.tex"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "c0000002-0000-4000-8000-000000000003",
+      "paperId": "c0000002-0000-4000-8000-000000000002",
+      "category": "wrong",
+      "quote": "4.2B parameters",
+      "contextBefore": "Our model has ",
+      "contextAfter": " and was trained for 300B tokens.",
+      "anchor": {
+        "kind": "source",
+        "file": "paper.tex",
+        "lineStart": 13,
+        "colStart": 14,
+        "lineEnd": 13,
+        "colEnd": 29
+      },
+      "note": "The real parameter count is 4.1B, not 4.2B — we mis-reported. Update this site and every other mention of 4.2B in the paper to 4.1B; the Scaling Study's whole narrative references the same model, so leaving any 4.2B in place would contradict the correction.",
+      "thread": [],
+      "createdAt": "2026-04-23T10:01:00.000Z"
+    }
+  ]
+}

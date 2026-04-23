@@ -1,0 +1,47 @@
+{
+  "bundleVersion": "2.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.2.0"
+  },
+  "project": {
+    "id": "c0000004-0000-4000-8000-000000000001",
+    "label": "cascade-propositional-iid",
+    "kind": "writer",
+    "categories": [
+      { "slug": "wrong", "label": "wrong", "color": "#B84A2E" },
+      { "slug": "rephrase", "label": "rephrase" },
+      { "slug": "praise", "label": "praise" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "c0000004-0000-4000-8000-000000000002",
+      "title": "Sample Complexity of Our Estimator",
+      "revision": 1,
+      "createdAt": "2026-04-23T10:00:00.000Z",
+      "entrypoint": "paper.tex"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "c0000004-0000-4000-8000-000000000003",
+      "paperId": "c0000004-0000-4000-8000-000000000002",
+      "category": "wrong",
+      "quote": "We assume i.i.d. data throughout this section.",
+      "contextBefore": "\\section{Preliminaries}\n\n",
+      "contextAfter": " This restricts the scope of the forthcoming analysis but keeps the notation light.",
+      "anchor": {
+        "kind": "source",
+        "file": "paper.tex",
+        "lineStart": 14,
+        "colStart": 0,
+        "lineEnd": 14,
+        "colEnd": 46
+      },
+      "note": "Drop the i.i.d. assumption entirely — our proof goes through without independence (it only needs a stationarity hypothesis, which we already state elsewhere). Leaving the assumption here makes the Main Result look narrower than it is.",
+      "thread": [],
+      "createdAt": "2026-04-23T10:01:00.000Z"
+    }
+  ]
+}

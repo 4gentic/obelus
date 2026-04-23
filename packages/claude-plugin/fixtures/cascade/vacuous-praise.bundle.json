@@ -1,0 +1,47 @@
+{
+  "bundleVersion": "2.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.2.0"
+  },
+  "project": {
+    "id": "c0000005-0000-4000-8000-000000000001",
+    "label": "cascade-vacuous-praise",
+    "kind": "writer",
+    "categories": [
+      { "slug": "praise", "label": "praise" },
+      { "slug": "unclear", "label": "unclear" },
+      { "slug": "rephrase", "label": "rephrase" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "c0000005-0000-4000-8000-000000000002",
+      "title": "Concluding Notes",
+      "revision": 1,
+      "createdAt": "2026-04-23T10:00:00.000Z",
+      "entrypoint": "paper.tex"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "c0000005-0000-4000-8000-000000000003",
+      "paperId": "c0000005-0000-4000-8000-000000000002",
+      "category": "praise",
+      "quote": "Attention is a bottleneck, but not a uniform one.",
+      "contextBefore": "\\section{Conclusion}\n\n",
+      "contextAfter": "\nThe right mitigation depends on the task,",
+      "anchor": {
+        "kind": "source",
+        "file": "paper.tex",
+        "lineStart": 13,
+        "colStart": 0,
+        "lineEnd": 13,
+        "colEnd": 49
+      },
+      "note": "This is the sentence the whole paper is organized around. Keep it as the opening of the conclusion.",
+      "thread": [],
+      "createdAt": "2026-04-23T10:01:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "bundleVersion": "2.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.2.0"
+  },
+  "project": {
+    "id": "c0000003-0000-4000-8000-000000000001",
+    "label": "cascade-structural-label",
+    "kind": "writer",
+    "categories": [
+      { "slug": "wrong", "label": "wrong", "color": "#B84A2E" },
+      { "slug": "rephrase", "label": "rephrase" },
+      { "slug": "praise", "label": "praise" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "c0000003-0000-4000-8000-000000000002",
+      "title": "A Consistency Result",
+      "revision": 1,
+      "createdAt": "2026-04-23T10:00:00.000Z",
+      "entrypoint": "paper.tex"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "c0000003-0000-4000-8000-000000000003",
+      "paperId": "c0000003-0000-4000-8000-000000000002",
+      "category": "wrong",
+      "quote": "\\label{thm-main}",
+      "contextBefore": "\\begin{theorem}",
+      "contextAfter": "\nThe estimator is consistent",
+      "anchor": {
+        "kind": "source",
+        "file": "paper.tex",
+        "lineStart": 15,
+        "colStart": 15,
+        "lineEnd": 15,
+        "colEnd": 31
+      },
+      "note": "The theorem is specifically about consistency, not a generic main result — rename the label to thm-consistency so later sections read sensibly. Every \\ref{thm-main} elsewhere in the paper must be updated to match; otherwise cross-references break.",
+      "thread": [],
+      "createdAt": "2026-04-23T10:01:00.000Z"
+    }
+  ]
+}
