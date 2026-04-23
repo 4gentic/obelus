@@ -257,6 +257,8 @@
   font-family: var(--font-body);
   font-size: var(--step--1);
   color: var(--ink);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .jobs-dock__panel--error .jobs-dock__panel-message {

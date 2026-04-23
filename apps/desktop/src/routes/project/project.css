@@ -1147,6 +1147,8 @@ button.files__row {
   color: var(--ink-soft);
   font-size: var(--step--1);
   font-style: italic;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .review-column__actions {
@@ -2206,6 +2208,37 @@ button.files__row {
   color: var(--ink-soft);
   opacity: 0.7;
   transition: opacity 280ms ease-in;
+}
+
+.review-progress__log {
+  list-style: none;
+  margin: var(--space-3) 0 0 0;
+  padding: var(--space-3) 0 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+  border-top: 1px solid var(--rule-soft);
+}
+
+.review-progress__log > li {
+  display: contents;
+}
+
+.review-progress__log-when {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  padding-top: 3px;
+}
+
+.review-progress__log-what {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* --- Claude chip + popover ----------------------------------------------- */

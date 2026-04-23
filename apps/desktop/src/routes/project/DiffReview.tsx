@@ -2,11 +2,13 @@ import type { DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
+import { type PhaseEntry, useJobsStore } from "../../lib/jobs-store";
 import { useKeyNav } from "../../lib/use-key-nav";
 import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useDiffStore } from "./diff-store-context";
 import HunkBlock from "./HunkBlock";
+import { usePaperId } from "./OpenPaper";
 import { useReviewProgress, useReviewRunner } from "./review-runner-context";
 import type { ForkInfo } from "./use-diff-actions";
 import WidenToggle from "./WidenToggle";
@@ -18,6 +20,8 @@ interface Props {
   wide: boolean;
   onToggleWide: () => void;
 }
+
+const EMPTY_PHASE_HISTORY: readonly PhaseEntry[] = Object.freeze([]);
 
 function fileKey(h: DiffHunkRow): string {
   return h.file === "" ? "(unresolved)" : h.file;
@@ -35,9 +39,26 @@ function groupByFile(hunks: ReadonlyArray<DiffHunkRow>): Map<string, DiffHunkRow
 }
 
 export default function DiffReview(props: Props): JSX.Element {
-  const { rootId } = useProject();
+  const { project, rootId } = useProject();
   const store = useDiffStore();
   const runner = useReviewRunner();
+  const activePaperId = usePaperId();
+  const phaseHistory = useJobsStore((s): ReadonlyArray<PhaseEntry> => {
+    if (!activePaperId) return EMPTY_PHASE_HISTORY;
+    let active: ReadonlyArray<PhaseEntry> | undefined;
+    let latestStart = -1;
+    for (const j of Object.values(s.jobs)) {
+      if (j.kind !== "review") continue;
+      if (j.projectId !== project.id || j.paperId !== activePaperId) continue;
+      const live = j.status === "running" || j.status === "ingesting";
+      if (!live) continue;
+      if (j.startedAt > latestStart) {
+        latestStart = j.startedAt;
+        active = j.phaseHistory;
+      }
+    }
+    return active ?? EMPTY_PHASE_HISTORY;
+  });
   const sessionId = store((s) => s.sessionId);
   const hunks = store((s) => s.hunks);
   const focusedIndex = store((s) => s.focusedIndex);
@@ -222,6 +243,7 @@ export default function DiffReview(props: Props): JSX.Element {
         files={files}
         startedAt={startedAt}
         stage={runner.status.kind}
+        phaseHistory={phaseHistory}
       />
     );
   }
@@ -422,6 +444,7 @@ interface ReviewProgressPanelProps {
   files: number;
   startedAt: number;
   stage: "working" | "running" | "ingesting";
+  phaseHistory: ReadonlyArray<PhaseEntry>;
 }
 
 function ReviewProgressPanel({
@@ -429,6 +452,7 @@ function ReviewProgressPanel({
   files,
   startedAt,
   stage,
+  phaseHistory,
 }: ReviewProgressPanelProps): JSX.Element {
   const progress = useReviewProgress();
   const phase = progress((s) => s.phase);
@@ -470,6 +494,7 @@ function ReviewProgressPanel({
 
   const thinking = lastThinkingAt !== null && now - lastThinkingAt < 3000;
   const filler = FILLER_LINES[fillerIndex] ?? FILLER_LINES[0] ?? "";
+  const logTail = phaseHistory.slice(-8);
 
   return (
     <div className="review-progress">
@@ -485,6 +510,24 @@ function ReviewProgressPanel({
         {assistantChars.toLocaleString()} chars · {elapsedLabel} · started {clock}
       </p>
       <p className="review-progress__filler">…{filler}</p>
+      {logTail.length > 0 ? (
+        <ol className="review-progress__log" aria-label="Phase timeline">
+          {logTail.map((entry) => (
+            <li key={`${entry.at}:${entry.phase}`}>
+              <time className="review-progress__log-when">{formatHMS(entry.at)}</time>
+              <span className="review-progress__log-what">{entry.phase}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
     </div>
   );
+}
+
+function formatHMS(ms: number): string {
+  const d = new Date(ms);
+  const hh = d.getHours().toString().padStart(2, "0");
+  const mm = d.getMinutes().toString().padStart(2, "0");
+  const ss = d.getSeconds().toString().padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
 }
