@@ -4,6 +4,7 @@ import type { JSX } from "react";
 interface Props {
   value: string | null;
   onChange: (slug: string) => void;
+  name?: string;
   invalid?: boolean;
   errorId?: string;
 }
@@ -11,6 +12,7 @@ interface Props {
 export default function CategoryPicker({
   value,
   onChange,
+  name = "category",
   invalid = false,
   errorId,
 }: Props): JSX.Element {
@@ -31,7 +33,7 @@ export default function CategoryPicker({
           >
             <input
               type="radio"
-              name="category"
+              name={name}
               value={c.id}
               checked={value === c.id}
               onChange={() => onChange(c.id)}

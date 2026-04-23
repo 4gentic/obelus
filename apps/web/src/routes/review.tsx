@@ -449,6 +449,7 @@ export default function Review() {
       onDraftCategoryChange={setDraftCategory}
       onDraftNoteChange={setDraftNote}
       onUpdateNote={(id, note) => updateAnnotation(id, { note })}
+      onUpdateCategory={(id, category) => updateAnnotation(id, { category })}
       onDelete={deleteAnnotation}
       onDeleteGroup={deleteGroup}
       onExportReview={() => exportBundleForKind("review")}

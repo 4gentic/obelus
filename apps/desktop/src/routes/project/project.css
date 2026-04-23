@@ -1546,6 +1546,33 @@ button.files__row {
   margin: 0;
 }
 
+.review-list__note--editable {
+  width: 100%;
+  border: 1px solid transparent;
+  padding: var(--space-1);
+  font-family: var(--font-body);
+  background: transparent;
+  color: var(--ink-soft);
+  resize: vertical;
+  margin: 0;
+}
+
+.review-list__note--editable:hover,
+.review-list__note--editable:focus {
+  border-color: var(--rule-soft);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+}
+
+.review-list__cat--resolved {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  margin: 0;
+  text-transform: lowercase;
+}
+
 .review-draft {
   display: flex;
   flex-direction: column;
@@ -1647,6 +1674,23 @@ button.files__row {
   border-color: var(--chip-accent);
   background: color-mix(in oklab, var(--chip-accent) 14%, var(--paper));
   color: var(--ink);
+}
+
+.review-list__item .category-picker__legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.review-list__item .category-chip {
+  padding: 1px var(--space-1);
+  font-size: var(--step--2);
 }
 
 .btn {
