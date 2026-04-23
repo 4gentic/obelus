@@ -5,6 +5,8 @@ describe("PlanFile schema", () => {
   it("accepts well-formed plan JSON", () => {
     const parsed = PlanFile.parse({
       bundleId: "sha256:abc",
+      format: "typst",
+      entrypoint: "main.typ",
       blocks: [
         {
           annotationId: "11111111-1111-4111-8111-111111111111",
@@ -16,7 +18,20 @@ describe("PlanFile schema", () => {
         },
       ],
     });
+    expect(parsed.format).toBe("typst");
+    expect(parsed.entrypoint).toBe("main.typ");
     expect(parsed.blocks).toHaveLength(1);
+  });
+
+  it("accepts empty-string format and entrypoint when no descriptor was available", () => {
+    const parsed = PlanFile.parse({
+      bundleId: "sha256:abc",
+      format: "",
+      entrypoint: "",
+      blocks: [],
+    });
+    expect(parsed.format).toBe("");
+    expect(parsed.entrypoint).toBe("");
   });
 
   it("rejects missing fields", () => {
@@ -24,6 +39,17 @@ describe("PlanFile schema", () => {
       PlanFile.parse({
         bundleId: "x",
         blocks: [{ annotationId: "a", file: "f" }],
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a format value outside the enum", () => {
+    expect(() =>
+      PlanFile.parse({
+        bundleId: "sha256:abc",
+        format: "docx",
+        entrypoint: "main.docx",
+        blocks: [],
       }),
     ).toThrow();
   });

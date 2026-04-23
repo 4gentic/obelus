@@ -11,6 +11,8 @@ export const PlanBlock = z.object({
 
 export const PlanFile = z.object({
   bundleId: z.string(),
+  format: z.enum(["typst", "latex", "markdown", ""]),
+  entrypoint: z.string(),
   blocks: z.array(PlanBlock),
 });
 
