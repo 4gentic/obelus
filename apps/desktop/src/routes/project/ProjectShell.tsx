@@ -1,5 +1,7 @@
 import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { OPEN_FILE_EVENT, type OpenFileEventDetail } from "../../lib/open-file-event";
+import { useBuffersStore } from "./buffers-store-context";
 import CenterPane from "./CenterPane";
 import { useProject } from "./context";
 import FilesColumn from "./FilesColumn";
@@ -13,10 +15,22 @@ import { useLoadRevision } from "./use-load-revision";
 import { usePaperEdits } from "./use-paper-edits";
 
 export default function ProjectShell(): JSX.Element {
-  const { project, repo, rootId } = useProject();
+  const { project, repo, rootId, setOpenFilePath } = useProject();
+  const buffers = useBuffersStore();
   const openPaper = useOpenPaper();
   const paperId = openPaper.kind === "ready" ? openPaper.paper.id : null;
   useLoadRevision();
+
+  useEffect(() => {
+    const onOpen = (ev: Event): void => {
+      const detail = (ev as CustomEvent<OpenFileEventDetail>).detail;
+      if (!detail || detail.projectId !== project.id) return;
+      const proceed = buffers.getState().requestSwitch(detail.relPath);
+      if (proceed) setOpenFilePath(detail.relPath);
+    };
+    window.addEventListener(OPEN_FILE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_FILE_EVENT, onOpen);
+  }, [project.id, buffers, setOpenFilePath]);
   const { apply, repass, forkInfo } = useDiffActions();
   const reviewStore = useReviewStore();
   const edits = usePaperEdits(repo, paperId);

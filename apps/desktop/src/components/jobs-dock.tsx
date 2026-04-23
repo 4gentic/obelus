@@ -2,6 +2,7 @@ import { claudeCancel } from "@obelus/claude-sidecar";
 import { type JSX, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { type JobRecord, useJobsStore } from "../lib/jobs-store";
+import { emitOpenFile } from "../lib/open-file-event";
 import { getRepository } from "../lib/repo";
 import "./jobs-dock.css";
 
@@ -150,11 +151,13 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
   }, [job.claudeSessionId]);
 
   const handleOpen = useCallback(async (): Promise<void> => {
+    let paperRelPath: string | null = null;
     if (job.paperId) {
       try {
         const repo = await getRepository();
         const paper = await repo.papers.get(job.paperId);
         if (paper?.pdfRelPath) {
+          paperRelPath = paper.pdfRelPath;
           await repo.projects.setLastOpenedFile(job.projectId, paper.pdfRelPath);
         }
       } catch {
@@ -163,6 +166,11 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
       }
     }
     navigate(`/project/${job.projectId}`);
+    // Covers the already-on-this-project case: the route effect only fires on
+    // :id change, so a bare navigate leaves `openFilePath` stale.
+    if (paperRelPath !== null) {
+      emitOpenFile({ projectId: job.projectId, relPath: paperRelPath });
+    }
     onClose();
   }, [navigate, job.projectId, job.paperId, onClose]);
 
