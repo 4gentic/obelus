@@ -12,23 +12,28 @@ export function DiffStoreProvider({ children }: { children: ReactNode }): JSX.El
   const activePaperId = usePaperId();
   const store = useMemo(() => createDiffStore(repo.diffHunks), [repo]);
 
-  // Follow the paper in focus: load the latest completed review for the open
-  // paper, and clear when switching to a paper with no review. Hunks already
-  // live in the DB — the runner also calls `load` on completion, guarded by
-  // the `sessionId` already-loaded check below.
+  // Follow the paper in focus and the jobs store: load the latest completed
+  // review for the open paper, and clear when switching to a paper with no
+  // review. Subscribing to the jobs store is load-bearing — when a review
+  // transitions to `done` (which fires only after `ingestReview` has written
+  // rows to `diff_hunks`), we need to re-pick the latest session and load it.
   useEffect(() => {
-    const current = store.getState().sessionId;
-    if (!activePaperId) {
-      if (current !== null) store.getState().clear();
-      return;
-    }
-    const latest = findLatestDoneReviewForPaper(activePaperId);
-    if (!latest) {
-      if (current !== null) store.getState().clear();
-      return;
-    }
-    if (current === latest) return;
-    void store.getState().load(latest);
+    const run = (): void => {
+      const current = store.getState().sessionId;
+      if (!activePaperId) {
+        if (current !== null) store.getState().clear();
+        return;
+      }
+      const latest = findLatestDoneReviewForPaper(activePaperId);
+      if (!latest) {
+        if (current !== null) store.getState().clear();
+        return;
+      }
+      if (current === latest) return;
+      void store.getState().load(latest);
+    };
+    run();
+    return useJobsStore.subscribe(run);
   }, [store, activePaperId]);
 
   return <DiffStoreContext.Provider value={store}>{children}</DiffStoreContext.Provider>;
