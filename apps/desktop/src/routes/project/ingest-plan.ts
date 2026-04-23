@@ -183,6 +183,7 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     ambiguous: b.ambiguous,
     noteText: "",
     ordinal: i,
+    applyFailure: null,
   }));
 
   await repo.diffHunks.upsertMany(sessionId, rows);

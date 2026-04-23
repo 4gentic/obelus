@@ -4,6 +4,7 @@ import type {
   AskMessageRow,
   AskThreadRow,
   DeskRow,
+  DiffHunkApplyFailure,
   DiffHunkRow,
   DiffHunkState,
   FilePinRow,
@@ -146,6 +147,8 @@ export interface DiffHunksRepo {
   setNote(id: string, note: string): Promise<void>;
   acceptAllInFile(sessionId: string, file: string): Promise<void>;
   countsByState(sessionId: string): Promise<Record<DiffHunkState, number>>;
+  setApplyFailure(id: string, failure: DiffHunkApplyFailure | null): Promise<void>;
+  clearApplyFailures(sessionId: string): Promise<void>;
 }
 
 export interface AskMessageAppendInput {
