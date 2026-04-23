@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
 import { type PhaseEntry, useJobsStore } from "../../lib/jobs-store";
+import { paperHasSources } from "../../lib/paper-has-sources";
 import { useKeyNav } from "../../lib/use-key-nav";
 import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
@@ -11,6 +12,7 @@ import HunkBlock from "./HunkBlock";
 import { usePaperId } from "./OpenPaper";
 import { useReviewProgress, useReviewRunner } from "./review-runner-context";
 import type { ForkInfo } from "./use-diff-actions";
+import { usePaperBuild } from "./use-paper-build";
 import WidenToggle from "./WidenToggle";
 
 interface Props {
@@ -39,10 +41,12 @@ function groupByFile(hunks: ReadonlyArray<DiffHunkRow>): Map<string, DiffHunkRow
 }
 
 export default function DiffReview(props: Props): JSX.Element {
-  const { project, rootId } = useProject();
+  const { project, rootId, repo } = useProject();
   const store = useDiffStore();
   const runner = useReviewRunner();
   const activePaperId = usePaperId();
+  const { build: paperBuild } = usePaperBuild(repo, activePaperId);
+  const hasSources = paperHasSources(paperBuild);
   const phaseHistory = useJobsStore((s): ReadonlyArray<PhaseEntry> => {
     if (!activePaperId) return EMPTY_PHASE_HISTORY;
     let active: ReadonlyArray<PhaseEntry> | undefined;
@@ -268,7 +272,9 @@ export default function DiffReview(props: Props): JSX.Element {
     const hint =
       (runner.status.kind === "done" || runner.status.kind === "error") && runner.status.message
         ? runner.status.message
-        : "Plan loaded but no hunks were produced.";
+        : !hasSources
+          ? "This paper has no source files — the Diff tab records notes, not edits."
+          : "Plan loaded but no hunks were produced.";
     return <p className="review-column__hint">{hint}</p>;
   }
 
@@ -393,6 +399,7 @@ export default function DiffReview(props: Props): JSX.Element {
                 indexInFile={indexInFile}
                 totalInFile={bucket.length}
                 sourceText={source}
+                hasSources={hasSources}
                 focused={focusedHunk?.id === h.id}
                 editing={editingId === h.id}
                 editingText={editingText}

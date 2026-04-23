@@ -242,12 +242,19 @@ async function ingestReview(
     hunkCount: result.hunkCount,
     droppedForUnknownAnnotation: result.droppedForUnknownAnnotation,
     scannedPlans: result.scannedPlans,
+    hasSources: result.hasSources,
   });
 
   if (result.droppedForUnknownAnnotation.length > 0 && result.hunkCount === 0) {
     throw new Error(
       `plan referenced ${result.droppedForUnknownAnnotation.length} unknown annotation(s) and produced no hunks for this session`,
     );
+  }
+  if (!result.hasSources) {
+    if (result.hunkCount === 0) {
+      return "Review complete. No annotations to record.";
+    }
+    return `Review complete. ${result.hunkCount} note${result.hunkCount === 1 ? "" : "s"} recorded (no source files to patch).`;
   }
   if (result.blockCount === 0) {
     return "Plan ready. Reviewer proposed no changes.";

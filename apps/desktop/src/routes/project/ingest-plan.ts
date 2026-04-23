@@ -1,6 +1,7 @@
 import { PlanFileSchema } from "@obelus/claude-sidecar";
 import type { DiffHunkRow, Repository } from "@obelus/repo";
 import { fsReadDir, fsReadFile } from "../../ipc/commands";
+import { paperHasSources } from "../../lib/paper-has-sources";
 
 export interface IngestPlanInput {
   repo: Repository;
@@ -20,6 +21,7 @@ export interface IngestPlanResult {
   hunkCount: number;
   droppedForUnknownAnnotation: string[];
   scannedPlans: string[];
+  hasSources: boolean;
 }
 
 function basename(p: string): string {
@@ -33,6 +35,9 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   const session = await repo.reviewSessions.get(sessionId);
   if (!session) throw new Error(`review session ${sessionId} not found`);
   const sessionBundleBasename = basename(session.bundleId);
+
+  const paperBuild = (await repo.paperBuild.get(session.paperId)) ?? null;
+  const hasSources = paperHasSources(paperBuild);
 
   const revisions = await repo.revisions.listForPaper(session.paperId);
   const latest = revisions[revisions.length - 1];
@@ -136,5 +141,6 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     hunkCount: rows.length,
     droppedForUnknownAnnotation,
     scannedPlans,
+    hasSources,
   };
 }
