@@ -35,8 +35,12 @@ describe("indexPage", () => {
   it("does not add a synthetic space when the previous item already ends in whitespace", () => {
     const idx = indexPage([ti("hello "), ti("world")]);
     expect(idx.text).toBe("hello world");
+    expect(idx.itemForChar).toHaveLength(idx.text.length);
+    expect(idx.offsetForChar).toHaveLength(idx.text.length);
     expect(idx.itemForChar[5]).toBe(0);
     expect(idx.offsetForChar[5]).toBe(5);
+    expect(idx.itemForChar[6]).toBe(1);
+    expect(idx.offsetForChar[6]).toBe(0);
   });
 
   it("treats hasEOL as a word break (synthetic space inserted)", () => {
@@ -103,6 +107,14 @@ describe("searchPdfDocument", () => {
     const doc = mockDoc([{ items: [ti("hello"), ti("world")], viewport: mockViewport() }]);
     const matches = await searchPdfDocument(doc, "hello world");
     expect(matches).toHaveLength(1);
+  });
+
+  it("finds queries across a boundary when the previous item already ends in whitespace", async () => {
+    const doc = mockDoc([{ items: [ti("hello "), ti("world")], viewport: mockViewport() }]);
+    const spanning = await searchPdfDocument(doc, "hello world");
+    expect(spanning).toHaveLength(1);
+    const intoSecond = await searchPdfDocument(doc, "world");
+    expect(intoSecond).toHaveLength(1);
   });
 
   it("returns one match per page across a multi-page document", async () => {

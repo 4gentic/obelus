@@ -30,24 +30,34 @@ function isTextItem(raw: TextItem | TextMarkedContent): raw is TextItem {
   return "str" in raw;
 }
 
-// Build a flat, searchable string for one page plus parallel arrays that map
-// every character back to the (itemIndex, offset) it came from. A synthetic
-// space (marked with -1 in the mapping arrays) is inserted between items that
-// visually break a word, so the user's query "hello world" still matches when
-// pdfjs emits "hello" and "world" as two items on separate lines. Matches that
-// include a synthetic char at either boundary are discarded in the search pass.
+function needsSyntheticBreak(item: TextItem, next: TextItem): boolean {
+  return (
+    item.hasEOL === true || (item.str.length > 0 && !/\s$/.test(item.str) && !/^\s/.test(next.str))
+  );
+}
+
+// A synthetic space (marked with -1 in the mapping arrays) is inserted between
+// items that visually break a word, so the user's query "hello world" still
+// matches when pdfjs emits "hello" and "world" as two items on separate lines.
+// Matches that include a synthetic char at either boundary are discarded in
+// the search pass.
 export function indexPage(rawItems: ReadonlyArray<TextItem | TextMarkedContent>): PageIndex {
   const items: TextItem[] = [];
   for (const raw of rawItems) {
     if (isTextItem(raw) && raw.str !== "") items.push(raw);
   }
 
+  // The synthetic predicate runs twice: once to size the typed arrays to the
+  // joined-string length exactly, once to fill them. Any divergence between
+  // the two passes would misalign itemForChar/offsetForChar against the joined
+  // string — keep them in lockstep.
   let totalLen = 0;
   for (let i = 0; i < items.length; i += 1) {
     const item = items[i];
     if (!item) continue;
     totalLen += item.str.length;
-    if (i < items.length - 1) totalLen += 1;
+    const next = items[i + 1];
+    if (next !== undefined && needsSyntheticBreak(item, next)) totalLen += 1;
   }
 
   const text = new Array<string>(totalLen);
@@ -64,15 +74,9 @@ export function indexPage(rawItems: ReadonlyArray<TextItem | TextMarkedContent>)
       offsetForChar[cursor] = k;
       cursor += 1;
     }
-    if (i < items.length - 1) {
-      const next = items[i + 1];
-      const needsSynthetic =
-        item.hasEOL === true ||
-        (item.str.length > 0 &&
-          next !== undefined &&
-          !/\s$/.test(item.str) &&
-          !/^\s/.test(next.str));
-      text[cursor] = needsSynthetic ? " " : "";
+    const next = items[i + 1];
+    if (next !== undefined && needsSyntheticBreak(item, next)) {
+      text[cursor] = " ";
       itemForChar[cursor] = -1;
       offsetForChar[cursor] = -1;
       cursor += 1;
@@ -177,8 +181,4 @@ export async function searchPdfDocument(
   });
 
   return matches;
-}
-
-export function clearFindCache(doc: PDFDocumentProxy): void {
-  cache.delete(doc);
 }
