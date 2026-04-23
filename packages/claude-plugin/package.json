@@ -14,9 +14,12 @@
     "README.md"
   ],
   "scripts": {
-    "verify": "node scripts/verify.mjs"
+    "verify": "tsx scripts/verify.mjs"
   },
   "dependencies": {
     "@obelus/bundle-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "4.21.0"
   }
 }
