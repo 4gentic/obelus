@@ -28,3 +28,6 @@ apps/desktop/public/standard_fonts/
 
 # Claude Code runtime state
 .claude/scheduled_tasks.lock
+
+# Local git worktrees
+.worktrees/
