@@ -777,6 +777,15 @@ button.files__row {
 .pdf-hl[data-category="rephrase"] {
   --hl-color: var(--hl-rephrase);
 }
+.pdf-hl[data-category="enhancement"] {
+  --hl-color: var(--hl-enhancement);
+}
+.pdf-hl[data-category="aside"] {
+  --hl-color: var(--hl-aside);
+}
+.pdf-hl[data-category="flag"] {
+  --hl-color: var(--hl-flag);
+}
 
 .pdf-hl--draft {
   background: color-mix(in srgb, var(--hl-color) 20%, transparent);
@@ -888,6 +897,17 @@ button.files__row {
   margin: 0;
 }
 
+.source-pane__lock {
+  padding: var(--space-1) var(--space-3);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--rubric);
+  background: color-mix(in oklab, var(--rubric) 6%, var(--panel));
+  border-bottom: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--rubric);
+}
+
 .source-pane__editor {
   flex: 1;
   min-height: 0;
@@ -970,6 +990,13 @@ button.files__row {
 
 .pane__sub {
   font-size: var(--step--1);
+}
+
+.pane__sub--detail {
+  font-family: var(--font-mono);
+  color: var(--rubric);
+  max-width: 40ch;
+  word-break: break-word;
 }
 
 .review-column {
@@ -1158,8 +1185,45 @@ button.files__row {
   color: var(--ink);
 }
 
+.diff-review__banner--partial {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.diff-review__banner--partial p {
+  margin: 0;
+}
+
 .diff-review__banner--hint {
   color: var(--ink-soft);
+}
+
+.hunk-block__apply-failure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  background: color-mix(in oklab, var(--rubric) 10%, var(--paper));
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--rubric);
+}
+
+.hunk-block__apply-failure-label {
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.hunk-block__apply-failure-reason {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .diff-review__list {
@@ -1491,6 +1555,33 @@ button.files__row {
   margin: 0;
 }
 
+.review-list__note--editable {
+  width: 100%;
+  border: 1px solid transparent;
+  padding: var(--space-1);
+  font-family: var(--font-body);
+  background: transparent;
+  color: var(--ink-soft);
+  resize: vertical;
+  margin: 0;
+}
+
+.review-list__note--editable:hover,
+.review-list__note--editable:focus {
+  border-color: var(--rule-soft);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+}
+
+.review-list__cat--resolved {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  margin: 0;
+  text-transform: lowercase;
+}
+
 .review-draft {
   display: flex;
   flex-direction: column;
@@ -1580,6 +1671,41 @@ button.files__row {
   --chip-accent: var(--ink-soft);
 }
 
+/* Hover description for category chips. Highlights themselves are
+   pointer-events:none to keep PDF text selection alive, so the tooltip
+   lives on the adjacent chip in the picker and the margin gutter. */
+.cat-tooltip {
+  position: relative;
+}
+
+.cat-tooltip[data-cat-tooltip]::after {
+  content: attr(data-cat-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  max-width: 260px;
+  width: max-content;
+  padding: var(--space-2) var(--space-3);
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--radius-1);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  font-style: italic;
+  line-height: 1.4;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 100;
+  transition: opacity 120ms ease 400ms;
+}
+
+.cat-tooltip[data-cat-tooltip]:hover::after,
+.cat-tooltip[data-cat-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+
 .category-chip input {
   display: none;
 }
@@ -1592,6 +1718,23 @@ button.files__row {
   border-color: var(--chip-accent);
   background: color-mix(in oklab, var(--chip-accent) 14%, var(--paper));
   color: var(--ink);
+}
+
+.review-list__item .category-picker__legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.review-list__item .category-chip {
+  padding: 1px var(--space-1);
+  font-size: var(--step--2);
 }
 
 .btn {

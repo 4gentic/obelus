@@ -14,5 +14,11 @@ pub fn all() -> Vec<Migration> {
             sql: include_str!("../migrations/0002_review_session_status.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "hunk_apply_failure",
+            sql: include_str!("../migrations/0003_hunk_apply_failure.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

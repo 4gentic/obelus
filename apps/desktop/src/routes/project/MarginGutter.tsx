@@ -1,3 +1,4 @@
+import { descriptionFor } from "@obelus/categories";
 import type { JSX } from "react";
 import { useReviewStore } from "./store-context";
 export default function MarginGutter(): JSX.Element {
@@ -8,7 +9,12 @@ export default function MarginGutter(): JSX.Element {
     <aside className="margin-gutter" aria-label="Margin notes">
       {annotations.map((a) => (
         <div key={a.id} className="margin-note">
-          <span className="margin-note__cat">{a.category}</span>
+          <span
+            className="margin-note__cat cat-tooltip"
+            data-cat-tooltip={descriptionFor(a.category)}
+          >
+            {a.category}
+          </span>
           <span className="margin-note__page">p. {a.page}</span>
           {a.note && <p className="margin-note__body">{a.note}</p>}
         </div>

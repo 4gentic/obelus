@@ -52,6 +52,9 @@ fn engine_flag_for(compiler: &str) -> &'static str {
     }
 }
 
+// LaTeX tooling writes most diagnostics to stdout, not stderr. Surface the
+// last N lines so "! Undefined control sequence" and its neighbours reach the
+// error banner without drowning it in font-warning chatter.
 fn tail_lines(buf: &str, n: usize) -> String {
     let lines: Vec<&str> = buf.lines().collect();
     if lines.len() <= n {
@@ -86,6 +89,9 @@ pub async fn compile_latex(
 
     let input_abs = resolve(&root_id, &rel_path, &state)?;
     let root_abs = root_path_for(&root_id, &state)?;
+    // `resolve` already canonicalizes + checks descendance, but re-assert before
+    // spawning an external process: defense-in-depth against symlink-swap races
+    // between canonicalize() and spawn.
     if !is_descendant(&input_abs, &root_abs) {
         return Err(AppError::OutOfScope);
     }

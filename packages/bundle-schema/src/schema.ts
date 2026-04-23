@@ -9,6 +9,9 @@ export const CategoryV1 = z.enum([
   "citation-needed",
   "rephrase",
   "praise",
+  "enhancement",
+  "aside",
+  "flag",
 ]);
 
 const ThreadEntry = z.object({

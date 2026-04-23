@@ -16,7 +16,9 @@
       "!**/src-tauri/tauri.conf.json",
       "!**/.release-please-manifest.json",
       "!**/test-results",
-      "!**/playwright-report"
+      "!**/playwright-report",
+      "!.worktrees",
+      "!.claude/worktrees"
     ]
   },
   "formatter": {
