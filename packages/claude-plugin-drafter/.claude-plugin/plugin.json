@@ -1,0 +1,12 @@
+{
+  "name": "obelus-drafter",
+  "version": "0.0.1",
+  "description": "Drafter workflow for Obelus papers — spec, research, draft, critique, iterate, assemble. Preview release.",
+  "author": {
+    "name": "Obelus contributors"
+  },
+  "homepage": "https://github.com/4gentic/obelus",
+  "repository": "https://github.com/4gentic/obelus.git",
+  "license": "MIT",
+  "keywords": ["obelus", "drafter", "paper", "latex", "markdown", "typst", "academic"]
+}

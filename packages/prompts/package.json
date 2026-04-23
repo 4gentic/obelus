@@ -1,7 +1,7 @@
 {
-  "name": "@obelus/bundle-builder",
+  "name": "@obelus/prompts",
   "version": "0.1.0",
-  "description": "Pure bundle serialization: take already-fetched paper/revision/annotations and produce a parsed BundleV1. Shared by the web app and the desktop app.",
+  "description": "Single source of truth for every reviewer/writer instruction text. Pure TS, no I/O. Consumed by web, desktop, plugin SKILL render.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,10 +21,6 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
-  },
-  "dependencies": {
-    "@obelus/bundle-schema": "workspace:*",
-    "@obelus/prompts": "workspace:*"
   },
   "devDependencies": {
     "vitest": "4.1.4"

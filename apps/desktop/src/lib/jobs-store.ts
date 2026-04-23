@@ -36,6 +36,10 @@ export interface JobRecord {
   phase: string;
   phaseHistory: PhaseEntry[];
   message?: string;
+  // Path the plugin printed in its `OBELUS_WROTE: <path>` marker line. Used
+  // by ingest as a hint when the desktop's filesystem scan would otherwise
+  // miss the file (e.g. a smaller model wrote to a non-canonical name).
+  obelusWrotePath?: string;
 }
 
 export interface RegisterInput {
@@ -55,6 +59,7 @@ export interface JobsState {
   jobs: Record<string, JobRecord>;
   register(input: RegisterInput): void;
   updatePhase(claudeSessionId: string, phase: string): void;
+  recordObelusWrotePath(claudeSessionId: string, path: string): void;
   markIngesting(claudeSessionId: string): void;
   markDone(claudeSessionId: string, message: string): void;
   markError(claudeSessionId: string, message: string): void;
@@ -94,6 +99,14 @@ export const useJobsStore: JobsStore = create<JobsState>()((set, get) => ({
       const history = [...existing.phaseHistory, { phase, at: Date.now() }];
       if (history.length > PHASE_HISTORY_CAP) history.splice(0, history.length - PHASE_HISTORY_CAP);
       return { jobs: { ...s.jobs, [id]: { ...existing, phase, phaseHistory: history } } };
+    });
+  },
+
+  recordObelusWrotePath(id, path) {
+    set((s) => {
+      const existing = s.jobs[id];
+      if (!existing || existing.obelusWrotePath === path) return s;
+      return { jobs: { ...s.jobs, [id]: { ...existing, obelusWrotePath: path } } };
     });
   },
 

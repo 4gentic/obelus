@@ -24,8 +24,10 @@
     "guard:desktop-only": "node scripts/guard-desktop-only.mjs",
     "guard:bundle-size": "node scripts/guard-bundle-size.mjs",
     "guard:schema-emit": "node scripts/guard-schema-emit.mjs",
+    "prompts:render": "node scripts/render-prompt-fragments.mjs",
+    "prompts:check": "node scripts/render-prompt-fragments.mjs --check",
     "plugin:e2e": "node scripts/plugin-e2e.mjs",
-    "verify": "pnpm build && pnpm build:desktop-renderer && pnpm lint && pnpm typecheck && pnpm test && pnpm guard:network && pnpm guard:desktop-only && pnpm guard:bundle-size && pnpm guard:schema-emit"
+    "verify": "pnpm build && pnpm build:desktop-renderer && pnpm lint && pnpm prompts:check && pnpm typecheck && pnpm test && pnpm guard:network && pnpm guard:desktop-only && pnpm guard:bundle-size && pnpm guard:schema-emit"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.12",

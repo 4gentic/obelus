@@ -185,17 +185,24 @@ pub async fn claude_spawn(
         .resolve("plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
 
-    let mut prompt = format!(
-        "Run apply-revision with bundle path {}.\n",
-        bundle_abs.display()
-    );
-    if let Some(extra) = extra_prompt_body.as_ref().filter(|s| !s.trim().is_empty()) {
-        prompt.push('\n');
-        prompt.push_str(extra);
-        if !extra.ends_with('\n') {
-            prompt.push('\n');
+    // When the React side supplies a fully-formed prompt via `extra_prompt_body`
+    // (built by `formatSpawnInvocation` from `@obelus/prompts`), use it as the
+    // whole prompt — that path is the canonical spec. Otherwise fall back to
+    // the inline template, kept here only until every call site routes through
+    // the prompts package; deferred per Step 2 of the prompt-consolidation plan.
+    let prompt = match extra_prompt_body.as_ref().filter(|s| !s.trim().is_empty()) {
+        Some(extra) => {
+            if extra.ends_with('\n') {
+                extra.clone()
+            } else {
+                format!("{}\n", extra)
+            }
         }
-    }
+        None => format!(
+            "Run apply-revision with bundle path {}.\n",
+            bundle_abs.display()
+        ),
+    };
 
     let mut cmd = claude_command(&claude, &root, model.as_deref(), effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
@@ -210,6 +217,7 @@ pub async fn claude_draft_writeup(
     paper_id: String,
     paper_title: String,
     rubric_rel_path: Option<String>,
+    extra_prompt_body: Option<String>,
     model: Option<String>,
     effort: Option<String>,
     app: AppHandle,
@@ -227,22 +235,36 @@ pub async fn claude_draft_writeup(
         .resolve("plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
 
-    let mut prompt = format!(
-        "Run write-review with bundle path {}. Target paperId: {}. Paper title: {}.\n\
-         Emit markdown only. Use the default category\u{2192}section map.\n",
-        bundle_abs.display(),
-        paper_id,
-        paper_title,
-    );
-
-    if let Some(rubric_rel) = rubric_rel_path.as_ref().filter(|s| !s.trim().is_empty()) {
-        let rubric_abs = root.join(rubric_rel);
-        prompt.push_str(&format!(
-            "Rubric path: {}. Apply the rubric as framing for the review per the skill's \
-             rubric-handling rules.\n",
-            rubric_abs.display()
-        ));
-    }
+    // When the React side supplies a fully-formed prompt via `extra_prompt_body`
+    // (built by `formatSpawnInvocation` from `@obelus/prompts`), use it as the
+    // whole prompt. Otherwise fall back to the inline template; same deferral
+    // note as `claude_spawn`.
+    let prompt = match extra_prompt_body.as_ref().filter(|s| !s.trim().is_empty()) {
+        Some(extra) => {
+            if extra.ends_with('\n') {
+                extra.clone()
+            } else {
+                format!("{}\n", extra)
+            }
+        }
+        None => {
+            // Mirrors `formatSpawnInvocation({ kind: "write-review", … })` in
+            // `packages/prompts/src/formatters/format-spawn-invocation.ts`. Keep
+            // the two in lockstep when either changes; the SKILL is the smart
+            // side, this is just the trigger.
+            let mut prompt = format!(
+                "Run write-review with bundle path {}.\npaperId: {}\npaperTitle: {}\n",
+                bundle_abs.display(),
+                paper_id,
+                paper_title,
+            );
+            if let Some(rubric_rel) = rubric_rel_path.as_ref().filter(|s| !s.trim().is_empty()) {
+                let rubric_abs = root.join(rubric_rel);
+                prompt.push_str(&format!("rubricPath: {}\n", rubric_abs.display()));
+            }
+            prompt
+        }
+    };
 
     // write-review is composition (500–1500 words of reviewer voice), not
     // reasoning. Sonnet is the right tool here; Opus just doubles wall-clock

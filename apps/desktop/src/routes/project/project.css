@@ -2061,6 +2061,14 @@ button.files__row {
   animation: reviewer-actions-pulse 1.2s ease-in-out infinite;
 }
 
+.reviewer-actions__model-hint {
+  margin: 0.25rem 0 0;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-style: italic;
+}
+
 @keyframes reviewer-actions-pulse {
   0%,
   100% {

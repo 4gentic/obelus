@@ -45,6 +45,7 @@
     "resources": {
       "../../../packages/claude-plugin/skills": "plugin/skills",
       "../../../packages/claude-plugin/agents": "plugin/agents",
+      "../../../packages/claude-plugin/schemas": "plugin/schemas",
       "../../../packages/claude-plugin/.claude-plugin": "plugin/.claude-plugin"
     },
     "macOS": {

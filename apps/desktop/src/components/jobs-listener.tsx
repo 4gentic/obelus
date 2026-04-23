@@ -1,4 +1,11 @@
-import { onClaudeExit, onClaudeStdout, parseStreamLine } from "@obelus/claude-sidecar";
+import {
+  extractAssistantText,
+  extractDeltaText,
+  extractResultText,
+  onClaudeExit,
+  onClaudeStdout,
+  parseStreamLine,
+} from "@obelus/claude-sidecar";
 import type { ReactNode } from "react";
 import { type JSX, useEffect } from "react";
 import { phaseFromEvent } from "../lib/claude-phase";
@@ -6,6 +13,12 @@ import { useJobsStore } from "../lib/jobs-store";
 import { getRepository } from "../lib/repo";
 import { ingestPlanFile } from "../routes/project/ingest-plan";
 import { ingestWriteupFile } from "../routes/project/ingest-writeup";
+
+// Plugins emit `OBELUS_WROTE: <relative-path>` once at the end of a successful
+// run so the desktop can locate the file even when the directory scan would
+// pick the wrong name. Match the marker tolerantly: leading whitespace is OK,
+// the path runs to end-of-line.
+const OBELUS_WROTE_RE = /OBELUS_WROTE:\s*(\S.*?)\s*$/m;
 
 // Owns the single, app-lifetime subscription to the Claude stdout/exit event
 // stream. Routes events to the matching job record in the global jobs store.
@@ -29,6 +42,14 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
       const phase = phaseFromEvent(parsed);
       if (phase !== null) {
         useJobsStore.getState().updatePhase(ev.sessionId, phase);
+      }
+      const text =
+        extractDeltaText(parsed) || extractAssistantText(parsed) || extractResultText(parsed) || "";
+      if (text) {
+        const match = text.match(OBELUS_WROTE_RE);
+        if (match?.[1]) {
+          useJobsStore.getState().recordObelusWrotePath(ev.sessionId, match[1]);
+        }
       }
     }).then((fn) => {
       if (cancelled) fn();
@@ -74,10 +95,16 @@ async function handleExit(
   store.markIngesting(sessionId);
   try {
     if (job.kind === "review") {
-      const message = await ingestReview(job.rootId, job.reviewSessionId);
+      const message = await ingestReview(job.rootId, job.reviewSessionId, job.obelusWrotePath);
       store.markDone(sessionId, message);
     } else {
-      const ingested = await ingestWriteup(sessionId, job.rootId, job.paperId, job.projectId);
+      const ingested = await ingestWriteup(
+        sessionId,
+        job.rootId,
+        job.paperId,
+        job.projectId,
+        job.obelusWrotePath,
+      );
       const bytes = new TextEncoder().encode(ingested.body).byteLength;
       const fileName = ingested.path.replace(/^\.obelus\//, "");
       store.markDone(
@@ -91,10 +118,19 @@ async function handleExit(
   }
 }
 
-async function ingestReview(rootId: string, reviewSessionId: string | undefined): Promise<string> {
+async function ingestReview(
+  rootId: string,
+  reviewSessionId: string | undefined,
+  hintPath: string | undefined,
+): Promise<string> {
   if (!reviewSessionId) throw new Error("review job is missing reviewSessionId");
   const repo = await getRepository();
-  const result = await ingestPlanFile({ repo, rootId, sessionId: reviewSessionId });
+  const result = await ingestPlanFile({
+    repo,
+    rootId,
+    sessionId: reviewSessionId,
+    ...(hintPath !== undefined ? { hintPath } : {}),
+  });
   await repo.reviewSessions.complete(reviewSessionId);
 
   console.info("[ingest-plan]", {
@@ -127,11 +163,21 @@ async function ingestWriteup(
   rootId: string,
   paperId: string | undefined,
   projectId: string,
+  hintPath: string | undefined,
 ): Promise<{ path: string; body: string }> {
   if (!paperId) throw new Error("writeup job is missing paperId");
-  const ingested = await ingestWriteupFile({ rootId, paperId });
+  const ingested = await ingestWriteupFile({
+    rootId,
+    paperId,
+    ...(hintPath !== undefined ? { hintPath } : {}),
+  });
   if (!ingested) {
-    throw new Error("Claude finished but no .obelus/writeup-*.md file was written.");
+    const hintNote = hintPath
+      ? ` Marker pointed at \`${hintPath}\` but the file was not readable.`
+      : " No `OBELUS_WROTE:` marker was emitted by the plugin.";
+    throw new Error(
+      `Claude finished but no writeup was found for paper ${paperId}.${hintNote} Expected \`.obelus/writeup-${paperId}-<timestamp>.md\`.`,
+    );
   }
   const repo = await getRepository();
   await repo.writeUps.upsert({ projectId, paperId, bodyMd: ingested.body });
@@ -142,6 +188,7 @@ async function ingestWriteup(
     projectId,
     path: ingested.path,
     byteLength: new TextEncoder().encode(ingested.body).byteLength,
+    hintPath: hintPath ?? null,
   });
 
   return ingested;

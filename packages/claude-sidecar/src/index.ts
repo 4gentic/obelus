@@ -60,6 +60,7 @@ export interface ClaudeDraftWriteupInput {
   paperId: string;
   paperTitle: string;
   rubricRelPath?: string;
+  extraPromptBody?: string | null;
   model?: string | null;
   effort?: string | null;
 }
@@ -71,6 +72,7 @@ export function claudeDraftWriteup(input: ClaudeDraftWriteupInput): Promise<stri
     paperId: input.paperId,
     paperTitle: input.paperTitle,
     rubricRelPath: input.rubricRelPath ?? null,
+    extraPromptBody: input.extraPromptBody ?? null,
     model: input.model ?? null,
     effort: input.effort ?? null,
   });

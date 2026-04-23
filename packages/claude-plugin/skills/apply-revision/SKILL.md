@@ -8,9 +8,26 @@ allowed-tools: Read Glob Grep Write
 
 # Apply revision
 
-Entry point. The user passes a path to an Obelus bundle exported from the web or desktop app. This skill takes each mark and turns it into a minimal-diff edit on the paper source — a revision pass. It does **not** write a review — see `write-review` for that.
+Validate an Obelus bundle, locate the paper source, then delegate to `plan-fix` to produce a paired `.obelus/plan-*.md` and `.obelus/plan-*.json` describing one minimal-diff edit per mark.
+
+The user passes a path to an Obelus bundle exported from the web or desktop app. This skill is the entry point for the revision flow; it does **not** edit source files (that is `apply-fix`) and it does **not** write a reviewer's letter (that is `write-review`).
 
 Optional second argument: `--entrypoint <path>` forces the paper source to the supplied file, skipping format detection.
+
+## File output contract — non-negotiable
+
+This skill delegates the actual planning to `plan-fix`, which writes the plan files. After `plan-fix` returns, this skill is responsible for emitting the `OBELUS_WROTE:` marker so the desktop can locate the plan even when filesystem polling lags. The contract is:
+
+1. **Plan path.** `.obelus/plan-<iso-timestamp>.md` (human) and `.obelus/plan-<iso-timestamp>.json` (machine), both relative to the current working directory.
+2. **Timestamp format.** Compact UTC: `YYYYMMDD-HHmmss` — e.g. `20260423-143012`. Generate it once and use the same value for both files.
+3. **Pre-flight.** Before invoking `plan-fix`, ensure `.obelus/` exists. If it does not, create `.obelus/.gitkeep` (empty body) via `Write`.
+4. **Final marker line.** Once `plan-fix` reports the two paths, print exactly one line on stdout in this form, with nothing else on the line:
+
+   ```
+   OBELUS_WROTE: .obelus/plan-<iso-timestamp>.json
+   ```
+
+   Use the `.json` path (the machine-readable companion is what the desktop consumes). Print it once, at the end, after the file is on disk.
 
 ## Steps
 
@@ -46,23 +63,19 @@ Optional second argument: `--entrypoint <path>` forces the paper source to the s
 
    - **On success** (you found a latex, markdown, or typst entrypoint), narrate one short sentence: `Detected <format> source at <entrypoint>.` If step 5d's disambiguation fired, append a second sentence — e.g. `Two <format> entrypoints found — picked <chosen> (most recently modified).` No JSON, no code fences, no bullet list of source files. Then **continue to step 6 in the same turn** — this is a mid-flow narration, not the final answer.
 
-   - **On nothing matched**, stop with exactly this message (substitute `<bundle-path>` with the path the user passed in):
+   - **On nothing matched**, stop with the structured refusal below (substitute `<bundle-path>` with the path the user passed in). Pick the branch that fits, but keep the three-branch shape so the user can see all options at once:
 
-     > I can't apply this revision — there is no `.tex`, `.md`, or `.typ` paper source in this repo.
+     > **Cannot apply this revision — no `.tex`, `.md`, or `.typ` paper source found in this repo.**
      >
-     > **If you don't have the source** (e.g. you annotated an arxiv PDF for peer review), `apply-revision` is the wrong tool. Run this instead to produce a reviewer's letter from the same bundle:
+     > Pick whichever applies:
      >
-     > `/obelus:write-review <bundle-path>`
-     >
-     > **If you do have the source elsewhere,** pass it explicitly:
-     >
-     > `/obelus:apply-revision <bundle-path> --entrypoint <path-to-entrypoint>`
-     >
-     > or `cd` to the folder that holds it and rerun.
+     > - **No source available** (you annotated an arXiv PDF for peer review): use `/obelus:write-review <bundle-path>` instead — it produces a reviewer's letter from the same bundle without needing the source.
+     > - **Multi-paper bundle, want to scope to one paper**: pass the entrypoint explicitly via `/obelus:apply-revision <bundle-path> --entrypoint <path-to-entrypoint>`.
+     > - **Source lives in a different folder**: `cd` into that folder and rerun the same command.
 
-6. **Plan.** Follow the `plan-fix` skill's procedure with the validated bundle and the format descriptor you computed in step 5. That procedure writes `.obelus/plan-<timestamp>.md` together with a companion `.obelus/plan-<timestamp>.json` (both paths relative to the current working directory — create the `.obelus/` directory first if it does not exist). When the plan files are on disk, print a compact report: the two plan paths on their own lines, then a single sentence naming totals (e.g. `Wrote 3 blocks (1 citation-needed, 1 unclear, 1 praise) — 0 ambiguous.`). Do not echo per-block bodies; the user will open the plan file to read those.
+6. **Plan.** Follow the `plan-fix` skill's procedure with the validated bundle and the format descriptor you computed in step 5. That procedure writes `.obelus/plan-<timestamp>.md` together with a companion `.obelus/plan-<timestamp>.json`. When the plan files are on disk, print a compact report: the two plan paths on their own lines, then a single sentence naming totals (e.g. `Wrote 3 blocks (1 citation-needed, 1 unclear, 1 praise) — 0 ambiguous.`). Do not echo per-block bodies; the user will open the plan file to read those.
 
-7. **Hand off.** Tell the user:
+7. **Hand off + marker.** Print the `OBELUS_WROTE:` marker per the **File output contract** above (the `.json` path). Then tell the user:
 
    > Read the plan at `<path>`. When you're ready to apply it, run:
    > `/skill apply-fix <path>`
@@ -93,7 +106,7 @@ Optional second argument: `--entrypoint <path>` forces the paper source to the s
 
 6v2. **Report.** Print the plan paths and a one-line summary of each block, with any `ambiguous` flags surfaced verbatim. Group summary lines by paper.
 
-7v2. **Hand off.** Tell the user:
+7v2. **Hand off + marker.** Print the `OBELUS_WROTE:` marker per the **File output contract** above (the `.json` path). Then tell the user:
 
    > Read the plan at `<path>`. When you're ready to apply it, run:
    > `/skill apply-fix <path>`
@@ -107,3 +120,63 @@ Optional second argument: `--entrypoint <path>` forces the paper source to the s
 - Do not emit the classification result as JSON or as a fenced code block — always narrate it in one sentence of prose and move on to step 6 in the same turn.
 - Do not edit any source file in this skill.
 - Do not prompt the user to auto-apply; `apply-fix` must be explicitly requested.
+- Do not skip the `OBELUS_WROTE:` marker. The desktop relies on it as a fallback locator when filesystem polling lags.
+
+## Worked example — v1 single-paper
+
+Bundle at `bundle.json`. Repo holds `main.tex` (LaTeX) and the rendered `paper.pdf`. The successful turn looks like:
+
+```
+[narration]
+The PDF paper.pdf is in this repo and its hash matches the bundle.
+Detected latex source at main.tex.
+
+[plan-fix runs; writes both files]
+
+[stdout]
+.obelus/plan-20260423-143012.md
+.obelus/plan-20260423-143012.json
+Wrote 3 blocks (1 citation-needed, 1 unclear, 1 praise) — 0 ambiguous.
+
+Read the plan at .obelus/plan-20260423-143012.md. When you're ready to apply it, run:
+/skill apply-fix .obelus/plan-20260423-143012.md
+
+OBELUS_WROTE: .obelus/plan-20260423-143012.json
+```
+
+The marker line is the *last* line on stdout. Nothing else appears on it.
+
+## Worked example — v2 multi-paper
+
+Bundle at `bundle.json` with `bundleVersion: "2.0"` and three papers (`paper-a` LaTeX, `paper-b` Markdown, `paper-c` Typst). Each paper is preflighted in turn:
+
+```
+[narration, one line per paper]
+The PDF for "Paper A" (papers/a/paper.pdf) is in this repo.
+Detected latex source at papers/a/main.tex for "Paper A".
+The PDF for "Paper B" (papers/b/paper.pdf) isn't in this repo.
+Detected markdown source at papers/b/manuscript.md for "Paper B".
+Detected typst source at papers/c/main.typ for "Paper C".
+
+[plan-fix runs once with the whole bundle]
+
+[stdout]
+.obelus/plan-20260423-143012.md
+.obelus/plan-20260423-143012.json
+Wrote 7 blocks (Paper A: 3, Paper B: 2, Paper C: 2) — 1 ambiguous (paper-b).
+
+Read the plan at .obelus/plan-20260423-143012.md. When you're ready to apply it, run:
+/skill apply-fix .obelus/plan-20260423-143012.md
+
+OBELUS_WROTE: .obelus/plan-20260423-143012.json
+```
+
+A single `plan-fix` invocation handles all three papers; the marker line still references the single `.json` companion.
+
+## Before returning, verify
+
+- `.obelus/plan-<iso>.md` and `.obelus/plan-<iso>.json` exist on disk and share the same timestamp.
+- The very last stdout line is `OBELUS_WROTE: .obelus/plan-<iso>.json` with nothing else on it.
+- You did not invoke `apply-fix`. The user runs it explicitly.
+
+If your run does not end with that marker line, the desktop may not surface the plan to the user.
