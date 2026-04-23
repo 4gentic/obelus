@@ -11,6 +11,8 @@ import FindBar from "./FindBar";
 import { useFindStore } from "./find-store-context";
 import MarginGutter from "./MarginGutter";
 import { useOpenPaper } from "./OpenPaper";
+import QuickOpenPalette from "./QuickOpenPalette";
+import { useQuickOpenStore } from "./quick-open-store-context";
 import ReviewColumn from "./ReviewColumn";
 import { useReviewStore } from "./store-context";
 import { useDiffActions } from "./use-diff-actions";
@@ -46,10 +48,24 @@ export default function ProjectShell(): JSX.Element {
   const [reviewWide, setReviewWide] = useState(false);
   const onToggleReviewWide = useCallback(() => setReviewWide((w) => !w), []);
   const findStore = useFindStore();
+  const quickOpenStore = useQuickOpenStore();
   const pdfOpen = openPaper.kind === "ready";
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent): void => {
+      // Cmd/Ctrl+P: open the file palette. Quick open is global — it takes
+      // precedence over whatever editor / pane has focus.
+      if (
+        (ev.metaKey || ev.ctrlKey) &&
+        !ev.shiftKey &&
+        !ev.altKey &&
+        ev.key.toLowerCase() === "p"
+      ) {
+        ev.preventDefault();
+        quickOpenStore.getState().open();
+        return;
+      }
+
       // Cmd/Ctrl+F: route to CodeMirror when a source editor is mounted; open
       // the PDF find bar otherwise. When the event originates inside a
       // CodeMirror editor, its own `searchKeymap` already handled it — bail
@@ -103,7 +119,7 @@ export default function ProjectShell(): JSX.Element {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [reviewStore, findStore, pdfOpen]);
+  }, [reviewStore, findStore, quickOpenStore, pdfOpen]);
 
   const hideLeft = project.kind === "reviewer";
   const classes = ["project-shell__body"];
@@ -126,6 +142,9 @@ export default function ProjectShell(): JSX.Element {
         <main className="project-shell__center">
           <div className="find-bar-anchor">
             <FindBar />
+          </div>
+          <div className="quick-open-anchor">
+            <QuickOpenPalette />
           </div>
           <CenterPane />
         </main>

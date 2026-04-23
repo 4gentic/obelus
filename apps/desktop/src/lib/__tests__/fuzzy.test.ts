@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fuzzyFilter, fuzzyScore } from "../fuzzy";
+import { fuzzyFilter, fuzzyMatch, fuzzyScore } from "../fuzzy";
 
 describe("fuzzyScore", () => {
   it("empty needle scores 0", () => {
@@ -59,5 +59,33 @@ describe("fuzzyFilter", () => {
   it("drops items that do not contain the subsequence", () => {
     const hits = fuzzyFilter(items, "zzz", (s) => s);
     expect(hits).toEqual([]);
+  });
+});
+
+describe("fuzzyMatch", () => {
+  it("empty needle returns score 0 and no indices", () => {
+    expect(fuzzyMatch("", "anything")).toEqual({ score: 0, indices: [] });
+  });
+
+  it("returns the haystack index of each matched char", () => {
+    const m = fuzzyMatch("abc", "aXbXc");
+    expect(m).not.toBeNull();
+    expect(m?.indices).toEqual([0, 2, 4]);
+  });
+
+  it("returns null when a character is missing", () => {
+    expect(fuzzyMatch("abc", "ab")).toBeNull();
+  });
+
+  it("matches the score produced by fuzzyScore", () => {
+    const q = "pap";
+    const h = "paper.md";
+    expect(fuzzyMatch(q, h)?.score).toBe(fuzzyScore(q, h));
+  });
+
+  it("is case-insensitive", () => {
+    const m = fuzzyMatch("ABC", "aXbXc");
+    expect(m).not.toBeNull();
+    expect(m?.indices).toEqual([0, 2, 4]);
   });
 });
