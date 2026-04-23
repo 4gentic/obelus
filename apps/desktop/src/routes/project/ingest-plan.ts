@@ -20,8 +20,51 @@ export interface IngestPlanResult {
   blockCount: number;
   hunkCount: number;
   droppedForUnknownAnnotation: string[];
+  synthesisedKept: number;
   scannedPlans: string[];
   hasSources: boolean;
+}
+
+// Synthesised blocks carry IDs the planner invents (they have no row in the
+// annotations table). They still need to reach the diff-review UI so the user
+// can accept/reject each; without this allowlist they would be silently
+// dropped by the knownAnnotationIds gate below.
+export const SYNTHESISED_ID_PREFIXES = ["cascade-", "impact-", "coherence-", "quality-"] as const;
+
+export function isSynthesisedAnnotationId(id: string): boolean {
+  return SYNTHESISED_ID_PREFIXES.some((prefix) => id.startsWith(prefix));
+}
+
+export interface PlanBlockLike {
+  annotationId: string;
+}
+
+export interface PartitionedBlocks<T extends PlanBlockLike> {
+  kept: T[];
+  droppedForUnknownAnnotation: string[];
+  synthesisedKept: number;
+}
+
+export function partitionPlanBlocks<T extends PlanBlockLike>(
+  blocks: readonly T[],
+  knownAnnotationIds: ReadonlySet<string>,
+): PartitionedBlocks<T> {
+  const kept: T[] = [];
+  const droppedForUnknownAnnotation: string[] = [];
+  let synthesisedKept = 0;
+  for (const b of blocks) {
+    if (isSynthesisedAnnotationId(b.annotationId)) {
+      synthesisedKept += 1;
+      kept.push(b);
+      continue;
+    }
+    if (knownAnnotationIds.has(b.annotationId)) {
+      kept.push(b);
+      continue;
+    }
+    droppedForUnknownAnnotation.push(b.annotationId);
+  }
+  return { kept, droppedForUnknownAnnotation, synthesisedKept };
 }
 
 function basename(p: string): string {
@@ -122,12 +165,11 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     );
   }
 
-  const droppedForUnknownAnnotation: string[] = [];
-  const keptBlocks = picked.plan.blocks.filter((b) => {
-    if (knownAnnotationIds.has(b.annotationId)) return true;
-    droppedForUnknownAnnotation.push(b.annotationId);
-    return false;
-  });
+  const {
+    kept: keptBlocks,
+    droppedForUnknownAnnotation,
+    synthesisedKept,
+  } = partitionPlanBlocks(picked.plan.blocks, knownAnnotationIds);
 
   const rows: DiffHunkRow[] = keptBlocks.map((b, i) => ({
     id: crypto.randomUUID(),
@@ -152,6 +194,7 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     blockCount: picked.plan.blocks.length,
     hunkCount: rows.length,
     droppedForUnknownAnnotation,
+    synthesisedKept,
     scannedPlans,
     hasSources,
   };

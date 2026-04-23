@@ -276,6 +276,7 @@ async function ingestReview(
     sessionBundleId: result.sessionBundleId,
     blockCount: result.blockCount,
     hunkCount: result.hunkCount,
+    synthesisedKept: result.synthesisedKept,
     droppedForUnknownAnnotation: result.droppedForUnknownAnnotation,
     scannedPlans: result.scannedPlans,
     hasSources: result.hasSources,
