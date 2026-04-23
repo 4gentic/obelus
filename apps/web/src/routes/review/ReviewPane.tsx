@@ -20,6 +20,7 @@ type Props = {
   onDraftCategoryChange: (category: string | null) => void;
   onDraftNoteChange: (note: string) => void;
   onUpdateNote: (id: string, note: string) => Promise<void>;
+  onUpdateCategory: (id: string, category: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
   onExportReview: () => Promise<string | null>;
@@ -42,6 +43,7 @@ type AnnotationItemProps = {
   entry: DisplayEntry;
   focused: boolean;
   onUpdateNote: (id: string, note: string) => Promise<void>;
+  onUpdateCategory: (id: string, category: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
 };
@@ -50,6 +52,7 @@ function AnnotationItem({
   entry,
   focused,
   onUpdateNote,
+  onUpdateCategory,
   onDelete,
   onDeleteGroup,
 }: AnnotationItemProps): JSX.Element {
@@ -82,17 +85,18 @@ function AnnotationItem({
       data-kind={entry.kind}
     >
       <header className="review-pane__item-head">
-        <span className="review-pane__item-cat">
-          {category}
-          {entry.kind === "group" ? (
-            <span className="review-pane__item-link" title="Linked across pages">
-              {" "}
-              {"\u21C4"}
-            </span>
-          ) : null}
-        </span>
         <span className="review-pane__item-page">{pageLabel}</span>
+        {entry.kind === "group" ? (
+          <span className="review-pane__item-link" title="Linked across pages">
+            {"\u21C4"}
+          </span>
+        ) : null}
       </header>
+      <CategoryPicker
+        name={`cat-${first.id}`}
+        value={category}
+        onChange={(c) => void onUpdateCategory(first.id, c)}
+      />
       {quoteNodes}
       <NoteEditor
         value={local}
@@ -190,6 +194,7 @@ export default function ReviewPane({
   onDraftCategoryChange,
   onDraftNoteChange,
   onUpdateNote,
+  onUpdateCategory,
   onDelete,
   onDeleteGroup,
   onExportReview,
@@ -376,6 +381,7 @@ export default function ReviewPane({
                   entry={entry}
                   focused={entryContainsId(entry, focusedAnnotationId)}
                   onUpdateNote={onUpdateNote}
+                  onUpdateCategory={onUpdateCategory}
                   onDelete={onDelete}
                   onDeleteGroup={onDeleteGroup}
                 />
