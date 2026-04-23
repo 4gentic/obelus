@@ -1,6 +1,6 @@
 {
   "name": "obelus",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Apply an Obelus review bundle to your paper source. Format-agnostic (LaTeX, Markdown, Typst), offline, minimal-diff.",
   "author": {
     "name": "Obelus contributors"
@@ -8,5 +8,13 @@
   "homepage": "https://github.com/4gentic/obelus",
   "repository": "https://github.com/4gentic/obelus.git",
   "license": "MIT",
-  "keywords": ["obelus", "review", "paper", "latex", "markdown", "typst", "academic"]
+  "keywords": [
+    "obelus",
+    "review",
+    "paper",
+    "latex",
+    "markdown",
+    "typst",
+    "academic"
+  ]
 }
