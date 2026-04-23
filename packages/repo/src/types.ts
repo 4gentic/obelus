@@ -110,6 +110,11 @@ export interface ReviewSessionRow {
 
 export type DiffHunkState = "pending" | "accepted" | "rejected" | "modified";
 
+export interface DiffHunkApplyFailure {
+  reason: string;
+  attemptedAt: string;
+}
+
 export interface DiffHunkRow {
   id: string;
   sessionId: string;
@@ -122,6 +127,9 @@ export interface DiffHunkRow {
   ambiguous: boolean;
   noteText: string;
   ordinal: number;
+  // Populated by a partial apply when this hunk could not be applied against
+  // the current source. Cleared on repass / discard / dismiss-failures.
+  applyFailure: DiffHunkApplyFailure | null;
 }
 
 export interface AskThreadRow {

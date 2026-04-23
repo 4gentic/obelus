@@ -56,6 +56,8 @@ const diffHunksStub: DiffHunksRepo = {
   setNote: () => Promise.reject(new NotSupportedError("diffHunks")),
   acceptAllInFile: () => Promise.reject(new NotSupportedError("diffHunks")),
   countsByState: () => Promise.reject(new NotSupportedError("diffHunks")),
+  setApplyFailure: () => Promise.reject(new NotSupportedError("diffHunks")),
+  clearApplyFailures: () => Promise.reject(new NotSupportedError("diffHunks")),
 };
 
 const askThreadsStub: AskThreadsRepo = {
