@@ -1,5 +1,5 @@
 import type { Repository } from "@obelus/repo";
-import { compileTypst } from "../../ipc/commands";
+import { compileLatex, compileTypst, type LatexCompiler } from "../../ipc/commands";
 
 export type AutoCompileTrigger = "apply" | "switch";
 
@@ -20,12 +20,12 @@ export interface AutoCompileArgs {
   reviewedRelPath?: string | null;
 }
 
-const LATEX_COMPILERS = new Set(["latexmk", "xelatex", "pdflatex"]);
+const LATEX_COMPILERS = new Set<string>(["latexmk", "xelatex", "pdflatex"]);
 
 // Runs the per-paper compiler after a draft is created or switched.
-// Only Typst is wired end-to-end today; LaTeX surfaces an actionable hint,
-// pandoc/markdown stays silent. Never throws — returns a tagged outcome so
-// callers can decide how to surface it.
+// Typst and LaTeX (via latexmk) are wired end-to-end; pandoc/markdown stays
+// silent. Never throws — returns a tagged outcome so callers can decide how
+// to surface it.
 export async function autoCompileAfterDraftChange(
   args: AutoCompileArgs,
 ): Promise<AutoCompileOutcome> {
@@ -76,10 +76,19 @@ async function runForCompiler(args: {
   }
 
   if (LATEX_COMPILERS.has(compiler)) {
-    return {
-      kind: "hint",
-      message: `${compiler} auto-compile isn't wired — run your usual LaTeX command to rebuild the PDF.`,
-    };
+    try {
+      const report = await compileLatex(rootId, mainRelPath, compiler as LatexCompiler);
+      return {
+        kind: "compiled",
+        outputRelPath: report.outputRelPath,
+        stderr: report.stderr,
+      };
+    } catch (err) {
+      return {
+        kind: "error",
+        message: err instanceof Error ? err.message : `${compiler} compile failed.`,
+      };
+    }
   }
 
   return { kind: "noop" };

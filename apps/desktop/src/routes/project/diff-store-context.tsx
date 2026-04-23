@@ -11,7 +11,7 @@ const DiffStoreContext = createContext<DiffStore | null>(null);
 export function DiffStoreProvider({ children }: { children: ReactNode }): JSX.Element {
   const { repo } = useProject();
   const activePaperId = usePaperId();
-  const store = useMemo(() => createDiffStore(repo.diffHunks), [repo]);
+  const store = useMemo(() => createDiffStore(repo.diffHunks, repo.reviewSessions), [repo]);
 
   // Source of truth is the DB: query the latest review session that is
   // neither discarded nor already applied for the active paper, and load its

@@ -60,7 +60,7 @@ test.describe("review", () => {
 
     const firstItem = page.locator(".review-pane__item").first();
     await expect(firstItem).toBeVisible();
-    await expect(firstItem).toContainText("unclear");
+    await expect(firstItem).toHaveAttribute("data-category", "unclear");
     await expect(firstItem).toContainText(MINIMAL_PDF_QUOTE);
     await expect(page.locator(".review__hl").first()).toBeVisible();
 
@@ -81,7 +81,10 @@ test.describe("review", () => {
     await page.getByRole("textbox", { name: /what needs attention/i }).fill("Original note.");
     await page.getByRole("button", { name: "Save mark" }).click();
 
-    await expect(page.locator(".review-pane__item").first()).toContainText("citation-needed");
+    await expect(page.locator(".review-pane__item").first()).toHaveAttribute(
+      "data-category",
+      "citation-needed",
+    );
 
     // Rename the paper via the breadcrumb.
     await page.getByRole("button", { name: /rename minimal/i }).click();
@@ -93,8 +96,35 @@ test.describe("review", () => {
     await page.reload();
     await expect(page.locator(".pdf-doc canvas").first()).toBeVisible();
     await expect(page.getByRole("button", { name: /rename reloaded paper/i })).toBeVisible();
-    await expect(page.locator(".review-pane__item").first()).toContainText("citation-needed");
+    await expect(page.locator(".review-pane__item").first()).toHaveAttribute(
+      "data-category",
+      "citation-needed",
+    );
     await expect(page.locator(".review-pane__item").first()).toContainText("Original note.");
+  });
+
+  test("editing a saved mark's category recolors the highlight in place", async ({ page }) => {
+    await uploadAndOpen(page);
+    await selectQuote(page);
+
+    await page
+      .locator("label.catpick__chip")
+      .filter({ hasText: /^unclear$/i })
+      .click();
+    await page.getByRole("button", { name: "Save mark" }).click();
+
+    const item = page.locator(".review-pane__item").first();
+    await expect(item).toHaveAttribute("data-category", "unclear");
+    const highlight = page.locator(".review__hl").first();
+    await expect(highlight).toHaveAttribute("data-category", "unclear");
+
+    await item
+      .locator("label.catpick__chip")
+      .filter({ hasText: /^praise$/i })
+      .click();
+
+    await expect(item).toHaveAttribute("data-category", "praise");
+    await expect(highlight).toHaveAttribute("data-category", "praise");
   });
 
   test("deleting an annotation removes it from the margin and the list", async ({ page }) => {
