@@ -1,0 +1,93 @@
+name: Performance issue
+description: Slowness, jank, or excessive memory use.
+title: ""
+labels: ["performance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Numbers help. If you can, paste a measured metric (FPS, time-to-interactive, a Performance tab flamegraph screenshot link). For **code**, paste symbol names and file paths — not source.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      placeholder: "Scrolling a 200-page PDF drops to single-digit FPS after ~30 pages."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - web
+        - desktop (macOS)
+        - desktop (Windows)
+        - desktop (Linux)
+        - plugin (Claude Code)
+    validations:
+      required: true
+
+  - type: textarea
+    id: slow
+    attributes:
+      label: What felt slow
+      description: The user-visible symptom. Scroll jank, long pauses, memory growth, fan spin-up, beach-balling.
+    validations:
+      required: true
+
+  - type: input
+    id: metric
+    attributes:
+      label: Measured metric
+      description: Optional but valuable. FPS, time to first paint, memory peak, frame time.
+      placeholder: "FPS 12 on scroll, first page 3.2s, heap 1.4 GB"
+
+  - type: input
+    id: pdf-size
+    attributes:
+      label: PDF size and page count
+      description: File size and page count at minimum. Image-heavy or text-only helps.
+      placeholder: "24 MB, 312 pages, image-heavy"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: any-pdf
+    attributes:
+      label: Does this reproduce with any PDF?
+      options:
+        - "Yes, any PDF"
+        - "Only with specific PDFs"
+        - "Unsure"
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware
+      placeholder: "M1 Air 8 GB, Intel i7-10750H 16 GB, Ryzen 5600 32 GB"
+    validations:
+      required: true
+
+  - type: textarea
+    id: profile
+    attributes:
+      label: Profile or trace
+      description: Optional. Link to a DevTools Performance trace export, a `console.profile()` capture, or a screenshot of the flamegraph.
+
+  - type: textarea
+    id: anchors
+    attributes:
+      label: Grep anchors
+      description: Symbols or file paths you suspect. A function name beats a code dump.

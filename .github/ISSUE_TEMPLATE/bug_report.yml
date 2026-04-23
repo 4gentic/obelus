@@ -1,0 +1,143 @@
+name: Bug report
+description: Something in Obelus is broken or misbehaving.
+title: ""
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obelus is open source. When something breaks, the useful artifact for the next maintainer is a **pointer to the code** (`apps/web/src/pdf/render.ts:142`) — not a paste of the code. Paste **logs** verbatim. For **code**, paste function names, file paths, and error strings.
+
+        If this is a security issue, close this form and email `engineering@4gentic.ai`.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I read `CONTRIBUTING.md`.
+          required: true
+        - label: This is not a security issue (those go to `engineering@4gentic.ai`).
+          required: true
+
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence. This becomes the issue title.
+      placeholder: "Annotations lose their anchor after reloading a paper with re-flowed pages."
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Obelus version and build
+      description: Version, surface, and commit SHA if you know it.
+      placeholder: "0.3.1 · web · commit a1b2c3d"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - web
+        - desktop (macOS)
+        - desktop (Windows)
+        - desktop (Linux)
+        - plugin (Claude Code)
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: Only for the web surface. Leave blank if desktop or plugin.
+      placeholder: "Chrome 124, Safari 17.4, Firefox 125"
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 14.5, Windows 11 23H2, Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Describe the user actions. Do not paste source code here.
+      placeholder: |
+        1. Open a 20-page PDF from the sidebar.
+        2. Add a highlight to page 3.
+        3. Close the paper and re-open it from the recents list.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      options:
+        - Always
+        - Most of the time
+        - Sometimes
+        - Once
+        - Unsure
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console logs
+      description: |
+        Obelus emits structured log lines at ingest boundaries — `[ingest-plan]`, `[open-bundle]`, `[apply-revision]`, etc. Paste any that are present, verbatim, untruncated. Open DevTools → Console (web) or the desktop log panel and copy everything from the failing session.
+      render: shell
+      placeholder: "[ingest-plan] { blockCount: 3, hunkCount: 7, droppedForUnknownId: ['b_42'] }"
+
+  - type: textarea
+    id: stack
+    attributes:
+      label: Stack trace
+      description: Any error with `at …` frames. Separate from logs on purpose.
+      render: shell
+
+  - type: textarea
+    id: anchors
+    attributes:
+      label: Grep anchors
+      description: |
+        Symbols, file paths, and error strings a fixing agent can grep for. A function name and a path serves us better than a code dump. Examples: `renderTextLayer`, `apps/web/src/pdf/text-layer.ts`, `"no plan matched session bundle"`.
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you already tried
+      placeholder: "Hard reload, cleared site data, tried a different PDF, disabled the plugin."
+
+  - type: textarea
+    id: minimal
+    attributes:
+      label: Minimal reproduction
+      description: A link to a PDF or the smallest set of steps that always triggers it. Optional — Obelus accepts arbitrary PDFs, so reduction is often impractical.

@@ -1,0 +1,27 @@
+name: Documentation issue
+description: Something in the docs is wrong, misleading, or missing.
+title: ""
+labels: ["documentation"]
+body:
+  - type: input
+    id: which
+    attributes:
+      label: Which doc
+      description: File path in the repo or URL on the site.
+      placeholder: "README.md, docs/plan.md, https://obelus.app/docs/…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing
+      description: Quote the passage you read, or describe what a first-time reader should have learned and did not.
+    validations:
+      required: true
+
+  - type: textarea
+    id: fix
+    attributes:
+      label: Suggested fix
+      description: Optional. A sentence or two. Maintainers will handle tone.
