@@ -1,4 +1,4 @@
-import type { PaperCreateInput, PapersRepo } from "../interface";
+import type { PaperCreateInput, PaperPathsPatch, PapersRepo } from "../interface";
 import type { PaperRow, PaperRubric, RevisionRow } from "../types";
 import type { Database } from "./db";
 import { dbTxBatch } from "./transaction";
@@ -142,6 +142,22 @@ export function buildPapersRepo(db: Database): PapersRepo {
       // and nulls ask_threads.paper_id (ON DELETE SET NULL). On-disk PDF files
       // are user-owned and intentionally left in place.
       await db.execute("DELETE FROM papers WHERE id = $1", [id]);
+    },
+
+    async setPaths(id: string, patch: PaperPathsPatch): Promise<void> {
+      const sets: string[] = [];
+      const params: Array<string | null> = [];
+      if ("pdfRelPath" in patch) {
+        sets.push(`pdf_rel_path = $${sets.length + 1}`);
+        params.push(patch.pdfRelPath ?? null);
+      }
+      if ("entrypointRelPath" in patch) {
+        sets.push(`entrypoint_rel_path = $${sets.length + 1}`);
+        params.push(patch.entrypointRelPath ?? null);
+      }
+      if (sets.length === 0) return;
+      params.push(id);
+      await db.execute(`UPDATE papers SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
     },
 
     async setRubric(id: string, rubric: PaperRubric | null): Promise<void> {

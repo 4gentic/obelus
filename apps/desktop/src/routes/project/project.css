@@ -303,6 +303,59 @@ button.files__row {
   cursor: pointer;
 }
 
+.files__row--drop-target {
+  outline: 1px solid var(--rubric);
+  outline-offset: -1px;
+}
+
+.files__tree--drop-root {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--rubric) 60%, transparent);
+}
+
+.files__row-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.files__row-new {
+  background: transparent;
+  border: none;
+  padding: 0 4px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 1em;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition:
+    opacity 120ms linear,
+    color 120ms linear;
+}
+
+.files__row--dir:hover .files__row-new,
+.files__row-new:focus-visible {
+  opacity: 1;
+}
+
+.files__row-new:hover,
+.files__row-new:focus-visible {
+  color: var(--rubric);
+}
+
 .files__row--flat {
   padding-left: var(--space-2);
 }
@@ -405,6 +458,8 @@ button.files__row {
 }
 
 .files__main-star {
+  width: 18px;
+  box-sizing: border-box;
   background: transparent;
   border: none;
   padding: 0 2px;
@@ -415,8 +470,15 @@ button.files__row {
   font-family: var(--font-body);
   font-size: 0.85em;
   line-height: 1;
+  text-align: center;
   flex-shrink: 0;
   transition: opacity 120ms linear;
+}
+
+.files__main-star-spacer {
+  display: inline-block;
+  width: 18px;
+  flex-shrink: 0;
 }
 
 .files__row:hover .files__main-star {

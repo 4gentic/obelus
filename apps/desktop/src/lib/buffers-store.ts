@@ -29,6 +29,10 @@ export interface BuffersState {
   requestSwitch(path: string): boolean;
   clearPendingSwitch(): void;
   refreshFromDisk(paths: ReadonlyArray<string>): Promise<void>;
+  // Rewrites buffer keys after a file/folder move. Exact matches on
+  // `fromPrefix` are replaced with `toPrefix`; matches on `fromPrefix + "/"`
+  // are rewritten prefix-wise.
+  renamePath(fromPrefix: string, toPrefix: string): void;
 }
 
 export type BuffersStore = UseBoundStore<StoreApi<BuffersState>>;
@@ -154,6 +158,31 @@ export function createBuffersStore(rootId: string): BuffersStore {
       const next = new Map(get().buffers);
       for (const [p, b] of touched) next.set(p, b);
       set({ buffers: next });
+    },
+
+    renamePath(fromPrefix: string, toPrefix: string): void {
+      if (fromPrefix === toPrefix) return;
+      const { buffers, currentPath } = get();
+      const next = new Map<string, BufferEntry>();
+      let changed = false;
+      for (const [path, entry] of buffers.entries()) {
+        const rewritten =
+          path === fromPrefix
+            ? toPrefix
+            : path.startsWith(`${fromPrefix}/`)
+              ? `${toPrefix}${path.slice(fromPrefix.length)}`
+              : path;
+        if (rewritten !== path) changed = true;
+        next.set(rewritten, entry);
+      }
+      const nextCurrent =
+        currentPath === fromPrefix
+          ? toPrefix
+          : currentPath?.startsWith(`${fromPrefix}/`)
+            ? `${toPrefix}${currentPath.slice(fromPrefix.length)}`
+            : currentPath;
+      if (!changed && nextCurrent === currentPath) return;
+      set({ buffers: next, currentPath: nextCurrent });
     },
   }));
 }

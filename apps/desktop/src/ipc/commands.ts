@@ -93,6 +93,14 @@ export function fsCreateFile(rootId: string, relPath: string): Promise<void> {
   return invoke<void>("fs_create_file", { rootId, relPath });
 }
 
+// Moves a file or directory within a project root. Rejects with
+// AppError::AlreadyExists if a sibling with the same name already lives at
+// toRelPath, and with AppError::OutOfScope if asked to move a directory into
+// itself or its own descendant.
+export function fsMovePath(rootId: string, fromRelPath: string, toRelPath: string): Promise<void> {
+  return invoke<void>("fs_move_path", { rootId, fromRelPath, toRelPath });
+}
+
 // Writes text to an absolute path the user picked via the native save dialog.
 // Bypasses the project-root scope of `fs_write_text`; the dialog is the trust
 // boundary. The Rust side rejects non-absolute paths.
