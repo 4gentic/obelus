@@ -13,6 +13,9 @@ export const highlight = {
   cite: "#5e8d6e",
   praise: "#a8b89a",
   rephrase: "#6f8ca8",
+  enhancement: "#c99b5a",
+  aside: "#9c8ca3",
+  flag: "#6b8b8a",
 } as const;
 
 export const fonts = {

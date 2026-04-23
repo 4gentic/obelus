@@ -46,6 +46,13 @@ describe("BundleV1", () => {
     expect(BundleV1.safeParse(bad).success).toBe(false);
   });
 
+  it.each(["enhancement", "aside", "flag"] as const)("accepts the %s category", (category) => {
+    const bundle = structuredClone(validBundle);
+    // biome-ignore lint/suspicious/noExplicitAny: runtime-typed test fixture
+    (bundle.annotations[0] as any).category = category;
+    expect(BundleV1.safeParse(bundle).success).toBe(true);
+  });
+
   it("rejects a malformed sha256", () => {
     const bad = structuredClone(validBundle);
     bad.pdf.sha256 = "abc";
