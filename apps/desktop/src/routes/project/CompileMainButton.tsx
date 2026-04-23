@@ -39,6 +39,11 @@ export default function CompileMainButton(): JSX.Element | null {
       }
       const report = await compileTypst(rootId, build.mainRelPath);
       setState({ kind: "done", outputRelPath: report.outputRelPath });
+      // Reload (same path, freshly-written bytes) when we were already viewing
+      // the compile target — OpenPaper's useEffect only refires on a path
+      // change, so null-then-restore is the way to re-read the PDF. When the
+      // user was on a different file (e.g. the source `.typ`), this swaps
+      // them over to the fresh PDF, which is what they pressed the button for.
       setOpenFilePath(null);
       requestAnimationFrame(() => setOpenFilePath(report.outputRelPath));
     } catch (err) {

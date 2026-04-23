@@ -82,6 +82,12 @@ export function claudeCancel(sessionId: string): Promise<void> {
   return invoke<void>("claude_cancel", { sessionId });
 }
 
+// True iff a previously spawned Claude subprocess is still running. Survives
+// a WebView refresh because the Rust process and its child subprocesses do.
+export function claudeIsAlive(sessionId: string): Promise<boolean> {
+  return invoke<boolean>("claude_is_alive", { sessionId });
+}
+
 export function onClaudeStdout(cb: (e: ClaudeStreamEvent) => void): Promise<UnlistenFn> {
   return listen<ClaudeStreamEvent>("claude:stdout", (ev) => cb(ev.payload));
 }

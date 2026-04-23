@@ -2,6 +2,7 @@ import type { DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
+import type { CompileStatus } from "../../lib/diff-store";
 import { type PhaseEntry, useJobsStore } from "../../lib/jobs-store";
 import { paperHasSources } from "../../lib/paper-has-sources";
 import { useKeyNav } from "../../lib/use-key-nav";
@@ -18,6 +19,7 @@ import WidenToggle from "./WidenToggle";
 interface Props {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
+  onDiscard: () => void | Promise<void>;
   forkInfo: ForkInfo | null;
   wide: boolean;
   onToggleWide: () => void;
@@ -72,6 +74,7 @@ export default function DiffReview(props: Props): JSX.Element {
   const noteText = store((s) => s.noteText);
   const counts = store((s) => s.counts);
   const applyStatus = store((s) => s.applyStatus);
+  const compileStatus = store((s) => s.compileStatus);
 
   const grouped = useMemo(() => groupByFile(hunks), [hunks]);
   const files = useMemo(() => [...grouped.keys()], [grouped]);
@@ -263,6 +266,7 @@ export default function DiffReview(props: Props): JSX.Element {
             {applyStatus.hunksApplied} change{applyStatus.hunksApplied === 1 ? "" : "s"} to{" "}
             {applyStatus.filesWritten} file{applyStatus.filesWritten === 1 ? "" : "s"}.
           </p>
+          <CompileStatusBanner status={compileStatus} />
           <p className="review-column__hint">
             The marks that shipped are stored with this draft. Start a new review when you're ready.
           </p>
@@ -316,6 +320,14 @@ export default function DiffReview(props: Props): JSX.Element {
           </span>
           <div className="diff-review__head-tools">
             <WidenToggle wide={props.wide} onToggle={props.onToggleWide} />
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void props.onDiscard()}
+              title="Dismiss this review. Hunks stay in history; the active diff clears."
+            >
+              discard
+            </button>
             <button
               type="button"
               className="btn btn--primary"
@@ -377,6 +389,7 @@ export default function DiffReview(props: Props): JSX.Element {
         <p className="diff-review__banner diff-review__banner--err">{applyStatus.message}</p>
       )}
       {applyStatus.kind === "applying" && <p className="diff-review__banner">Applying…</p>}
+      <CompileStatusBanner status={compileStatus} />
       {applyStatus.kind !== "applied" && props.forkInfo !== null && (
         <p className="diff-review__banner diff-review__banner--warn">
           You're viewing Draft {props.forkInfo.currentDraftOrdinal}. Applying forks the history —
@@ -537,4 +550,37 @@ function formatHMS(ms: number): string {
   const mm = d.getMinutes().toString().padStart(2, "0");
   const ss = d.getSeconds().toString().padStart(2, "0");
   return `${hh}:${mm}:${ss}`;
+}
+
+function CompileStatusBanner({ status }: { status: CompileStatus }): JSX.Element | null {
+  switch (status.kind) {
+    case "idle":
+      return null;
+    case "compiling":
+      return <p className="diff-review__banner diff-review__banner--hint">Compiling…</p>;
+    case "compiled":
+      return (
+        <p className="diff-review__banner diff-review__banner--hint">
+          Compiled {shortCompileLabel(status.outputRelPath)}.
+        </p>
+      );
+    case "hint":
+      return <p className="diff-review__banner diff-review__banner--hint">{status.message}</p>;
+    case "error":
+      return (
+        <p className="diff-review__banner diff-review__banner--err" title={status.message}>
+          Compile failed — {firstLine(status.message)}
+        </p>
+      );
+  }
+}
+
+function shortCompileLabel(rel: string): string {
+  const idx = rel.lastIndexOf("/");
+  return idx === -1 ? rel : rel.slice(idx + 1);
+}
+
+function firstLine(s: string): string {
+  const nl = s.indexOf("\n");
+  return nl === -1 ? s : s.slice(0, nl);
 }

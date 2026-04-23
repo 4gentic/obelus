@@ -1,0 +1,46 @@
+{
+  "bundleVersion": "2.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.2.0"
+  },
+  "project": {
+    "id": "c0000006-0000-4000-8000-000000000001",
+    "label": "cascade-citation-only",
+    "kind": "writer",
+    "categories": [
+      { "slug": "citation-needed", "label": "citation-needed" },
+      { "slug": "praise", "label": "praise" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "c0000006-0000-4000-8000-000000000002",
+      "title": "Streaming Attention",
+      "revision": 1,
+      "createdAt": "2026-04-23T10:00:00.000Z",
+      "entrypoint": "paper.tex"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "c0000006-0000-4000-8000-000000000003",
+      "paperId": "c0000006-0000-4000-8000-000000000002",
+      "category": "citation-needed",
+      "quote": "Vaswani et al.",
+      "contextBefore": "Attention was introduced by ",
+      "contextAfter": " and has become the default building block of transformer models.",
+      "anchor": {
+        "kind": "source",
+        "file": "paper.tex",
+        "lineStart": 13,
+        "colStart": 28,
+        "lineEnd": 13,
+        "colEnd": 42
+      },
+      "note": "Cite Vaswani et al. 2017 properly here — the bare name reads like a placeholder.",
+      "thread": [],
+      "createdAt": "2026-04-23T10:01:00.000Z"
+    }
+  ]
+}

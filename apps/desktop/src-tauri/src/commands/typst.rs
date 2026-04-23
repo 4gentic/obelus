@@ -1,7 +1,8 @@
 // Compiles a .typ source file to PDF via the user's installed `typst` CLI.
-// The rendered PDF is written under `.obelus/rendered/<rel-path>.pdf` inside
-// the project root so it stays alongside other Obelus-managed artefacts and
-// can be opened via the regular PDF pane without any special-case wiring.
+// The rendered PDF is written as a sibling of the source — `main.typ` →
+// `main.pdf` in the same directory — matching the Typst CLI convention. The
+// reviewer's PDF viewer is almost always already pointing at that sibling
+// path, so a successful compile overwrites the file they're reviewing.
 
 use crate::commands::fs_scoped::{atomic_write, is_descendant, resolve, resolve_for_write, root_path_for};
 use crate::error::{AppError, AppResult};
@@ -21,11 +22,10 @@ pub struct TypstCompileReport {
 
 fn pdf_rel_for(source_rel: &str) -> String {
     let trimmed = source_rel.trim_end_matches('/');
-    let with_pdf = match trimmed.rsplit_once('.') {
+    match trimmed.rsplit_once('.') {
         Some((stem, ext)) if ext.eq_ignore_ascii_case("typ") => format!("{stem}.pdf"),
         _ => format!("{trimmed}.pdf"),
-    };
-    format!(".obelus/rendered/{with_pdf}")
+    }
 }
 
 fn locate_typst() -> Option<PathBuf> {
@@ -95,23 +95,17 @@ mod tests {
 
     #[test]
     fn pdf_rel_replaces_typ_extension() {
-        assert_eq!(pdf_rel_for("main.typ"), ".obelus/rendered/main.pdf");
-        assert_eq!(
-            pdf_rel_for("chapters/intro.typ"),
-            ".obelus/rendered/chapters/intro.pdf"
-        );
+        assert_eq!(pdf_rel_for("main.typ"), "main.pdf");
+        assert_eq!(pdf_rel_for("chapters/intro.typ"), "chapters/intro.pdf");
     }
 
     #[test]
     fn pdf_rel_preserves_directory_structure() {
-        assert_eq!(
-            pdf_rel_for("a/b/c/paper.typ"),
-            ".obelus/rendered/a/b/c/paper.pdf"
-        );
+        assert_eq!(pdf_rel_for("a/b/c/paper.typ"), "a/b/c/paper.pdf");
     }
 
     #[test]
     fn pdf_rel_handles_non_typ_extension_gracefully() {
-        assert_eq!(pdf_rel_for("notes.md"), ".obelus/rendered/notes.md.pdf");
+        assert_eq!(pdf_rel_for("notes.md"), "notes.md.pdf");
     }
 }

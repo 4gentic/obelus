@@ -84,6 +84,14 @@ export interface DeskRow {
   sortOrder: number;
 }
 
+export type ReviewSessionStatus = "running" | "ingesting" | "completed" | "failed" | "discarded";
+
+export interface AppliedSnapshot {
+  filesWritten: number;
+  hunksApplied: number;
+  draftOrdinal?: number;
+}
+
 export interface ReviewSessionRow {
   id: string;
   projectId: string;
@@ -94,6 +102,10 @@ export interface ReviewSessionRow {
   startedAt: string;
   completedAt: string | null;
   appliedAt: string | null;
+  status: ReviewSessionStatus;
+  lastError: string | null;
+  appliedSnapshot: AppliedSnapshot | null;
+  claudeSessionId: string | null;
 }
 
 export type DiffHunkState = "pending" | "accepted" | "rejected" | "modified";

@@ -151,6 +151,7 @@
 /* ── expanded panel ────────────────────────────────────────────────── */
 
 .jobs-dock__panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -158,6 +159,34 @@
   border-bottom: var(--rule-soft);
   max-height: 42vh;
   overflow-y: auto;
+}
+
+.jobs-dock__panel-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-1);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    background 120ms linear;
+}
+
+.jobs-dock__panel-close:hover {
+  color: var(--ink);
+  background: color-mix(in oklab, var(--panel) 60%, var(--paper));
 }
 
 .jobs-dock__panel-head {

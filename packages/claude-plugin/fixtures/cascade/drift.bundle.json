@@ -1,0 +1,66 @@
+{
+  "bundleVersion": "2.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.2.0"
+  },
+  "project": {
+    "id": "c0000007-0000-4000-8000-000000000001",
+    "label": "cascade-drift",
+    "kind": "writer",
+    "categories": [
+      { "slug": "rephrase", "label": "rephrase" },
+      { "slug": "wrong", "label": "wrong", "color": "#B84A2E" },
+      { "slug": "praise", "label": "praise" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "c0000007-0000-4000-8000-000000000002",
+      "title": "Agentic AI: Risks Across Deployment Contexts",
+      "revision": 1,
+      "createdAt": "2026-04-23T10:00:00.000Z",
+      "entrypoint": "paper.tex"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "c0000007-0000-4000-8000-000000000003",
+      "paperId": "c0000007-0000-4000-8000-000000000002",
+      "category": "rephrase",
+      "quote": "deployed in settings",
+      "contextBefore": "Agentic AI systems are ",
+      "contextAfter": " where consequences can be severe.",
+      "anchor": {
+        "kind": "source",
+        "file": "paper.tex",
+        "lineStart": 13,
+        "colStart": 23,
+        "lineEnd": 13,
+        "colEnd": 43
+      },
+      "note": "Rephrase 'settings' to 'contexts' here — the Introduction is about deployment contexts and 'settings' reads software-y. Cascade the same rename ('contexts') to every other same-referent occurrence of 'settings' in this section so the paper stays internally consistent.",
+      "thread": [],
+      "createdAt": "2026-04-23T10:01:00.000Z"
+    },
+    {
+      "id": "c0000007-0000-4000-8000-000000000004",
+      "paperId": "c0000007-0000-4000-8000-000000000002",
+      "category": "rephrase",
+      "quote": "These settings",
+      "contextBefore": "\\section{Discussion}\n\n",
+      "contextAfter": " challenge existing assumptions about tool-use evaluation.",
+      "anchor": {
+        "kind": "source",
+        "file": "paper.tex",
+        "lineStart": 18,
+        "colStart": 0,
+        "lineEnd": 18,
+        "colEnd": 14
+      },
+      "note": "Rephrase 'settings' here to 'scenarios' — in the Discussion I want 'scenarios' for variety, since the paragraph contrasts different deployment cases. Cascade 'scenarios' to any other same-referent occurrence of 'settings' in this section.",
+      "thread": [],
+      "createdAt": "2026-04-23T10:02:00.000Z"
+    }
+  ]
+}

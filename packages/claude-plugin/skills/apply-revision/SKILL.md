@@ -20,7 +20,10 @@ This skill delegates the actual planning to `plan-fix`, which writes the plan fi
 
 1. **Plan path.** `.obelus/plan-<iso-timestamp>.md` (human) and `.obelus/plan-<iso-timestamp>.json` (machine), both relative to the current working directory.
 2. **Timestamp format.** Compact UTC: `YYYYMMDD-HHmmss` — e.g. `20260423-143012`. Generate it once and use the same value for both files.
-3. **Pre-flight.** Before invoking `plan-fix`, ensure `.obelus/` exists. If it does not, create `.obelus/.gitkeep` (empty body) via `Write`.
+3. **Pre-flight.** Before invoking `plan-fix`, emit the phase marker and ensure `.obelus/` exists. Two rules:
+
+   - **Emit `[obelus:phase] preflight` on its own line, before any tool call.** Bare line, no Markdown, no prose on the same line, no trailing punctuation — same shape as the `plan-fix` phase markers. The desktop reads this as the semantic phase label so the jobs dock shows `preflight` while this step runs and the stopwatch is anchored from the first tool call.
+   - **Do not use `Bash` to check the directory.** `Bash` is not in this session's allow-list. A denied `Bash` call forces a re-plan round-trip that users see as a multi-minute stuck phase. Just call `Write` with `.obelus/.gitkeep` (empty body); `Write` creates the parent directory idempotently.
 4. **Final marker line.** Once `plan-fix` reports the two paths, print exactly one line on stdout in this form, with nothing else on the line:
 
    ```
@@ -73,14 +76,14 @@ This skill delegates the actual planning to `plan-fix`, which writes the plan fi
      > - **Multi-paper bundle, want to scope to one paper**: pass the entrypoint explicitly via `/obelus:apply-revision <bundle-path> --entrypoint <path-to-entrypoint>`.
      > - **Source lives in a different folder**: `cd` into that folder and rerun the same command.
 
-6. **Plan.** Follow the `plan-fix` skill's procedure with the validated bundle and the format descriptor you computed in step 5. That procedure writes `.obelus/plan-<timestamp>.md` together with a companion `.obelus/plan-<timestamp>.json`. When the plan files are on disk, print a compact report: the two plan paths on their own lines, then a single sentence naming totals (e.g. `Wrote 3 blocks (1 citation-needed, 1 unclear, 1 praise) — 0 ambiguous.`). Do not echo per-block bodies; the user will open the plan file to read those.
+6. **Plan.** Follow the `plan-fix` skill's procedure with the validated bundle and the format descriptor you computed in step 5. That procedure writes `.obelus/plan-<timestamp>.md` together with a companion `.obelus/plan-<timestamp>.json`. When the plan files are on disk, print a compact report: the two plan paths on their own lines, then a single sentence naming totals (e.g. `Wrote 5 blocks (1 citation-needed, 1 unclear, 1 praise, 2 cascade) — 0 ambiguous.`). Do not echo per-block bodies; the user will open the plan file to read those.
 
 7. **Hand off + marker.** Print the `OBELUS_WROTE:` marker per the **File output contract** above (the `.json` path). Then tell the user:
 
    > Read the plan at `<path>`. When you're ready to apply it, run:
    > `/skill apply-fix <path>`
 
-   Do not invoke `apply-fix` yourself. It is user-triggered by design.
+   If `plan-fix` emitted any `cascade-*`, `impact-*`, or `quality-*` blocks, add one sentence naming them: the plan may include `cascade-*` blocks proposing the same swap at other occurrences, `impact-*` flag-notes at downstream sites that may need author reconsideration, and `quality-*` blocks from the rubric-driven holistic pass — the user can accept, reject, or ignore each individually from the diff-review UI. Do not invoke `apply-fix` yourself. It is user-triggered by design.
 
 ## v2 flow
 
@@ -111,7 +114,7 @@ This skill delegates the actual planning to `plan-fix`, which writes the plan fi
    > Read the plan at `<path>`. When you're ready to apply it, run:
    > `/skill apply-fix <path>`
 
-   Do not invoke `apply-fix` yourself. The machine-readable `.json` companion is for the desktop UI; the user-triggered `apply-fix` reads the `.md`.
+   If `plan-fix` emitted any `cascade-*`, `impact-*`, or `quality-*` blocks, add one sentence naming them: the plan may include `cascade-*` blocks proposing the same swap at other occurrences, `impact-*` flag-notes at downstream sites that may need author reconsideration, and `quality-*` blocks from the rubric-driven holistic pass — the user can accept, reject, or ignore each individually from the diff-review UI. Do not invoke `apply-fix` yourself. The machine-readable `.json` companion is for the desktop UI; the user-triggered `apply-fix` reads the `.md`.
 
 ## Refusals
 
@@ -136,10 +139,11 @@ Detected latex source at main.tex.
 [stdout]
 .obelus/plan-20260423-143012.md
 .obelus/plan-20260423-143012.json
-Wrote 3 blocks (1 citation-needed, 1 unclear, 1 praise) — 0 ambiguous.
+Wrote 8 blocks (1 citation-needed, 1 unclear, 1 praise, 2 cascade, 3 quality) — 0 ambiguous.
 
 Read the plan at .obelus/plan-20260423-143012.md. When you're ready to apply it, run:
 /skill apply-fix .obelus/plan-20260423-143012.md
+The plan includes 2 cascade-* blocks proposing the same swap as one of your marks at two other occurrences and 3 quality-* blocks from the rubric-driven holistic pass — review and accept/reject each individually from the diff-review UI.
 
 OBELUS_WROTE: .obelus/plan-20260423-143012.json
 ```
@@ -163,10 +167,11 @@ Detected typst source at papers/c/main.typ for "Paper C".
 [stdout]
 .obelus/plan-20260423-143012.md
 .obelus/plan-20260423-143012.json
-Wrote 7 blocks (Paper A: 3, Paper B: 2, Paper C: 2) — 1 ambiguous (paper-b).
+Wrote 13 blocks (Paper A: 3 + 1 cascade + 2 quality, Paper B: 2 + 1 quality, Paper C: 2 + 1 impact + 1 quality) — 1 ambiguous (paper-b).
 
 Read the plan at .obelus/plan-20260423-143012.md. When you're ready to apply it, run:
 /skill apply-fix .obelus/plan-20260423-143012.md
+The plan includes 1 cascade-* block, 1 impact-* flag-note, and 4 quality-* blocks from the rubric-driven holistic pass — review and accept/reject each individually from the diff-review UI.
 
 OBELUS_WROTE: .obelus/plan-20260423-143012.json
 ```

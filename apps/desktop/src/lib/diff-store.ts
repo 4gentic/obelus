@@ -12,6 +12,16 @@ export type ApplyStatus =
     }
   | { kind: "error"; message: string };
 
+// Auto-compile that runs after a new draft lands or after a draft switch.
+// Separate from applyStatus so a successful apply on a project we can't
+// compile stays reported as "applied", with compile info on its own line.
+export type CompileStatus =
+  | { kind: "idle" }
+  | { kind: "compiling" }
+  | { kind: "compiled"; outputRelPath: string }
+  | { kind: "hint"; message: string }
+  | { kind: "error"; message: string };
+
 export interface DiffState {
   sessionId: string | null;
   hunks: DiffHunkRow[];
@@ -22,6 +32,7 @@ export interface DiffState {
   noteText: string;
   counts: Record<DiffHunkState, number>;
   applyStatus: ApplyStatus;
+  compileStatus: CompileStatus;
 
   load(sessionId: string): Promise<void>;
   clear(): void;
@@ -42,6 +53,7 @@ export interface DiffState {
   commitNote(): Promise<void>;
   cancelNote(): void;
   setApplyStatus(status: ApplyStatus): void;
+  setCompileStatus(status: CompileStatus): void;
   markApplied(info: { filesWritten: number; hunksApplied: number; draftOrdinal?: number }): void;
 }
 
@@ -68,6 +80,7 @@ export function createDiffStore(repo: DiffHunksRepo): DiffStore {
     noteText: "",
     counts: emptyCounts(),
     applyStatus: { kind: "idle" },
+    compileStatus: { kind: "idle" },
 
     async load(sessionId: string): Promise<void> {
       const hunks = await repo.listForSession(sessionId);
@@ -81,6 +94,7 @@ export function createDiffStore(repo: DiffHunksRepo): DiffStore {
         noteText: "",
         counts: recount(hunks),
         applyStatus: { kind: "idle" },
+        compileStatus: { kind: "idle" },
       });
     },
 
@@ -95,6 +109,7 @@ export function createDiffStore(repo: DiffHunksRepo): DiffStore {
         noteText: "",
         counts: emptyCounts(),
         applyStatus: { kind: "idle" },
+        compileStatus: { kind: "idle" },
       });
     },
 
@@ -215,6 +230,10 @@ export function createDiffStore(repo: DiffHunksRepo): DiffStore {
       set({ applyStatus: status });
     },
 
+    setCompileStatus(status: CompileStatus): void {
+      set({ compileStatus: status });
+    },
+
     markApplied({ filesWritten, hunksApplied, draftOrdinal }): void {
       set({
         sessionId: null,
@@ -229,6 +248,7 @@ export function createDiffStore(repo: DiffHunksRepo): DiffStore {
           draftOrdinal === undefined
             ? { kind: "applied", filesWritten, hunksApplied }
             : { kind: "applied", filesWritten, hunksApplied, draftOrdinal },
+        compileStatus: { kind: "idle" },
       });
     },
   }));

@@ -1,3 +1,4 @@
+import type { Repository, ReviewSessionRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { createContext, type ReactNode, useContext, useEffect, useMemo } from "react";
 import { createDiffStore, type DiffStore } from "../../lib/diff-store";
@@ -12,29 +13,42 @@ export function DiffStoreProvider({ children }: { children: ReactNode }): JSX.El
   const activePaperId = usePaperId();
   const store = useMemo(() => createDiffStore(repo.diffHunks), [repo]);
 
-  // Follow the paper in focus and the jobs store: load the latest completed
-  // review for the open paper, and clear when switching to a paper with no
-  // review. Subscribing to the jobs store is load-bearing — when a review
-  // transitions to `done` (which fires only after `ingestReview` has written
-  // rows to `diff_hunks`), we need to re-pick the latest session and load it.
+  // Source of truth is the DB: query the latest review session that is
+  // neither discarded nor already applied for the active paper, and load its
+  // hunks. Applied sessions have landed as drafts — they belong to the Drafts
+  // tab, not the Diff tab. Subscribing to the jobs store is still load-bearing
+  // for the in-flight → done transition (we re-query then), but a fresh app
+  // refresh now finds the previous review without any job records present.
   useEffect(() => {
-    const run = (): void => {
+    let cancelled = false;
+
+    const run = async (): Promise<void> => {
       const current = store.getState().sessionId;
       if (!activePaperId) {
         if (current !== null) store.getState().clear();
         return;
       }
-      const latest = findLatestDoneReviewForPaper(activePaperId);
+      const latest = await findLatestVisibleReviewForPaper(repo, activePaperId);
+      if (cancelled) return;
       if (!latest) {
         if (current !== null) store.getState().clear();
         return;
       }
-      if (current === latest) return;
-      void store.getState().load(latest);
+      if (current !== latest.id) {
+        await store.getState().load(latest.id);
+        if (cancelled) return;
+      }
     };
-    run();
-    return useJobsStore.subscribe(run);
-  }, [store, activePaperId]);
+
+    void run();
+    const unsubscribe = useJobsStore.subscribe(() => {
+      void run();
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [repo, store, activePaperId]);
 
   return <DiffStoreContext.Provider value={store}>{children}</DiffStoreContext.Provider>;
 }
@@ -45,18 +59,20 @@ export function useDiffStore(): DiffStore {
   return store;
 }
 
-function findLatestDoneReviewForPaper(paperId: string): string | undefined {
-  let bestStartedAt = -1;
-  let bestSessionId: string | undefined;
-  for (const job of Object.values(useJobsStore.getState().jobs)) {
-    if (job.paperId !== paperId) continue;
-    if (job.kind !== "review") continue;
-    if (job.status !== "done") continue;
-    if (!job.reviewSessionId) continue;
-    if (job.startedAt > bestStartedAt) {
-      bestStartedAt = job.startedAt;
-      bestSessionId = job.reviewSessionId;
-    }
-  }
-  return bestSessionId;
+// "Visible" = anything that produced hunks the user might still want to
+// actively review. We exclude `discarded` (explicit user dismissal) and
+// pre-ingest states so the UI doesn't flash an empty diff while plan-fix is
+// still writing, and we exclude sessions that have already been applied
+// (`appliedAt !== null`) — those have landed as drafts and belong to the
+// Drafts tab. Without this second filter, the post-apply jobs-store tick
+// re-loads the just-applied session and the Diff tab reappears with the
+// hunks and the "keep these changes" button, as if nothing had been applied.
+async function findLatestVisibleReviewForPaper(
+  repo: Repository,
+  paperId: string,
+): Promise<ReviewSessionRow | undefined> {
+  const rows = await repo.reviewSessions.listForPaper(paperId);
+  return rows.find(
+    (r) => (r.status === "completed" || r.status === "failed") && r.appliedAt === null,
+  );
 }

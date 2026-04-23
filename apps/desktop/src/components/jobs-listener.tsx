@@ -145,18 +145,31 @@ async function handleExit(
 
   emitReviewTiming(sessionId, job.startedAt, job.phaseHistory, code, wasCancelled);
 
+  const reviewSessionId = job.kind === "review" ? job.reviewSessionId : undefined;
+
   if (wasCancelled) {
     store.markCancelled(sessionId);
+    if (reviewSessionId) {
+      await markReviewStatus(reviewSessionId, "discarded", "Cancelled by user.");
+    }
     clearSession(sessionId);
     return;
   }
   if (code !== 0) {
-    store.markError(sessionId, `Claude exited with code ${code ?? "?"}.`);
+    const msg = `Claude exited with code ${code ?? "?"}.`;
+    store.markError(sessionId, msg);
+    if (reviewSessionId) {
+      await markReviewStatus(reviewSessionId, "failed", msg);
+    }
     clearSession(sessionId);
     return;
   }
 
   store.markIngesting(sessionId);
+  if (reviewSessionId) {
+    await markReviewStatus(reviewSessionId, "ingesting", null);
+  }
+
   try {
     if (job.kind === "review") {
       const message = await ingestReview(job.rootId, job.reviewSessionId, job.obelusWrotePath);
@@ -177,10 +190,33 @@ async function handleExit(
       );
     }
   } catch (err) {
-    console.warn("[ingest]", { sessionId, kind: job.kind, err });
-    store.markError(sessionId, err instanceof Error ? err.message : "Could not ingest output.");
+    const detail =
+      err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+    console.warn("[ingest]", { sessionId, kind: job.kind, detail });
+    store.markError(sessionId, detail);
+    if (reviewSessionId) {
+      await markReviewStatus(reviewSessionId, "failed", detail);
+    }
   } finally {
     clearSession(sessionId);
+  }
+}
+
+async function markReviewStatus(
+  reviewSessionId: string,
+  status: "ingesting" | "completed" | "failed" | "discarded",
+  lastError: string | null,
+): Promise<void> {
+  try {
+    const repo = await getRepository();
+    await repo.reviewSessions.setStatus(reviewSessionId, status, lastError);
+    console.info("[review-session]", { sessionId: reviewSessionId, status, lastError });
+  } catch (err) {
+    console.warn("[review-session]", {
+      sessionId: reviewSessionId,
+      status,
+      err: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -240,6 +276,7 @@ async function ingestReview(
     sessionBundleId: result.sessionBundleId,
     blockCount: result.blockCount,
     hunkCount: result.hunkCount,
+    synthesisedKept: result.synthesisedKept,
     droppedForUnknownAnnotation: result.droppedForUnknownAnnotation,
     scannedPlans: result.scannedPlans,
     hasSources: result.hasSources,

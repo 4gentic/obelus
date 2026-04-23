@@ -62,13 +62,16 @@ export async function snapshotAfterApply(args: {
   if (annotationIds.length > 0) {
     await repo.annotations.markResolvedInEdit(annotationIds, draft.id);
   }
-  void runProjectScan({
+  // Awaited (not fire-and-forget) because the caller runs auto-compile right
+  // after, and auto-compile reads the `paper_build` row this scan re-seeds —
+  // a stale row there silently no-ops the compile.
+  await runProjectScan({
     repo,
     rootId,
     projectId: project.id,
     label: project.label,
     kind: project.kind,
-  }).catch(() => {});
+  });
   return draft;
 }
 
