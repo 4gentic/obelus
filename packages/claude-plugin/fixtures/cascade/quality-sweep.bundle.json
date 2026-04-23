@@ -1,0 +1,52 @@
+{
+  "bundleVersion": "2.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.2.0"
+  },
+  "project": {
+    "id": "c0000003-0000-4000-8000-000000000001",
+    "label": "cascade-quality-sweep",
+    "kind": "writer",
+    "categories": [
+      { "slug": "rephrase", "label": "rephrase" },
+      { "slug": "unclear", "label": "unclear" },
+      { "slug": "praise", "label": "praise" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "c0000003-0000-4000-8000-000000000002",
+      "title": "A Negotiated-Autonomy Protocol for Agentic Systems",
+      "revision": 1,
+      "createdAt": "2026-04-23T10:00:00.000Z",
+      "entrypoint": "paper.tex",
+      "rubric": {
+        "slug": "top-venue",
+        "label": "Top venue",
+        "body": "Tight, top-venue prose. No boilerplate triads ('robust, scalable, and efficient' and the like); no empty intensifiers ('notably', 'importantly'); no throat-clearing ('it is worth noting that'). Every factual claim carries a citation or points at a specific section of this paper. Terminology is consistent throughout."
+      }
+    }
+  ],
+  "annotations": [
+    {
+      "id": "c0000003-0000-4000-8000-000000000003",
+      "paperId": "c0000003-0000-4000-8000-000000000002",
+      "category": "rephrase",
+      "quote": "The protocol has three phases.",
+      "contextBefore": "",
+      "contextAfter": "\nFirst, the principal and agent jointly specify a Trust Contract.",
+      "anchor": {
+        "kind": "source",
+        "file": "paper.tex",
+        "lineStart": 19,
+        "colStart": 1,
+        "lineEnd": 19,
+        "colEnd": 31
+      },
+      "note": "Open the Approach section with a sentence that names all three phases briefly, rather than teasing 'three phases' and listing them on the following lines.",
+      "thread": [],
+      "createdAt": "2026-04-23T10:01:00.000Z"
+    }
+  ]
+}

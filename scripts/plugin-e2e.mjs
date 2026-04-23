@@ -84,6 +84,8 @@ const scenarios = [
   cascadeScenario("3.5", "cascade-vacuous-praise", assertVacuousPhase),
   cascadeScenario("3.6", "cascade-citation-only", assertCitationOnlyNoTrigger),
   cascadeScenario("3.7", "cascade-drift", assertDriftVsCascade),
+  cascadeScenario("3.8", "cascade-lexical-morphology", assertLexicalMorphologyCascade),
+  cascadeScenario("3.9", "cascade-quality-sweep", assertQualitySweep),
 ];
 
 function cascadeScenario(id, name, assertFn) {
@@ -198,6 +200,7 @@ function classifyBlock(block) {
   if (id.startsWith("cascade-")) return "cascade";
   if (id.startsWith("impact-")) return "impact";
   if (id.startsWith("coherence-")) return "coherence";
+  if (id.startsWith("quality-")) return "quality";
   return "source";
 }
 
@@ -407,6 +410,133 @@ function assertDriftVsCascade(result, dir) {
   return {
     ok: true,
     reason: `${sources.length} source + ${cascades.length} cascade + ${coherences.length} coherence block(s); drift flagged`,
+  };
+}
+
+function assertLexicalMorphologyCascade(result, dir) {
+  const refusal = guardRefusal(result);
+  if (refusal) return refusal;
+  const { plan, error } = loadPlanJson(dir);
+  if (error) return { ok: false, reason: error };
+
+  const cascades = plan.blocks.filter((b) => classifyBlock(b) === "cascade");
+  if (cascades.length < 1) {
+    return {
+      ok: false,
+      reason: `expected ≥1 cascade-* block covering morphological variants of 'failure', got 0`,
+    };
+  }
+
+  // The note explicitly names a paper-wide rename of failure → pattern and calls out
+  // morphological variants. Cascades must collectively cover at least two variants from
+  // the surface set {failure, failures, failure modes, failure mode}, excluding the
+  // originating span ('three failure modes', line 13).
+  const variantPatterns = [
+    { label: "'failures' (plural)", re: /^-\s.*\bfailures\b/m },
+    { label: "'failure mode' (singular compound)", re: /^-\s.*\bfailure\s+mode\b(?!s)/m },
+    { label: "bare 'failure' (singular)", re: /^-\s.*\bfailure\b(?!\s*mode)(?!s)/m },
+  ];
+  const covered = new Set();
+  for (const c of cascades) {
+    if (typeof c.patch !== "string" || c.patch.length === 0) {
+      return { ok: false, reason: `cascade block ${c.annotationId} has empty patch` };
+    }
+    if (!c.patch.endsWith("\n")) {
+      return { ok: false, reason: `cascade block ${c.annotationId} patch does not end with \\n` };
+    }
+    if (typeof c.reviewerNotes !== "string" || !c.reviewerNotes.startsWith("Cascaded from ")) {
+      return {
+        ok: false,
+        reason: `cascade block ${c.annotationId} reviewerNotes must start with 'Cascaded from '`,
+      };
+    }
+    // Must not cascade into 'test failure' / 'test failure mode' in Methods — different referent.
+    if (/\btest\s+failure/i.test(c.patch)) {
+      return {
+        ok: false,
+        reason: `cascade block ${c.annotationId} wrongly cascaded into a 'test failure' line (different referent in Methods)`,
+      };
+    }
+    for (const v of variantPatterns) {
+      if (v.re.test(c.patch)) covered.add(v.label);
+    }
+  }
+  if (covered.size < 2) {
+    const got = covered.size === 0 ? "(none)" : Array.from(covered).join(", ");
+    return {
+      ok: false,
+      reason: `expected cascades to cover ≥2 morphological variants (of failures/failure mode/failure); covered: ${got}`,
+    };
+  }
+  return {
+    ok: true,
+    reason: `${cascades.length} cascade-* block(s) covering ${covered.size} morphological variant(s): ${Array.from(covered).join(", ")}; 'test failure' referent correctly skipped`,
+  };
+}
+
+function hunkLineRange(patch) {
+  const m = typeof patch === "string" ? patch.match(/^@@ -(\d+),(\d+) \+\d+,\d+ @@/m) : null;
+  if (!m) return null;
+  return { start: Number(m[1]), len: Number(m[2]) };
+}
+
+function assertQualitySweep(result, dir) {
+  const refusal = guardRefusal(result);
+  if (refusal) return refusal;
+  const { plan, error } = loadPlanJson(dir);
+  if (error) return { ok: false, reason: error };
+
+  const quality = plan.blocks.filter((b) => classifyBlock(b) === "quality");
+  if (quality.length < 1) {
+    return {
+      ok: false,
+      reason: `expected ≥1 quality-* block from the rubric-driven holistic pass, got 0 (planted boilerplate / citation-gap should have been surfaced)`,
+    };
+  }
+  for (const q of quality) {
+    if (typeof q.patch !== "string" || q.patch.length === 0) {
+      return { ok: false, reason: `quality block ${q.annotationId} has empty patch` };
+    }
+    if (!q.patch.endsWith("\n")) {
+      return { ok: false, reason: `quality block ${q.annotationId} patch does not end with \\n` };
+    }
+    if (typeof q.reviewerNotes !== "string" || !q.reviewerNotes.startsWith("Quality pass: ")) {
+      return {
+        ok: false,
+        reason: `quality block ${q.annotationId} reviewerNotes must start with 'Quality pass: '`,
+      };
+    }
+    if (q.ambiguous !== false) {
+      return {
+        ok: false,
+        reason: `quality block ${q.annotationId} must carry ambiguous: false, got ${JSON.stringify(q.ambiguous)}`,
+      };
+    }
+  }
+
+  // Quality pass must not collide with the user mark's line range.
+  const sources = plan.blocks.filter((b) => classifyBlock(b) === "source");
+  const sourceLines = new Set();
+  for (const s of sources) {
+    const range = hunkLineRange(s.patch);
+    if (!range) continue;
+    for (let i = range.start; i < range.start + range.len; i += 1) sourceLines.add(i);
+  }
+  for (const q of quality) {
+    const range = hunkLineRange(q.patch);
+    if (!range) continue;
+    for (let i = range.start; i < range.start + range.len; i += 1) {
+      if (sourceLines.has(i)) {
+        return {
+          ok: false,
+          reason: `quality block ${q.annotationId} collides with a user-mark line range at line ${i}`,
+        };
+      }
+    }
+  }
+  return {
+    ok: true,
+    reason: `${quality.length} quality-* block(s) emitted; no user-mark collisions`,
   };
 }
 

@@ -1,0 +1,47 @@
+{
+  "bundleVersion": "2.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.2.0"
+  },
+  "project": {
+    "id": "c0000002-0000-4000-8000-000000000001",
+    "label": "cascade-lexical-morphology",
+    "kind": "writer",
+    "categories": [
+      { "slug": "rephrase", "label": "rephrase" },
+      { "slug": "unclear", "label": "unclear" },
+      { "slug": "praise", "label": "praise" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "c0000002-0000-4000-8000-000000000002",
+      "title": "Three Patterns of Agentic Autonomy",
+      "revision": 1,
+      "createdAt": "2026-04-23T10:00:00.000Z",
+      "entrypoint": "paper.tex"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "c0000002-0000-4000-8000-000000000003",
+      "paperId": "c0000002-0000-4000-8000-000000000002",
+      "category": "rephrase",
+      "quote": "three failure modes",
+      "contextBefore": "Every organisation deploying agents today chooses among ",
+      "contextAfter": ", each of which is unacceptable on its own terms.",
+      "anchor": {
+        "kind": "source",
+        "file": "paper.tex",
+        "lineStart": 13,
+        "colStart": 47,
+        "lineEnd": 13,
+        "colEnd": 66
+      },
+      "note": "I don't like the use of failure terminology here. We renamed failure to pattern everywhere else in this paper — apply the same rename to every occurrence in body text that refers to the same concept, including morphological variants like 'failures' and 'failure mode'. The test-failure occurrences in the Methods section describe a different concept (a run that errored during the experiment) — leave those alone.",
+      "thread": [],
+      "createdAt": "2026-04-23T10:01:00.000Z"
+    }
+  ]
+}
