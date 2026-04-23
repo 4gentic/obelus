@@ -11,6 +11,7 @@ import { FindStoreProvider } from "./find-store-context";
 import { OpenPaperProvider } from "./OpenPaper";
 import ProjectShell from "./ProjectShell";
 import { runProjectScan } from "./project-scan-actions";
+import { QuickOpenStoreProvider } from "./quick-open-store-context";
 import { ReviewRunnerProvider } from "./review-runner";
 import { ReviewStoreProvider } from "./store-context";
 import { WriteUpStoreProvider } from "./writeup-store-context";
@@ -126,11 +127,13 @@ export default function ProjectRoute(): JSX.Element {
             <WriteUpStoreProvider>
               <OpenPaperProvider>
                 <FindStoreProvider>
-                  <DiffStoreProvider>
-                    <ReviewRunnerProvider>
-                      <ProjectShell />
-                    </ReviewRunnerProvider>
-                  </DiffStoreProvider>
+                  <QuickOpenStoreProvider>
+                    <DiffStoreProvider>
+                      <ReviewRunnerProvider>
+                        <ProjectShell />
+                      </ReviewRunnerProvider>
+                    </DiffStoreProvider>
+                  </QuickOpenStoreProvider>
                 </FindStoreProvider>
               </OpenPaperProvider>
             </WriteUpStoreProvider>

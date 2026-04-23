@@ -21,6 +21,35 @@ export function fuzzyScore(needle: string, haystack: string): number | null {
   return ni === n.length ? score : null;
 }
 
+export interface FuzzyMatch {
+  score: number;
+  indices: readonly number[];
+}
+
+// Same algorithm as fuzzyScore but also records the haystack index of each
+// matched needle character, for highlight rendering.
+export function fuzzyMatch(needle: string, haystack: string): FuzzyMatch | null {
+  if (needle === "") return { score: 0, indices: [] };
+  const n = needle.toLowerCase();
+  const h = haystack.toLowerCase();
+  const indices: number[] = [];
+  let score = 0;
+  let ni = 0;
+  let prevMatch = -2;
+  for (let hi = 0; hi < h.length && ni < n.length; hi++) {
+    if (h[hi] === n[ni]) {
+      let bonus = 1;
+      if (hi === 0 || h[hi - 1] === " " || h[hi - 1] === "/") bonus += 2;
+      if (hi === prevMatch + 1) bonus += 2;
+      score += bonus;
+      indices.push(hi);
+      prevMatch = hi;
+      ni++;
+    }
+  }
+  return ni === n.length ? { score, indices } : null;
+}
+
 export interface FuzzyHit<T> {
   item: T;
   score: number;
