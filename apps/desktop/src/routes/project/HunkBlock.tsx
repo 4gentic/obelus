@@ -143,6 +143,12 @@ export default function HunkBlock(props: Props): JSX.Element {
         {isTrulyAmbiguous && <span className="diff-block__tag">ambiguous</span>}
         <span className="hunk-block__state">{hunk.state}</span>
       </header>
+      {hunk.applyFailure !== null && (
+        <p className="hunk-block__apply-failure" title={hunk.applyFailure.reason}>
+          <span className="hunk-block__apply-failure-label">could not apply</span>
+          <span className="hunk-block__apply-failure-reason">{hunk.applyFailure.reason}</span>
+        </p>
+      )}
       <DiffLines
         patch={hunk.modifiedPatchText ?? hunk.patch}
         sourceText={sourceText}

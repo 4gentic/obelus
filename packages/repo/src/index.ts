@@ -31,6 +31,7 @@ export type {
   AskMessageRow,
   AskThreadRow,
   DeskRow,
+  DiffHunkApplyFailure,
   DiffHunkRow,
   DiffHunkState,
   FilePinRow,
