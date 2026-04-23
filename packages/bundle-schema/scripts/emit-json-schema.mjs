@@ -2,9 +2,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { toJSONSchema } from "zod";
-import { ProjectMeta } from "../dist/project-meta.js";
-import { BundleV1 } from "../dist/schema.js";
-import { BundleV2 } from "../dist/schema-v2.js";
+import { ProjectMeta } from "../src/project-meta.ts";
+import { BundleV1 } from "../src/schema.ts";
+import { BundleV2 } from "../src/schema-v2.ts";
 
 // Emits canonical JSON Schema artifacts to two locations:
 // 1. packages/bundle-schema/schemas/ — the workspace export (consumed by
