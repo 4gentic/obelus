@@ -54,7 +54,9 @@ export default function ProjectShell(): JSX.Element {
   useEffect(() => {
     const onKey = (ev: KeyboardEvent): void => {
       // Cmd/Ctrl+P: open the file palette. Quick open is global — it takes
-      // precedence over whatever editor / pane has focus.
+      // precedence over whatever editor / pane has focus. Re-pressing while
+      // the palette is already open is a no-op so the user's in-progress
+      // query is preserved.
       if (
         (ev.metaKey || ev.ctrlKey) &&
         !ev.shiftKey &&
@@ -62,7 +64,8 @@ export default function ProjectShell(): JSX.Element {
         ev.key.toLowerCase() === "p"
       ) {
         ev.preventDefault();
-        quickOpenStore.getState().open();
+        const state = quickOpenStore.getState();
+        if (!state.isOpen) state.open();
         return;
       }
 
