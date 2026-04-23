@@ -13,11 +13,12 @@ export function DiffStoreProvider({ children }: { children: ReactNode }): JSX.El
   const activePaperId = usePaperId();
   const store = useMemo(() => createDiffStore(repo.diffHunks), [repo]);
 
-  // Source of truth is the DB: query the latest non-discarded review session
-  // for the active paper and load its hunks. Subscribing to the jobs store is
-  // still load-bearing for the in-flight → done transition (we re-query then),
-  // but a fresh app refresh now finds the previous review without any job
-  // records present.
+  // Source of truth is the DB: query the latest review session that is
+  // neither discarded nor already applied for the active paper, and load its
+  // hunks. Applied sessions have landed as drafts — they belong to the Drafts
+  // tab, not the Diff tab. Subscribing to the jobs store is still load-bearing
+  // for the in-flight → done transition (we re-query then), but a fresh app
+  // refresh now finds the previous review without any job records present.
   useEffect(() => {
     let cancelled = false;
 
@@ -36,16 +37,6 @@ export function DiffStoreProvider({ children }: { children: ReactNode }): JSX.El
       if (current !== latest.id) {
         await store.getState().load(latest.id);
         if (cancelled) return;
-      }
-      if (latest.appliedSnapshot) {
-        store.getState().setApplyStatus({
-          kind: "applied",
-          filesWritten: latest.appliedSnapshot.filesWritten,
-          hunksApplied: latest.appliedSnapshot.hunksApplied,
-          ...(latest.appliedSnapshot.draftOrdinal !== undefined
-            ? { draftOrdinal: latest.appliedSnapshot.draftOrdinal }
-            : {}),
-        });
       }
     };
 
@@ -68,13 +59,20 @@ export function useDiffStore(): DiffStore {
   return store;
 }
 
-// "Visible" = anything that produced hunks the user might still want to see.
-// We exclude `discarded` (explicit user dismissal) and pre-ingest states so
-// the UI doesn't flash an empty diff while plan-fix is still writing.
+// "Visible" = anything that produced hunks the user might still want to
+// actively review. We exclude `discarded` (explicit user dismissal) and
+// pre-ingest states so the UI doesn't flash an empty diff while plan-fix is
+// still writing, and we exclude sessions that have already been applied
+// (`appliedAt !== null`) — those have landed as drafts and belong to the
+// Drafts tab. Without this second filter, the post-apply jobs-store tick
+// re-loads the just-applied session and the Diff tab reappears with the
+// hunks and the "keep these changes" button, as if nothing had been applied.
 async function findLatestVisibleReviewForPaper(
   repo: Repository,
   paperId: string,
 ): Promise<ReviewSessionRow | undefined> {
   const rows = await repo.reviewSessions.listForPaper(paperId);
-  return rows.find((r) => r.status === "completed" || r.status === "failed");
+  return rows.find(
+    (r) => (r.status === "completed" || r.status === "failed") && r.appliedAt === null,
+  );
 }
