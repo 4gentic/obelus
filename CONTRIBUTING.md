@@ -19,6 +19,26 @@ Read, in order:
 - **Biome clean.** `pnpm verify` must pass locally before you push.
 - **No dependencies for three lines of code.** We'd rather write the three lines.
 
+## Reporting issues
+
+Open issues through the YAML forms under `.github/ISSUE_TEMPLATE/`: **Bug report**, **Regression**, **Feature request**, **Documentation issue**, **Performance issue**. Each form has required fields so the issue body, on its own, gives a maintainer or a fixing agent enough to act on.
+
+If you have Claude Code, run `/new-issue` from the repo root — it triages, collects each field in conversation, previews the body, and files with `gh issue create`. Security reports go to `engineering@4gentic.ai`; questions and proposals go to Discussions.
+
+Labels used by the forms that maintainers provision once per repo:
+
+```
+gh label create regression --description "Worked before, broken now" --color d73a4a
+gh label create performance --description "Slowness, jank, excessive memory" --color fbca04
+gh label create "area: pdf" --color c2e0c6
+gh label create "area: storage" --color c2e0c6
+gh label create "area: ui" --color c2e0c6
+gh label create "area: plugin" --color c2e0c6
+gh label create "area: desktop" --color c2e0c6
+```
+
+Labels that the form requests but that do not exist yet are silently skipped at file time.
+
 ## Submitting
 
 1. Fork, branch from `main`.

@@ -1,0 +1,118 @@
+name: Regression
+description: A behavior that used to work in an earlier release and now does not.
+title: ""
+labels: ["bug", "regression"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If you cannot identify the last working version, file a **Bug report** instead. A regression without a before-and-after cannot be bisected.
+
+        Paste **logs** verbatim. For **code**, paste function names, file paths, and error strings — not source.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I confirmed the behavior works in the "Last known working version" below.
+          required: true
+
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence. Becomes the issue title.
+      placeholder: "Margin notes no longer align to source lines after the v0.3.0 layout change."
+    validations:
+      required: true
+
+  - type: input
+    id: last-good
+    attributes:
+      label: Last known working version
+      placeholder: "0.2.8"
+    validations:
+      required: true
+
+  - type: input
+    id: first-broken
+    attributes:
+      label: First broken version
+      description: A released version, or `main@<sha>` if you found it on main.
+      placeholder: "0.3.0  (or main@a1b2c3d)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - web
+        - desktop (macOS)
+        - desktop (Windows)
+        - desktop (Linux)
+        - plugin (Claude Code)
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 14.5, Windows 11 23H2, Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The same steps should produce the working behavior on the old version and the broken behavior on the new version.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What the last-known-working version does.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What the first-broken version does.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console logs
+      description: |
+        Paste any `[ingest-plan]`, `[open-bundle]`, `[apply-revision]`, or other structured log lines from the failing session, verbatim and untruncated.
+      render: shell
+
+  - type: textarea
+    id: stack
+    attributes:
+      label: Stack trace
+      render: shell
+
+  - type: textarea
+    id: anchors
+    attributes:
+      label: Grep anchors
+      description: Symbols, file paths, or error strings a fixing agent can grep for. A function name beats a code dump.
+
+  - type: textarea
+    id: suspected
+    attributes:
+      label: Suspected commit or PR
+      description: If `git log --oneline <last-good>..<first-broken>` on the affected paths surfaces a likely culprit, link it here. Optional.

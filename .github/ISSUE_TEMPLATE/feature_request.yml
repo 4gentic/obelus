@@ -1,0 +1,68 @@
+name: Feature request
+description: A new capability or an enhancement to an existing one.
+title: ""
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the behavior you want, not the code you would write. Maintainers pick the implementation.
+
+        Ground a request in a concrete paper or workflow. "It would be cool if" usually produces the wrong feature.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues and discussions.
+          required: true
+        - label: This describes user-visible behavior, not an implementation.
+          required: true
+
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence. Becomes the issue title.
+      placeholder: "Let reviewers export a diff of their margin notes as a side-by-side PDF."
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Problem or motivation
+      description: The paper, review, or workflow that prompted this. What were you trying to do when you noticed the gap?
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: One paragraph describing the user-visible behavior change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: v1
+    attributes:
+      label: Minimum for v1
+      description: The smallest version of this that would be useful. Keep scope honest.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: One sentence is enough. What did you try? Why did it not work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: Explicit non-goals, if any. Helps maintainers keep the scope from drifting.
