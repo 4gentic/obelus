@@ -53,7 +53,11 @@
 }
 
 .project-shell__body--no-pdf {
-  grid-template-columns: 220px minmax(0, 1fr) 0 340px;
+  grid-template-columns: 220px minmax(0, 1fr) 0 0;
+}
+
+.project-shell__body--no-pdf .project-shell__review {
+  display: none;
 }
 
 .project-shell__body--no-left {
@@ -61,7 +65,7 @@
 }
 
 .project-shell__body--no-left.project-shell__body--no-pdf {
-  grid-template-columns: minmax(0, 1fr) 0 340px;
+  grid-template-columns: minmax(0, 1fr) 0 0;
 }
 
 /* Review pane widened via the widen toggle in the reviewer column — collapses
@@ -111,6 +115,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 0 340px;
   }
+  .project-shell__body--no-pdf {
+    grid-template-columns: 220px minmax(0, 1fr) 0 0;
+  }
+  .project-shell__body--no-left.project-shell__body--no-pdf {
+    grid-template-columns: minmax(0, 1fr) 0 0;
+  }
   .project-shell__margin {
     border: none;
     overflow: hidden;
@@ -131,6 +141,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 0 300px;
   }
+  .project-shell__body--no-pdf {
+    grid-template-columns: 180px minmax(0, 1fr) 0 0;
+  }
+  .project-shell__body--no-left.project-shell__body--no-pdf {
+    grid-template-columns: minmax(0, 1fr) 0 0;
+  }
   .project-shell__body--review-wide {
     grid-template-columns: 180px minmax(0, 1fr) 0 minmax(440px, 52%);
   }
@@ -145,6 +161,10 @@
   .project-shell__body,
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 0 260px;
+  }
+  .project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-pdf {
+    grid-template-columns: minmax(0, 1fr) 0 0;
   }
   .project-shell__body--review-wide,
   .project-shell__body--review-wide.project-shell__body--no-left {
@@ -166,10 +186,10 @@
     grid-template-columns: minmax(0, 1fr) 220px minmax(420px, 32%);
   }
   .project-shell__body--no-pdf {
-    grid-template-columns: 220px minmax(0, 1fr) 0 minmax(420px, 32%);
+    grid-template-columns: 220px minmax(0, 1fr) 0 0;
   }
   .project-shell__body--no-left.project-shell__body--no-pdf {
-    grid-template-columns: minmax(0, 1fr) 0 minmax(420px, 32%);
+    grid-template-columns: minmax(0, 1fr) 0 0;
   }
 }
 
@@ -181,10 +201,10 @@
     grid-template-columns: minmax(0, 1fr) 240px minmax(480px, 36%);
   }
   .project-shell__body--no-pdf {
-    grid-template-columns: 240px minmax(0, 1fr) 0 minmax(480px, 36%);
+    grid-template-columns: 240px minmax(0, 1fr) 0 0;
   }
   .project-shell__body--no-left.project-shell__body--no-pdf {
-    grid-template-columns: minmax(0, 1fr) 0 minmax(480px, 36%);
+    grid-template-columns: minmax(0, 1fr) 0 0;
   }
 }
 
