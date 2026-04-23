@@ -188,6 +188,58 @@ export function extractResultText(event: ParsedStreamEvent): string | null {
   return typeof r === "string" ? r : null;
 }
 
+// Cumulative usage emitted on the terminal `result` event (and per-turn on
+// `assistant` events). `result.usage` is the authoritative session total.
+export interface StreamUsage {
+  readonly inputTokens: number;
+  readonly cacheReadInputTokens: number;
+  readonly cacheCreationInputTokens: number;
+  readonly outputTokens: number;
+}
+
+function numberAt(obj: Record<string, unknown>, key: string): number {
+  const v = obj[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+export function extractUsage(event: ParsedStreamEvent): StreamUsage | null {
+  const direct = event.raw.usage;
+  if (direct && typeof direct === "object") {
+    const u = direct as Record<string, unknown>;
+    return {
+      inputTokens: numberAt(u, "input_tokens"),
+      cacheReadInputTokens: numberAt(u, "cache_read_input_tokens"),
+      cacheCreationInputTokens: numberAt(u, "cache_creation_input_tokens"),
+      outputTokens: numberAt(u, "output_tokens"),
+    };
+  }
+  const msg = event.raw.message;
+  if (msg && typeof msg === "object") {
+    const nested = (msg as Record<string, unknown>).usage;
+    if (nested && typeof nested === "object") {
+      const u = nested as Record<string, unknown>;
+      return {
+        inputTokens: numberAt(u, "input_tokens"),
+        cacheReadInputTokens: numberAt(u, "cache_read_input_tokens"),
+        cacheCreationInputTokens: numberAt(u, "cache_creation_input_tokens"),
+        outputTokens: numberAt(u, "output_tokens"),
+      };
+    }
+  }
+  return null;
+}
+
+export function extractModel(event: ParsedStreamEvent): string | null {
+  const directModel = event.raw.model;
+  if (typeof directModel === "string" && directModel) return directModel;
+  const msg = event.raw.message;
+  if (msg && typeof msg === "object") {
+    const m = (msg as Record<string, unknown>).model;
+    if (typeof m === "string" && m) return m;
+  }
+  return null;
+}
+
 // True when the stream is closing a content block (text or tool use). Useful
 // to insert a visual separator in a live transcript so consecutive turns
 // don't collide ("…composition logic.Now I'll compose…").

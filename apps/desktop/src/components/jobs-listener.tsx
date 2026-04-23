@@ -1,14 +1,17 @@
 import {
   extractAssistantText,
   extractDeltaText,
+  extractModel,
   extractResultText,
+  extractUsage,
   onClaudeExit,
   onClaudeStdout,
   parseStreamLine,
+  type StreamUsage,
 } from "@obelus/claude-sidecar";
 import type { ReactNode } from "react";
 import { type JSX, useEffect } from "react";
-import { phaseFromEvent } from "../lib/claude-phase";
+import { extractPhaseMarker, phaseFromEvent, SEMANTIC_PHASE_PREFIX } from "../lib/claude-phase";
 import { useJobsStore } from "../lib/jobs-store";
 import { getRepository } from "../lib/repo";
 import { ingestPlanFile } from "../routes/project/ingest-plan";
@@ -19,6 +22,21 @@ import { ingestWriteupFile } from "../routes/project/ingest-writeup";
 // pick the wrong name. Match the marker tolerantly: leading whitespace is OK,
 // the path runs to end-of-line.
 const OBELUS_WROTE_RE = /OBELUS_WROTE:\s*(\S.*?)\s*$/m;
+
+// Per-session state the stdout listener feeds and handleExit drains. Lives at
+// module scope because handleExit is invoked outside the listener's effect
+// closure; sessions are cleaned up as soon as they exit.
+const semanticSessions = new Set<string>();
+const sessionUsage = new Map<string, StreamUsage>();
+const sessionModel = new Map<string, string>();
+const sessionStreamStart = new Map<string, number>();
+
+function clearSession(sessionId: string): void {
+  semanticSessions.delete(sessionId);
+  sessionUsage.delete(sessionId);
+  sessionModel.delete(sessionId);
+  sessionStreamStart.delete(sessionId);
+}
 
 // Owns the single, app-lifetime subscription to the Claude stdout/exit event
 // stream. Routes events to the matching job record in the global jobs store.
@@ -39,10 +57,49 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
       if (cancelled) return;
       const parsed = parseStreamLine(ev.line);
       if (!parsed) return;
-      const phase = phaseFromEvent(parsed);
-      if (phase !== null) {
-        useJobsStore.getState().updatePhase(ev.sessionId, phase);
+
+      if (!sessionStreamStart.has(ev.sessionId)) {
+        sessionStreamStart.set(ev.sessionId, Date.now());
       }
+
+      const model = extractModel(parsed);
+      if (model) sessionModel.set(ev.sessionId, model);
+      const usage = extractUsage(parsed);
+      if (usage) sessionUsage.set(ev.sessionId, usage);
+
+      // Prefer semantic `[obelus:phase] X` markers emitted by the plugin's
+      // plan-fix skill. Once a marker fires for this session, suppress
+      // tool-level phase updates — otherwise a Read/Grep between markers
+      // would overwrite the semantic label and skew the per-phase stopwatch.
+      const marker = extractPhaseMarker(parsed);
+      let nextPhase: string | null = null;
+      if (marker !== null) {
+        semanticSessions.add(ev.sessionId);
+        nextPhase = `${SEMANTIC_PHASE_PREFIX}${marker}`;
+      } else if (!semanticSessions.has(ev.sessionId)) {
+        nextPhase = phaseFromEvent(parsed);
+      }
+      if (nextPhase !== null) {
+        const store = useJobsStore.getState();
+        const before = store.get(ev.sessionId);
+        if (before && before.phase !== nextPhase) {
+          store.updatePhase(ev.sessionId, nextPhase);
+          const hist = store.get(ev.sessionId)?.phaseHistory ?? [];
+          const last = hist[hist.length - 1];
+          const prev = hist.length >= 2 ? hist[hist.length - 2] : undefined;
+          if (last && prev) {
+            console.info("[phase]", {
+              sessionId: ev.sessionId,
+              from: prev.phase,
+              to: last.phase,
+              elapsedMs: last.at - prev.at,
+            });
+          }
+        } else if (!before) {
+          store.updatePhase(ev.sessionId, nextPhase);
+        }
+      }
+
       const text =
         extractDeltaText(parsed) || extractAssistantText(parsed) || extractResultText(parsed) || "";
       if (text) {
@@ -81,14 +138,21 @@ async function handleExit(
 ): Promise<void> {
   const store = useJobsStore.getState();
   const job = store.get(sessionId);
-  if (!job) return;
+  if (!job) {
+    clearSession(sessionId);
+    return;
+  }
+
+  emitReviewTiming(sessionId, job.startedAt, job.phaseHistory, code, wasCancelled);
 
   if (wasCancelled) {
     store.markCancelled(sessionId);
+    clearSession(sessionId);
     return;
   }
   if (code !== 0) {
     store.markError(sessionId, `Claude exited with code ${code ?? "?"}.`);
+    clearSession(sessionId);
     return;
   }
 
@@ -115,7 +179,43 @@ async function handleExit(
   } catch (err) {
     console.warn("[ingest]", { sessionId, kind: job.kind, err });
     store.markError(sessionId, err instanceof Error ? err.message : "Could not ingest output.");
+  } finally {
+    clearSession(sessionId);
   }
+}
+
+// Structured record per session. Grep for `[review-timing]` in the devtools
+// console (and in the Rust `[claude-session]` stderr line) to see what each
+// phase cost and which model ran the orchestrator.
+function emitReviewTiming(
+  sessionId: string,
+  startedAt: number,
+  history: ReadonlyArray<{ phase: string; at: number }>,
+  code: number | null,
+  wasCancelled: boolean,
+): void {
+  const finishedAt = Date.now();
+  const phases: Array<{ phase: string; elapsedMs: number }> = [];
+  for (let i = 0; i < history.length; i++) {
+    const cur = history[i];
+    if (!cur) continue;
+    const nextEntry = history[i + 1];
+    const endAt = nextEntry ? nextEntry.at : finishedAt;
+    phases.push({ phase: cur.phase, elapsedMs: endAt - cur.at });
+  }
+  const usage = sessionUsage.get(sessionId);
+  console.info("[review-timing]", {
+    sessionId,
+    totalMs: finishedAt - startedAt,
+    exitCode: code,
+    cancelled: wasCancelled,
+    model: sessionModel.get(sessionId) ?? null,
+    inputTokens: usage?.inputTokens ?? null,
+    cacheReadInputTokens: usage?.cacheReadInputTokens ?? null,
+    cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? null,
+    outputTokens: usage?.outputTokens ?? null,
+    phases,
+  });
 }
 
 async function ingestReview(

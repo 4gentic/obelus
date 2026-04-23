@@ -1,4 +1,30 @@
-import { extractToolUses, type ParsedStreamEvent } from "@obelus/claude-sidecar";
+import {
+  extractAssistantText,
+  extractResultText,
+  extractToolUses,
+  type ParsedStreamEvent,
+} from "@obelus/claude-sidecar";
+
+// Semantic phase labels emitted by the `plan-fix` skill as bare
+// `[obelus:phase] <token>` lines at the top of each major section. The
+// plugin-side contract lives in `packages/claude-plugin/skills/plan-fix/
+// SKILL.md`; keep both sides in lockstep when extending.
+const PHASE_MARKER_RE = /\[obelus:phase\]\s+(\S+)/;
+export const SEMANTIC_PHASE_PREFIX = "obelus:" as const;
+
+// Delta chunks can split the marker token mid-parse, so we scan the complete
+// assistant text and the final result payload — never the partial stream
+// events — to avoid false matches on prefixes like `[obelus:p`.
+export function extractPhaseMarker(event: ParsedStreamEvent): string | null {
+  const text = extractAssistantText(event) || extractResultText(event) || "";
+  if (!text) return null;
+  const match = text.match(PHASE_MARKER_RE);
+  return match?.[1] ?? null;
+}
+
+export function isSemanticPhase(phase: string): boolean {
+  return phase.startsWith(SEMANTIC_PHASE_PREFIX);
+}
 
 export function describePhase(toolName: string, input: unknown): string {
   const obj = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;

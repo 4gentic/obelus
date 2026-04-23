@@ -55,6 +55,7 @@ async fn spawn_streaming(
         .stderr(Stdio::piped())
         .kill_on_drop(true);
 
+    let started_at = std::time::Instant::now();
     let mut child = cmd.spawn().map_err(AppError::from)?;
     let session_id = Uuid::new_v4();
     let session_str = session_id.to_string();
@@ -122,6 +123,17 @@ async fn spawn_streaming(
         };
         let state = app_wait.state::<AppState>();
         state.claude_cancellers.remove(&session_id);
+        // Belt-and-braces wall-clock log: the desktop frontend also emits
+        // `[review-timing]` off the stream, but if that listener ever misses
+        // an event the subprocess's own view is authoritative for total time.
+        let total_ms = started_at.elapsed().as_millis();
+        eprintln!(
+            "[claude-session] sessionId={} totalMs={} exitCode={} cancelled={}",
+            sid_wait,
+            total_ms,
+            code.map(|c| c.to_string()).unwrap_or_else(|| "?".into()),
+            cancelled,
+        );
         let _ = app_wait.emit(
             "claude:exit",
             ExitEvent {
@@ -204,7 +216,13 @@ pub async fn claude_spawn(
         ),
     };
 
-    let mut cmd = claude_command(&claude, &root, model.as_deref(), effort.as_deref());
+    // apply-revision + plan-fix are dispatch, location, and minimal-diff
+    // composition — not reasoning. Sonnet matches Opus quality at ~2×
+    // throughput; falling back to Claude Code's global default (typically
+    // Opus) was the single biggest contributor to 10-minute review runs on
+    // paper-sized context. Explicit user picks still win.
+    let effective_model = model.as_deref().or(Some("sonnet"));
+    let mut cmd = claude_command(&claude, &root, effective_model, effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await
