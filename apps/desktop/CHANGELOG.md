@@ -2,6 +2,18 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4](https://github.com/4gentic/obelus/compare/desktop-v0.1.3...desktop-v0.1.4) (2026-04-23)
+
+
+### Features
+
+* **categories:** add enhancement, aside, flag + hover descriptions ([#50](https://github.com/4gentic/obelus/issues/50)) ([2943d0c](https://github.com/4gentic/obelus/commit/2943d0c7641f689593cc298ecb10bdcfadc545fb))
+* **desktop:** Cmd+P quick-open file picker ([#51](https://github.com/4gentic/obelus/issues/51)) ([5e503c5](https://github.com/4gentic/obelus/commit/5e503c5e854056902a757b95575c5e1b877f33e5))
+* **desktop:** compile .tex via latexmk ([#52](https://github.com/4gentic/obelus/issues/52)) ([a6d71f1](https://github.com/4gentic/obelus/commit/a6d71f137c2962cb0042e418e2f2506f9cb465d4))
+* **desktop:** managed engine install (Typst + Tectonic) ([#54](https://github.com/4gentic/obelus/issues/54)) ([d461564](https://github.com/4gentic/obelus/commit/d4615641bcf29ca9f811938c804603b02633bd60))
+* **desktop:** partial hunk apply + source lock during pending review ([#49](https://github.com/4gentic/obelus/issues/49)) ([53c812c](https://github.com/4gentic/obelus/commit/53c812ca2b094a4b93691928624bd16f03092208))
+* **review:** edit a saved mark's category and note in place ([#53](https://github.com/4gentic/obelus/issues/53)) ([6635c57](https://github.com/4gentic/obelus/commit/6635c575437ffe2b3d20c880164c6b58445b8132))
+
 ## [0.1.3](https://github.com/4gentic/obelus/compare/desktop-v0.1.2...desktop-v0.1.3) (2026-04-23)
 
 
