@@ -25,6 +25,16 @@ pub struct HunkInput {
 pub struct ApplyReport {
     pub files_written: usize,
     pub hunks_applied: usize,
+    pub hunks_failed: Vec<HunkFailure>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct HunkFailure {
+    pub file: String,
+    // 1-based to match the existing "hunk #N" idiom in error messages.
+    pub index: usize,
+    pub reason: String,
 }
 
 struct StagedFile {
@@ -67,58 +77,38 @@ pub async fn apply_hunks(
 
     let mut staged: Vec<StagedFile> = Vec::with_capacity(grouped.len());
     let mut total_hunks: usize = 0;
+    let mut failures: Vec<HunkFailure> = Vec::new();
 
     for (rel_path, patches) in grouped {
         let abs_path = resolve_for_write(&root_id, &rel_path, &state).await?;
         let current = tokio::fs::read(&abs_path).await.map_err(AppError::from)?;
 
-        let mut working = current.clone();
-        for (idx, patch_text) in patches.iter().enumerate() {
-            // plan-fix historically emits patches whose last body line lacks a
-            // trailing newline. diffy parses those but then either refuses the
-            // hunk (when the last line is context) or applies it corruptly
-            // (when the last line is an add, silently jamming the insert into
-            // the following source line). A bare `\n` append is a no-op on a
-            // well-formed patch and a fix on a malformed one.
-            let normalized = ensure_trailing_newline(patch_text);
-            let patch = diffy::Patch::from_bytes(normalized.as_bytes())
-                .map_err(|e| AppError::Apply(format!("parse {rel_path} hunk #{}: {e}", idx + 1)))?;
-            match diffy::apply_bytes(&working, &patch) {
-                Ok(next) => working = next,
-                Err(primary) => {
-                    // plan-fix also emits body lines shaped `-<space><content>`
-                    // and `+<space><content>` — a decorative separator absent
-                    // from canonical unified diff. diffy treats that space as
-                    // part of the content, so every hunk's context check fails
-                    // against the actual file bytes. Retry with the space
-                    // stripped on `-`/`+` lines only; context (` …`) lines are
-                    // left alone because the leading space is their operator.
-                    let stripped = strip_op_separator_space(normalized.as_ref());
-                    let retry = diffy::Patch::from_bytes(stripped.as_bytes())
-                        .ok()
-                        .and_then(|p| diffy::apply_bytes(&working, &p).ok());
-                    match retry {
-                        Some(next) => working = next,
-                        None => {
-                            // Surface the ORIGINAL error — the as-written form
-                            // is what the reviewer emitted, so the real mismatch
-                            // lives there. The retry is a silent recovery path.
-                            return Err(AppError::Apply(format!(
-                                "apply {rel_path} hunk #{}: {primary}",
-                                idx + 1
-                            )));
-                        }
-                    }
-                }
-            }
-        }
+        let outcome = apply_patches_to_bytes(&current, &patches, &rel_path);
 
-        total_hunks += patches.len();
+        // Files where every hunk failed must not change on disk: no backup,
+        // no write, no manifest entry. A file with at least one success gets
+        // staged with the bytes reached after applying the successful hunks
+        // in order.
+        failures.extend(outcome.failures);
+        if outcome.applied == 0 {
+            continue;
+        }
+        total_hunks += outcome.applied;
         staged.push(StagedFile {
             rel_path,
             abs_path,
             orig_bytes: current,
-            new_bytes: working,
+            new_bytes: outcome.working,
+        });
+    }
+
+    // Every hunk failed: no disk writes, no backup, no manifest. The caller
+    // still needs the per-hunk failure list to surface in the UI.
+    if staged.is_empty() {
+        return Ok(ApplyReport {
+            files_written: 0,
+            hunks_applied: 0,
+            hunks_failed: failures,
         });
     }
 
@@ -176,12 +166,85 @@ pub async fn apply_hunks(
     Ok(ApplyReport {
         files_written,
         hunks_applied: total_hunks,
+        hunks_failed: failures,
     })
 }
 
 async fn rollback(written: &[(PathBuf, Vec<u8>)]) {
     for (abs, orig) in written {
         let _ = atomic_write(abs, orig).await;
+    }
+}
+
+struct PatchOutcome {
+    working: Vec<u8>,
+    applied: usize,
+    failures: Vec<HunkFailure>,
+}
+
+// Per-file hunk application. Applies each patch in order; on failure, records
+// a `HunkFailure` and continues against the current working bytes (successes
+// compound, failures don't). Extracted so the partial-apply semantics can be
+// exercised without the Tauri filesystem harness.
+fn apply_patches_to_bytes(current: &[u8], patches: &[String], rel_path: &str) -> PatchOutcome {
+    let mut working = current.to_vec();
+    let mut applied: usize = 0;
+    let mut failures: Vec<HunkFailure> = Vec::new();
+
+    for (idx, patch_text) in patches.iter().enumerate() {
+        let normalized = ensure_trailing_newline(patch_text);
+        let patch = match diffy::Patch::from_bytes(normalized.as_bytes()) {
+            Ok(p) => p,
+            Err(e) => {
+                failures.push(HunkFailure {
+                    file: rel_path.to_owned(),
+                    index: idx + 1,
+                    reason: format!("parse: {e}"),
+                });
+                continue;
+            }
+        };
+        match diffy::apply_bytes(&working, &patch) {
+            Ok(next) => {
+                working = next;
+                applied += 1;
+            }
+            Err(primary) => {
+                // plan-fix also emits body lines shaped `-<space><content>`
+                // and `+<space><content>` — a decorative separator absent
+                // from canonical unified diff. diffy treats that space as
+                // part of the content, so every hunk's context check fails
+                // against the actual file bytes. Retry with the space
+                // stripped on `-`/`+` lines only; context (` …`) lines are
+                // left alone because the leading space is their operator.
+                let stripped = strip_op_separator_space(normalized.as_ref());
+                let retry = diffy::Patch::from_bytes(stripped.as_bytes())
+                    .ok()
+                    .and_then(|p| diffy::apply_bytes(&working, &p).ok());
+                match retry {
+                    Some(next) => {
+                        working = next;
+                        applied += 1;
+                    }
+                    None => {
+                        // Surface the ORIGINAL error — the as-written form
+                        // is what the reviewer emitted, so the real mismatch
+                        // lives there. The retry is a silent recovery path.
+                        failures.push(HunkFailure {
+                            file: rel_path.to_owned(),
+                            index: idx + 1,
+                            reason: primary.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    PatchOutcome {
+        working,
+        applied,
+        failures,
     }
 }
 
@@ -230,7 +293,7 @@ fn strip_op_separator_space(patch: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{ensure_trailing_newline, strip_op_separator_space};
+    use super::{apply_patches_to_bytes, ensure_trailing_newline, strip_op_separator_space};
 
     #[test]
     fn leaves_well_formed_patches_alone() {
@@ -313,6 +376,75 @@ mod tests {
         assert_eq!(
             String::from_utf8(applied).unwrap(),
             "Line 1\nLine 2\nAgentic AI systems are being deployed in contexts.\n"
+        );
+    }
+
+    // Partial-apply: three hunks on the same file, middle hunk has context
+    // that cannot match — the first and third apply cleanly, the middle
+    // is reported as a failure, and the working bytes reflect only the
+    // two successful hunks.
+    #[test]
+    fn partial_apply_continues_past_middle_failure() {
+        let source = b"alpha\nbeta\ngamma\ndelta\nepsilon\n";
+        let good_a = "@@ -1,2 +1,2 @@\n-alpha\n+ALPHA\n beta\n".to_owned();
+        // Claims a removal of `NOT-IN-FILE` with real context around it;
+        // diffy matches the context but the `-` line mismatches the source.
+        let bad = "@@ -2,3 +2,3 @@\n beta\n-NOT-IN-FILE\n+WHATEVER\n delta\n".to_owned();
+        let good_c = "@@ -4,2 +4,2 @@\n delta\n-epsilon\n+EPSILON\n".to_owned();
+
+        let out = apply_patches_to_bytes(source, &[good_a, bad, good_c], "paper.txt");
+        assert_eq!(out.applied, 2);
+        assert_eq!(out.failures.len(), 1);
+        assert_eq!(out.failures[0].file, "paper.txt");
+        assert_eq!(out.failures[0].index, 2);
+        assert_eq!(
+            String::from_utf8(out.working).unwrap(),
+            "ALPHA\nbeta\ngamma\ndelta\nEPSILON\n"
+        );
+    }
+
+    // All hunks fail: working bytes are unchanged from the input, applied
+    // is zero, and every failure is recorded with its 1-based index.
+    #[test]
+    fn all_hunks_fail_leaves_bytes_untouched() {
+        let source = b"one\ntwo\nthree\n";
+        // Context AND delete lines both target text that doesn't appear in
+        // the source, so neither position-matching nor context-matching can
+        // make diffy accept the hunk.
+        let bad_a = "@@ -1,3 +1,3 @@\n zeta-context\n-not-a-real-line\n+x\n eta-context\n"
+            .to_owned();
+        // Malformed header — diffy's parser rejects this outright.
+        let bad_b = "@@ not a real header @@\n-x\n+y\n".to_owned();
+
+        let out = apply_patches_to_bytes(source, &[bad_a, bad_b], "paper.txt");
+        assert_eq!(out.applied, 0, "failures: {:?}", out.failures);
+        assert_eq!(out.working.as_slice(), source);
+        assert_eq!(out.failures.len(), 2);
+        assert_eq!(out.failures[0].index, 1);
+        assert_eq!(out.failures[1].index, 2);
+        assert!(
+            out.failures[1].reason.starts_with("parse: "),
+            "expected parse failure, got: {}",
+            out.failures[1].reason
+        );
+    }
+
+    // A successful hunk followed by a dependent second hunk that only lines
+    // up against the post-first-hunk state: compounding works.
+    #[test]
+    fn successful_hunks_compound() {
+        let source = b"alpha\nbeta\ngamma\n";
+        let first = "@@ -1,1 +1,1 @@\n-alpha\n+ALPHA\n".to_owned();
+        // `ALPHA` is the line only after `first` applies, so this hunk's
+        // context matches only on the post-first working state.
+        let second = "@@ -1,2 +1,2 @@\n ALPHA\n-beta\n+BETA\n".to_owned();
+
+        let out = apply_patches_to_bytes(source, &[first, second], "paper.txt");
+        assert_eq!(out.applied, 2);
+        assert_eq!(out.failures.len(), 0);
+        assert_eq!(
+            String::from_utf8(out.working).unwrap(),
+            "ALPHA\nBETA\ngamma\n"
         );
     }
 }
