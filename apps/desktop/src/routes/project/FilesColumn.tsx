@@ -1,7 +1,7 @@
 import type { PaperRow } from "@obelus/repo";
 import type { JSX } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { type DirEntry, fsReadDir } from "../../ipc/commands";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type DirEntry, fsCreateFile, fsReadDir } from "../../ipc/commands";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
@@ -418,6 +418,78 @@ export default function FilesColumn(): JSX.Element {
     [loadDir],
   );
 
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newError, setNewError] = useState<string | null>(null);
+  const newInputRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
+
+  const cancelCreate = useCallback(() => {
+    if (submittingRef.current) return;
+    setCreating(false);
+    setNewName("");
+    setNewError(null);
+  }, []);
+
+  const beginCreate = useCallback(() => {
+    setCreating(true);
+    setNewName("");
+    setNewError(null);
+  }, []);
+
+  const commitCreate = useCallback(async () => {
+    const name = newName.trim();
+    if (!name) {
+      cancelCreate();
+      return;
+    }
+    if (name.startsWith(".")) {
+      setNewError("Name can't start with a dot.");
+      return;
+    }
+    const segments = name.split("/");
+    if (segments.some((s) => s === "" || s === "..")) {
+      setNewError("Invalid path.");
+      return;
+    }
+    if (/[<>:"|?*\\]/.test(name)) {
+      setNewError("Name contains invalid characters.");
+      return;
+    }
+    submittingRef.current = true;
+    try {
+      await fsCreateFile(rootId, name);
+      const { entries, hasOpenable } = await walkAndPrecompute(rootId);
+      console.info("[create-file]", { rootId, path: name, ok: true });
+      setTree((prev) => {
+        const expanded = new Set(prev.expanded);
+        expanded.add(".");
+        let p = name;
+        while (p.includes("/")) {
+          p = p.slice(0, p.lastIndexOf("/"));
+          expanded.add(p);
+        }
+        return { expanded, entries, hasOpenable, walking: false };
+      });
+      setCreating(false);
+      setNewName("");
+      setNewError(null);
+      setOpenFilePath(name);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.info("[create-file]", { rootId, path: name, ok: false, reason: msg });
+      setNewError(msg.toLowerCase().includes("already exists") ? "File already exists." : msg);
+    } finally {
+      submittingRef.current = false;
+    }
+  }, [newName, rootId, cancelCreate, setOpenFilePath]);
+
+  useEffect(() => {
+    if (creating && newError && newInputRef.current) {
+      newInputRef.current.focus();
+    }
+  }, [creating, newError]);
+
   const openFile = useCallback(
     (path: string) => {
       const proceed = buffers.getState().requestSwitch(path);
@@ -625,11 +697,53 @@ export default function FilesColumn(): JSX.Element {
       <section className="files__section files__section--workspace">
         <div className="files__section-header">
           <span className="files__header-title">Workspace</span>
+          <button
+            type="button"
+            className="files__new-button"
+            aria-label="New file"
+            title="New file"
+            onClick={beginCreate}
+            disabled={creating}
+          >
+            +
+          </button>
         </div>
         {tree.walking ? (
           <p className="files__hint">…</p>
         ) : (
           <div className="files__tree" role="tree">
+            {creating && (
+              <div className="files__new-row">
+                <span className="files__caret" aria-hidden="true" />
+                <input
+                  ref={newInputRef}
+                  className="files__new-input"
+                  type="text"
+                  placeholder="filename.tex"
+                  value={newName}
+                  // biome-ignore lint/a11y/noAutofocus: this input is mounted on demand by the user clicking "+"; focus is the whole point
+                  autoFocus
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  onChange={(e) => {
+                    setNewName(e.target.value);
+                    if (newError) setNewError(null);
+                  }}
+                  onBlur={cancelCreate}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void commitCreate();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelCreate();
+                    }
+                  }}
+                />
+                {newError && <span className="files__new-error">{newError}</span>}
+              </div>
+            )}
             {root.map((entry) => (
               <EntryRow
                 key={entry.name}

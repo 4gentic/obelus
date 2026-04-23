@@ -9,6 +9,8 @@ pub enum AppError {
     UnknownRootId,
     #[error("path is not a directory")]
     NotADirectory,
+    #[error("file already exists")]
+    AlreadyExists,
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
     // Phase 3 populates these via claude-sidecar and bundle-apply flows.
