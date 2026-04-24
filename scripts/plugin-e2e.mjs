@@ -86,6 +86,17 @@ const scenarios = [
     },
     assert: assertPlanWritten,
   },
+  {
+    id: "2.3",
+    name: "revise-markdown-source",
+    prompt:
+      "/obelus:apply-revision ./bundle.json — after the plan is written, run /skill apply-fix on the .md plan path it produced so the edits land in sample.md.",
+    stage(dir) {
+      cpSync(resolve(fixturesDir, "bundle-md.json"), resolve(dir, "bundle.json"));
+      cpSync(resolve(fixturesDir, "sample.md"), resolve(dir, "sample.md"));
+    },
+    assert: assertMarkdownRoundTrip,
+  },
   cascadeScenario("3.1", "cascade-lexical-terminology", assertLexicalTerminologyCascade),
   cascadeScenario("3.2", "cascade-lexical-numerical", assertLexicalNumericalCascade),
   cascadeScenario("3.3", "cascade-structural-label", assertStructuralLabelCascade),
@@ -214,6 +225,122 @@ function assertPlanWritten(result, dir) {
     return { ok: false, reason: `plan markdown suspiciously short (${body.length} bytes)` };
   }
   return { ok: true, reason: `plan written: ${mdPlan}` };
+}
+
+function assertMarkdownRoundTrip(result, dir) {
+  const text = typeof result.result === "string" ? result.result : "";
+  if (containsRefusal(text)) {
+    return { ok: false, reason: "unexpected refusal despite staged sample.md" };
+  }
+  const planDir = resolve(dir, ".obelus");
+  if (!existsSync(planDir)) {
+    return { ok: false, reason: ".obelus/ directory not created" };
+  }
+  const entries = readdirSync(planDir);
+  const jsonPlan = entries.find((e) => e.startsWith("plan-") && e.endsWith(".json"));
+  if (!jsonPlan) return { ok: false, reason: "no plan-*.json companion written" };
+  let plan;
+  try {
+    plan = JSON.parse(readFileSync(resolve(planDir, jsonPlan), "utf8"));
+  } catch (e) {
+    return { ok: false, reason: `plan-*.json not valid JSON (${e.message.slice(0, 80)})` };
+  }
+  if (plan.format !== "markdown") {
+    return {
+      ok: false,
+      reason: `plan.format expected 'markdown', got ${JSON.stringify(plan.format)}`,
+    };
+  }
+  if (plan.entrypoint !== "sample.md") {
+    return {
+      ok: false,
+      reason: `plan.entrypoint expected 'sample.md', got ${JSON.stringify(plan.entrypoint)}`,
+    };
+  }
+  const userBlocks = plan.blocks.filter((b) => classifyBlock(b) === "source");
+  if (userBlocks.length < 2) {
+    return {
+      ok: false,
+      reason: `expected ≥2 source blocks (unclear + citation-needed), got ${userBlocks.length}`,
+    };
+  }
+  const expectedLines = new Map([
+    ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", 15],
+    ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", 29],
+  ]);
+  for (const b of userBlocks) {
+    const expected = expectedLines.get(b.annotationId);
+    if (expected === undefined) continue;
+    if (b.file !== "sample.md") {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} file expected 'sample.md', got ${JSON.stringify(b.file)}`,
+      };
+    }
+    if (b.ambiguous === true) {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} is ambiguous; source anchor did not round-trip`,
+      };
+    }
+    const range = hunkLineRange(b.patch);
+    if (!range) {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} patch has no @@ -L,N @@ header or is empty`,
+      };
+    }
+    if (range.start !== expected) {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} patch targets line ${range.start}, expected ${expected}`,
+      };
+    }
+    if (!b.patch.endsWith("\n")) {
+      return { ok: false, reason: `block ${b.annotationId} patch does not end with \\n` };
+    }
+  }
+
+  const applySummary = entries.find((e) => e.startsWith("apply-") && e.endsWith(".md"));
+  if (!applySummary) {
+    return {
+      ok: false,
+      reason: "apply-fix did not run (no .obelus/apply-*.md summary)",
+    };
+  }
+
+  const applied = readFileSync(resolve(dir, "sample.md"), "utf8");
+  const original = readFileSync(resolve(fixturesDir, "sample.md"), "utf8");
+  if (applied === original) {
+    return {
+      ok: false,
+      reason: "sample.md on disk is byte-identical to the fixture — apply-fix did not edit",
+    };
+  }
+
+  const appliedLines = applied.split("\n");
+  const originalLines = original.split("\n");
+  const changedLines = new Set();
+  for (let i = 0; i < Math.max(appliedLines.length, originalLines.length); i += 1) {
+    if (appliedLines[i] !== originalLines[i]) changedLines.add(i + 1);
+  }
+  const expectedLineSet = new Set(expectedLines.values());
+  const changedInExpected = [...changedLines].filter((ln) => expectedLineSet.has(ln));
+  if (changedInExpected.length === 0) {
+    return {
+      ok: false,
+      reason: `sample.md changed but not at expected lines (${[...expectedLineSet].join(", ")}); changed: ${[...changedLines].join(", ") || "(none)"}`,
+    };
+  }
+
+  if (!text.includes("OBELUS_WROTE: .obelus/")) {
+    return { ok: false, reason: "OBELUS_WROTE: marker missing from stdout" };
+  }
+
+  return {
+    ok: true,
+    reason: `markdown round-trip landed at line(s) ${changedInExpected.join(", ")}`,
+  };
 }
 
 function loadPlanJson(dir) {

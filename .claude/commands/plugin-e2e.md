@@ -1,11 +1,11 @@
 ---
-description: Run the Obelus plugin E2E suite — four real Claude Code sessions against the local plugin, asserting write-review and apply-revision behavior.
+description: Run the Obelus plugin E2E suite — real Claude Code sessions against the local plugin, asserting write-review and apply-revision behavior across paper formats.
 allowed-tools: Bash
 ---
 
 # /plugin-e2e
 
-End-to-end check of the plugin's two user-facing skills, executed as real `claude -p --bare --plugin-dir packages/claude-plugin` sessions against the sample fixture. Catches regressions from Claude Code updates, model drift, and schema shipping bugs that unit tests can't see.
+End-to-end check of the plugin's user-facing skills, executed as real `claude -p --bare --plugin-dir packages/claude-plugin` sessions against the sample fixtures. Catches regressions from Claude Code updates, model drift, and schema shipping bugs that unit tests can't see.
 
 ## What it covers
 
@@ -15,6 +15,7 @@ End-to-end check of the plugin's two user-facing skills, executed as real `claud
 | 1.2 | `review-with-sources` | `write-review` | Same letter when `.tex`/`.md`/`.typ` are co-located — sources must be ignored. |
 | 2.1 | `revise-no-sources` | `apply-revision` | Graceful refusal ("I can't apply this revision") with `/obelus:write-review` fallback; no plan file written. |
 | 2.2 | `revise-with-sources` | `apply-revision` | `.obelus/plan-*.md` and `.obelus/plan-*.json` written; no refusal. |
+| 2.3 | `revise-markdown-source` | `apply-revision` + `apply-fix` | BundleV2 with `source` anchors on `sample.md`; plan carries `format: "markdown"` and the patch lands at the annotation's line range, and `apply-fix` actually edits the `.md` file on disk. |
 
 ## Prerequisites
 
