@@ -1,9 +1,10 @@
 import { useMdDocumentView } from "@obelus/md-view";
 import "@obelus/md-view/md.css";
 import { loadDocument, usePdfDocumentView } from "@obelus/pdf-view";
-import type { PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
+import type { AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
 import { getMdText, getPdf, papers, revisions } from "@obelus/repo/web";
 import { type DocumentView, ReviewPane, ReviewShell } from "@obelus/review-shell";
+import type { DraftInput, ReviewState } from "@obelus/review-store";
 import "@obelus/review-shell/review-shell.css";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -360,21 +361,19 @@ type ReviewContentProps = {
         pageCount: number;
       }
     | { kind: "ready-md"; paper: PaperRow; revision: RevisionRow; file: string; text: string };
-  annotations: ReturnType<typeof useReviewStore.getState> extends { annotations: infer A }
-    ? A
-    : never;
-  selectedAnchor: ReturnType<typeof useReviewStore.getState>["selectedAnchor"];
+  annotations: AnnotationRow[];
+  selectedAnchor: DraftInput | null;
   draftCategory: string | null;
   draftNote: string;
   focusedAnnotationId: string | null;
   status: Status;
   message: string | null;
   renderError: string | null;
-  onAnchor: (draft: ReturnType<typeof useReviewStore.getState>["selectedAnchor"]) => void;
+  onAnchor: (draft: DraftInput | null) => void;
   onFocusMark: (id: string | null) => void;
   onSetDraftCategory: (c: string | null) => void;
   onSetDraftNote: (n: string) => void;
-  onSave: ReturnType<typeof useReviewStore.getState>["saveAnnotation"];
+  onSave: ReviewState["saveAnnotation"];
   onDiscard: () => void;
   onUpdateNote: (id: string, note: string) => Promise<void>;
   onUpdateCategory: (id: string, c: string) => Promise<void>;
