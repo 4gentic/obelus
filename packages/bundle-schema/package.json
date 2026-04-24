@@ -13,7 +13,8 @@
     },
     "./json-schema/v1": "./schemas/bundle-v1.schema.json",
     "./json-schema/v2": "./schemas/bundle-v2.schema.json",
-    "./json-schema/project-meta": "./schemas/project-meta.schema.json"
+    "./json-schema/project-meta": "./schemas/project-meta.schema.json",
+    "./json-schema/compile-error": "./schemas/compile-error.schema.json"
   },
   "files": [
     "schemas",

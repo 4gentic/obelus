@@ -106,6 +106,17 @@ export default function JobsDock(): JSX.Element | null {
   );
 }
 
+function jobKindLabel(kind: JobRecord["kind"]): string {
+  switch (kind) {
+    case "writeup":
+      return "Draft";
+    case "compile-fix":
+      return "Fix compile";
+    default:
+      return "Review";
+  }
+}
+
 interface JobSegmentProps {
   job: JobRecord;
   isOpen: boolean;
@@ -114,6 +125,7 @@ interface JobSegmentProps {
 
 function JobSegment({ job, isOpen, onToggle }: JobSegmentProps): JSX.Element {
   const title = job.kind === "writeup" ? (job.paperTitle ?? job.projectLabel) : job.projectLabel;
+  const kindLabel = jobKindLabel(job.kind);
   return (
     <button
       type="button"
@@ -121,7 +133,7 @@ function JobSegment({ job, isOpen, onToggle }: JobSegmentProps): JSX.Element {
       onClick={onToggle}
       aria-expanded={isOpen}
     >
-      <span className="jobs-dock__seg-kind">{job.kind === "writeup" ? "Draft" : "Review"}</span>
+      <span className="jobs-dock__seg-kind">{kindLabel}</span>
       <span className="jobs-dock__seg-title">{title}</span>
       <span className="jobs-dock__seg-phase">{shortPhase(job)}</span>
       <span className="jobs-dock__seg-elapsed">
@@ -141,6 +153,7 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
   const navigate = useNavigate();
   const live = isLive(job);
   const title = job.kind === "writeup" ? (job.paperTitle ?? job.projectLabel) : job.projectLabel;
+  const kindLabel = jobKindLabel(job.kind);
   const cancelConfirm = useInlineConfirm();
 
   const runCancel = useCallback(async (): Promise<void> => {
@@ -187,7 +200,7 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
   return (
     <section
       className={`jobs-dock__panel jobs-dock__panel--${job.status}`}
-      aria-label={`${job.kind === "writeup" ? "Draft" : "Review"} details`}
+      aria-label={`${kindLabel} details`}
     >
       <button
         type="button"
@@ -200,7 +213,7 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
       <header className="jobs-dock__panel-head">
         <div>
           <p className="jobs-dock__panel-kind">
-            {job.kind === "writeup" ? "Draft" : "Review"} · {job.projectLabel}
+            {kindLabel} · {job.projectLabel}
           </p>
           <h3 className="jobs-dock__panel-title">{title}</h3>
         </div>

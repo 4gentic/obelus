@@ -5,7 +5,14 @@ export type AutoCompileTrigger = "apply" | "switch";
 
 export type AutoCompileOutcome =
   | { kind: "compiled"; outputRelPath: string; stderr: string }
-  | { kind: "error"; message: string }
+  | {
+      kind: "error";
+      message: string;
+      // Present iff we actually invoked a compiler (so the UI can spawn a
+      // fix-compile follow-up). Absent for noop/hint branches.
+      compiler?: string;
+      mainRelPath?: string;
+    }
   | { kind: "hint"; message: string }
   | { kind: "noop" };
 
@@ -71,6 +78,8 @@ async function runForCompiler(args: {
       return {
         kind: "error",
         message: err instanceof Error ? err.message : "Typst compile failed.",
+        compiler: "typst",
+        mainRelPath,
       };
     }
   }
@@ -87,6 +96,8 @@ async function runForCompiler(args: {
       return {
         kind: "error",
         message: err instanceof Error ? err.message : `${compiler} compile failed.`,
+        compiler,
+        mainRelPath,
       };
     }
   }

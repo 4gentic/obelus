@@ -19,6 +19,7 @@ export interface IngestPlanResult {
   sessionBundleId: string;
   blockCount: number;
   hunkCount: number;
+  ambiguousCount: number;
   droppedForUnknownAnnotation: string[];
   synthesisedKept: number;
   scannedPlans: string[];
@@ -29,7 +30,13 @@ export interface IngestPlanResult {
 // annotations table). They still need to reach the diff-review UI so the user
 // can accept/reject each; without this allowlist they would be silently
 // dropped by the knownAnnotationIds gate below.
-export const SYNTHESISED_ID_PREFIXES = ["cascade-", "impact-", "coherence-", "quality-"] as const;
+export const SYNTHESISED_ID_PREFIXES = [
+  "cascade-",
+  "impact-",
+  "coherence-",
+  "quality-",
+  "compile-",
+] as const;
 
 export function isSynthesisedAnnotationId(id: string): boolean {
   return SYNTHESISED_ID_PREFIXES.some((prefix) => id.startsWith(prefix));
@@ -188,12 +195,15 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
 
   await repo.diffHunks.upsertMany(sessionId, rows);
 
+  const ambiguousCount = keptBlocks.reduce((n, b) => n + (b.ambiguous ? 1 : 0), 0);
+
   return {
     planPath: `.obelus/${picked.name}`,
     planBundleId: picked.plan.bundleId,
     sessionBundleId: session.bundleId,
     blockCount: picked.plan.blocks.length,
     hunkCount: rows.length,
+    ambiguousCount,
     droppedForUnknownAnnotation,
     synthesisedKept,
     scannedPlans,

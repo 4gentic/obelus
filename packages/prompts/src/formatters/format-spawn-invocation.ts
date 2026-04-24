@@ -21,6 +21,12 @@ export type SpawnInvocationInput =
       extraBody?: string;
     }
   | {
+      kind: "fix-compile";
+      bundleAbsPath: string;
+      paperId: string;
+      extraBody?: string;
+    }
+  | {
       kind: "ask";
       promptBody: string;
     };
@@ -49,6 +55,14 @@ export function formatSpawnInvocation(input: SpawnInvocationInput): string {
       if (input.rubricAbsPath !== undefined && input.rubricAbsPath.trim().length > 0) {
         lines.push(`rubricPath: ${input.rubricAbsPath}`);
       }
+      const base = `${lines.join("\n")}\n`;
+      return appendExtra(base, input.extraBody);
+    }
+    case "fix-compile": {
+      const lines = [
+        `Run fix-compile with bundle path ${input.bundleAbsPath}.`,
+        `paperId: ${input.paperId}`,
+      ];
       const base = `${lines.join("\n")}\n`;
       return appendExtra(base, input.extraBody);
     }

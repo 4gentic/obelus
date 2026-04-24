@@ -16,7 +16,12 @@ const committedDirs = [
   join(repoRoot, "packages/bundle-schema/schemas"),
   join(repoRoot, "packages/claude-plugin/schemas"),
 ];
-const files = ["bundle-v1.schema.json", "bundle-v2.schema.json", "project-meta.schema.json"];
+const files = [
+  "bundle-v1.schema.json",
+  "bundle-v2.schema.json",
+  "project-meta.schema.json",
+  "compile-error.schema.json",
+];
 
 const tmp = mkdtempSync(join(tmpdir(), "obelus-schema-guard-"));
 try {

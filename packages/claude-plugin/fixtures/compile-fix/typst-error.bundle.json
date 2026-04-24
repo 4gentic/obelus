@@ -1,0 +1,13 @@
+{
+  "bundleVersion": "compile-error/1.0",
+  "tool": { "name": "obelus", "version": "0.1.5" },
+  "project": {
+    "rootLabel": "compile-fix fixture",
+    "main": { "relPath": "broken-typst.typ", "format": "typ" }
+  },
+  "paperId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "compiler": "typst",
+  "stderr": "error: unknown variable: fo\n  ┌─ broken-typst.typ:5:9\n  │\n5 │ Hello #fo — the identifier `fo` is not defined anywhere in this document, so\n  │         ^^\n  │\n",
+  "exitCode": 1,
+  "trigger": "manual"
+}
