@@ -35,13 +35,15 @@ export interface RevisionRow {
   note?: string;
 }
 
-export interface AnnotationRow {
-  id: string;
-  revisionId: string;
-  category: string;
-  quote: string;
-  contextBefore: string;
-  contextAfter: string;
+export interface SourceAnchorFields {
+  file: string;
+  lineStart: number;
+  colStart: number;
+  lineEnd: number;
+  colEnd: number;
+}
+
+export interface PdfAnchoredAnnotation {
   page: number;
   bbox: [number, number, number, number];
   rects?: Array<[number, number, number, number]>;
@@ -49,6 +51,30 @@ export interface AnnotationRow {
     start: [number, number];
     end: [number, number];
   };
+}
+
+export interface AnnotationRow {
+  id: string;
+  revisionId: string;
+  category: string;
+  quote: string;
+  contextBefore: string;
+  contextAfter: string;
+  // Anchor fields are pairwise exclusive by the paper's `format`:
+  //   pdf  → page + bbox + textItemRange (+ rects) are present; sourceAnchor
+  //          is absent.
+  //   md   → sourceAnchor is present; the PDF-coordinate fields are absent.
+  // Readers that need PDF coordinates should narrow through the paper's
+  // format (which is known at the call site) rather than deriving it from
+  // these fields — keeps the narrow cheap and the intent explicit.
+  page?: number;
+  bbox?: [number, number, number, number];
+  rects?: Array<[number, number, number, number]>;
+  textItemRange?: {
+    start: [number, number];
+    end: [number, number];
+  };
+  sourceAnchor?: SourceAnchorFields;
   note: string;
   thread: Array<{ at: string; body: string }>;
   createdAt: string;

@@ -26,39 +26,79 @@ interface PdfAnchorJson {
   textItemRange: { start: [number, number]; end: [number, number] };
 }
 
+interface SourceAnchorJson {
+  kind: "source";
+  file: string;
+  lineStart: number;
+  colStart: number;
+  lineEnd: number;
+  colEnd: number;
+}
+
+type AnchorJson = PdfAnchorJson | SourceAnchorJson;
+
 function toAnnotationRow(r: AnnotationSqlRow): AnnotationRow {
-  const anchor = JSON.parse(r.anchor_json) as PdfAnchorJson;
+  const anchor = JSON.parse(r.anchor_json) as AnchorJson;
   const thread = JSON.parse(r.thread_json) as AnnotationRow["thread"];
-  const base: AnnotationRow = {
+  const common = {
     id: r.id,
     revisionId: r.revision_id,
     category: r.category,
     quote: r.quote,
     contextBefore: r.context_before,
     contextAfter: r.context_after,
-    page: anchor.page,
-    bbox: anchor.bbox,
-    textItemRange: anchor.textItemRange,
     note: r.note,
     thread,
     createdAt: r.created_at,
   };
-  const withRects = anchor.rects !== undefined ? { ...base, rects: anchor.rects } : base;
-  const withGroup = r.group_id !== null ? { ...withRects, groupId: r.group_id } : withRects;
+  const anchored: AnnotationRow =
+    anchor.kind === "pdf"
+      ? {
+          ...common,
+          page: anchor.page,
+          bbox: anchor.bbox,
+          textItemRange: anchor.textItemRange,
+          ...(anchor.rects !== undefined ? { rects: anchor.rects } : {}),
+        }
+      : {
+          ...common,
+          sourceAnchor: {
+            file: anchor.file,
+            lineStart: anchor.lineStart,
+            colStart: anchor.colStart,
+            lineEnd: anchor.lineEnd,
+            colEnd: anchor.colEnd,
+          },
+        };
+  const withGroup = r.group_id !== null ? { ...anchored, groupId: r.group_id } : anchored;
   return r.resolved_in_edit_id !== null
     ? { ...withGroup, resolvedInEditId: r.resolved_in_edit_id }
     : withGroup;
 }
 
 function toAnchorJson(row: AnnotationRow): string {
-  const anchor: PdfAnchorJson = {
-    kind: "pdf",
-    page: row.page,
-    bbox: row.bbox,
-    textItemRange: row.textItemRange,
-    ...(row.rects !== undefined ? { rects: row.rects } : {}),
-  };
-  return JSON.stringify(anchor);
+  if (row.sourceAnchor) {
+    const anchor: SourceAnchorJson = {
+      kind: "source",
+      file: row.sourceAnchor.file,
+      lineStart: row.sourceAnchor.lineStart,
+      colStart: row.sourceAnchor.colStart,
+      lineEnd: row.sourceAnchor.lineEnd,
+      colEnd: row.sourceAnchor.colEnd,
+    };
+    return JSON.stringify(anchor);
+  }
+  if (row.page !== undefined && row.bbox !== undefined && row.textItemRange !== undefined) {
+    const anchor: PdfAnchorJson = {
+      kind: "pdf",
+      page: row.page,
+      bbox: row.bbox,
+      textItemRange: row.textItemRange,
+      ...(row.rects !== undefined ? { rects: row.rects } : {}),
+    };
+    return JSON.stringify(anchor);
+  }
+  throw new Error(`annotation ${row.id} has no valid anchor; pdf or source is required`);
 }
 
 export function buildAnnotationsRepo(db: Database): AnnotationsRepo {

@@ -25,6 +25,8 @@ function rectKey(prefix: string, r: Rect): string {
 }
 
 function annotationRectsOnPage(ann: AnnotationRow, pageIndex: number): readonly Rect[] {
+  // Not a PDF-anchored row: this pane doesn't render md/html marks.
+  if (ann.page === undefined || ann.bbox === undefined) return [];
   if (ann.page - 1 !== pageIndex) return [];
   if (ann.rects && ann.rects.length > 0) return ann.rects;
   return [ann.bbox];

@@ -1,6 +1,6 @@
 import { type Anchor, extract, rectsFromAnchor } from "@obelus/anchor";
 import { loadDocument, PdfDocument, SelectionListener } from "@obelus/pdf-view";
-import type { PaperRow, PaperRubric } from "@obelus/repo";
+import { isPdfAnchored, type PaperRow, type PaperRubric } from "@obelus/repo";
 import { getPdf, papers, revisions } from "@obelus/repo/web";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { TextItem } from "pdfjs-dist/types/src/display/api";
@@ -373,6 +373,7 @@ export default function Review() {
   // top-to-bottom in document order.
   const desiredNotes = useMemo(() => {
     return annotations
+      .filter(isPdfAnchored)
       .map((row) => {
         const rect = pageRects[row.page - 1] ?? { top: 0, left: 0 };
         const desiredTop = rect.top - gutterOffsetTop + row.bbox[1] * scale;
@@ -474,7 +475,7 @@ export default function Review() {
             <SelectionListener onAnchor={onAnchor}>
               <PdfDocument doc={doc} scale={scale} />
               <div className="review__hl-layer" aria-hidden="true">
-                {annotations.flatMap((row) => {
+                {annotations.filter(isPdfAnchored).flatMap((row) => {
                   const page = pageRects[row.page - 1] ?? { top: 0, left: 0 };
                   const lineRects = row.rects && row.rects.length > 0 ? row.rects : [row.bbox];
                   return lineRects.map((r) => {

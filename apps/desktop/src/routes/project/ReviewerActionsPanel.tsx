@@ -99,7 +99,11 @@ export default function ReviewerActionsPanel(): JSX.Element {
     if (!latest) return null;
     const rows = await repo.annotations.listForRevision(latest.id);
     if (rows.length === 0) return null;
-    const annotations: PromptAnnotation[] = rows.map((r) => ({
+    // The reviewer clipboard prompt is PDF-paper-specific — page numbers
+    // anchor the review report. MD-anchored rows have no page and are
+    // skipped (their export flow uses v2 source anchors elsewhere).
+    const pdfRows = rows.filter((r): r is typeof r & { page: number } => r.page !== undefined);
+    const annotations: PromptAnnotation[] = pdfRows.map((r) => ({
       id: r.id,
       category: r.category,
       page: r.page,

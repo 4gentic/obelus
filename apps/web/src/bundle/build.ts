@@ -1,5 +1,6 @@
 import { buildBundleV1, suggestBundleFilename } from "@obelus/bundle-builder";
 import type { Bundle } from "@obelus/bundle-schema";
+import { isPdfAnchored } from "@obelus/repo";
 import { annotations, papers, revisions } from "@obelus/repo/web";
 
 export interface BuildInput {
@@ -26,7 +27,9 @@ export async function buildBundle(input: BuildInput): Promise<Bundle> {
       createdAt: revision.createdAt,
     },
     pdf: { filename: input.pdfFilename, pageCount: input.pageCount },
-    annotations: rows,
+    // buildBundleV1 is PDF-specific; md-anchored rows ride the separate
+    // v2 export path (see review-md flow).
+    annotations: rows.filter(isPdfAnchored),
   });
 }
 

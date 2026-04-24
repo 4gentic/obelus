@@ -24,6 +24,8 @@ export type {
   WriteUpsRepo,
 } from "./interface";
 export { NotSupportedError } from "./interface";
+export { isPdfAnchored } from "./annotation-narrow";
+export type { AnnotationPdfRow } from "./annotation-narrow";
 export type {
   AnnotationRow,
   AppliedSnapshot,
@@ -44,6 +46,8 @@ export type {
   PaperFormat,
   PaperRow,
   PaperRubric,
+  PdfAnchoredAnnotation,
+  SourceAnchorFields,
   ProjectFileFormat,
   ProjectFileRole,
   ProjectFileRow,

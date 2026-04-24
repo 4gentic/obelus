@@ -1,7 +1,7 @@
 import type { AnnotationV2Input, PaperRefV2Input, ProjectV2Input } from "@obelus/bundle-builder";
 import { buildBundleV2 } from "@obelus/bundle-builder";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
-import type { ProjectFileRow, Repository } from "@obelus/repo";
+import { isPdfAnchored, type ProjectFileRow, type Repository } from "@obelus/repo";
 import { fsReadFile } from "../../ipc/commands";
 import { resolveAcrossFiles } from "./resolveSourceAnchors";
 
@@ -148,7 +148,10 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
 
   const resolutionsByFile = new Map<string, number>();
   let resolvedCount = 0;
-  const annotations: AnnotationV2Input[] = rows.map((row) => {
+  // This flow is PDF-paper-driven (writer project reviewing their compiled
+  // PDF). MD-anchored annotations ride a separate v2 export in the web app.
+  const pdfRows = rows.filter(isPdfAnchored);
+  const annotations: AnnotationV2Input[] = pdfRows.map((row) => {
     const base: AnnotationV2Input = {
       id: row.id,
       paperId: paper.id,

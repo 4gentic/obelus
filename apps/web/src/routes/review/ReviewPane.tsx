@@ -124,9 +124,14 @@ function AnnotationItem({
 
 function buildDisplayEntries(rows: ReadonlyArray<AnnotationRow>): DisplayEntry[] {
   const sorted = [...rows].sort((a, b) => {
-    if (a.page !== b.page) return a.page - b.page;
-    const aStart = a.textItemRange.start[0];
-    const bStart = b.textItemRange.start[0];
+    // Same order the pdf review surface applies: by page, then by the
+    // text item's start index. MD annotations never flow through this
+    // route, so the optional fields are effectively required here.
+    const aPage = a.page ?? 0;
+    const bPage = b.page ?? 0;
+    if (aPage !== bPage) return aPage - bPage;
+    const aStart = a.textItemRange?.start[0] ?? 0;
+    const bStart = b.textItemRange?.start[0] ?? 0;
     return aStart - bStart;
   });
   const entries: DisplayEntry[] = [];
