@@ -337,6 +337,23 @@ async function ingestReview(
   });
   await repo.reviewSessions.complete(reviewSessionId);
 
+  // A completed session with zero hunks has nothing to offer the Diff tab —
+  // leaving it 'completed' makes findLatestVisibleReviewForPaper resurface it
+  // as a zombie "Plan loaded but no hunks were produced" card that the user
+  // has to dismiss manually. Transition straight to 'discarded' so the Diff
+  // tab stays clean. Annotations (marks) are persisted separately and are
+  // unaffected by this status change.
+  const autoDiscarded = result.hunkCount === 0;
+  if (autoDiscarded) {
+    await repo.reviewSessions.setStatus(
+      reviewSessionId,
+      "discarded",
+      result.blockCount === 0
+        ? "Reviewer proposed no changes."
+        : "Plan produced no hunks for this session.",
+    );
+  }
+
   console.info("[ingest-plan]", {
     sessionId: reviewSessionId,
     planPath: result.planPath,
@@ -348,6 +365,7 @@ async function ingestReview(
     droppedForUnknownAnnotation: result.droppedForUnknownAnnotation,
     scannedPlans: result.scannedPlans,
     hasSources: result.hasSources,
+    autoDiscarded,
   });
 
   if (result.droppedForUnknownAnnotation.length > 0 && result.hunkCount === 0) {
