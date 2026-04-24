@@ -1,6 +1,12 @@
 import { selectionToSourceAnchor } from "@obelus/anchor";
 import type { SourceAnchor2 } from "@obelus/bundle-schema";
 import { useEffect, useRef } from "react";
+import {
+  buildDocumentSourceMap,
+  computeLineOffsets,
+  mapRenderedToSource,
+  sourceOffsetToLineCol,
+} from "./source-map";
 
 // Slices the quote and surrounding context from the raw markdown source using
 // the anchor's 1-indexed line range + 0-indexed column range. The bundle must
@@ -30,6 +36,109 @@ function sliceSourceSpan(
   const contextBefore = text.slice(Math.max(0, startOffset - CONTEXT_CHARS), startOffset);
   const contextAfter = text.slice(endOffset, Math.min(text.length, endOffset + CONTEXT_CHARS));
   return { quote, contextBefore, contextAfter };
+}
+
+// Finds the rendered quote inside the mdast-concatenated rendered string and
+// returns the matched range's *source* offsets. Two-tier match: exact first,
+// then NFKC + whitespace-collapsed fallback that maps back to unnormalized
+// haystack positions by scanning forward while skipping whitespace runs. If
+// nothing matches (corrupt source, out-of-sync text) we return null so the
+// caller falls back to the old slicing path.
+function findRenderedInSource(
+  rendered: string,
+  quote: string,
+): { renderedStart: number; renderedEnd: number } | null {
+  const trimmed = quote.trim();
+  if (trimmed === "") return null;
+  const exact = rendered.indexOf(trimmed);
+  if (exact !== -1) return { renderedStart: exact, renderedEnd: exact + trimmed.length };
+
+  const normalize = (s: string): string => s.normalize("NFKC").replace(/\s+/g, " ").trim();
+  const qNorm = normalize(quote);
+  if (qNorm === "") return null;
+
+  // Walk `rendered` once, projecting it onto a NFKC + whitespace-collapsed
+  // form while recording the source index each projected char came from.
+  // Then indexOf in the projection gives us the projected range; the index
+  // array takes us back to `rendered` offsets.
+  const nfkc = rendered.normalize("NFKC");
+  let projected = "";
+  const projectedToNfkc: number[] = [];
+  let prevWasWhitespace = true;
+  for (let i = 0; i < nfkc.length; i += 1) {
+    const ch = nfkc[i];
+    if (ch === undefined) continue;
+    const isWs = /\s/.test(ch);
+    if (isWs) {
+      if (!prevWasWhitespace && projected.length > 0) {
+        projected += " ";
+        projectedToNfkc.push(i);
+        prevWasWhitespace = true;
+      }
+      continue;
+    }
+    projected += ch;
+    projectedToNfkc.push(i);
+    prevWasWhitespace = false;
+  }
+  // Trim trailing space from projected (and its index mapping).
+  while (projected.endsWith(" ")) {
+    projected = projected.slice(0, -1);
+    projectedToNfkc.pop();
+  }
+  const pIdx = projected.indexOf(qNorm);
+  if (pIdx === -1) return null;
+  const nStart = projectedToNfkc[pIdx];
+  const nEnd = projectedToNfkc[pIdx + qNorm.length - 1];
+  if (nStart === undefined || nEnd === undefined) return null;
+  // NFKC can shift char counts (ligatures, compatibility equivalents). For the
+  // markdown content we actually see, NFKC is ~identity; approximate 1:1 back
+  // to `rendered` offsets. If ever it drifts, the refinement returns null and
+  // the old path takes over.
+  if (nEnd + 1 > rendered.length) return null;
+  return { renderedStart: nStart, renderedEnd: nEnd + 1 };
+}
+
+// Produces a refined anchor whose colStart/colEnd slice source bytes that
+// correspond to what the user visually highlighted. When refinement succeeds
+// the returned `quote` is the source slice (markdown delimiters included) —
+// matching the bundle's source-bytes contract that `plan-fix` verifies with
+// NFKC + whitespace-collapse `.includes()`.
+function refineAnchorWithRenderedQuote(
+  text: string,
+  initialAnchor: SourceAnchor2,
+  renderedQuote: string,
+): { anchor: SourceAnchor2; quote: string; contextBefore: string; contextAfter: string } | null {
+  const built = buildDocumentSourceMap(text);
+  if (!built) return null;
+  const match = findRenderedInSource(built.rendered, renderedQuote);
+  if (!match) return null;
+  const srcStart = mapRenderedToSource(built.breakpoints, match.renderedStart, "start");
+  const srcEnd = mapRenderedToSource(built.breakpoints, match.renderedEnd, "end");
+  if (srcStart === null || srcEnd === null || srcStart >= srcEnd) return null;
+
+  const lineOffsets = computeLineOffsets(text);
+  const startPos = sourceOffsetToLineCol(srcStart, lineOffsets);
+  const endPos = sourceOffsetToLineCol(srcEnd, lineOffsets);
+  // Guard: the refined range must overlap the initial anchor's line range.
+  // Otherwise we picked up an unrelated occurrence elsewhere in the paper.
+  if (startPos.line > initialAnchor.lineEnd || endPos.line < initialAnchor.lineStart) {
+    return null;
+  }
+
+  const anchor: SourceAnchor2 = {
+    kind: "source",
+    file: initialAnchor.file,
+    lineStart: startPos.line,
+    colStart: startPos.col,
+    lineEnd: endPos.line,
+    colEnd: endPos.col,
+  };
+  const quote = text.slice(srcStart, srcEnd);
+  if (quote.trim() === "") return null;
+  const contextBefore = text.slice(Math.max(0, srcStart - CONTEXT_CHARS), srcStart);
+  const contextAfter = text.slice(srcEnd, Math.min(text.length, srcEnd + CONTEXT_CHARS));
+  return { anchor, quote, contextBefore, contextAfter };
 }
 
 export interface MarkdownSelection {
@@ -280,16 +389,28 @@ export function computeMarkdownSelection(
   });
   if (anchor === null) return null;
 
-  if (text !== undefined) {
+  const renderedQuote = quoteFromRange(container, normA, normF);
+
+  if (text !== undefined && renderedQuote !== "") {
+    // Preferred path: anchor.lineStart/lineEnd are accurate, but colStart/
+    // colEnd came from `endpointToCoord` which conflates a block's *source*
+    // col with its in-block *rendered* offset and so mis-aligns once the
+    // selection crosses any markdown delimiter. Reanchor by finding the
+    // rendered quote inside an mdast-walked view of the source; this yields
+    // source-byte-accurate cols so the emitted slice starts at "Built", not
+    // at the enclosing list marker's "-".
+    const refined = refineAnchorWithRenderedQuote(text, anchor, renderedQuote);
+    if (refined !== null) return refined;
+
+    // Fallback: the old cols are likely imprecise but a source slice is still
+    // preferable to rendered bytes — plan-fix's verifier does NFKC +
+    // whitespace-collapse `.includes()` on the source line range, so the
+    // bundle must carry source-formatted quote text.
     const sourceSpan = sliceSourceSpan(text, anchor);
     if (sourceSpan !== null) return { anchor, ...sourceSpan };
-    // Fall through to DOM-derived if source slicing failed (line out of range
-    // after re-render, mid-parse state). Better to ship a rendered-text quote
-    // than drop the selection entirely.
   }
 
-  const quote = quoteFromRange(container, normA, normF);
-  if (quote === "") return null;
+  if (renderedQuote === "") return null;
 
   const full = textOfContainer(container);
   const startOffset = offsetWithinContainer(container, normA.node, normA.offset);
@@ -299,7 +420,7 @@ export function computeMarkdownSelection(
   const contextBefore = full.slice(Math.max(0, lo - CONTEXT_CHARS), lo);
   const contextAfter = full.slice(hi, Math.min(full.length, hi + CONTEXT_CHARS));
 
-  return { anchor, quote, contextBefore, contextAfter };
+  return { anchor, quote: renderedQuote, contextBefore, contextAfter };
 }
 
 export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void {

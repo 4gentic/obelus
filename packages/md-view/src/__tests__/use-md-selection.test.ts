@@ -310,6 +310,117 @@ describe("computeMarkdownSelection", () => {
     expect(result).toBeNull();
   });
 
+  it("refines colStart past a list marker + bold delimiter when text is supplied", () => {
+    // Source: `- **Built + tested** rest`. The <li>'s data-src-col is 0
+    // (source col of the `-`), but the rendered <strong> text starts at
+    // source col 4 ("B"). Without refinement, endpointToCoord returns
+    // col=0+0=0 and sliceSourceSpan emits the leading `- **` as part of the
+    // quote. With refinement we find "Built + tested" in the mdast-walked
+    // view and re-anchor at source col 4.
+    const source = "- **Built + tested** rest";
+    const strong = block("strong", {}, ["Built + tested"]);
+    const li = block("li", src(1, 0, 1), [strong, document.createTextNode(" rest")]);
+    const wrapper = mount(block("ul", {}, [li]));
+    const strongText = firstText(strong);
+    const result = computeMarkdownSelection(
+      wrapper,
+      null,
+      snapshot(strongText, 0, strongText, 14),
+      source,
+    );
+    expect(result).not.toBeNull();
+    expect(result?.anchor.lineStart).toBe(1);
+    expect(result?.anchor.colStart).toBe(4);
+    expect(result?.anchor.colEnd).toBe(18);
+    expect(result?.quote).toBe("Built + tested");
+    expect(result?.quote.startsWith("- **")).toBe(false);
+  });
+
+  it("keeps source delimiters between endpoints when selection spans a closing `**`", () => {
+    // Source: `**bold** tail`. Select from "b" of bold through "l" of tail.
+    // The rendered run is "bold tail" (9 chars); the source slice must carry
+    // the intervening `**` so plan-fix's verifier (NFKC + whitespace-collapse
+    // `.includes()` against source) still matches.
+    const source = "**bold** tail";
+    const strong = block("strong", {}, ["bold"]);
+    const p = block("p", src(1, 0, 1), [strong, document.createTextNode(" tail")]);
+    const wrapper = mount(p);
+    const strongText = firstText(strong);
+    const tailText = p.childNodes[1] as Text;
+    const result = computeMarkdownSelection(
+      wrapper,
+      null,
+      snapshot(strongText, 0, tailText, 5),
+      source,
+    );
+    expect(result).not.toBeNull();
+    expect(result?.anchor.colStart).toBe(2);
+    expect(result?.anchor.colEnd).toBe(13);
+    expect(result?.quote).toBe("bold** tail");
+  });
+
+  it("anchors a selection inside inline code past the opening backtick", () => {
+    // Source: `` a `foo` b ``. `inlineCode`'s mdast position starts at the
+    // opening backtick; we advance by the backtick run so the rendered "foo"
+    // maps to source col 3 (0-indexed) — not col 2.
+    const source = "a `foo` b";
+    const code = block("code", {}, ["foo"]);
+    const p = block("p", src(1, 0, 1), [
+      document.createTextNode("a "),
+      code,
+      document.createTextNode(" b"),
+    ]);
+    const wrapper = mount(p);
+    const codeText = firstText(code);
+    const result = computeMarkdownSelection(
+      wrapper,
+      null,
+      snapshot(codeText, 0, codeText, 3),
+      source,
+    );
+    expect(result).not.toBeNull();
+    expect(result?.anchor.colStart).toBe(3);
+    expect(result?.anchor.colEnd).toBe(6);
+    expect(result?.quote).toBe("foo");
+  });
+
+  it("anchors a selection inside a [link text](url) to the bracketed text only", () => {
+    // Source: `[link text](http://e.com)`. Rendered is "link text"; the
+    // source slice should span only the text, not the URL part.
+    const source = "[link text](http://e.com)";
+    const a = block("a", { href: "http://e.com" }, ["link text"]);
+    const p = block("p", src(1, 0, 1), [a]);
+    const wrapper = mount(p);
+    const linkText = firstText(a);
+    const result = computeMarkdownSelection(
+      wrapper,
+      null,
+      snapshot(linkText, 0, linkText, 9),
+      source,
+    );
+    expect(result).not.toBeNull();
+    expect(result?.anchor.colStart).toBe(1);
+    expect(result?.anchor.colEnd).toBe(10);
+    expect(result?.quote).toBe("link text");
+  });
+
+  it("falls back to the existing slicing path when the rendered quote isn't in the source", () => {
+    // Source intentionally out of sync with the DOM (e.g. buffer mid-edit).
+    // Refinement can't locate the rendered text, so we must not throw or
+    // return null — the old anchor+slice path is strictly no worse than
+    // today, which is the property the plan guards.
+    const source = "totally unrelated source text";
+    const p = block("p", src(1, 0, 1), ["hello world"]);
+    const wrapper = mount(p);
+    const t = firstText(p);
+    const result = computeMarkdownSelection(wrapper, null, snapshot(t, 0, t, 5), source);
+    expect(result).not.toBeNull();
+    // Fallback uses the initial anchor's cols; colStart is 0 (block start)
+    // and sliceSourceSpan returns whatever source.slice(0, 5) is. The
+    // important invariant is non-null — the user's selection isn't dropped.
+    expect(result?.quote.length).toBeGreaterThan(0);
+  });
+
   it("uses live pointer to resolve focus when WebKit snaps focus to a container element", () => {
     // Observed: drag from inside a <strong> inside a <li>, focus is WebKit-
     // snapped to the <li> element at a high child index. Without the pointer
