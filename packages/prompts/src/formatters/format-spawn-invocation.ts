@@ -42,7 +42,7 @@ export function formatSpawnInvocation(input: SpawnInvocationInput): string {
     }
     case "write-review": {
       const lines = [
-        `Run write-review with bundle path ${input.bundleAbsPath}.`,
+        `Run write-review with bundle path ${input.bundleAbsPath} --out.`,
         `paperId: ${input.paperId}`,
         `paperTitle: ${input.paperTitle}`,
       ];
