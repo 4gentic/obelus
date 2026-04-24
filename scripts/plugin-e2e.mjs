@@ -40,7 +40,7 @@ const scenarios = [
   {
     id: "1.1",
     name: "review-single",
-    prompt: "/obelus:write-review ./bundle.json",
+    prompt: "/obelus:write-review ./bundle.json --out",
     stage(dir) {
       cpSync(resolve(fixturesDir, "bundle.json"), resolve(dir, "bundle.json"));
     },
@@ -49,7 +49,7 @@ const scenarios = [
   {
     id: "1.2",
     name: "review-with-sources",
-    prompt: "/obelus:write-review ./bundle.json",
+    prompt: "/obelus:write-review ./bundle.json --out",
     stage(dir) {
       cpSync(resolve(fixturesDir, "bundle.json"), resolve(dir, "bundle.json"));
       cpSync(resolve(fixturesDir, "sample.tex"), resolve(dir, "sample.tex"));
