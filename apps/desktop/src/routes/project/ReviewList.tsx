@@ -7,6 +7,16 @@ import { trimQuoteMiddle } from "./trim-quote";
 
 const INTERACTIVE_SELECTOR = ".category-picker, textarea, .review-list__remove";
 
+// PDF marks carry a `page` number; source-anchored (MD / future HTML) marks
+// carry `sourceAnchor` with line info. Render whichever applies.
+function markLocationLabel(a: AnnotationRow): string {
+  if (a.sourceAnchor) {
+    const { lineStart, lineEnd } = a.sourceAnchor;
+    return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+  }
+  return a.page !== undefined ? `p. ${a.page}` : "";
+}
+
 function NoteField({
   annotationId,
   initial,
@@ -64,7 +74,7 @@ function ReviewItem({
       }}
     >
       <header className="review-list__head">
-        <span className="review-list__page">p. {a.page}</span>
+        <span className="review-list__page">{markLocationLabel(a)}</span>
         <button
           type="button"
           className="review-list__remove"

@@ -192,7 +192,25 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
           row.staleness ?? null,
         ],
       }));
-      await dbTxBatch(stmts);
+      try {
+        await dbTxBatch(stmts);
+      } catch (err) {
+        console.warn("[persist-mark]", {
+          outcome: "bulkput-threw",
+          revisionId,
+          rowCount: rows.length,
+          ids: rows.map((r) => r.id),
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+      console.info("[persist-mark]", {
+        outcome: "committed",
+        revisionId,
+        rowCount: rows.length,
+        ids: rows.map((r) => r.id),
+        kind: rows[0]?.sourceAnchor ? "source" : "pdf",
+      });
     },
 
     async remove(id: string): Promise<void> {
