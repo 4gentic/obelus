@@ -40,7 +40,7 @@ describe("formatSpawnInvocation", () => {
         paperTitle: "Attention is all you need",
       }),
     ).toMatchInlineSnapshot(`
-      "Run write-review with bundle path /repo/bundle.json.
+      "Run write-review with bundle path /repo/bundle.json --out.
       paperId: paper-1
       paperTitle: Attention is all you need
       "
@@ -57,7 +57,7 @@ describe("formatSpawnInvocation", () => {
         rubricAbsPath: "/repo/.obelus/rubric-paper-1.md",
       }),
     ).toMatchInlineSnapshot(`
-      "Run write-review with bundle path /repo/bundle.json.
+      "Run write-review with bundle path /repo/bundle.json --out.
       paperId: paper-1
       paperTitle: Attention is all you need
       rubricPath: /repo/.obelus/rubric-paper-1.md
