@@ -592,6 +592,11 @@ button.files__row {
   white-space: nowrap;
 }
 
+.compile-main__fix {
+  margin-left: var(--space-1);
+  font-size: 0.75rem;
+}
+
 .files__unpin-text {
   background: transparent;
   border: none;

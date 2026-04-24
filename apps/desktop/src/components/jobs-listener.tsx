@@ -145,7 +145,10 @@ async function handleExit(
 
   emitReviewTiming(sessionId, job.startedAt, job.phaseHistory, code, wasCancelled);
 
-  const reviewSessionId = job.kind === "review" ? job.reviewSessionId : undefined;
+  // `review` and `compile-fix` both carry a review_session row whose status
+  // gates the Diff-tab visibility. `writeup` jobs don't.
+  const reviewSessionId =
+    job.kind === "review" || job.kind === "compile-fix" ? job.reviewSessionId : undefined;
 
   if (wasCancelled) {
     store.markCancelled(sessionId);
@@ -173,6 +176,9 @@ async function handleExit(
   try {
     if (job.kind === "review") {
       const message = await ingestReview(job.rootId, job.reviewSessionId, job.obelusWrotePath);
+      store.markDone(sessionId, message);
+    } else if (job.kind === "compile-fix") {
+      const message = await ingestCompileFix(job.rootId, job.reviewSessionId, job.obelusWrotePath);
       store.markDone(sessionId, message);
     } else {
       const ingested = await ingestWriteup(
@@ -300,6 +306,42 @@ async function ingestReview(
     return `Plan ready. ${result.hunkCount} change${result.hunkCount === 1 ? "" : "s"} (dropped ${result.droppedForUnknownAnnotation.length} stale block${result.droppedForUnknownAnnotation.length === 1 ? "" : "s"}).`;
   }
   return `Plan ready. ${result.hunkCount} change${result.hunkCount === 1 ? "" : "s"} proposed.`;
+}
+
+async function ingestCompileFix(
+  rootId: string,
+  reviewSessionId: string | undefined,
+  hintPath: string | undefined,
+): Promise<string> {
+  if (!reviewSessionId) throw new Error("compile-fix job is missing reviewSessionId");
+  const repo = await getRepository();
+  const result = await ingestPlanFile({
+    repo,
+    rootId,
+    sessionId: reviewSessionId,
+    ...(hintPath !== undefined ? { hintPath } : {}),
+  });
+  await repo.reviewSessions.complete(reviewSessionId);
+
+  console.info("[ingest-compile-fix]", {
+    sessionId: reviewSessionId,
+    planPath: result.planPath,
+    planBundleId: result.planBundleId,
+    sessionBundleId: result.sessionBundleId,
+    blockCount: result.blockCount,
+    hunkCount: result.hunkCount,
+    synthesisedKept: result.synthesisedKept,
+    droppedForUnknownAnnotation: result.droppedForUnknownAnnotation,
+    scannedPlans: result.scannedPlans,
+  });
+
+  if (result.blockCount === 0) {
+    return "No compile fix was produced — stderr did not yield any locatable errors.";
+  }
+  if (result.hunkCount === 0) {
+    return "Compile-fix plan ready. Every block was flagged ambiguous — review notes in the Diff pane.";
+  }
+  return `Fix ready. ${result.hunkCount} change${result.hunkCount === 1 ? "" : "s"} proposed.`;
 }
 
 async function ingestWriteup(

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "bundleVersion": {
+      "type": "string",
+      "const": "compile-error/1.0"
+    },
+    "tool": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "const": "obelus"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "rootLabel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "main": {
+          "type": "object",
+          "properties": {
+            "relPath": {
+              "type": "string",
+              "minLength": 1
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "tex",
+                "md",
+                "typ"
+              ]
+            }
+          },
+          "required": [
+            "relPath",
+            "format"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "rootLabel",
+        "main"
+      ],
+      "additionalProperties": false
+    },
+    "paperId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "compiler": {
+      "type": "string",
+      "enum": [
+        "typst",
+        "latexmk",
+        "pandoc",
+        "xelatex",
+        "pdflatex"
+      ]
+    },
+    "engineVersion": {
+      "type": "string"
+    },
+    "stderr": {
+      "type": "string"
+    },
+    "exitCode": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "trigger": {
+      "type": "string",
+      "enum": [
+        "apply",
+        "manual"
+      ]
+    }
+  },
+  "required": [
+    "bundleVersion",
+    "tool",
+    "project",
+    "paperId",
+    "compiler",
+    "stderr",
+    "exitCode",
+    "trigger"
+  ],
+  "additionalProperties": false
+}

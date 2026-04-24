@@ -29,7 +29,13 @@ export interface IngestPlanResult {
 // annotations table). They still need to reach the diff-review UI so the user
 // can accept/reject each; without this allowlist they would be silently
 // dropped by the knownAnnotationIds gate below.
-export const SYNTHESISED_ID_PREFIXES = ["cascade-", "impact-", "coherence-", "quality-"] as const;
+export const SYNTHESISED_ID_PREFIXES = [
+  "cascade-",
+  "impact-",
+  "coherence-",
+  "quality-",
+  "compile-",
+] as const;
 
 export function isSynthesisedAnnotationId(id: string): boolean {
   return SYNTHESISED_ID_PREFIXES.some((prefix) => id.startsWith(prefix));

@@ -65,6 +65,20 @@ describe("formatSpawnInvocation", () => {
     `);
   });
 
+  it("renders fix-compile", () => {
+    expect(
+      formatSpawnInvocation({
+        kind: "fix-compile",
+        bundleAbsPath: "/repo/.obelus-compile-error-20260424-091012.json",
+        paperId: "paper-1",
+      }),
+    ).toMatchInlineSnapshot(`
+      "Run fix-compile with bundle path /repo/.obelus-compile-error-20260424-091012.json.
+      paperId: paper-1
+      "
+    `);
+  });
+
   it("renders ask, ensuring trailing newline", () => {
     expect(
       formatSpawnInvocation({

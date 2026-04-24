@@ -78,6 +78,24 @@ export function claudeDraftWriteup(input: ClaudeDraftWriteupInput): Promise<stri
   });
 }
 
+export interface ClaudeFixCompileInput {
+  rootId: string;
+  bundleRelPath: string;
+  paperId: string;
+  model?: string | null;
+  effort?: string | null;
+}
+
+export function claudeFixCompile(input: ClaudeFixCompileInput): Promise<string> {
+  return invoke<string>("claude_fix_compile", {
+    rootId: input.rootId,
+    bundleRelPath: input.bundleRelPath,
+    paperId: input.paperId,
+    model: input.model ?? null,
+    effort: input.effort ?? null,
+  });
+}
+
 export function claudeCancel(sessionId: string): Promise<void> {
   return invoke<void>("claude_cancel", { sessionId });
 }

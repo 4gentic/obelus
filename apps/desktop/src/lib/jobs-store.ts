@@ -4,7 +4,7 @@ import { create, type StoreApi, type UseBoundStore } from "zustand";
 // Scoped to the app process: if the app quits, the child `claude` process
 // dies too, so there is no state to persist beyond the session.
 
-export type JobKind = "review" | "writeup";
+export type JobKind = "review" | "writeup" | "compile-fix";
 
 export type JobStatus = "running" | "ingesting" | "done" | "error" | "cancelled";
 

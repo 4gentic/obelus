@@ -1,0 +1,16 @@
+\documentclass{article}
+\begin{document}
+
+\section{Broken LaTeX fixture}
+
+This paragraph calls \undefinedcmd, which is not defined by any package this
+document imports. With \texttt{-file-line-error}, latexmk reports:
+
+\begin{verbatim}
+./broken-latex.tex:8: Undefined control sequence.
+\end{verbatim}
+
+The fix-compile skill should replace the offending token with a compilable
+TODO placeholder that keeps the surrounding prose readable.
+
+\end{document}
