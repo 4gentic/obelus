@@ -346,6 +346,9 @@ importers:
       '@obelus/anchor':
         specifier: workspace:*
         version: link:../anchor
+      '@obelus/bundle-schema':
+        specifier: workspace:*
+        version: link:../bundle-schema
       '@obelus/source-render':
         specifier: workspace:*
         version: link:../source-render
