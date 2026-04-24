@@ -100,6 +100,9 @@
 .project-shell__files {
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .project-shell__divider {
@@ -234,6 +237,7 @@
 .files {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   background: var(--panel);
@@ -259,6 +263,41 @@
   top: 0;
   background: var(--panel);
   z-index: 1;
+}
+
+.files__section-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.files__section-toggle:focus-visible {
+  outline: 2px solid var(--rubric);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.files__chevron {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  line-height: 1;
+  width: 0.8em;
+  transition: transform 120ms ease;
+}
+
+.files__section-toggle[aria-expanded="true"] .files__chevron {
+  transform: rotate(90deg);
 }
 
 .files__section:first-child .files__section-header {

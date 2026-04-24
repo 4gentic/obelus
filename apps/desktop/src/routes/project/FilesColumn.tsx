@@ -466,6 +466,10 @@ export default function FilesColumn(): JSX.Element {
   }));
   const [error, setError] = useState<string | null>(null);
   const [pinned, setPinned] = useState<Set<string>>(() => new Set());
+  const [papersOpen, setPapersOpen] = useState(true);
+  const [pinnedOpen, setPinnedOpen] = useState(true);
+  const [reviewOpen, setReviewOpen] = useState(true);
+  const [workspaceOpen, setWorkspaceOpen] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -868,114 +872,161 @@ export default function FilesColumn(): JSX.Element {
       {visiblePapers.length > 0 && (
         <section className="files__section files__section--papers">
           <div className="files__section-header">
-            <span className="files__header-title">
-              Papers <span className="files__count">({visiblePapers.length})</span>
-            </span>
+            <button
+              type="button"
+              className="files__section-toggle"
+              aria-expanded={papersOpen}
+              onClick={() => setPapersOpen((o) => !o)}
+            >
+              <span className="files__chevron" aria-hidden="true">
+                ▸
+              </span>
+              <span className="files__header-title">
+                Papers <span className="files__count">({visiblePapers.length})</span>
+              </span>
+            </button>
           </div>
-          <ul className="files__flat">
-            {visiblePapers.map((paper) => {
-              const path = paper.pdfRelPath;
-              if (!path) return null;
-              const isActive = paper.id === activePaperId;
-              const marks = markCounts.get(paper.id) ?? 0;
-              const { dir, name } = splitPath(path);
-              const collides = (paperNameCounts.get(name) ?? 0) > 1;
-              return (
-                <li key={`paper:${paper.id}`} className="files__flat-item">
-                  <div
-                    className={`files__row files__row--paper${isActive ? " files__row--selected" : ""}`}
-                  >
-                    <button
-                      type="button"
-                      className="files__row-open"
-                      onClick={() => openFile(path)}
-                      title={path}
+          {papersOpen && (
+            <ul className="files__flat">
+              {visiblePapers.map((paper) => {
+                const path = paper.pdfRelPath;
+                if (!path) return null;
+                const isActive = paper.id === activePaperId;
+                const marks = markCounts.get(paper.id) ?? 0;
+                const { dir, name } = splitPath(path);
+                const collides = (paperNameCounts.get(name) ?? 0) > 1;
+                return (
+                  <li key={`paper:${paper.id}`} className="files__flat-item">
+                    <div
+                      className={`files__row files__row--paper${isActive ? " files__row--selected" : ""}`}
                     >
-                      <span className="files__name">{paper.title}</span>
-                      {collides && dir !== "." && <span className="files__path-hint">({dir})</span>}
-                      <span className="files__paper-meta">
-                        {marks} mark{marks === 1 ? "" : "s"}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className="files__remove"
-                      aria-label={`Remove ${paper.title}`}
-                      title="Remove paper — deletes all marks"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void removePaper(paper);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                      <button
+                        type="button"
+                        className="files__row-open"
+                        onClick={() => openFile(path)}
+                        title={path}
+                      >
+                        <span className="files__name">{paper.title}</span>
+                        {collides && dir !== "." && (
+                          <span className="files__path-hint">({dir})</span>
+                        )}
+                        <span className="files__paper-meta">
+                          {marks} mark{marks === 1 ? "" : "s"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="files__remove"
+                        aria-label={`Remove ${paper.title}`}
+                        title="Remove paper — deletes all marks"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void removePaper(paper);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
       )}
 
       {pinned.size > 0 && (
         <section className="files__section files__section--pinned">
           <div className="files__section-header">
-            <span className="files__header-title">
-              Pinned <span className="files__count">({pinned.size})</span>
-            </span>
+            <button
+              type="button"
+              className="files__section-toggle"
+              aria-expanded={pinnedOpen}
+              onClick={() => setPinnedOpen((o) => !o)}
+            >
+              <span className="files__chevron" aria-hidden="true">
+                ▸
+              </span>
+              <span className="files__header-title">
+                Pinned <span className="files__count">({pinned.size})</span>
+              </span>
+            </button>
           </div>
-          <ul className="files__flat">
-            {pinnedList.map((path) => {
-              const { dir, name } = splitPath(path);
-              return (
-                <FlatRow
-                  key={`pin:${path}`}
-                  path={path}
-                  name={name}
-                  dir={dir}
-                  pinned={true}
-                  selected={openFilePath === path}
-                  showUnpinText={true}
-                  onOpen={openFile}
-                  onTogglePin={togglePin}
-                />
-              );
-            })}
-          </ul>
+          {pinnedOpen && (
+            <ul className="files__flat">
+              {pinnedList.map((path) => {
+                const { dir, name } = splitPath(path);
+                return (
+                  <FlatRow
+                    key={`pin:${path}`}
+                    path={path}
+                    name={name}
+                    dir={dir}
+                    pinned={true}
+                    selected={openFilePath === path}
+                    showUnpinText={true}
+                    onOpen={openFile}
+                    onTogglePin={togglePin}
+                  />
+                );
+              })}
+            </ul>
+          )}
         </section>
       )}
 
       <section className="files__section files__section--review">
         <div className="files__section-header">
-          <span className="files__header-title">
-            To review <span className="files__count">({pdfs.length})</span>
-          </span>
+          <button
+            type="button"
+            className="files__section-toggle"
+            aria-expanded={reviewOpen}
+            onClick={() => setReviewOpen((o) => !o)}
+          >
+            <span className="files__chevron" aria-hidden="true">
+              ▸
+            </span>
+            <span className="files__header-title">
+              To review <span className="files__count">({pdfs.length})</span>
+            </span>
+          </button>
         </div>
-        {tree.walking ? (
-          <p className="files__hint">…</p>
-        ) : pdfs.length === 0 ? (
-          <p className="files__hint files__hint--empty">No PDFs here yet.</p>
-        ) : (
-          <ul className="files__flat">
-            {pdfs.map((pdf) => (
-              <FlatRow
-                key={`pdf:${pdf.path}`}
-                path={pdf.path}
-                name={pdf.name}
-                dir={pdf.dir}
-                pinned={pinned.has(pdf.path)}
-                selected={openFilePath === pdf.path}
-                onOpen={openFile}
-                onTogglePin={togglePin}
-              />
-            ))}
-          </ul>
-        )}
+        {reviewOpen &&
+          (tree.walking ? (
+            <p className="files__hint">…</p>
+          ) : pdfs.length === 0 ? (
+            <p className="files__hint files__hint--empty">No PDFs here yet.</p>
+          ) : (
+            <ul className="files__flat">
+              {pdfs.map((pdf) => (
+                <FlatRow
+                  key={`pdf:${pdf.path}`}
+                  path={pdf.path}
+                  name={pdf.name}
+                  dir={pdf.dir}
+                  pinned={pinned.has(pdf.path)}
+                  selected={openFilePath === pdf.path}
+                  onOpen={openFile}
+                  onTogglePin={togglePin}
+                />
+              ))}
+            </ul>
+          ))}
       </section>
 
       <section className="files__section files__section--workspace">
         <div className="files__section-header">
-          <span className="files__header-title">Workspace</span>
+          <button
+            type="button"
+            className="files__section-toggle"
+            aria-expanded={workspaceOpen}
+            onClick={() => setWorkspaceOpen((o) => !o)}
+          >
+            <span className="files__chevron" aria-hidden="true">
+              ▸
+            </span>
+            <span className="files__header-title">Workspace</span>
+          </button>
           <button
             type="button"
             className="files__new-button"
@@ -987,88 +1038,89 @@ export default function FilesColumn(): JSX.Element {
             +
           </button>
         </div>
-        {tree.walking ? (
-          <p className="files__hint">…</p>
-        ) : (
-          <div
-            className={`files__tree${dragOverPath === "." ? " files__tree--drop-root" : ""}`}
-            role="tree"
-            onDragEnter={(event) => {
-              event.preventDefault();
-              if (event.target === event.currentTarget) setDragOverPath(".");
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = "move";
-            }}
-            onDragLeave={(event) => {
-              if (event.currentTarget === event.target) setDragOverPath(null);
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragOverPath(null);
-              if (event.target !== event.currentTarget) return;
-              const from = event.dataTransfer.getData(DRAG_MIME);
-              if (!from) return;
-              const { dir } = splitPath(from);
-              if (dir === ".") return;
-              void move(from, ".");
-            }}
-          >
-            {creating?.parentPath === "." && (
-              <NewFileInputRow
-                parentPath="."
-                depth={0}
-                name={newName}
-                error={newError}
-                inputRef={newInputRef}
-                onChange={(v) => {
-                  setNewName(v);
-                  if (newError) setNewError(null);
-                }}
-                onCommit={() => void commitCreate()}
-                onCancel={cancelCreate}
-              />
-            )}
-            {root.map((entry) => (
-              <EntryRow
-                key={entry.name}
-                path={entry.name}
-                entry={entry}
-                depth={0}
-                tree={tree}
-                pinned={pinned}
-                mainRelPath={build?.mainRelPath ?? null}
-                dragOverPath={dragOverPath}
-                setDragOverPath={setDragOverPath}
-                callbacks={{
-                  onToggle: toggle,
-                  onOpenFile: openFile,
-                  onTogglePin: togglePin,
-                  onToggleMain: toggleMain,
-                  onBeginCreate: beginCreate,
-                  onMove: (from, to) => void move(from, to),
-                  renderCreateInput: (parentPath) =>
-                    creating?.parentPath === parentPath ? (
-                      <NewFileInputRow
-                        parentPath={parentPath}
-                        depth={parentPath === "." ? 0 : parentPath.split("/").length}
-                        name={newName}
-                        error={newError}
-                        inputRef={newInputRef}
-                        onChange={(v) => {
-                          setNewName(v);
-                          if (newError) setNewError(null);
-                        }}
-                        onCommit={() => void commitCreate()}
-                        onCancel={cancelCreate}
-                      />
-                    ) : null,
-                }}
-              />
-            ))}
-          </div>
-        )}
+        {workspaceOpen &&
+          (tree.walking ? (
+            <p className="files__hint">…</p>
+          ) : (
+            <div
+              className={`files__tree${dragOverPath === "." ? " files__tree--drop-root" : ""}`}
+              role="tree"
+              onDragEnter={(event) => {
+                event.preventDefault();
+                if (event.target === event.currentTarget) setDragOverPath(".");
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+              }}
+              onDragLeave={(event) => {
+                if (event.currentTarget === event.target) setDragOverPath(null);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragOverPath(null);
+                if (event.target !== event.currentTarget) return;
+                const from = event.dataTransfer.getData(DRAG_MIME);
+                if (!from) return;
+                const { dir } = splitPath(from);
+                if (dir === ".") return;
+                void move(from, ".");
+              }}
+            >
+              {creating?.parentPath === "." && (
+                <NewFileInputRow
+                  parentPath="."
+                  depth={0}
+                  name={newName}
+                  error={newError}
+                  inputRef={newInputRef}
+                  onChange={(v) => {
+                    setNewName(v);
+                    if (newError) setNewError(null);
+                  }}
+                  onCommit={() => void commitCreate()}
+                  onCancel={cancelCreate}
+                />
+              )}
+              {root.map((entry) => (
+                <EntryRow
+                  key={entry.name}
+                  path={entry.name}
+                  entry={entry}
+                  depth={0}
+                  tree={tree}
+                  pinned={pinned}
+                  mainRelPath={build?.mainRelPath ?? null}
+                  dragOverPath={dragOverPath}
+                  setDragOverPath={setDragOverPath}
+                  callbacks={{
+                    onToggle: toggle,
+                    onOpenFile: openFile,
+                    onTogglePin: togglePin,
+                    onToggleMain: toggleMain,
+                    onBeginCreate: beginCreate,
+                    onMove: (from, to) => void move(from, to),
+                    renderCreateInput: (parentPath) =>
+                      creating?.parentPath === parentPath ? (
+                        <NewFileInputRow
+                          parentPath={parentPath}
+                          depth={parentPath === "." ? 0 : parentPath.split("/").length}
+                          name={newName}
+                          error={newError}
+                          inputRef={newInputRef}
+                          onChange={(v) => {
+                            setNewName(v);
+                            if (newError) setNewError(null);
+                          }}
+                          onCommit={() => void commitCreate()}
+                          onCancel={cancelCreate}
+                        />
+                      ) : null,
+                  }}
+                />
+              ))}
+            </div>
+          ))}
       </section>
     </aside>
   );
