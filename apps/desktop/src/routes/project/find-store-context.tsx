@@ -13,6 +13,7 @@ export function FindStoreProvider({ children }: { children: ReactNode }): JSX.El
   const doc = openPaper.kind === "ready" ? openPaper.doc : null;
 
   useEffect(() => {
+    store.getState().close();
     store.getState().setDoc(doc);
     return () => {
       store.getState().setDoc(null);
