@@ -1,6 +1,6 @@
 import { openSearchPanel } from "@codemirror/search";
-import type { JSX } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CSSProperties, JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OPEN_FILE_EVENT, type OpenFileEventDetail } from "../../lib/open-file-event";
 import { getActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
@@ -9,8 +9,10 @@ import { useProject } from "./context";
 import FilesColumn from "./FilesColumn";
 import FindBar from "./FindBar";
 import { useFindStore } from "./find-store-context";
+import { type PaneWidths, useProjectLayout } from "./layout-store";
 import MarginGutter from "./MarginGutter";
 import { useOpenPaper } from "./OpenPaper";
+import PaneDivider from "./PaneDivider";
 import QuickOpenPalette from "./QuickOpenPalette";
 import { useQuickOpenStore } from "./quick-open-store-context";
 import ReviewColumn from "./ReviewColumn";
@@ -45,8 +47,6 @@ export default function ProjectShell(): JSX.Element {
     [edits.live, edits.currentDraftId],
   );
   const divergence = useWorkingTreeDivergence(rootId, currentDraft);
-  const [reviewWide, setReviewWide] = useState(false);
-  const onToggleReviewWide = useCallback(() => setReviewWide((w) => !w), []);
   const findStore = useFindStore();
   const quickOpenStore = useQuickOpenStore();
   const pdfOpen = openPaper.kind === "ready";
@@ -125,11 +125,52 @@ export default function ProjectShell(): JSX.Element {
   }, [reviewStore, findStore, quickOpenStore, pdfOpen]);
 
   const hideLeft = project.kind === "reviewer";
+  const noPdf = openPaper.kind === "none";
   const classes = ["project-shell__body"];
-  if (openPaper.kind === "none") classes.push("project-shell__body--no-pdf");
+  if (noPdf) classes.push("project-shell__body--no-pdf");
   if (hideLeft) classes.push("project-shell__body--no-left");
-  if (reviewWide) classes.push("project-shell__body--review-wide");
   const bodyClass = classes.join(" ");
+
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [bodyWidth, setBodyWidth] = useState(0);
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    setBodyWidth(el.getBoundingClientRect().width);
+    const ro = new ResizeObserver(() => {
+      if (el.isConnected) setBodyWidth(el.getBoundingClientRect().width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const { widths, setWidth } = useProjectLayout(project.id);
+  const onFilesResize = useCallback(
+    (v: number, measured: PaneWidths) => setWidth("files", v, measured),
+    [setWidth],
+  );
+  const onMarginResize = useCallback(
+    (v: number, measured: PaneWidths) => setWidth("margin", v, measured),
+    [setWidth],
+  );
+  const onReviewResize = useCallback(
+    (v: number, measured: PaneWidths) => setWidth("review", v, measured),
+    [setWidth],
+  );
+
+  // Drag only takes effect in layouts that expose the fixed-width columns.
+  // Below 1024 the layout compacts; when --no-pdf is active the margin gutter
+  // collapses and the review pane hides, so user-dragged widths are ignored
+  // until the state clears.
+  const dragApplies = !noPdf && bodyWidth >= 1024;
+  const showFilesDivider = dragApplies && !hideLeft;
+  const showMarginDivider = dragApplies && bodyWidth >= 1280;
+  const showReviewDivider = dragApplies;
+
+  const bodyStyle: CSSProperties | undefined =
+    widths && dragApplies
+      ? { gridTemplateColumns: composeGridColumns({ hideLeft, bodyWidth, widths }) }
+      : undefined;
 
   return (
     <div className="project-shell">
@@ -140,8 +181,21 @@ export default function ProjectShell(): JSX.Element {
       {divergence.dirty && divergence.report !== null && (
         <DivergenceBanner report={divergence.report} currentOrdinal={divergence.currentOrdinal} />
       )}
-      <div className={bodyClass}>
-        {project.kind === "writer" ? <FilesColumn /> : null}
+      <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
+        {project.kind === "writer" ? (
+          <div className="project-shell__files">
+            <FilesColumn />
+            {showFilesDivider ? (
+              <PaneDivider
+                side="files"
+                bodyRef={bodyRef}
+                hideLeft={hideLeft}
+                valueNow={widths?.filesWidth}
+                onChange={onFilesResize}
+              />
+            ) : null}
+          </div>
+        ) : null}
         <main className="project-shell__center">
           <div className="find-bar-anchor">
             <FindBar />
@@ -152,21 +206,54 @@ export default function ProjectShell(): JSX.Element {
           <CenterPane />
         </main>
         <div className="project-shell__margin">
-          <MarginGutter />
+          {showMarginDivider ? (
+            <PaneDivider
+              side="margin"
+              bodyRef={bodyRef}
+              hideLeft={hideLeft}
+              valueNow={widths?.marginWidth}
+              onChange={onMarginResize}
+            />
+          ) : null}
+          <div className="project-shell__margin-scroll">
+            <MarginGutter />
+          </div>
         </div>
         <div className="project-shell__review">
-          <ReviewColumn
-            onApply={apply}
-            onRepass={repass}
-            onDiscard={discard}
-            forkInfo={forkInfo}
-            wide={reviewWide}
-            onToggleWide={onToggleReviewWide}
-          />
+          {showReviewDivider ? (
+            <PaneDivider
+              side="review"
+              bodyRef={bodyRef}
+              hideLeft={hideLeft}
+              valueNow={widths?.reviewWidth}
+              onChange={onReviewResize}
+            />
+          ) : null}
+          <div className="project-shell__review-scroll">
+            <ReviewColumn
+              onApply={apply}
+              onRepass={repass}
+              onDiscard={discard}
+              forkInfo={forkInfo}
+            />
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+interface ComposeArgs {
+  hideLeft: boolean;
+  bodyWidth: number;
+  widths: PaneWidths;
+}
+
+function composeGridColumns({ hideLeft, bodyWidth, widths }: ComposeArgs): string {
+  const marginPx = bodyWidth >= 1280 ? `${widths.marginWidth}px` : "0";
+  const reviewPx = `${widths.reviewWidth}px`;
+  if (hideLeft) return `minmax(0, 1fr) ${marginPx} ${reviewPx}`;
+  return `${widths.filesWidth}px minmax(0, 1fr) ${marginPx} ${reviewPx}`;
 }
 
 interface DivergenceBannerProps {

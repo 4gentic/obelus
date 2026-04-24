@@ -14,15 +14,12 @@ import { usePaperId } from "./OpenPaper";
 import { useReviewProgress, useReviewRunner } from "./review-runner-context";
 import type { ForkInfo } from "./use-diff-actions";
 import { usePaperBuild } from "./use-paper-build";
-import WidenToggle from "./WidenToggle";
 
 interface Props {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
   onDiscard: () => void | Promise<void>;
   forkInfo: ForkInfo | null;
-  wide: boolean;
-  onToggleWide: () => void;
 }
 
 const EMPTY_PHASE_HISTORY: readonly PhaseEntry[] = Object.freeze([]);
@@ -320,7 +317,6 @@ export default function DiffReview(props: Props): JSX.Element {
             )}
           </span>
           <div className="diff-review__head-tools">
-            <WidenToggle wide={props.wide} onToggle={props.onToggleWide} />
             <button
               type="button"
               className="btn"
