@@ -6,12 +6,14 @@ import { getActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
 import CenterPane from "./CenterPane";
 import { useProject } from "./context";
+import { EnsureRevisionProvider } from "./ensure-revision-context";
 import FilesColumn from "./FilesColumn";
 import FindBar from "./FindBar";
+import { findOrCreatePaper } from "./find-or-create-paper";
 import { useFindStore } from "./find-store-context";
 import { type PaneWidths, useProjectLayout } from "./layout-store";
 import MarginGutter from "./MarginGutter";
-import { useOpenPaper } from "./OpenPaper";
+import { useOpenPaper, useRefreshOpenPaper } from "./OpenPaper";
 import PaneDivider from "./PaneDivider";
 import QuickOpenPalette from "./QuickOpenPalette";
 import { useQuickOpenStore } from "./quick-open-store-context";
@@ -27,6 +29,7 @@ export default function ProjectShell(): JSX.Element {
   const { project, repo, rootId, setOpenFilePath } = useProject();
   const buffers = useBuffersStore();
   const openPaper = useOpenPaper();
+  const refreshOpenPaper = useRefreshOpenPaper();
   const paperId = openPaper.kind === "ready" ? openPaper.paper.id : null;
   useLoadRevision();
   useExternalChangeWatcher();
@@ -126,6 +129,28 @@ export default function ProjectShell(): JSX.Element {
     return () => window.removeEventListener("keydown", onKey);
   }, [reviewStore, findStore, quickOpenStore, pdfOpen]);
 
+  // Writer-mode MD papers don't get a `papers` row until their first mark.
+  // `ReviewDraft` (mounted in `ReviewColumn`, a sibling subtree of `CenterPane`)
+  // needs this callback via context so the first save materializes paper +
+  // revision on demand. The provider has to live here — up-tree of both
+  // subtrees — so the context actually reaches the consumer.
+  const mdEnsureRevision = useMemo(() => {
+    if (openPaper.kind !== "ready-md" || openPaper.paper !== null) return null;
+    const relPath = openPaper.path;
+    return async (): Promise<string> => {
+      const { revision } = await findOrCreatePaper({
+        repo,
+        projectId: project.id,
+        rootId,
+        relPath,
+        format: "md",
+        pageCount: 0,
+      });
+      refreshOpenPaper();
+      return revision.id;
+    };
+  }, [openPaper, repo, project.id, rootId, refreshOpenPaper]);
+
   const hideLeft = project.kind === "reviewer";
   const noPdf = openPaper.kind === "none";
   const classes = ["project-shell__body"];
@@ -183,64 +208,66 @@ export default function ProjectShell(): JSX.Element {
       {divergence.dirty && divergence.report !== null && (
         <DivergenceBanner report={divergence.report} currentOrdinal={divergence.currentOrdinal} />
       )}
-      <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
-        {project.kind === "writer" ? (
-          <div className="project-shell__files">
-            <FilesColumn />
-            {showFilesDivider ? (
+      <EnsureRevisionProvider value={mdEnsureRevision}>
+        <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
+          {project.kind === "writer" ? (
+            <div className="project-shell__files">
+              <FilesColumn />
+              {showFilesDivider ? (
+                <PaneDivider
+                  side="files"
+                  bodyRef={bodyRef}
+                  hideLeft={hideLeft}
+                  valueNow={widths?.filesWidth}
+                  onChange={onFilesResize}
+                />
+              ) : null}
+            </div>
+          ) : null}
+          <main className="project-shell__center">
+            <div className="find-bar-anchor">
+              <FindBar />
+            </div>
+            <div className="quick-open-anchor">
+              <QuickOpenPalette />
+            </div>
+            <CenterPane />
+          </main>
+          <div className="project-shell__margin">
+            {showMarginDivider ? (
               <PaneDivider
-                side="files"
+                side="margin"
                 bodyRef={bodyRef}
                 hideLeft={hideLeft}
-                valueNow={widths?.filesWidth}
-                onChange={onFilesResize}
+                valueNow={widths?.marginWidth}
+                onChange={onMarginResize}
               />
             ) : null}
+            <div className="project-shell__margin-scroll">
+              <MarginGutter />
+            </div>
           </div>
-        ) : null}
-        <main className="project-shell__center">
-          <div className="find-bar-anchor">
-            <FindBar />
-          </div>
-          <div className="quick-open-anchor">
-            <QuickOpenPalette />
-          </div>
-          <CenterPane />
-        </main>
-        <div className="project-shell__margin">
-          {showMarginDivider ? (
-            <PaneDivider
-              side="margin"
-              bodyRef={bodyRef}
-              hideLeft={hideLeft}
-              valueNow={widths?.marginWidth}
-              onChange={onMarginResize}
-            />
-          ) : null}
-          <div className="project-shell__margin-scroll">
-            <MarginGutter />
-          </div>
-        </div>
-        <div className="project-shell__review">
-          {showReviewDivider ? (
-            <PaneDivider
-              side="review"
-              bodyRef={bodyRef}
-              hideLeft={hideLeft}
-              valueNow={widths?.reviewWidth}
-              onChange={onReviewResize}
-            />
-          ) : null}
-          <div className="project-shell__review-scroll">
-            <ReviewColumn
-              onApply={apply}
-              onRepass={repass}
-              onDiscard={discard}
-              forkInfo={forkInfo}
-            />
+          <div className="project-shell__review">
+            {showReviewDivider ? (
+              <PaneDivider
+                side="review"
+                bodyRef={bodyRef}
+                hideLeft={hideLeft}
+                valueNow={widths?.reviewWidth}
+                onChange={onReviewResize}
+              />
+            ) : null}
+            <div className="project-shell__review-scroll">
+              <ReviewColumn
+                onApply={apply}
+                onRepass={repass}
+                onDiscard={discard}
+                forkInfo={forkInfo}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      </EnsureRevisionProvider>
     </div>
   );
 }

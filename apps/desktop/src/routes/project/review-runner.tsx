@@ -11,7 +11,7 @@ import { fsWriteBytes } from "../../ipc/commands";
 import { useJobsStore } from "../../lib/jobs-store";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { useBuffersStore } from "./buffers-store-context";
-import { exportBundleV2ForPaper } from "./build-bundle";
+import { exportBundleV2ForPaper, exportMdBundleV2ForPaper } from "./build-bundle";
 import { buildPriorDraftsPrompt } from "./build-prior-drafts-prompt";
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
@@ -230,11 +230,12 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
       });
       let createdSessionId: string | null = null;
       try {
-        const { filename, json, annotationCount, fileCount } = await exportBundleV2ForPaper({
-          repo,
-          paperId,
-          rootId,
-        });
+        const paper = await repo.papers.get(paperId);
+        if (!paper) throw new Error(`paper ${paperId} not found`);
+        const { filename, json, annotationCount, fileCount } =
+          paper.format === "md"
+            ? await exportMdBundleV2ForPaper({ repo, paperId })
+            : await exportBundleV2ForPaper({ repo, paperId, rootId });
         const counts: RunCounts = { marks: annotationCount, files: fileCount, startedAt };
         const bytes = new TextEncoder().encode(json);
         await fsWriteBytes(rootId, filename, bytes);
@@ -252,12 +253,12 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         console.info("[review-session]", {
           sessionId: session.id,
           paperId,
+          format: paper.format,
           status: "running",
           bundleId: filename,
         });
 
         setLocal({ kind: "working", paperId, step: "Spawning Claude…", counts });
-        const paper = await repo.papers.get(paperId);
         const priorContext = await buildPriorDraftsPrompt(repo, paperId);
         const indicationsBlock =
           opts.indications && opts.indications.trim().length > 0

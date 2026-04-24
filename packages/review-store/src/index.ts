@@ -128,7 +128,14 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
     async saveAnnotation({ draft, category, note, ensureRevision }) {
       let revisionId = get().revisionId;
       if (!revisionId) {
-        if (!ensureRevision) return;
+        if (!ensureRevision) {
+          console.warn("[save-mark]", {
+            outcome: "no-revision-and-no-ensureRevision",
+            category,
+            sliceCount: draft.slices.length,
+          });
+          return;
+        }
         revisionId = await ensureRevision();
         set({ revisionId });
       }
@@ -177,6 +184,14 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
         };
       });
       await repo.bulkPut(revisionId, rows);
+      const firstRow = rows[0];
+      console.info("[save-mark]", {
+        revisionId,
+        rowCount: rows.length,
+        category,
+        kind: firstRow?.sourceAnchor ? "source" : "pdf",
+        ...(groupId ? { groupId } : {}),
+      });
       set({
         annotations: [...get().annotations, ...rows],
         selectedAnchor: null,

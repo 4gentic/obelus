@@ -173,5 +173,7 @@ export function useRefreshOpenPaper(): () => void {
 
 export function usePaperId(): string | null {
   const op = useContext(OpenPaperContext).state;
-  return op.kind === "ready" ? op.paper.id : null;
+  if (op.kind === "ready") return op.paper.id;
+  if (op.kind === "ready-md") return op.paper?.id ?? null;
+  return null;
 }
