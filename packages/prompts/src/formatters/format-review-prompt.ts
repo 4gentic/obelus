@@ -12,7 +12,7 @@ export function formatReviewPrompt(input: PromptInput): string {
     `# Review write-up for "${input.paper.title}" (revision ${input.paper.revisionNumber})`,
     `Source PDF: \`${input.paper.pdfFilename}\` (sha256 \`${input.paper.pdfSha256}\`)`,
     "",
-    "You are a coding agent — Claude Code, Claude.ai, GPT, Gemini, Cursor, or any equivalent — and your single job for this run is to compose a first-person reviewer's letter from the marks below. (If you happen to be Claude Code with the Obelus plugin installed, run `/write-review <bundle-path>` on the JSON bundle instead — the plugin writes the letter to a file the desktop app can pick up.)",
+    "You are a coding agent — Claude Code, Claude.ai, GPT, Gemini, Cursor, or any equivalent — and your single job for this run is to compose a first-person reviewer's letter from the marks below. (If you happen to be Claude Code with the Obelus plugin installed, run `/write-review <bundle-path>` on the JSON bundle instead — the plugin renders the letter inline in your conversation; add `--out` if you want the Obelus desktop app's review pane to pick up a file instead.)",
     "",
     "Generate a peer-review letter for this paper based on the reviewer's marks below. The output is the letter itself — write as the reviewer writes to the editor, not as an assistant reporting on the reviewer's marks.",
     "",

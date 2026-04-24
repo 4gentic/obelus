@@ -266,7 +266,7 @@ pub async fn claude_draft_writeup(
     // `formatSpawnInvocation({ kind: "write-review", … })` in
     // `packages/prompts/src/formatters/format-spawn-invocation.ts`.
     let mut base = format!(
-        "Run write-review with bundle path {}.\npaperId: {}\npaperTitle: {}\n",
+        "Run write-review with bundle path {} --out.\npaperId: {}\npaperTitle: {}\n",
         bundle_abs.display(),
         paper_id,
         paper_title,
