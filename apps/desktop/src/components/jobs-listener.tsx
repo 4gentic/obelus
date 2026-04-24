@@ -5,6 +5,7 @@ import {
   extractResultText,
   extractUsage,
   onClaudeExit,
+  onClaudeStderr,
   onClaudeStdout,
   parseStreamLine,
   type StreamUsage,
@@ -51,7 +52,19 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
     // of when the registration promises resolve.
     let cancelled = false;
     let unlistenStdout: (() => void) | null = null;
+    let unlistenStderr: (() => void) | null = null;
     let unlistenExit: (() => void) | null = null;
+
+    // The Claude CLI's stderr carries warnings, errors, and plugin-load
+    // diagnostics. It has never had a subscriber — route it to the console so
+    // failed skill runs are inspectable in devtools.
+    void onClaudeStderr((ev) => {
+      if (cancelled) return;
+      console.debug("[claude-stderr]", { sessionId: ev.sessionId, line: ev.line });
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlistenStderr = fn;
+    });
 
     void onClaudeStdout((ev) => {
       if (cancelled) return;
@@ -124,6 +137,7 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
     return () => {
       cancelled = true;
       unlistenStdout?.();
+      unlistenStderr?.();
       unlistenExit?.();
     };
   }, []);
@@ -144,6 +158,15 @@ async function handleExit(
   }
 
   emitReviewTiming(sessionId, job.startedAt, job.phaseHistory, code, wasCancelled);
+
+  console.info("[claude-exit]", {
+    sessionId,
+    kind: job.kind,
+    code,
+    wasCancelled,
+    obelusWrotePath: job.obelusWrotePath ?? null,
+    phaseHistory: job.phaseHistory.map((p) => p.phase),
+  });
 
   // `review` and `compile-fix` both carry a review_session row whose status
   // gates the Diff-tab visibility. `writeup` jobs don't.
