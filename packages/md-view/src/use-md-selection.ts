@@ -322,7 +322,7 @@ function shouldUseMousedown(
   anchorNode: Node,
   mousedown: CaretPoint | null,
   container: HTMLElement,
-): boolean {
+): mousedown is CaretPoint {
   if (mousedown === null) return false;
   if (!container.contains(mousedown.node)) return false;
   if (anchorNode.nodeType !== TEXT_NODE) return true;
@@ -362,9 +362,8 @@ export function computeMarkdownSelection(
   // A snapshot captured at mousedown time can become detached when React
   // re-renders the inner HTML, breaking `container.contains(node)`.
   const freshCaret = mousedown ? captureMousedownCaret(container, mousedown.x, mousedown.y) : null;
-  const useMouse = shouldUseMousedown(anchorNode, freshCaret, container);
-  const anchorInput: CaretPoint = useMouse
-    ? (freshCaret as CaretPoint)
+  const anchorInput: CaretPoint = shouldUseMousedown(anchorNode, freshCaret, container)
+    ? freshCaret
     : { node: anchorNode, offset: sel.anchorOffset };
   // Focus-side snap mitigation. WebKit collapses `focusNode` to a container
   // element when a drag crosses inline boundaries (e.g. from a <strong> inside

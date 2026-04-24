@@ -41,7 +41,7 @@ type Props = {
 
 type DisplayEntry =
   | { kind: "single"; row: AnnotationRow }
-  | { kind: "group"; groupId: string; rows: AnnotationRow[] };
+  | { kind: "group"; groupId: string; rows: readonly [AnnotationRow, ...AnnotationRow[]] };
 
 // Row-agnostic "where in the paper" label. PDF rows carry `page`; source rows
 // carry `sourceAnchor.lineStart/lineEnd`. The pane shows whichever exists.
@@ -85,7 +85,7 @@ function AnnotationItem({
   onDelete,
   onDeleteGroup,
 }: AnnotationItemProps): JSX.Element {
-  const first = entry.kind === "single" ? entry.row : (entry.rows[0] as AnnotationRow);
+  const first = entry.kind === "single" ? entry.row : entry.rows[0];
   const [local, setLocal] = useState(first.note);
   const category = first.category;
   const locLabel = entryLocationLabel(entry);
@@ -182,7 +182,10 @@ function buildDisplayEntries(rows: ReadonlyArray<AnnotationRow>): DisplayEntry[]
     if (row.groupId) {
       if (groupsSeen.has(row.groupId)) continue;
       groupsSeen.add(row.groupId);
-      const rowsInGroup = sorted.filter((r) => r.groupId === row.groupId);
+      const rowsInGroup: readonly [AnnotationRow, ...AnnotationRow[]] = [
+        row,
+        ...sorted.filter((r) => r.groupId === row.groupId && r.id !== row.id),
+      ];
       entries.push({ kind: "group", groupId: row.groupId, rows: rowsInGroup });
     } else {
       entries.push({ kind: "single", row });
