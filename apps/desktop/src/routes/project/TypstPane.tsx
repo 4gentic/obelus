@@ -17,11 +17,6 @@ type CompileState =
   | { kind: "error"; message: string }
   | { kind: "fixing" };
 
-interface FixTarget {
-  paperId: string;
-  mainRelPath: string;
-}
-
 function dirOf(p: string): string {
   const i = p.lastIndexOf("/");
   return i < 0 ? "" : p.slice(0, i);
@@ -30,62 +25,48 @@ function dirOf(p: string): string {
 export default function TypstPane({ rootId, relPath }: Props): JSX.Element {
   const { repo, project, setOpenFilePath } = useProject();
   const [state, setState] = useState<CompileState>({ kind: "idle" });
-  const [fixTarget, setFixTarget] = useState<FixTarget | null>(null);
+  // Paper this source belongs to — needed because the fix-compile flow must
+  // create a review session against a paper row. We resolve it but do NOT
+  // read paperBuild.mainRelPath here: that value has been observed to drift
+  // to unrelated paths (e.g. a markdown file in a sibling directory) and
+  // sending it as the compile entrypoint caused the desktop to try to
+  // recompile the wrong file. The user clicked Fix with AI while looking at
+  // `relPath`; `relPath` is the compile that's failing; `relPath` is what
+  // the skill should repair. Matching order: companion PDF of the same stem
+  // (paper/short/main.typ ↔ paper/short/main.pdf), else any paper whose PDF
+  // is in the same folder or an ancestor.
+  const [fixPaperId, setFixPaperId] = useState<string | null>(null);
 
-  // Resolve a paper this source file belongs to, so Fix with AI can kick a
-  // fix-compile session against it. The fix-compile flow requires a paperId,
-  // so no match means no button. Matching (first hit wins):
-  //   (1) a paperBuild explicitly marked main=relPath (user set this file as main)
-  //   (2) a paper whose pdfRelPath is the same-stem .pdf companion of relPath
-  //       (e.g. paper/short/main.typ ↔ paper/short/main.pdf)
-  //   (3) a paper whose pdfRelPath lives in the same directory as relPath, or
-  //       an ancestor directory (covers section files included from a main in
-  //       the same folder, e.g. paper/short/01-introduction.typ ↔ paper at
-  //       paper/short/main.pdf)
-  // The resolved mainRelPath is the paper's explicit main if set, else relPath.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const papers = await repo.papers.list();
       const inProject = papers.filter((p) => p.projectId === project.id);
-      const builds = await Promise.all(inProject.map((p) => repo.paperBuild.get(p.id)));
-      const mainOf = (i: number): string => builds[i]?.mainRelPath ?? relPath;
-
-      const byBuildIdx = inProject.findIndex((_, i) => builds[i]?.mainRelPath === relPath);
-      const byBuild = byBuildIdx >= 0 ? inProject[byBuildIdx] : undefined;
 
       const companionPdf = relPath.replace(/\.[^./]+$/, ".pdf");
-      const byCompanionIdx = byBuild
-        ? -1
-        : inProject.findIndex((p) => p.pdfRelPath !== undefined && p.pdfRelPath === companionPdf);
-      const byCompanion = byCompanionIdx >= 0 ? inProject[byCompanionIdx] : undefined;
+      const byCompanion = inProject.find(
+        (p) => p.pdfRelPath !== undefined && p.pdfRelPath === companionPdf,
+      );
 
       const relDir = dirOf(relPath);
-      const byDirIdx =
-        byBuild || byCompanion
-          ? -1
-          : inProject.findIndex((p) => {
-              if (p.pdfRelPath === undefined) return false;
-              const pd = dirOf(p.pdfRelPath);
-              if (pd === "" && relDir !== "") return false;
-              return pd === relDir || relPath.startsWith(`${pd}/`);
-            });
-      const byDir = byDirIdx >= 0 ? inProject[byDirIdx] : undefined;
+      const byDir = byCompanion
+        ? undefined
+        : inProject.find((p) => {
+            if (p.pdfRelPath === undefined) return false;
+            const pd = dirOf(p.pdfRelPath);
+            if (pd === "" && relDir !== "") return false;
+            return pd === relDir || relPath.startsWith(`${pd}/`);
+          });
 
-      const hitIdx = byBuild ? byBuildIdx : byCompanion ? byCompanionIdx : byDirIdx;
-      const hit = byBuild ?? byCompanion ?? byDir;
-      const resolved: FixTarget | null =
-        hit && hitIdx >= 0 ? { paperId: hit.id, mainRelPath: mainOf(hitIdx) } : null;
-
+      const resolved = byCompanion?.id ?? byDir?.id ?? null;
       console.info("[typst-pane-fix-resolve]", {
         relPath,
         papersInProject: inProject.length,
-        byBuild: byBuild?.id ?? null,
         byCompanion: byCompanion?.id ?? null,
         byDir: byDir?.id ?? null,
         resolved,
       });
-      if (!cancelled) setFixTarget(resolved);
+      if (!cancelled) setFixPaperId(resolved);
     })();
     return () => {
       cancelled = true;
@@ -114,7 +95,7 @@ export default function TypstPane({ rootId, relPath }: Props): JSX.Element {
   };
 
   const askFix = async (): Promise<void> => {
-    if (state.kind !== "error" || fixTarget === null) return;
+    if (state.kind !== "error" || fixPaperId === null) return;
     const errorMessage = state.message;
     setState({ kind: "fixing" });
     try {
@@ -123,10 +104,10 @@ export default function TypstPane({ rootId, relPath }: Props): JSX.Element {
         rootId,
         projectId: project.id,
         projectLabel: project.label,
-        paperId: fixTarget.paperId,
+        paperId: fixPaperId,
         originSessionId: null,
         compiler: "typst",
-        mainRelPath: fixTarget.mainRelPath,
+        mainRelPath: relPath,
         stderr: errorMessage,
         trigger: "manual",
       });
@@ -151,7 +132,7 @@ export default function TypstPane({ rootId, relPath }: Props): JSX.Element {
       <header className="typst-pane__head">
         <span className="typst-pane__label">Typst source</span>
         <div className="typst-pane__actions">
-          {state.kind === "error" && fixTarget !== null && (
+          {state.kind === "error" && fixPaperId !== null && (
             <button
               type="button"
               className="btn btn--subtle"
