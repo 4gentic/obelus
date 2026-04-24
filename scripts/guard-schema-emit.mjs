@@ -20,7 +20,7 @@ const files = ["bundle-v1.schema.json", "bundle-v2.schema.json", "project-meta.s
 
 const tmp = mkdtempSync(join(tmpdir(), "obelus-schema-guard-"));
 try {
-  execFileSync(process.execPath, [emitter, tmp], { stdio: "inherit" });
+  execFileSync("pnpm", ["exec", "tsx", emitter, tmp], { stdio: "inherit" });
 
   let fail = false;
   for (const file of files) {

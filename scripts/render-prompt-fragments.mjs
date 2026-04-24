@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Renders <!-- @prompts:NAME --> ... <!-- /@prompts:NAME --> regions in the
-// claude-plugin Markdown files using fragment text imported from the built
-// `@obelus/prompts` package. Run after `pnpm -F @obelus/prompts build`.
+// claude-plugin Markdown files using fragment text imported from the
+// `@obelus/prompts` package. Run via `tsx` so the TS sources resolve directly.
 //
 // Pass `--check` to fail when any file would be rewritten — used by
 // `pnpm prompts:check` so a stale fragment region in a SKILL.md fails CI
@@ -10,24 +10,27 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  CATEGORY_MAP_MARKDOWN,
+  EDIT_SHAPE_MARKDOWN,
+  REVIEW_REFUSALS_MARKDOWN,
+  VOICE_MARKDOWN,
+} from "../packages/prompts/src/index.ts";
 
 const checkOnly = process.argv.includes("--check");
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const repoRoot = resolve(here, "..");
-const promptsDist = resolve(repoRoot, "packages/prompts/dist/index.js");
 const pluginRoots = [
   resolve(repoRoot, "packages/claude-plugin"),
   resolve(repoRoot, "packages/claude-plugin-drafter"),
 ];
 
-const fragments = await import(promptsDist);
-
 const FRAGMENT_TABLE = {
-  "category-map": fragments.CATEGORY_MAP_MARKDOWN,
-  "edit-shape": fragments.EDIT_SHAPE_MARKDOWN,
-  voice: fragments.VOICE_MARKDOWN,
-  refusals: fragments.REVIEW_REFUSALS_MARKDOWN,
+  "category-map": CATEGORY_MAP_MARKDOWN,
+  "edit-shape": EDIT_SHAPE_MARKDOWN,
+  voice: VOICE_MARKDOWN,
+  refusals: REVIEW_REFUSALS_MARKDOWN,
 };
 
 function listMarkdown(dir) {
