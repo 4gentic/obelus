@@ -19,6 +19,7 @@ import ReviewColumn from "./ReviewColumn";
 import { useReviewStore } from "./store-context";
 import { useDiffActions } from "./use-diff-actions";
 import { useWorkingTreeDivergence } from "./use-divergence";
+import { useExternalChangeWatcher } from "./use-external-change-watcher";
 import { useLoadRevision } from "./use-load-revision";
 import { usePaperEdits } from "./use-paper-edits";
 
@@ -28,6 +29,7 @@ export default function ProjectShell(): JSX.Element {
   const openPaper = useOpenPaper();
   const paperId = openPaper.kind === "ready" ? openPaper.paper.id : null;
   useLoadRevision();
+  useExternalChangeWatcher();
 
   useEffect(() => {
     const onOpen = (ev: Event): void => {

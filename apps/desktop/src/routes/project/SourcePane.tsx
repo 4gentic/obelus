@@ -164,6 +164,9 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   // the view-mount effect, not `bufferText`.
   const bufferText = buffers((s) => s.buffers.get(relPath)?.text ?? "");
   const pendingSwitch = buffers((s) => s.pendingSwitch);
+  const pendingExternalReload = buffers((s) =>
+    s.pendingExternalReload?.relPath === relPath ? s.pendingExternalReload : null,
+  );
   const locked = useSourceLocked();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   // Bumped by the "retry" button so a transient read failure can be re-tried
@@ -377,6 +380,38 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
           }}
           onCancel={() => buffers.getState().clearPendingSwitch()}
         />
+      )}
+      {pendingExternalReload !== null && (
+        <div className="source-pane__switch-banner" role="alertdialog" aria-live="assertive">
+          <p className="source-pane__switch-text">
+            This file changed on disk while you were editing. Reload loses your in-editor changes;
+            keeping yours will overwrite the disk version on next Save.
+          </p>
+          <div className="source-pane__switch-actions">
+            <button
+              type="button"
+              className="btn btn--subtle"
+              onClick={() => buffers.getState().setPendingExternalReload(null)}
+            >
+              Keep mine
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => {
+                buffers.getState().discard(relPath);
+                void buffers
+                  .getState()
+                  .refreshFromDisk([relPath])
+                  .then(() => {
+                    buffers.getState().setPendingExternalReload(null);
+                  });
+              }}
+            >
+              Reload from disk
+            </button>
+          </div>
+        </div>
       )}
       {isMd && (
         <div className="source-pane__viewmode">
