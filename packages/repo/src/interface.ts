@@ -1,5 +1,6 @@
 import type {
   AnnotationRow,
+  AnnotationStaleness,
   AppliedSnapshot,
   AskMessageRow,
   AskThreadRow,
@@ -70,6 +71,11 @@ export interface RevisionsRepo {
   createFromPaper(paperId: string, input: RevisionCreateInput): Promise<RevisionRow>;
 }
 
+export interface AnnotationStalenessPatch {
+  id: string;
+  staleness: AnnotationStaleness;
+}
+
 export interface AnnotationsRepo {
   // `visibleFromEditId` makes "resolved" relative to the currently-viewed
   // draft: an annotation whose `resolved_in_edit_id` is NOT an ancestor of
@@ -83,6 +89,10 @@ export interface AnnotationsRepo {
   bulkPut(revisionId: string, rows: AnnotationRow[]): Promise<void>;
   remove(id: string): Promise<void>;
   markResolvedInEdit(ids: ReadonlyArray<string>, editId: string): Promise<void>;
+  // Used by the writer-mode save-verify path and the external-change watcher
+  // to record each mark's last verification outcome. Only updates the
+  // `staleness` column; the rest of the row is untouched.
+  setStaleness(patches: ReadonlyArray<AnnotationStalenessPatch>): Promise<void>;
 }
 
 export interface SettingsRepo {

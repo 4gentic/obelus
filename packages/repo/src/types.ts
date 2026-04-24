@@ -83,7 +83,14 @@ export interface AnnotationRow {
   // Set when a draft has landed the hunk this mark spawned; archives it from
   // the active Marks tab but keeps it addressable.
   resolvedInEditId?: string;
+  // Last verification outcome of this mark's anchor against the current
+  // source bytes. Unset means "never verified" (treated as `ok` by the UI
+  // until proven otherwise). Set by the writer-mode re-verify-on-save path
+  // and by the external-change watcher.
+  staleness?: AnnotationStaleness;
 }
+
+export type AnnotationStaleness = "ok" | "line-out-of-range" | "quote-mismatch";
 
 export interface SettingRow {
   key: string;

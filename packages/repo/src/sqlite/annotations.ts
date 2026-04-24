@@ -1,5 +1,5 @@
-import type { AnnotationsRepo } from "../interface";
-import type { AnnotationRow } from "../types";
+import type { AnnotationStalenessPatch, AnnotationsRepo } from "../interface";
+import type { AnnotationRow, AnnotationStaleness } from "../types";
 import type { Database } from "./db";
 import { dbTxBatch, type TxStmt } from "./transaction";
 
@@ -16,6 +16,11 @@ interface AnnotationSqlRow {
   group_id: string | null;
   created_at: string;
   resolved_in_edit_id: string | null;
+  staleness: string | null;
+}
+
+function isStaleness(value: string): value is AnnotationStaleness {
+  return value === "ok" || value === "line-out-of-range" || value === "quote-mismatch";
 }
 
 interface PdfAnchorJson {
@@ -71,9 +76,13 @@ function toAnnotationRow(r: AnnotationSqlRow): AnnotationRow {
           },
         };
   const withGroup = r.group_id !== null ? { ...anchored, groupId: r.group_id } : anchored;
-  return r.resolved_in_edit_id !== null
-    ? { ...withGroup, resolvedInEditId: r.resolved_in_edit_id }
-    : withGroup;
+  const withResolved =
+    r.resolved_in_edit_id !== null
+      ? { ...withGroup, resolvedInEditId: r.resolved_in_edit_id }
+      : withGroup;
+  return r.staleness !== null && isStaleness(r.staleness)
+    ? { ...withResolved, staleness: r.staleness }
+    : withResolved;
 }
 
 function toAnchorJson(row: AnnotationRow): string {
@@ -104,7 +113,7 @@ function toAnchorJson(row: AnnotationRow): string {
 export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
   const SELECT_COLS = `id, revision_id, category, quote, context_before, context_after,
                        anchor_json, note, thread_json, group_id, created_at,
-                       resolved_in_edit_id`;
+                       resolved_in_edit_id, staleness`;
   return {
     async listForRevision(
       revisionId: string,
@@ -155,8 +164,9 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
         sql: `INSERT INTO annotations (id, revision_id, category, quote,
                                        context_before, context_after,
                                        anchor_json,
-                                       note, thread_json, group_id, created_at)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                                       note, thread_json, group_id, created_at,
+                                       staleness)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
               ON CONFLICT(id) DO UPDATE SET
                 category = excluded.category,
                 quote = excluded.quote,
@@ -165,7 +175,8 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
                 anchor_json = excluded.anchor_json,
                 note = excluded.note,
                 thread_json = excluded.thread_json,
-                group_id = excluded.group_id`,
+                group_id = excluded.group_id,
+                staleness = excluded.staleness`,
         params: [
           row.id,
           revisionId,
@@ -178,6 +189,7 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
           JSON.stringify(row.thread),
           row.groupId ?? null,
           row.createdAt,
+          row.staleness ?? null,
         ],
       }));
       await dbTxBatch(stmts);
@@ -192,6 +204,15 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
       const stmts: TxStmt[] = ids.map((id) => ({
         sql: `UPDATE annotations SET resolved_in_edit_id = $1 WHERE id = $2`,
         params: [editId, id],
+      }));
+      await dbTxBatch(stmts);
+    },
+
+    async setStaleness(patches: ReadonlyArray<AnnotationStalenessPatch>): Promise<void> {
+      if (patches.length === 0) return;
+      const stmts: TxStmt[] = patches.map((p) => ({
+        sql: `UPDATE annotations SET staleness = $1 WHERE id = $2`,
+        params: [p.staleness, p.id],
       }));
       await dbTxBatch(stmts);
     },

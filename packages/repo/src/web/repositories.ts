@@ -1,4 +1,9 @@
-import type { PaperCreateInput, PaperPathsPatch, RevisionCreateInput } from "../interface";
+import type {
+  AnnotationStalenessPatch,
+  PaperCreateInput,
+  PaperPathsPatch,
+  RevisionCreateInput,
+} from "../interface";
 import type { PaperRubric } from "../types";
 import { deleteMd, deletePdf, putMd, putPdf } from "./opfs";
 import { requestPersistOnce } from "./persist";
@@ -173,6 +178,16 @@ export const annotations = {
     await db.transaction("rw", db.annotations, async () => {
       for (const id of ids) {
         await db.annotations.update(id, { resolvedInEditId: editId });
+      }
+    });
+  },
+
+  async setStaleness(patches: ReadonlyArray<AnnotationStalenessPatch>): Promise<void> {
+    if (patches.length === 0) return;
+    const db = getDb();
+    await db.transaction("rw", db.annotations, async () => {
+      for (const { id, staleness } of patches) {
+        await db.annotations.update(id, { staleness });
       }
     });
   },

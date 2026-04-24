@@ -26,5 +26,11 @@ pub fn all() -> Vec<Migration> {
             sql: include_str!("../migrations/0004_paper_format.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "annotation_staleness",
+            sql: include_str!("../migrations/0005_annotation_staleness.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

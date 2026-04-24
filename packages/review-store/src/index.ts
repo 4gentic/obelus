@@ -1,6 +1,11 @@
 import type { Anchor, Bbox } from "@obelus/anchor";
 import type { SourceAnchor2 } from "@obelus/bundle-schema";
-import type { AnnotationRow, AnnotationsRepo } from "@obelus/repo";
+import type {
+  AnnotationRow,
+  AnnotationStaleness,
+  AnnotationStalenessPatch,
+  AnnotationsRepo,
+} from "@obelus/repo";
 
 type Category = string;
 
@@ -52,6 +57,11 @@ export type ReviewState = {
   updateAnnotation: (id: string, patch: Partial<AnnotationRow>) => Promise<void>;
   deleteAnnotation: (id: string) => Promise<void>;
   deleteGroup: (groupId: string) => Promise<void>;
+  // Persists staleness patches and mirrors them into the in-memory
+  // annotations list so the UI re-renders without a full reload. Rows in
+  // `patches` that aren't currently in the store are ignored in-memory but
+  // still written to storage.
+  updateStaleness: (patches: ReadonlyArray<AnnotationStalenessPatch>) => Promise<void>;
 };
 
 function uuid(): string {
@@ -209,6 +219,18 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
       }
       set({
         annotations: get().annotations.filter((a) => a.groupId !== groupId),
+      });
+    },
+
+    async updateStaleness(patches) {
+      if (patches.length === 0) return;
+      await repo.setStaleness(patches);
+      const byId = new Map<string, AnnotationStaleness>(patches.map((p) => [p.id, p.staleness]));
+      set({
+        annotations: get().annotations.map((a) => {
+          const s = byId.get(a.id);
+          return s !== undefined ? { ...a, staleness: s } : a;
+        }),
       });
     },
   }));

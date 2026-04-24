@@ -1,6 +1,7 @@
 export type { AnnotationPdfRow } from "./annotation-narrow";
 export { isPdfAnchored } from "./annotation-narrow";
 export type {
+  AnnotationStalenessPatch,
   AnnotationsRepo,
   AskMessageAppendInput,
   AskThreadsRepo,
@@ -28,6 +29,7 @@ export type {
 export { NotSupportedError } from "./interface";
 export type {
   AnnotationRow,
+  AnnotationStaleness,
   AppliedSnapshot,
   AskMessageRole,
   AskMessageRow,

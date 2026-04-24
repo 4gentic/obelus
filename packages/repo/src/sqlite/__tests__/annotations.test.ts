@@ -67,4 +67,88 @@ describe("buildAnnotationsRepo", () => {
     await repo.remove("a1");
     expect(db.execute).toHaveBeenCalledWith("DELETE FROM annotations WHERE id = $1", ["a1"]);
   });
+
+  it("bulkPut() writes staleness as the last parameter (null when unset)", async () => {
+    invokeMock.mockClear();
+    const db = mockDb();
+    const repo = buildAnnotationsRepo(db as never);
+    await repo.bulkPut("rev-1", [makeRow()]);
+    const [, args] = invokeMock.mock.calls[0] as [
+      string,
+      { stmts: { sql: string; params: unknown[] }[] },
+    ];
+    const stmt = args.stmts[0];
+    expect(stmt?.sql).toMatch(/staleness/);
+    expect(stmt?.params[11]).toBeNull();
+  });
+
+  it("bulkPut() persists an explicit staleness value", async () => {
+    invokeMock.mockClear();
+    const db = mockDb();
+    const repo = buildAnnotationsRepo(db as never);
+    await repo.bulkPut("rev-1", [makeRow({ staleness: "quote-mismatch" })]);
+    const [, args] = invokeMock.mock.calls[0] as [
+      string,
+      { stmts: { sql: string; params: unknown[] }[] },
+    ];
+    expect(args.stmts[0]?.params[11]).toBe("quote-mismatch");
+  });
+
+  it("setStaleness() issues one UPDATE per patch via db_tx_batch", async () => {
+    invokeMock.mockClear();
+    const db = mockDb();
+    const repo = buildAnnotationsRepo(db as never);
+    await repo.setStaleness([
+      { id: "a1", staleness: "quote-mismatch" },
+      { id: "a2", staleness: "ok" },
+    ]);
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, args] = invokeMock.mock.calls[0] as [
+      string,
+      { stmts: { sql: string; params: unknown[] }[] },
+    ];
+    expect(cmd).toBe("db_tx_batch");
+    expect(args.stmts).toHaveLength(2);
+    expect(args.stmts[0]?.sql).toMatch(/UPDATE annotations SET staleness/);
+    expect(args.stmts[0]?.params).toEqual(["quote-mismatch", "a1"]);
+  });
+
+  it("setStaleness() with empty patches is a no-op", async () => {
+    invokeMock.mockClear();
+    const db = mockDb();
+    const repo = buildAnnotationsRepo(db as never);
+    await repo.setStaleness([]);
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it("listForRevision() hydrates staleness from the column", async () => {
+    const db = mockDb();
+    db.select.mockResolvedValueOnce([
+      {
+        id: "a1",
+        revision_id: "rev-1",
+        category: "unclear",
+        quote: "q",
+        context_before: "",
+        context_after: "",
+        anchor_json: JSON.stringify({
+          kind: "source",
+          file: "paper.md",
+          lineStart: 1,
+          colStart: 0,
+          lineEnd: 1,
+          colEnd: 5,
+        }),
+        note: "",
+        thread_json: "[]",
+        group_id: null,
+        created_at: "2026-04-19T00:00:00.000Z",
+        resolved_in_edit_id: null,
+        staleness: "line-out-of-range",
+      },
+    ]);
+    const repo = buildAnnotationsRepo(db as never);
+    const rows = await repo.listForRevision("rev-1");
+    expect(rows[0]?.staleness).toBe("line-out-of-range");
+  });
 });
