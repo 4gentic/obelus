@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { z } from "zod";
 import { type ClaudeUserSettings, readClaudeUserSettings } from "../ipc/commands";
 import { getRepository } from "./repo";
 
-export type ClaudeModelChoice = null | "opus" | "sonnet" | "haiku";
-export type ClaudeEffortChoice = null | "low" | "medium" | "high" | "xhigh" | "max";
+const ModelSchema = z.enum(["opus", "sonnet", "haiku"]).nullable();
+const EffortSchema = z.enum(["low", "medium", "high", "xhigh", "max"]).nullable();
+
+export type ClaudeModelChoice = z.infer<typeof ModelSchema>;
+export type ClaudeEffortChoice = z.infer<typeof EffortSchema>;
 
 export const MODEL_CHOICES: ReadonlyArray<Exclude<ClaudeModelChoice, null>> = [
   "opus",
@@ -50,39 +54,19 @@ function update(patch: Partial<ClaudeConfigSnapshot>): void {
   emit();
 }
 
-function normalizeModel(value: unknown): ClaudeModelChoice {
-  if (typeof value !== "string") return null;
-  if (value === "opus" || value === "sonnet" || value === "haiku") return value;
-  return null;
-}
-
-function normalizeEffort(value: unknown): ClaudeEffortChoice {
-  if (typeof value !== "string") return null;
-  if (
-    value === "low" ||
-    value === "medium" ||
-    value === "high" ||
-    value === "xhigh" ||
-    value === "max"
-  ) {
-    return value;
-  }
-  return null;
-}
-
 async function hydrate(): Promise<void> {
   const [defaults, repo] = await Promise.all([
     readClaudeUserSettings().catch(() => ({ model: null, effortLevel: null })),
     getRepository(),
   ]);
   const [model, effort] = await Promise.all([
-    repo.settings.get<unknown>(SETTING_MODEL_KEY),
-    repo.settings.get<unknown>(SETTING_EFFORT_KEY),
+    repo.settings.get(SETTING_MODEL_KEY, ModelSchema),
+    repo.settings.get(SETTING_EFFORT_KEY, EffortSchema),
   ]);
   update({
     defaults,
-    model: normalizeModel(model),
-    effort: normalizeEffort(effort),
+    model: model ?? null,
+    effort: effort ?? null,
     loaded: true,
   });
 }

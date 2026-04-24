@@ -1,6 +1,9 @@
 import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
+import { z } from "zod";
 import { splitHeadline } from "../../lib/split-headline";
+
+const IndicationsSchema = z.string();
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
 import { useReviewRunner } from "./review-runner-context";
@@ -67,7 +70,7 @@ function WriterStartReview({
       return;
     }
     void (async () => {
-      const persisted = await repo.settings.get<string>(INDICATIONS_KEY(paperId));
+      const persisted = await repo.settings.get(INDICATIONS_KEY(paperId), IndicationsSchema);
       if (!cancelled) setIndications(persisted ?? "");
     })();
     return () => {

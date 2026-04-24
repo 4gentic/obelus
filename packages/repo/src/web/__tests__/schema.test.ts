@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { annotations, papers, revisions, settings } from "../repositories";
 import { type AnnotationRow, ObelusDb, setDbForTests } from "../schema";
 
@@ -61,7 +62,16 @@ describe.skipIf(!hasIdb)("schema round-trip", () => {
 
   it("reads and writes settings", async () => {
     await settings.set("flag", true);
-    const got = await settings.get<boolean>("flag");
+    const got = await settings.get("flag", z.boolean());
     expect(got).toBe(true);
+  });
+
+  it("returns undefined and warns when stored value fails the schema", async () => {
+    await settings.set("flag", "not-a-boolean");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const got = await settings.get("flag", z.boolean());
+    expect(got).toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 });

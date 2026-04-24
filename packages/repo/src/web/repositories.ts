@@ -4,6 +4,7 @@ import type {
   PaperPathsPatch,
   RevisionCreateInput,
 } from "../interface";
+import type { ZodType } from "zod";
 import type { PaperRubric } from "../types";
 import { deleteMd, deletePdf, putMd, putPdf } from "./opfs";
 import { requestPersistOnce } from "./persist";
@@ -194,9 +195,15 @@ export const annotations = {
 };
 
 export const settings = {
-  async get<T>(key: string): Promise<T | undefined> {
+  async get<T>(key: string, schema: ZodType<T>): Promise<T | undefined> {
     const row = await getDb().settings.get(key);
-    return row ? (row.value as T) : undefined;
+    if (!row) return undefined;
+    const result = schema.safeParse(row.value);
+    if (!result.success) {
+      console.warn("[settings.get] schema mismatch", { key, error: result.error.message });
+      return undefined;
+    }
+    return result.data;
   },
 
   async set<T>(key: string, value: T): Promise<void> {

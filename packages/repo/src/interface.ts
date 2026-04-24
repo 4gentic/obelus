@@ -1,3 +1,4 @@
+import type { ZodType } from "zod";
 import type {
   AnnotationRow,
   AnnotationStaleness,
@@ -96,7 +97,11 @@ export interface AnnotationsRepo {
 }
 
 export interface SettingsRepo {
-  get<T>(key: string): Promise<T | undefined>;
+  // Read-side validation is the boundary's job. Callers pass a Zod schema for
+  // the shape they expect; bytes that fail to parse return `undefined` and are
+  // logged once. `set` keeps an internal-trust signature: the value is already
+  // typed at the call site and runtime validation only matters on read.
+  get<T>(key: string, schema: ZodType<T>): Promise<T | undefined>;
   set<T>(key: string, value: T): Promise<void>;
 }
 
