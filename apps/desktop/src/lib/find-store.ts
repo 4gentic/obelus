@@ -15,6 +15,8 @@ export interface FindState {
   // Bumped each time the current match changes so PdfPane can scroll without
   // observing the matches array identity (which also changes on every search).
   scrollTick: number;
+  // Bumped on every open() so FindBar refocuses even when isOpen is already true.
+  focusTick: number;
   error: string | null;
 
   open(): void;
@@ -92,16 +94,24 @@ export function createFindStore(): FindStore {
       currentIndex: -1,
       caseSensitive: false,
       scrollTick: 0,
+      focusTick: 0,
       error: null,
 
       open(): void {
-        set({ isOpen: true });
+        set((prev) => ({ isOpen: true, focusTick: prev.focusTick + 1 }));
         const { query, caseSensitive } = get();
         if (query.length > 0) runSearch(query, caseSensitive);
       },
       close(): void {
         cancelPending();
-        set({ isOpen: false, status: "idle", error: null });
+        set({
+          isOpen: false,
+          query: "",
+          matches: [],
+          currentIndex: -1,
+          status: "idle",
+          error: null,
+        });
       },
       toggle(): void {
         if (get().isOpen) get().close();

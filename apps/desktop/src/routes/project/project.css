@@ -68,17 +68,6 @@
   grid-template-columns: minmax(0, 1fr) 0 0;
 }
 
-/* Review pane widened via the widen toggle in the reviewer column — collapses
-   the margin gutter and pushes the review column to ~44% of the viewport so
-   long reviewer's letters stay legible without losing the PDF. */
-.project-shell__body--review-wide {
-  grid-template-columns: 220px minmax(0, 1fr) 0 minmax(520px, 44%);
-}
-
-.project-shell__body--review-wide.project-shell__body--no-left {
-  grid-template-columns: minmax(0, 1fr) 0 minmax(520px, 44%);
-}
-
 .project-shell__center {
   position: relative;
   overflow: auto;
@@ -89,7 +78,14 @@
 
 .project-shell__margin,
 .project-shell__review {
+  position: relative;
   border-right: 1px solid var(--rule-soft);
+  overflow: hidden;
+}
+
+.project-shell__margin-scroll,
+.project-shell__review-scroll {
+  height: 100%;
   overflow: auto;
 }
 
@@ -99,12 +95,54 @@
 
 .project-shell__body--no-pdf .project-shell__margin {
   border: none;
+}
+
+.project-shell__files {
+  position: relative;
   overflow: hidden;
 }
 
-.project-shell__body--review-wide .project-shell__margin {
-  border: none;
-  overflow: hidden;
+.project-shell__divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.project-shell__divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: transparent;
+  transition: background-color 120ms ease-out;
+}
+
+.project-shell__divider:hover::before,
+.project-shell__divider:focus-visible::before,
+.project-shell__divider:active::before {
+  background-color: var(--ink-soft);
+}
+
+.project-shell__divider:focus-visible {
+  outline: none;
+}
+
+.project-shell__divider--files {
+  left: auto;
+  right: 0;
+}
+
+.project-shell__divider--files::before {
+  left: auto;
+  right: 0;
 }
 
 /* Below 1280px the margin gutter eats the PDF. The Marks tab in the */
@@ -126,12 +164,6 @@
     border: none;
     overflow: hidden;
   }
-  .project-shell__body--review-wide {
-    grid-template-columns: 220px minmax(0, 1fr) 0 minmax(480px, 48%);
-  }
-  .project-shell__body--review-wide.project-shell__body--no-left {
-    grid-template-columns: minmax(0, 1fr) 0 minmax(480px, 48%);
-  }
 }
 
 /* Below 1024px tighten the side columns so the PDF stays legible. */
@@ -148,12 +180,6 @@
   .project-shell__body--no-left.project-shell__body--no-pdf {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
-  .project-shell__body--review-wide {
-    grid-template-columns: 180px minmax(0, 1fr) 0 minmax(440px, 52%);
-  }
-  .project-shell__body--review-wide.project-shell__body--no-left {
-    grid-template-columns: minmax(0, 1fr) 0 minmax(440px, 52%);
-  }
 }
 
 /* Below 760px the file tree becomes a hindrance; hide it and shrink */
@@ -167,10 +193,6 @@
   .project-shell__body--no-left.project-shell__body--no-pdf {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
-  .project-shell__body--review-wide,
-  .project-shell__body--review-wide.project-shell__body--no-left {
-    grid-template-columns: minmax(0, 1fr) 0 minmax(320px, 60%);
-  }
   .files {
     display: none;
   }
@@ -178,7 +200,7 @@
 
 /* On larger displays the PDF column absorbs every extra pixel, leaving the */
 /* review column stuck at 340px. Grow it proportionally so the diff is */
-/* legible without requiring the widen toggle. */
+/* legible on wide monitors. */
 @media (min-width: 1600px) {
   .project-shell__body {
     grid-template-columns: 220px minmax(0, 1fr) 220px minmax(420px, 32%);
@@ -1128,6 +1150,11 @@ button.files__row {
 .review-column__tab--on {
   color: var(--ink);
   border-bottom-color: var(--rubric);
+}
+
+.review-column__tab:disabled {
+  color: color-mix(in oklab, var(--ink-soft) 55%, var(--paper));
+  cursor: not-allowed;
 }
 
 .diff-review {
@@ -2302,38 +2329,6 @@ button.files__row {
   font-size: var(--step-0);
   color: var(--ink);
   margin: 0;
-}
-
-.widen-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  background: transparent;
-  border: 1px solid var(--rule-soft);
-  color: var(--ink-soft);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  transition:
-    border-color 120ms linear,
-    color 120ms linear;
-}
-
-.widen-toggle:hover {
-  color: var(--ink);
-  border-color: var(--ink);
-}
-
-.widen-toggle[aria-pressed="true"] {
-  color: var(--rubric);
-  border-color: var(--rubric);
-}
-
-.widen-toggle__label {
-  line-height: 1;
 }
 
 .reviewer-actions__head-tools {
