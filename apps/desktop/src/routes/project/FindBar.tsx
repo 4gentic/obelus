@@ -10,8 +10,10 @@ export default function FindBar(): JSX.Element | null {
   const matches = store((s) => s.matches);
   const currentIndex = store((s) => s.currentIndex);
   const caseSensitive = store((s) => s.caseSensitive);
+  const focusTick = store((s) => s.focusTick);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: focusTick drives re-fire on repeated open(); the body intentionally doesn't read it.
   useEffect(() => {
     if (isOpen) {
       const el = inputRef.current;
@@ -20,7 +22,7 @@ export default function FindBar(): JSX.Element | null {
         el.select();
       }
     }
-  }, [isOpen]);
+  }, [isOpen, focusTick]);
 
   if (!isOpen) return null;
 

@@ -11,7 +11,6 @@ import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
 import RubricPanel from "./RubricPanel";
-import WidenToggle from "./WidenToggle";
 import { useWriteUpProgress, useWriteUpRunner, useWriteUpStore } from "./writeup-store-context";
 
 function slugify(name: string): string {
@@ -40,15 +39,7 @@ type ExportState =
   | { kind: "markdown"; path: string }
   | { kind: "copied" };
 
-interface ReviewerActionsPanelProps {
-  wide: boolean;
-  onToggleWide: () => void;
-}
-
-export default function ReviewerActionsPanel({
-  wide,
-  onToggleWide,
-}: ReviewerActionsPanelProps): JSX.Element {
+export default function ReviewerActionsPanel(): JSX.Element {
   const { project, repo, rootId } = useProject();
   const openPaper = useOpenPaper();
   const runner = useWriteUpRunner();
@@ -261,10 +252,7 @@ export default function ReviewerActionsPanel({
     <section className="reviewer-actions" aria-label="Review">
       <header className="reviewer-actions__head">
         <h2 className="reviewer-actions__heading">Reviewer's letter</h2>
-        <div className="reviewer-actions__head-tools">
-          {claudeReady ? <ClaudeChip /> : null}
-          <WidenToggle wide={wide} onToggle={onToggleWide} />
-        </div>
+        <div className="reviewer-actions__head-tools">{claudeReady ? <ClaudeChip /> : null}</div>
       </header>
       <RubricPanel paper={paperRowForRubric} />
       <p className="reviewer-actions__hint">
