@@ -24,14 +24,27 @@ export default function TypstPane({ rootId, relPath }: Props): JSX.Element {
 
   // Resolve a paper whose main matches this source file. The fix-compile flow
   // requires a paperId to create a review session; no match means no button.
+  // Matching strategy: (1) a paperBuild explicitly marked main=relPath, or
+  // (2) a paper whose pdfRelPath is the source's same-stem .pdf companion
+  // (e.g. source paper/short/main.typ ↔ paper paper/short/main.pdf).
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const papers = await repo.papers.list();
       const inProject = papers.filter((p) => p.projectId === project.id);
       const builds = await Promise.all(inProject.map((p) => repo.paperBuild.get(p.id)));
-      const match = inProject.find((_, i) => builds[i]?.mainRelPath === relPath);
-      if (!cancelled) setPaperIdForFix(match?.id ?? null);
+      const byBuild = inProject.find((_, i) => builds[i]?.mainRelPath === relPath);
+      const companionPdf = relPath.replace(/\.[^./]+$/, ".pdf");
+      const byCompanion = byBuild ? null : inProject.find((p) => p.pdfRelPath === companionPdf);
+      const resolved = byBuild?.id ?? byCompanion?.id ?? null;
+      console.info("[typst-pane-fix-resolve]", {
+        relPath,
+        papersInProject: inProject.length,
+        byBuild: byBuild?.id ?? null,
+        byCompanion: byCompanion?.id ?? null,
+        resolved,
+      });
+      if (!cancelled) setPaperIdForFix(resolved);
     })();
     return () => {
       cancelled = true;
