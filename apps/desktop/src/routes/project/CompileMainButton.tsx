@@ -115,9 +115,9 @@ export default function CompileMainButton(): JSX.Element | null {
             type="button"
             className="btn btn--subtle compile-main__fix"
             onClick={() => void askFix()}
-            title="Send the compile error to Claude as a fix-compile job"
+            title="Send the compile error to an AI fix-compile job"
           >
-            Ask Claude to fix
+            Fix with AI
           </button>
         </>
       )}
