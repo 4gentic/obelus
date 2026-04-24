@@ -1,0 +1,13 @@
+{
+  "bundleVersion": "compile-error/1.0",
+  "tool": { "name": "obelus", "version": "0.1.5" },
+  "project": {
+    "rootLabel": "compile-fix fixture",
+    "main": { "relPath": "broken-latex.tex", "format": "tex" }
+  },
+  "paperId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "compiler": "latexmk",
+  "stderr": "./broken-latex.tex:8: Undefined control sequence.\nl.8 This paragraph calls \\undefinedcmd\n                                    , which is not defined by any package this\n",
+  "exitCode": 1,
+  "trigger": "apply"
+}

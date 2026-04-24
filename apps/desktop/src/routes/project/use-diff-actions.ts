@@ -8,6 +8,7 @@ import { buildRepassPrompt } from "./build-repass-prompt";
 import { useProject } from "./context";
 import { useDiffStore } from "./diff-store-context";
 import { ensureBaselineEdit, snapshotAfterApply } from "./history-actions";
+import { kickFixCompile } from "./kick-fix-compile";
 import { usePaperId } from "./OpenPaper";
 import { useReviewRunner } from "./review-runner-context";
 import { useReviewStore } from "./store-context";
@@ -62,7 +63,9 @@ function kickAutoCompile(deps: {
   store: ReturnType<typeof useDiffStore>;
   repo: ReturnType<typeof useProject>["repo"];
   rootId: string;
+  project: ReturnType<typeof useProject>["project"];
   paperId: string;
+  sessionId: string;
   openFilePath: string | null;
   setOpenFilePath: (p: string | null) => void;
 }): void {
@@ -91,6 +94,33 @@ function kickAutoCompile(deps: {
         break;
       case "error":
         latest.setCompileStatus({ kind: "error", message: outcome.message });
+        // AI-origin failure: the user just applied hunks and those hunks
+        // broke compile. Spawn a follow-up fix-compile Claude session so the
+        // user sees the repair arrive in the same diff-review pane. The
+        // apply click authorises the follow-up under the network invariant
+        // (CLAUDE.md invariant #1 + `feedback_network_invariant_scope.md` —
+        // user clicked, jobs-dock makes it visible). Only fires when we
+        // actually ran a compiler (outcome carries compiler + mainRelPath).
+        if (outcome.compiler && outcome.mainRelPath) {
+          void kickFixCompile({
+            repo: deps.repo,
+            rootId: deps.rootId,
+            projectId: deps.project.id,
+            projectLabel: deps.project.label,
+            paperId: deps.paperId,
+            originSessionId: deps.sessionId,
+            compiler: outcome.compiler,
+            mainRelPath: outcome.mainRelPath,
+            stderr: outcome.message,
+            trigger: "apply",
+          }).catch((err) => {
+            console.warn("[fix-compile-start]", {
+              originSessionId: deps.sessionId,
+              paperId: deps.paperId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        }
         break;
       case "hint":
         latest.setCompileStatus({ kind: "hint", message: outcome.message });
@@ -297,7 +327,9 @@ export function useDiffActions(): DiffActions {
           store,
           repo,
           rootId,
+          project,
           paperId,
+          sessionId,
           openFilePath,
           setOpenFilePath,
         });
@@ -337,7 +369,9 @@ export function useDiffActions(): DiffActions {
         store,
         repo,
         rootId,
+        project,
         paperId,
+        sessionId,
         openFilePath,
         setOpenFilePath,
       });

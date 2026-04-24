@@ -1,3 +1,11 @@
+export {
+  COMPILE_ERROR_BUNDLE_VERSION,
+  CompileErrorBundle,
+  CompileErrorMain,
+  CompileErrorProject,
+  CompileErrorTool,
+  CompileErrorTrigger,
+} from "./compile-error.js";
 export { migrateV1ToV2 } from "./migrations.js";
 export type { ParseResult } from "./parse.js";
 export { parseBundle } from "./parse.js";

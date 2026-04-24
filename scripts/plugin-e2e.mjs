@@ -40,7 +40,7 @@ const scenarios = [
   {
     id: "1.1",
     name: "review-single",
-    prompt: "/obelus:write-review ./bundle.json",
+    prompt: "/obelus:write-review ./bundle.json --out",
     stage(dir) {
       cpSync(resolve(fixturesDir, "bundle.json"), resolve(dir, "bundle.json"));
     },
@@ -49,7 +49,7 @@ const scenarios = [
   {
     id: "1.2",
     name: "review-with-sources",
-    prompt: "/obelus:write-review ./bundle.json",
+    prompt: "/obelus:write-review ./bundle.json --out",
     stage(dir) {
       cpSync(resolve(fixturesDir, "bundle.json"), resolve(dir, "bundle.json"));
       cpSync(resolve(fixturesDir, "sample.tex"), resolve(dir, "sample.tex"));
@@ -57,6 +57,15 @@ const scenarios = [
       cpSync(resolve(fixturesDir, "sample.typ"), resolve(dir, "sample.typ"));
     },
     assert: assertReviewLetter,
+  },
+  {
+    id: "1.3",
+    name: "review-inline",
+    prompt: "/obelus:write-review ./bundle.json",
+    stage(dir) {
+      cpSync(resolve(fixturesDir, "bundle.json"), resolve(dir, "bundle.json"));
+    },
+    assert: assertInlineReviewLetter,
   },
   {
     id: "2.1",
@@ -136,6 +145,36 @@ function assertReviewLetter(result, dir) {
     return { ok: false, reason: "OBELUS_WROTE: marker missing or does not name the writeup" };
   }
   return { ok: true, reason: `letter well-formed in ${writeup}` };
+}
+
+function assertInlineReviewLetter(result, dir) {
+  const stdout = typeof result.result === "string" ? result.result : "";
+  if (containsRefusal(stdout)) {
+    return { ok: false, reason: "apply-revision refusal appeared in write-review inline output" };
+  }
+  // Inline mode: the review body is the final assistant message, not a file.
+  // No .obelus/ directory should be created and no OBELUS_WROTE: marker emitted.
+  if (!stdout.includes("# Review")) {
+    return { ok: false, reason: "stdout missing `# Review` heading in inline mode" };
+  }
+  if (!stdout.includes("On the Scalability of Transformer Attention")) {
+    return { ok: false, reason: "stdout missing paper title in inline mode" };
+  }
+  const tracedCitation = /vaswani/i.test(stdout);
+  const tracedClaim = /production systems/i.test(stdout);
+  if (!tracedCitation && !tracedClaim) {
+    return {
+      ok: false,
+      reason: "inline review surfaced neither citation nor unclear-claim annotation",
+    };
+  }
+  if (existsSync(resolve(dir, ".obelus"))) {
+    return { ok: false, reason: ".obelus/ directory should not be created in inline mode" };
+  }
+  if (/^OBELUS_WROTE:/m.test(stdout)) {
+    return { ok: false, reason: "OBELUS_WROTE: marker should not appear in inline mode" };
+  }
+  return { ok: true, reason: "inline review letter well-formed in stdout" };
 }
 
 function assertNoSourceRefusal(result, dir) {
@@ -432,9 +471,9 @@ function assertLexicalMorphologyCascade(result, dir) {
   // the surface set {failure, failures, failure modes, failure mode}, excluding the
   // originating span ('three failure modes', line 13).
   const variantPatterns = [
-    { label: "'failures' (plural)", re: /^-\s.*\bfailures\b/m },
-    { label: "'failure mode' (singular compound)", re: /^-\s.*\bfailure\s+mode\b(?!s)/m },
-    { label: "bare 'failure' (singular)", re: /^-\s.*\bfailure\b(?!\s*mode)(?!s)/m },
+    { label: "'failures' (plural)", re: /^-.*\bfailures\b/m },
+    { label: "'failure mode' (singular compound)", re: /^-.*\bfailure\s+mode\b(?!s)/m },
+    { label: "bare 'failure' (singular)", re: /^-.*\bfailure\b(?!\s*mode)(?!s)/m },
   ];
   const covered = new Set();
   for (const c of cascades) {

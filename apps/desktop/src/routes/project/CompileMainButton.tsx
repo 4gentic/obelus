@@ -8,6 +8,7 @@ import {
   type TypstCompileReport,
 } from "../../ipc/commands";
 import { useProject } from "./context";
+import { kickFixCompile } from "./kick-fix-compile";
 import { usePaperId } from "./OpenPaper";
 import { usePaperBuild } from "./use-paper-build";
 
@@ -15,7 +16,8 @@ type CompileState =
   | { kind: "idle" }
   | { kind: "compiling" }
   | { kind: "done"; outputRelPath: string }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string }
+  | { kind: "fixing" };
 
 const LATEX_COMPILERS = new Set<string>(["latexmk", "pdflatex", "xelatex"]);
 
@@ -24,7 +26,7 @@ const LATEX_COMPILERS = new Set<string>(["latexmk", "pdflatex", "xelatex"]);
 // dispatches to the appropriate compiler. Pandoc is still unwired — we surface
 // an actionable hint instead of a silent no-op.
 export default function CompileMainButton(): JSX.Element | null {
-  const { repo, rootId, setOpenFilePath } = useProject();
+  const { repo, rootId, project, setOpenFilePath } = useProject();
   const paperId = usePaperId();
   const { build } = usePaperBuild(repo, paperId);
   const [state, setState] = useState<CompileState>({ kind: "idle" });
@@ -61,21 +63,64 @@ export default function CompileMainButton(): JSX.Element | null {
     }
   };
 
+  const askFix = async (): Promise<void> => {
+    if (state.kind !== "error") return;
+    if (!build.mainRelPath || !build.compiler || !paperId) return;
+    const errorMessage = state.message;
+    setState({ kind: "fixing" });
+    try {
+      await kickFixCompile({
+        repo,
+        rootId,
+        projectId: project.id,
+        projectLabel: project.label,
+        paperId,
+        originSessionId: null,
+        compiler: build.compiler,
+        mainRelPath: build.mainRelPath,
+        stderr: errorMessage,
+        trigger: "manual",
+      });
+      setState({ kind: "idle" });
+    } catch (err) {
+      setState({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Could not start compile-fix.",
+      });
+    }
+  };
+
   const label =
-    state.kind === "compiling" ? "Compiling…" : `Compile ${shortLabel(build.mainRelPath)}`;
+    state.kind === "compiling"
+      ? "Compiling…"
+      : state.kind === "fixing"
+        ? "Asking Claude…"
+        : `Compile ${shortLabel(build.mainRelPath)}`;
 
   return (
     <div className="compile-main">
       <button
         type="button"
         className="btn btn--subtle"
-        disabled={state.kind === "compiling"}
+        disabled={state.kind === "compiling" || state.kind === "fixing"}
         onClick={() => void run()}
         title={`Main: ${build.mainRelPath}`}
       >
         {label}
       </button>
-      {state.kind === "error" && <span className="compile-main__err">{state.message}</span>}
+      {state.kind === "error" && (
+        <>
+          <span className="compile-main__err">{state.message}</span>
+          <button
+            type="button"
+            className="btn btn--subtle compile-main__fix"
+            onClick={() => void askFix()}
+            title="Send the compile error to an AI fix-compile job"
+          >
+            Fix with AI
+          </button>
+        </>
+      )}
     </div>
   );
 }

@@ -22,8 +22,8 @@
       "createdAt": "2026-04-23T10:00:00.000Z",
       "entrypoint": "paper.tex",
       "rubric": {
-        "slug": "top-venue",
         "label": "Top venue",
+        "source": "inline",
         "body": "Tight, top-venue prose. No boilerplate triads ('robust, scalable, and efficient' and the like); no empty intensifiers ('notably', 'importantly'); no throat-clearing ('it is worth noting that'). Every factual claim carries a citation or points at a specific section of this paper. Terminology is consistent throughout."
       }
     }

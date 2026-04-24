@@ -168,7 +168,12 @@ fn claude_command(
     effort: Option<&str>,
 ) -> Command {
     let mut cmd = Command::new(claude);
-    cmd.arg("--print")
+    // Scope the CLI's world to the paper project. Without `current_dir`, the
+    // child inherits the Tauri dev CWD (the Obelus worktree), and Glob/Grep
+    // will happily walk our own source tree — adding minutes of wasted
+    // exploration and leaking unrelated files into the model's context.
+    cmd.current_dir(project_root)
+        .arg("--print")
         .arg("--output-format")
         .arg("stream-json")
         .arg("--include-partial-messages")
@@ -179,7 +184,8 @@ fn claude_command(
         .arg("Read")
         .arg("Glob")
         .arg("Grep")
-        .arg("Write");
+        .arg("Write")
+        .arg("Edit");
     if let Some(m) = model.filter(|s| !s.is_empty()) {
         cmd.arg("--model").arg(m);
     }
@@ -266,7 +272,7 @@ pub async fn claude_draft_writeup(
     // `formatSpawnInvocation({ kind: "write-review", … })` in
     // `packages/prompts/src/formatters/format-spawn-invocation.ts`.
     let mut base = format!(
-        "Run write-review with bundle path {}.\npaperId: {}\npaperTitle: {}\n",
+        "Run write-review with bundle path {} --out.\npaperId: {}\npaperTitle: {}\n",
         bundle_abs.display(),
         paper_id,
         paper_title,
@@ -280,6 +286,47 @@ pub async fn claude_draft_writeup(
     // write-review is composition (500–1500 words of reviewer voice), not
     // reasoning. Sonnet is the right tool here; Opus just doubles wall-clock
     // for output that reads the same. Explicit user picks still win.
+    let effective_model = model.as_deref().or(Some("sonnet"));
+    let mut cmd = claude_command(&claude, &root, effective_model, effort.as_deref());
+    cmd.arg("--plugin-dir").arg(&plugin_dir);
+
+    spawn_streaming(cmd, prompt, app, &state).await
+}
+
+#[tauri::command]
+pub async fn claude_fix_compile(
+    root_id: String,
+    bundle_rel_path: String,
+    paper_id: String,
+    model: Option<String>,
+    effort: Option<String>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<String> {
+    let claude = resolve_claude_path()
+        .await
+        .ok_or_else(|| AppError::ClaudeDetect("claude binary not found".into()))?;
+
+    let root = project_root(&state, &root_id)?;
+    let bundle_abs = root.join(&bundle_rel_path);
+
+    let plugin_dir: PathBuf = app
+        .path()
+        .resolve("plugin", tauri::path::BaseDirectory::Resource)
+        .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
+
+    // Mirrors `formatSpawnInvocation({ kind: "fix-compile", … })` in
+    // `packages/prompts/src/formatters/format-spawn-invocation.ts`; keep the
+    // two in lockstep when either changes.
+    let prompt = format!(
+        "Run fix-compile with bundle path {}.\npaperId: {}\n",
+        bundle_abs.display(),
+        paper_id,
+    );
+
+    // fix-compile is dispatch and minimal-diff edit composition — not
+    // reasoning. Sonnet is the right model; the compile-error bundle is small
+    // and the edits are localised.
     let effective_model = model.as_deref().or(Some("sonnet"));
     let mut cmd = claude_command(&claude, &root, effective_model, effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);

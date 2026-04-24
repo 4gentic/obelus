@@ -24,7 +24,7 @@ describe("isSynthesisedAnnotationId", () => {
 
   it("keeps the prefix list in sync with the planner contract", () => {
     expect(new Set(SYNTHESISED_ID_PREFIXES)).toEqual(
-      new Set(["cascade-", "impact-", "coherence-", "quality-"]),
+      new Set(["cascade-", "impact-", "coherence-", "quality-", "compile-"]),
     );
   });
 });

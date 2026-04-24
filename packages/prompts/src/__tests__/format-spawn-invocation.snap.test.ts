@@ -40,7 +40,7 @@ describe("formatSpawnInvocation", () => {
         paperTitle: "Attention is all you need",
       }),
     ).toMatchInlineSnapshot(`
-      "Run write-review with bundle path /repo/bundle.json.
+      "Run write-review with bundle path /repo/bundle.json --out.
       paperId: paper-1
       paperTitle: Attention is all you need
       "
@@ -57,10 +57,24 @@ describe("formatSpawnInvocation", () => {
         rubricAbsPath: "/repo/.obelus/rubric-paper-1.md",
       }),
     ).toMatchInlineSnapshot(`
-      "Run write-review with bundle path /repo/bundle.json.
+      "Run write-review with bundle path /repo/bundle.json --out.
       paperId: paper-1
       paperTitle: Attention is all you need
       rubricPath: /repo/.obelus/rubric-paper-1.md
+      "
+    `);
+  });
+
+  it("renders fix-compile", () => {
+    expect(
+      formatSpawnInvocation({
+        kind: "fix-compile",
+        bundleAbsPath: "/repo/.obelus-compile-error-20260424-091012.json",
+        paperId: "paper-1",
+      }),
+    ).toMatchInlineSnapshot(`
+      "Run fix-compile with bundle path /repo/.obelus-compile-error-20260424-091012.json.
+      paperId: paper-1
       "
     `);
   });

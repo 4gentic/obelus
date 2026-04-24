@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { toJSONSchema } from "zod";
+import { CompileErrorBundle } from "../src/compile-error.ts";
 import { ProjectMeta } from "../src/project-meta.ts";
 import { BundleV1 } from "../src/schema.ts";
 import { BundleV2 } from "../src/schema-v2.ts";
@@ -32,6 +33,7 @@ const targets = [
   { schema: BundleV1, file: "bundle-v1.schema.json" },
   { schema: BundleV2, file: "bundle-v2.schema.json" },
   { schema: ProjectMeta, file: "project-meta.schema.json" },
+  { schema: CompileErrorBundle, file: "compile-error.schema.json" },
 ];
 
 for (const { schema, file } of targets) {
