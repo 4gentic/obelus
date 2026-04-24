@@ -7,11 +7,9 @@ import PdfPane from "./PdfPane";
 import SourcePane from "./SourcePane";
 import TypstPane from "./TypstPane";
 import UnsupportedPane from "./UnsupportedPane";
-import { useSelectionHandler } from "./use-selection";
 export default function CenterPane(): JSX.Element {
   const { project, openFilePath, rootId } = useProject();
   const openPaper = useOpenPaper();
-  const onAnchor = useSelectionHandler(openPaper.kind === "ready" ? openPaper.doc : null);
 
   const absolutePath = openFilePath ? `${project.root}/${openFilePath}` : null;
 
@@ -32,7 +30,7 @@ export default function CenterPane(): JSX.Element {
         );
       }
       if (openPaper.kind === "ready") {
-        return <PdfPane doc={openPaper.doc} onAnchor={onAnchor} />;
+        return <PdfPane doc={openPaper.doc} />;
       }
       return <UnsupportedPane path={openFilePath} />;
     }

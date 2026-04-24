@@ -1,19 +1,13 @@
-import { DEFAULT_CATEGORIES } from "@obelus/categories";
-import {
-  type MarkdownRenderStatus,
-  type MarkdownSelection,
-  MarkdownView,
-  type MarkdownViewHandle,
-  useMarkdownSelection,
-} from "@obelus/md-view";
+import { useMdDocumentView } from "@obelus/md-view";
 import "@obelus/md-view/md.css";
-import type { AnnotationRow, PaperRow, RevisionRow } from "@obelus/repo";
+import "@obelus/review-shell/review-shell.css";
+import type { PaperRow, RevisionRow } from "@obelus/repo";
 import type { JSX } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { fsWriteBytes } from "../../ipc/commands";
 import { exportMdBundleV2ForPaper } from "./build-bundle";
 import { useProject } from "./context";
-import "./md-reviewer-pane.css";
+import { useReviewStore } from "./store-context";
 
 interface Props {
   path: string;
@@ -27,84 +21,54 @@ type ExportStatus =
   | { kind: "saved"; relPath: string }
   | { kind: "error"; message: string };
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-export default function MdReviewerPane({ path, text, paper, revision }: Props): JSX.Element {
+// Desktop MD reviewer. Uses the shared `useMdDocumentView` so marks paint as
+// highlights over the preview (new) and the selection → SourceAnchor pipeline
+// routes through the review-store (same as PDF). The bespoke marks sidebar
+// and composer stay for now — unifying them with the web's `ReviewPane` is a
+// follow-on task once the desktop ProjectShell absorbs the right column.
+export default function MdReviewerPane({
+  path,
+  text,
+  paper,
+  revision: _revision,
+}: Props): JSX.Element {
   const { repo, rootId } = useProject();
-  const [rows, setRows] = useState<AnnotationRow[]>([]);
-  const [draft, setDraft] = useState<MarkdownSelection | null>(null);
-  const [draftCategory, setDraftCategory] = useState<string>(
-    DEFAULT_CATEGORIES[0]?.id ?? "unclear",
-  );
-  const [draftNote, setDraftNote] = useState("");
+  const store = useReviewStore();
+  const annotations = store((s) => s.annotations);
+  const selectedAnchor = store((s) => s.selectedAnchor);
+  const draftCategory = store((s) => s.draftCategory);
+  const focusedId = store((s) => s.focusedAnnotationId);
+  const setSelectedAnchor = store((s) => s.setSelectedAnchor);
+  const setDraftCategory = store((s) => s.setDraftCategory);
+  const setDraftNote = store((s) => s.setDraftNote);
+  const draftNote = store((s) => s.draftNote);
+  const saveAnnotation = store((s) => s.saveAnnotation);
+  const deleteAnnotation = store((s) => s.deleteAnnotation);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [exportStatus, setExportStatus] = useState<ExportStatus>({ kind: "idle" });
-  const viewRef = useRef<MarkdownViewHandle | null>(null);
-  const containerRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const anns = await repo.annotations.listForRevision(revision.id);
-      if (!cancelled) setRows(anns);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [repo, revision.id]);
-
-  const onRender = useCallback((status: MarkdownRenderStatus) => {
-    setRenderError(status.kind === "parse-failed" ? status.error.kind : null);
-    containerRef.current = viewRef.current?.getContainer() ?? null;
-  }, []);
-
-  useMarkdownSelection({
-    containerRef,
-    onSelection: (sel) => setDraft(sel),
+  const documentView = useMdDocumentView({
+    file: path,
+    text,
+    annotations,
+    selectedAnchor,
+    draftCategory,
+    focusedId,
+    onAnchor: (draft) => setSelectedAnchor(draft),
+    onRenderError: setRenderError,
   });
 
   const onSaveMark = useCallback(async () => {
-    if (draft === null) return;
-    const row: AnnotationRow = {
-      id: crypto.randomUUID(),
-      revisionId: revision.id,
-      category: draftCategory,
-      quote: draft.quote,
-      contextBefore: draft.contextBefore,
-      contextAfter: draft.contextAfter,
-      sourceAnchor: {
-        file: draft.anchor.file,
-        lineStart: draft.anchor.lineStart,
-        colStart: draft.anchor.colStart,
-        lineEnd: draft.anchor.lineEnd,
-        colEnd: draft.anchor.colEnd,
-      },
-      note: draftNote,
-      thread: [],
-      createdAt: nowIso(),
-    };
-    await repo.annotations.bulkPut(revision.id, [row]);
-    setRows((prev) => [...prev, row]);
-    setDraft(null);
-    setDraftNote("");
+    if (!selectedAnchor) return;
+    const category = draftCategory ?? "unclear";
+    await saveAnnotation({ draft: selectedAnchor, category, note: draftNote.trim() });
     document.getSelection()?.removeAllRanges();
-  }, [draft, draftCategory, draftNote, repo, revision.id]);
+  }, [selectedAnchor, draftCategory, draftNote, saveAnnotation]);
 
   const onCancelDraft = useCallback(() => {
-    setDraft(null);
-    setDraftNote("");
+    setSelectedAnchor(null);
     document.getSelection()?.removeAllRanges();
-  }, []);
-
-  const onDeleteMark = useCallback(
-    async (id: string) => {
-      await repo.annotations.remove(id);
-      setRows((prev) => prev.filter((r) => r.id !== id));
-    },
-    [repo],
-  );
+  }, [setSelectedAnchor]);
 
   const onExport = useCallback(async () => {
     setExportStatus({ kind: "idle" });
@@ -135,9 +99,9 @@ export default function MdReviewerPane({ path, text, paper, revision }: Props): 
             type="button"
             className="md-reviewer__export"
             onClick={() => void onExport()}
-            disabled={rows.length === 0}
+            disabled={annotations.length === 0}
           >
-            Export bundle ({rows.length})
+            Export bundle ({annotations.length})
           </button>
           {exportStatus.kind === "saved" ? (
             <span className="md-reviewer__export-status">Saved to {exportStatus.relPath}</span>
@@ -150,21 +114,19 @@ export default function MdReviewerPane({ path, text, paper, revision }: Props): 
       </header>
 
       <div className="md-reviewer__body">
-        <div className="md-reviewer__scroll">
-          <MarkdownView ref={viewRef} file={path} text={text} onRender={onRender} />
-        </div>
+        <div className="md-reviewer__scroll">{documentView.content}</div>
 
         <aside className="md-reviewer__marks" aria-label="Marks">
           <h3 className="md-reviewer__marks-title">
-            Marks <span className="md-reviewer__marks-count">{rows.length}</span>
+            Marks <span className="md-reviewer__marks-count">{annotations.length}</span>
           </h3>
-          {rows.length === 0 ? (
+          {annotations.length === 0 ? (
             <p className="md-reviewer__marks-empty">
               Select a passage in the paper to draft your first mark.
             </p>
           ) : (
             <ol className="md-reviewer__marks-list">
-              {rows.map((row) => (
+              {annotations.map((row) => (
                 <li key={row.id} className="md-reviewer__mark" data-category={row.category}>
                   <div className="md-reviewer__mark-head">
                     <span className="md-reviewer__mark-category">{row.category}</span>
@@ -179,7 +141,7 @@ export default function MdReviewerPane({ path, text, paper, revision }: Props): 
                     <button
                       type="button"
                       className="md-reviewer__mark-delete"
-                      onClick={() => void onDeleteMark(row.id)}
+                      onClick={() => void deleteAnnotation(row.id)}
                       aria-label="Delete mark"
                     >
                       Delete
@@ -196,22 +158,21 @@ export default function MdReviewerPane({ path, text, paper, revision }: Props): 
         </aside>
       </div>
 
-      {draft ? (
+      {selectedAnchor ? (
         <div className="md-reviewer__composer" role="dialog" aria-label="Draft a mark">
-          <blockquote className="md-reviewer__composer-quote">{draft.quote}</blockquote>
+          <blockquote className="md-reviewer__composer-quote">{selectedAnchor.quote}</blockquote>
           <div className="md-reviewer__composer-controls">
             <label className="md-reviewer__composer-label">
               Category
               <select
-                value={draftCategory}
+                value={draftCategory ?? ""}
                 onChange={(e) => setDraftCategory(e.target.value)}
                 className="md-reviewer__composer-select"
               >
-                {DEFAULT_CATEGORIES.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
+                <option value="" disabled>
+                  Pick a category…
+                </option>
+                {categoryOptions()}
               </select>
             </label>
             <label className="md-reviewer__composer-label">
@@ -236,6 +197,7 @@ export default function MdReviewerPane({ path, text, paper, revision }: Props): 
                 type="button"
                 className="md-reviewer__composer-save"
                 onClick={() => void onSaveMark()}
+                disabled={draftCategory === null}
               >
                 Save mark
               </button>
@@ -245,4 +207,23 @@ export default function MdReviewerPane({ path, text, paper, revision }: Props): 
       ) : null}
     </section>
   );
+}
+
+function categoryOptions(): JSX.Element[] {
+  const cats: Array<{ id: string; label: string }> = [
+    { id: "unclear", label: "unclear" },
+    { id: "wrong", label: "wrong" },
+    { id: "weak-argument", label: "weak argument" },
+    { id: "citation-needed", label: "citation needed" },
+    { id: "rephrase", label: "rephrase" },
+    { id: "praise", label: "praise" },
+    { id: "enhancement", label: "enhancement" },
+    { id: "aside", label: "aside" },
+    { id: "flag", label: "flag" },
+  ];
+  return cats.map((c) => (
+    <option key={c.id} value={c.id}>
+      {c.label}
+    </option>
+  ));
 }

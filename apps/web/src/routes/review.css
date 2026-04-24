@@ -1,3 +1,11 @@
+/*
+ * Route-level chrome for `/app/review/:paperId`. The three-column layout,
+ * margin gutter, highlight layer, category tooltip, and mobile sheet live in
+ * @obelus/review-shell and are imported alongside this file. Keep this file
+ * restricted to bits that don't belong in the shared shell — the breadcrumb
+ * at the top of the page and route-level loading/missing states.
+ */
+
 .review-crumb {
   display: flex;
   align-items: baseline;
@@ -56,6 +64,26 @@
   text-align: right;
 }
 
+.review-crumb__render-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-6);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--rubric);
+  background: color-mix(in srgb, var(--rubric) 10%, var(--paper));
+  border-bottom: var(--rule-soft);
+}
+
+.review-shell--loading,
+.review-shell--missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+
 @media (max-width: 640px) {
   .review-crumb {
     padding: var(--space-3) var(--space-4);
@@ -63,219 +91,5 @@
   .review-crumb__title,
   .review-crumb__input {
     font-size: var(--step-0);
-  }
-}
-
-.review {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
-  gap: var(--space-5);
-  overflow: hidden;
-  background: var(--paper);
-}
-
-.review__scroll {
-  position: relative;
-  height: 100%;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: var(--space-5) var(--space-6);
-  padding-right: calc(220px + var(--space-6));
-}
-
-.review__hl-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.review__hl {
-  --hl-color: var(--ink-soft);
-  position: absolute;
-  mix-blend-mode: multiply;
-  border-radius: 0;
-  background: color-mix(in srgb, var(--hl-color) 35%, transparent);
-}
-
-.review__hl[data-category="unclear"] {
-  --hl-color: var(--hl-unclear);
-}
-.review__hl[data-category="wrong"] {
-  --hl-color: var(--hl-wrong);
-}
-.review__hl[data-category="weak-argument"] {
-  --hl-color: var(--hl-weak);
-}
-.review__hl[data-category="citation-needed"] {
-  --hl-color: var(--hl-cite);
-}
-.review__hl[data-category="praise"] {
-  --hl-color: var(--hl-praise);
-}
-.review__hl[data-category="rephrase"] {
-  --hl-color: var(--hl-rephrase);
-}
-.review__hl[data-category="enhancement"] {
-  --hl-color: var(--hl-enhancement);
-}
-.review__hl[data-category="aside"] {
-  --hl-color: var(--hl-aside);
-}
-.review__hl[data-category="flag"] {
-  --hl-color: var(--hl-flag);
-}
-
-.review__hl--draft {
-  background: color-mix(in srgb, var(--hl-color) 22%, transparent);
-  outline: 1px dashed color-mix(in srgb, var(--hl-color) 60%, transparent);
-  outline-offset: 0;
-}
-
-/* Hover description for category chips. The highlights themselves are
-   pointer-events:none to preserve text selection over the PDF, so the
-   tooltip is hosted by the margin note chip and the picker chip. */
-.cat-tooltip {
-  position: relative;
-}
-
-.cat-tooltip[data-cat-tooltip]::after {
-  content: attr(data-cat-tooltip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  max-width: 260px;
-  width: max-content;
-  padding: var(--space-2) var(--space-3);
-  background: var(--panel);
-  color: var(--ink);
-  border: 1px solid var(--ink-soft);
-  border-radius: var(--radius-1);
-  font-family: var(--font-body);
-  font-size: var(--step--1);
-  font-style: italic;
-  line-height: 1.4;
-  white-space: normal;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 100;
-  transition: opacity 120ms ease 400ms;
-}
-
-.cat-tooltip[data-cat-tooltip]:hover::after,
-.cat-tooltip[data-cat-tooltip]:focus-visible::after {
-  opacity: 1;
-}
-
-.review__gutter {
-  position: absolute;
-  top: 0;
-  right: var(--space-4);
-  width: 220px;
-  pointer-events: none;
-}
-
-.review__gutter > * {
-  pointer-events: auto;
-}
-
-.review__pane {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.review__label {
-  position: absolute;
-  top: var(--space-3);
-  left: var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  color: var(--ink-soft);
-  text-transform: lowercase;
-  letter-spacing: 0.08em;
-}
-
-.review__sheet-toggle {
-  display: none;
-}
-
-@media (max-width: 900px) {
-  .review {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
-    gap: 0;
-  }
-
-  .review__scroll {
-    padding: var(--space-4);
-    padding-right: var(--space-4);
-  }
-
-  .review__gutter {
-    display: none;
-  }
-
-  .review__sheet-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    width: 100%;
-    padding: var(--space-3) var(--space-4);
-    background: var(--panel);
-    border: none;
-    border-top: var(--rule-soft);
-    font-family: var(--font-mono);
-    font-size: var(--step--1);
-    color: var(--ink);
-    text-transform: lowercase;
-    letter-spacing: 0.08em;
-    cursor: pointer;
-    min-height: 44px;
-  }
-
-  .review__sheet-toggle:hover {
-    color: var(--rubric);
-  }
-
-  .review__sheet {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 80vh;
-    background: var(--paper);
-    border-top: 2px solid var(--ink);
-    transform: translateY(100%);
-    transition: transform 180ms ease-out;
-    z-index: 20;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .review__sheet[data-open="true"] {
-    transform: translateY(0);
-  }
-
-  .review__sheet-close {
-    align-self: flex-end;
-    background: none;
-    border: none;
-    padding: var(--space-3) var(--space-4);
-    font-family: var(--font-mono);
-    font-size: var(--step--1);
-    color: var(--ink-soft);
-    text-transform: lowercase;
-    letter-spacing: 0.08em;
-    cursor: pointer;
-    min-height: 44px;
-  }
-
-  .review__pane {
-    flex: 1 1 auto;
-    min-height: 0;
   }
 }

@@ -87,10 +87,7 @@ function RowItem({ row, onRename, onRemove }: RowItemProps): JSX.Element {
           }}
         />
       ) : (
-        <Link
-          to={paper.format === "md" ? `/app/review-md/${paper.id}` : `/app/review/${paper.id}`}
-          className="library__row-title"
-        >
+        <Link to={`/app/review/${paper.id}`} className="library__row-title">
           {paper.title}
         </Link>
       )}
@@ -191,7 +188,7 @@ export default function Library(): JSX.Element {
           byteLength: text.length,
           file: file.name,
         });
-        navigate(`/app/review-md/${paper.id}`);
+        navigate(`/app/review/${paper.id}`);
         return;
       }
       const bytes = await file.arrayBuffer();

@@ -1,4 +1,5 @@
 import type { Anchor, Bbox } from "@obelus/anchor";
+import type { SourceAnchor2 } from "@obelus/bundle-schema";
 import type { AnnotationRow, AnnotationsRepo } from "@obelus/repo";
 
 type Category = string;
@@ -6,7 +7,10 @@ type Category = string;
 import type { StoreApi } from "zustand";
 import { create, type UseBoundStore } from "zustand";
 
-export type DraftSlice = {
+// PDF-anchored draft slice. `kind` is optional so existing callers that never
+// stamped a discriminator keep working; absence narrows to PDF.
+export type PdfDraftSlice = {
+  kind?: "pdf";
   anchor: Anchor;
   quote: string;
   contextBefore: string;
@@ -14,6 +18,16 @@ export type DraftSlice = {
   bbox: Bbox;
   rects: Bbox[];
 };
+
+export type SourceDraftSlice = {
+  kind: "source";
+  anchor: SourceAnchor2;
+  quote: string;
+  contextBefore: string;
+  contextAfter: string;
+};
+
+export type DraftSlice = PdfDraftSlice | SourceDraftSlice;
 
 export type DraftInput = {
   slices: DraftSlice[];
@@ -97,25 +111,48 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
       if (!revisionId) return;
       const createdAt = nowIso();
       const groupId = draft.slices.length > 1 ? uuid() : undefined;
-      const rows: AnnotationRow[] = draft.slices.map((slice) => ({
-        id: uuid(),
-        revisionId,
-        category,
-        quote: slice.quote,
-        contextBefore: slice.contextBefore,
-        contextAfter: slice.contextAfter,
-        page: slice.anchor.pageIndex + 1,
-        bbox: [slice.bbox[0], slice.bbox[1], slice.bbox[2], slice.bbox[3]],
-        rects: slice.rects.map((r) => [r[0], r[1], r[2], r[3]]),
-        textItemRange: {
-          start: [slice.anchor.startItem, slice.anchor.startOffset],
-          end: [slice.anchor.endItem, slice.anchor.endOffset],
-        },
-        note,
-        thread: [],
-        createdAt,
-        ...(groupId ? { groupId } : {}),
-      }));
+      const rows: AnnotationRow[] = draft.slices.map((slice) => {
+        if (slice.kind === "source") {
+          return {
+            id: uuid(),
+            revisionId,
+            category,
+            quote: slice.quote,
+            contextBefore: slice.contextBefore,
+            contextAfter: slice.contextAfter,
+            sourceAnchor: {
+              file: slice.anchor.file,
+              lineStart: slice.anchor.lineStart,
+              colStart: slice.anchor.colStart,
+              lineEnd: slice.anchor.lineEnd,
+              colEnd: slice.anchor.colEnd,
+            },
+            note,
+            thread: [],
+            createdAt,
+            ...(groupId ? { groupId } : {}),
+          };
+        }
+        return {
+          id: uuid(),
+          revisionId,
+          category,
+          quote: slice.quote,
+          contextBefore: slice.contextBefore,
+          contextAfter: slice.contextAfter,
+          page: slice.anchor.pageIndex + 1,
+          bbox: [slice.bbox[0], slice.bbox[1], slice.bbox[2], slice.bbox[3]],
+          rects: slice.rects.map((r) => [r[0], r[1], r[2], r[3]]),
+          textItemRange: {
+            start: [slice.anchor.startItem, slice.anchor.startOffset],
+            end: [slice.anchor.endItem, slice.anchor.endOffset],
+          },
+          note,
+          thread: [],
+          createdAt,
+          ...(groupId ? { groupId } : {}),
+        };
+      });
       await repo.bulkPut(revisionId, rows);
       set({
         annotations: [...get().annotations, ...rows],

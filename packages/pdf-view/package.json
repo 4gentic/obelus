@@ -21,7 +21,10 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@obelus/anchor": "workspace:*"
+    "@obelus/anchor": "workspace:*",
+    "@obelus/repo": "workspace:*",
+    "@obelus/review-shell": "workspace:*",
+    "@obelus/review-store": "workspace:*"
   },
   "peerDependencies": {
     "pdfjs-dist": "5.6.205",

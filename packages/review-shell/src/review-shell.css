@@ -1,0 +1,223 @@
+/*
+ * Shared three-column editorial review layout. Lives in @obelus/review-shell
+ * so PDF, Markdown, and (Phase 2) HTML surfaces all read as one product —
+ * warm paper, serif body, margin-note gutter aligned to source lines.
+ *
+ * Highlight colours and category chips are inherited from the app-level
+ * design-tokens (--hl-*, --chip-color) so the shell itself stays palette-
+ * neutral; don't hard-code hex values here.
+ */
+
+.review-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
+  gap: var(--space-5);
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.review-shell__scroll {
+  position: relative;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-5) var(--space-6);
+  padding-right: calc(220px + var(--space-6));
+}
+
+.review-shell__hl-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.review-shell__hl {
+  --hl-color: var(--ink-soft);
+  position: absolute;
+  mix-blend-mode: multiply;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--hl-color) 35%, transparent);
+}
+
+.review-shell__hl[data-category="unclear"] {
+  --hl-color: var(--hl-unclear);
+}
+.review-shell__hl[data-category="wrong"] {
+  --hl-color: var(--hl-wrong);
+}
+.review-shell__hl[data-category="weak-argument"] {
+  --hl-color: var(--hl-weak);
+}
+.review-shell__hl[data-category="citation-needed"] {
+  --hl-color: var(--hl-cite);
+}
+.review-shell__hl[data-category="praise"] {
+  --hl-color: var(--hl-praise);
+}
+.review-shell__hl[data-category="rephrase"] {
+  --hl-color: var(--hl-rephrase);
+}
+.review-shell__hl[data-category="enhancement"] {
+  --hl-color: var(--hl-enhancement);
+}
+.review-shell__hl[data-category="aside"] {
+  --hl-color: var(--hl-aside);
+}
+.review-shell__hl[data-category="flag"] {
+  --hl-color: var(--hl-flag);
+}
+
+.review-shell__hl--draft {
+  background: color-mix(in srgb, var(--hl-color) 22%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--hl-color) 60%, transparent);
+  outline-offset: 0;
+}
+
+/* Hover description for category chips. The highlights themselves are
+   pointer-events:none to preserve text selection over the document, so the
+   tooltip is hosted by the margin note chip and the picker chip. */
+.cat-tooltip {
+  position: relative;
+}
+
+.cat-tooltip[data-cat-tooltip]::after {
+  content: attr(data-cat-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  max-width: 260px;
+  width: max-content;
+  padding: var(--space-2) var(--space-3);
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--radius-1);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  font-style: italic;
+  line-height: 1.4;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 100;
+  transition: opacity 120ms ease 400ms;
+}
+
+.cat-tooltip[data-cat-tooltip]:hover::after,
+.cat-tooltip[data-cat-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+
+.review-shell__gutter {
+  position: absolute;
+  top: 0;
+  right: var(--space-4);
+  width: 220px;
+  pointer-events: none;
+}
+
+.review-shell__gutter > * {
+  pointer-events: auto;
+}
+
+.review-shell__pane {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.review-shell__label {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  text-transform: lowercase;
+  letter-spacing: 0.08em;
+}
+
+.review-shell__sheet-toggle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .review-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 0;
+  }
+
+  .review-shell__scroll {
+    padding: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .review-shell__gutter {
+    display: none;
+  }
+
+  .review-shell__sheet-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: var(--panel);
+    border: none;
+    border-top: var(--rule-soft);
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    color: var(--ink);
+    text-transform: lowercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    min-height: 44px;
+  }
+
+  .review-shell__sheet-toggle:hover {
+    color: var(--rubric);
+  }
+
+  .review-shell__sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 80vh;
+    background: var(--paper);
+    border-top: 2px solid var(--ink);
+    transform: translateY(100%);
+    transition: transform 180ms ease-out;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .review-shell__sheet[data-open="true"] {
+    transform: translateY(0);
+  }
+
+  .review-shell__sheet-close {
+    align-self: flex-end;
+    background: none;
+    border: none;
+    padding: var(--space-3) var(--space-4);
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+    text-transform: lowercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    min-height: 44px;
+  }
+
+  .review-shell__pane {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}

@@ -1,7 +1,7 @@
 {
-  "name": "@obelus/md-view",
+  "name": "@obelus/review-shell",
   "version": "0.1.0",
-  "description": "React component that renders a markdown paper into Obelus's review surface. Calls renderMarkdown (pure JS, browser-safe) and paints the HTML with data-src-* attributes intact so selection → SourceAnchor works.",
+  "description": "Three-column review shell: document · margin gutter · review pane. Consumes a DocumentView adapter so PDF, Markdown, and HTML surfaces share one layout, one margin-note stacker, and one marks pane.",
   "license": "MIT",
   "type": "module",
   "main": "./src/index.ts",
@@ -11,22 +11,20 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
-    "./md.css": "./src/md.css"
+    "./review-shell.css": "./src/review-shell.css"
   },
   "files": [
     "src"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@obelus/anchor": "workspace:*",
     "@obelus/bundle-schema": "workspace:*",
+    "@obelus/categories": "workspace:*",
     "@obelus/repo": "workspace:*",
-    "@obelus/review-shell": "workspace:*",
-    "@obelus/review-store": "workspace:*",
-    "@obelus/source-render": "workspace:*"
+    "@obelus/review-store": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.0.0"

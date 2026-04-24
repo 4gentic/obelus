@@ -36,6 +36,7 @@
     "@obelus/pdf-view": "workspace:*",
     "@obelus/prompts": "workspace:*",
     "@obelus/repo": "workspace:*",
+    "@obelus/review-shell": "workspace:*",
     "@obelus/review-store": "workspace:*",
     "@tauri-apps/api": "2.10.1",
     "@tauri-apps/plugin-deep-link": "2.4.8",

@@ -1,12 +1,21 @@
 import type { AnnotationRow, PaperRubric } from "@obelus/repo";
+import type { DraftInput } from "@obelus/review-store";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { DraftInput } from "../../store/review-store";
 import CategoryPicker from "./CategoryPicker";
 import NoteEditor from "./NoteEditor";
 import RubricPanel from "./RubricPanel";
 import "./ReviewPane.css";
 
 import type { JSX } from "react";
+
+export type ReviewPaneExports = {
+  onExportReview: () => Promise<string | null>;
+  onExportRevise: () => Promise<string | null>;
+  onExportReviewMarkdown: () => void;
+  onExportMarkdown: () => void;
+  onCopy: () => void;
+  onCopyReview: () => void;
+};
 
 type Props = {
   annotations: AnnotationRow[];
@@ -23,13 +32,8 @@ type Props = {
   onUpdateCategory: (id: string, category: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
-  onExportReview: () => Promise<string | null>;
-  onExportRevise: () => Promise<string | null>;
-  onExportMarkdown: () => void;
-  onExportReviewMarkdown: () => void;
-  onCopy: () => void;
-  onCopyReview: () => void;
   onRubricChange: (rubric: PaperRubric | null) => Promise<void>;
+  exports: ReviewPaneExports;
   exportDisabled: boolean;
   statusMessage: string | null;
   statusTone: "idle" | "working" | "done" | "error";
@@ -38,6 +42,31 @@ type Props = {
 type DisplayEntry =
   | { kind: "single"; row: AnnotationRow }
   | { kind: "group"; groupId: string; rows: AnnotationRow[] };
+
+// Row-agnostic "where in the paper" label. PDF rows carry `page`; source rows
+// carry `sourceAnchor.lineStart/lineEnd`. The pane shows whichever exists.
+function locationLabel(row: AnnotationRow): string {
+  if (row.page !== undefined) return `p. ${row.page}`;
+  if (row.sourceAnchor) {
+    const { lineStart, lineEnd } = row.sourceAnchor;
+    return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+  }
+  return "";
+}
+
+function entryLocationLabel(entry: DisplayEntry): string {
+  if (entry.kind === "single") return locationLabel(entry.row);
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const r of entry.rows) {
+    const l = locationLabel(r);
+    if (l !== "" && !seen.has(l)) {
+      seen.add(l);
+      parts.push(l);
+    }
+  }
+  return parts.join(", ");
+}
 
 type AnnotationItemProps = {
   entry: DisplayEntry;
@@ -59,10 +88,7 @@ function AnnotationItem({
   const first = entry.kind === "single" ? entry.row : (entry.rows[0] as AnnotationRow);
   const [local, setLocal] = useState(first.note);
   const category = first.category;
-  const pageLabel =
-    entry.kind === "single"
-      ? `p. ${entry.row.page}`
-      : `p. ${entry.rows.map((r) => r.page).join(", ")}`;
+  const locLabel = entryLocationLabel(entry);
   const quoteNodes =
     entry.kind === "single" ? (
       <blockquote className="review-pane__item-quote">{entry.row.quote}</blockquote>
@@ -70,7 +96,7 @@ function AnnotationItem({
       <div className="review-pane__item-quotes">
         {entry.rows.map((r) => (
           <blockquote key={r.id} className="review-pane__item-quote">
-            <span className="review-pane__item-quote-page">p. {r.page}</span>
+            <span className="review-pane__item-quote-page">{locationLabel(r)}</span>
             {r.quote}
           </blockquote>
         ))}
@@ -85,10 +111,10 @@ function AnnotationItem({
       data-kind={entry.kind}
     >
       <header className="review-pane__item-head">
-        <span className="review-pane__item-page">{pageLabel}</span>
+        <span className="review-pane__item-page">{locLabel}</span>
         {entry.kind === "group" ? (
           <span className="review-pane__item-link" title="Linked across pages">
-            {"\u21C4"}
+            {"⇄"}
           </span>
         ) : null}
       </header>
@@ -122,18 +148,34 @@ function AnnotationItem({
   );
 }
 
+// Sorts annotations in reading order across both anchor flavours. PDF rows
+// compare by page then text-item start; source rows compare by file then
+// line/column. Cross-flavour comparisons fall back to createdAt — not expected
+// (a paper is one format) but keeps the sort total.
+function rowSortKey(row: AnnotationRow): [number, string, number, number] {
+  if (row.page !== undefined) {
+    const start0 = row.textItemRange?.start[0] ?? 0;
+    const start1 = row.textItemRange?.start[1] ?? 0;
+    return [row.page, "", start0, start1];
+  }
+  if (row.sourceAnchor) {
+    const { file, lineStart, colStart } = row.sourceAnchor;
+    return [0, file, lineStart, colStart];
+  }
+  return [0, row.createdAt, 0, 0];
+}
+
+function compareRows(a: AnnotationRow, b: AnnotationRow): number {
+  const ka = rowSortKey(a);
+  const kb = rowSortKey(b);
+  if (ka[0] !== kb[0]) return ka[0] - kb[0];
+  if (ka[1] !== kb[1]) return ka[1] < kb[1] ? -1 : 1;
+  if (ka[2] !== kb[2]) return ka[2] - kb[2];
+  return ka[3] - kb[3];
+}
+
 function buildDisplayEntries(rows: ReadonlyArray<AnnotationRow>): DisplayEntry[] {
-  const sorted = [...rows].sort((a, b) => {
-    // Same order the pdf review surface applies: by page, then by the
-    // text item's start index. MD annotations never flow through this
-    // route, so the optional fields are effectively required here.
-    const aPage = a.page ?? 0;
-    const bPage = b.page ?? 0;
-    if (aPage !== bPage) return aPage - bPage;
-    const aStart = a.textItemRange?.start[0] ?? 0;
-    const bStart = b.textItemRange?.start[0] ?? 0;
-    return aStart - bStart;
-  });
+  const sorted = [...rows].sort(compareRows);
   const entries: DisplayEntry[] = [];
   const groupsSeen = new Set<string>();
   for (const row of sorted) {
@@ -187,6 +229,19 @@ function NextStep({ command }: { command: string }): JSX.Element {
   );
 }
 
+function draftLocationLabel(draft: DraftInput): string {
+  const labels = new Set<string>();
+  for (const slice of draft.slices) {
+    if (slice.kind === "source") {
+      const { lineStart, lineEnd } = slice.anchor;
+      labels.add(lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`);
+    } else {
+      labels.add(`p. ${slice.anchor.pageIndex + 1}`);
+    }
+  }
+  return Array.from(labels).join(", ");
+}
+
 export default function ReviewPane({
   annotations,
   selectedAnchor,
@@ -202,13 +257,8 @@ export default function ReviewPane({
   onUpdateCategory,
   onDelete,
   onDeleteGroup,
-  onExportReview,
-  onExportRevise,
-  onExportMarkdown,
-  onExportReviewMarkdown,
-  onCopy,
-  onCopyReview,
   onRubricChange,
+  exports,
   exportDisabled,
   statusMessage,
   statusTone,
@@ -221,18 +271,15 @@ export default function ReviewPane({
   const [saveError, setSaveError] = useState(false);
 
   const exportReview = async (): Promise<void> => {
-    const name = await onExportReview();
+    const name = await exports.onExportReview();
     if (name) setReviewExportedName(name);
   };
   const exportRevise = async (): Promise<void> => {
-    const name = await onExportRevise();
+    const name = await exports.onExportRevise();
     if (name) setReviseExportedName(name);
   };
 
-  const pages = selectedAnchor
-    ? Array.from(new Set(selectedAnchor.slices.map((s) => s.anchor.pageIndex + 1)))
-    : [];
-  const pagesLabel = pages.length > 0 ? `p. ${pages.join(", ")}` : "";
+  const locLabel = selectedAnchor ? draftLocationLabel(selectedAnchor) : "";
 
   useEffect(() => {
     if (tab !== "marks") return;
@@ -262,8 +309,8 @@ export default function ReviewPane({
       {selectedAnchor ? (
         <section className="review-pane__draft" aria-label="Draft mark">
           <header className="review-pane__draft-head">
-            <span className="review-pane__draft-tag">{"DRAFT \u00b7 unsaved"}</span>
-            {pagesLabel ? <span className="review-pane__draft-pages">{pagesLabel}</span> : null}
+            <span className="review-pane__draft-tag">{"DRAFT · unsaved"}</span>
+            {locLabel ? <span className="review-pane__draft-pages">{locLabel}</span> : null}
           </header>
           <p className="review-pane__draft-hint">
             Pick a category and save, or discard this selection.
@@ -371,7 +418,7 @@ export default function ReviewPane({
         >
           {entries.length === 0 ? (
             <div className="review-pane__empty">
-              <p>Highlight a passage in the PDF. A form appears here to categorize it.</p>
+              <p>Highlight a passage in the paper. A form appears here to categorize it.</p>
               <p>
                 Your marks line up in the margin next to the lines they reference. When you are
                 done, switch to <em>Review</em> to draft a reviewer's write-up or <em>Revise</em> to
@@ -426,7 +473,7 @@ export default function ReviewPane({
             <button
               type="button"
               className="review-pane__actions-chip"
-              onClick={onExportReviewMarkdown}
+              onClick={exports.onExportReviewMarkdown}
               disabled={exportDisabled}
             >
               <span className="review-pane__actions-chip-label">Markdown</span>
@@ -435,7 +482,7 @@ export default function ReviewPane({
             <button
               type="button"
               className="review-pane__actions-chip"
-              onClick={onCopyReview}
+              onClick={exports.onCopyReview}
               disabled={exportDisabled}
             >
               <span className="review-pane__actions-chip-label">Copy to clipboard</span>
@@ -479,7 +526,7 @@ export default function ReviewPane({
             <button
               type="button"
               className="review-pane__actions-chip"
-              onClick={onExportMarkdown}
+              onClick={exports.onExportMarkdown}
               disabled={exportDisabled}
             >
               <span className="review-pane__actions-chip-label">Markdown</span>
@@ -488,7 +535,7 @@ export default function ReviewPane({
             <button
               type="button"
               className="review-pane__actions-chip"
-              onClick={onCopy}
+              onClick={exports.onCopy}
               disabled={exportDisabled}
             >
               <span className="review-pane__actions-chip-label">Copy to clipboard</span>

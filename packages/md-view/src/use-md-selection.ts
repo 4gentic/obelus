@@ -30,11 +30,7 @@ function textOfContainer(container: HTMLElement): string {
 
 // Grabs the character offset of a Range endpoint relative to `container`'s
 // plain-text serialization.
-function offsetWithinContainer(
-  container: HTMLElement,
-  node: Node,
-  nodeOffset: number,
-): number {
+function offsetWithinContainer(container: HTMLElement, node: Node, nodeOffset: number): number {
   const range = document.createRange();
   range.setStart(container, 0);
   range.setEnd(node, nodeOffset);
@@ -76,7 +72,8 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
       const full = textOfContainer(container);
       const startOffset = offsetWithinContainer(container, anchorNode, sel.anchorOffset);
       const endOffset = offsetWithinContainer(container, focusNode, sel.focusOffset);
-      const [lo, hi] = startOffset <= endOffset ? [startOffset, endOffset] : [endOffset, startOffset];
+      const [lo, hi] =
+        startOffset <= endOffset ? [startOffset, endOffset] : [endOffset, startOffset];
 
       const contextBefore = full.slice(Math.max(0, lo - CONTEXT_CHARS), lo);
       const contextAfter = full.slice(hi, Math.min(full.length, hi + CONTEXT_CHARS));

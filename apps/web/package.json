@@ -25,6 +25,7 @@
     "@obelus/md-view": "workspace:*",
     "@obelus/pdf-view": "workspace:*",
     "@obelus/repo": "workspace:*",
+    "@obelus/review-shell": "workspace:*",
     "@obelus/review-store": "workspace:*",
     "dexie": "4.4.2",
     "pdfjs-dist": "5.6.205",
