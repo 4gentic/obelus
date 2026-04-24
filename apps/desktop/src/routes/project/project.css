@@ -1073,6 +1073,47 @@ button.files__row {
   background: var(--paper);
 }
 
+.source-pane__editor[hidden] {
+  display: none;
+}
+
+.source-pane__viewmode {
+  display: flex;
+  gap: 0;
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--rule-soft);
+  background: var(--panel);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+.source-pane__viewmode-opt {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--rule-soft);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font: inherit;
+  cursor: pointer;
+}
+
+.source-pane__viewmode-opt + .source-pane__viewmode-opt {
+  border-left: 0;
+}
+
+.source-pane__viewmode-opt.is-active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.source-pane__preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--paper);
+  padding: var(--space-4) var(--space-5);
+}
+
 .source-pane__editor .cm-editor {
   height: 100%;
 }

@@ -71,6 +71,9 @@ importers:
       '@obelus/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@obelus/md-view':
+        specifier: workspace:*
+        version: link:../../packages/md-view
       '@obelus/pdf-view':
         specifier: workspace:*
         version: link:../../packages/pdf-view

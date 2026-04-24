@@ -20,6 +20,8 @@ import {
   lineNumbers,
   rectangularSelection,
 } from "@codemirror/view";
+import { MarkdownView } from "@obelus/md-view";
+import "@obelus/md-view/md.css";
 import { type JSX, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
 import { setActiveSourceView } from "./active-source-view";
@@ -117,6 +119,11 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   // on demand without remounting the pane.
   const [retryTick, setRetryTick] = useState(0);
   const [hadInvalidBytes, setHadInvalidBytes] = useState(false);
+  const [viewMode, setViewMode] = useState<"source" | "preview">("source");
+  const isMd = extensionOf(relPath) === "md";
+  useEffect(() => {
+    if (!isMd) setViewMode("source");
+  }, [isMd]);
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   // One compartment per mount; holds the editable/readOnly extensions so we
@@ -320,7 +327,32 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
           onCancel={() => buffers.getState().clearPendingSwitch()}
         />
       )}
-      <div className="source-pane__editor" ref={hostRef} />
+      {isMd && (
+        <div className="source-pane__viewmode">
+          <button
+            type="button"
+            className={`source-pane__viewmode-opt${viewMode === "source" ? " is-active" : ""}`}
+            aria-pressed={viewMode === "source"}
+            onClick={() => setViewMode("source")}
+          >
+            Source
+          </button>
+          <button
+            type="button"
+            className={`source-pane__viewmode-opt${viewMode === "preview" ? " is-active" : ""}`}
+            aria-pressed={viewMode === "preview"}
+            onClick={() => setViewMode("preview")}
+          >
+            Preview
+          </button>
+        </div>
+      )}
+      <div className="source-pane__editor" ref={hostRef} hidden={isMd && viewMode === "preview"} />
+      {isMd && viewMode === "preview" && (
+        <div className="source-pane__preview">
+          <MarkdownView file={relPath} text={entry?.text ?? ""} />
+        </div>
+      )}
       <DraftsRail />
       <footer className="source-pane__foot">
         <span className="source-pane__foot-path">

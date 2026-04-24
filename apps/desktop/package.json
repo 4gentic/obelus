@@ -32,6 +32,7 @@
     "@obelus/categories": "workspace:*",
     "@obelus/claude-sidecar": "workspace:*",
     "@obelus/design-tokens": "workspace:*",
+    "@obelus/md-view": "workspace:*",
     "@obelus/pdf-view": "workspace:*",
     "@obelus/prompts": "workspace:*",
     "@obelus/repo": "workspace:*",
