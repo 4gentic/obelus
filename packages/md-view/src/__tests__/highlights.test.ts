@@ -1,5 +1,7 @@
+import { renderMarkdown } from "@obelus/source-render/browser";
 import { beforeEach, describe, expect, it } from "vitest";
 import { resolveSourceAnchorToRange, textNodeAtOffset } from "../highlights";
+import { buildDocumentSourceMap } from "../source-map";
 
 // Constructs the DOM imperatively so test fixtures are explicit about what
 // they build. Matches the attribute shape that `renderMarkdown` emits.
@@ -84,7 +86,7 @@ describe("resolveSourceAnchorToRange", () => {
       colStart: 0,
       lineEnd: 1,
       colEnd: 5,
-    });
+    }, null, null);
     expect(range).not.toBeNull();
     expect(range?.toString()).toBe("hello");
   });
@@ -100,7 +102,7 @@ describe("resolveSourceAnchorToRange", () => {
       colStart: 2,
       lineEnd: 1,
       colEnd: 7,
-    });
+    }, null, null);
     expect(range?.toString()).toBe("hello");
   });
 
@@ -114,7 +116,7 @@ describe("resolveSourceAnchorToRange", () => {
       colStart: 0,
       lineEnd: 3,
       colEnd: 4,
-    });
+    }, null, null);
     expect(range).not.toBeNull();
     const text = range?.toString() ?? "";
     expect(text).toContain("alpha");
@@ -130,7 +132,7 @@ describe("resolveSourceAnchorToRange", () => {
       colStart: 0,
       lineEnd: 1,
       colEnd: 5,
-    });
+    }, null, null);
     expect(range).toBeNull();
   });
 
@@ -143,7 +145,7 @@ describe("resolveSourceAnchorToRange", () => {
       colStart: 0,
       lineEnd: 5,
       colEnd: 5,
-    });
+    }, null, null);
     expect(range).toBeNull();
   });
 
@@ -157,7 +159,111 @@ describe("resolveSourceAnchorToRange", () => {
       colStart: 0,
       lineEnd: 4,
       colEnd: 5,
-    });
+    }, null, null);
     expect(range).not.toBeNull();
+  });
+});
+
+// Renders real markdown via `renderMarkdown` and resolves a known-good anchor
+// against it. This is the path the desktop and web apps actually exercise:
+// the saved anchor's cols are source-byte-accurate (selection-side fix), so
+// the resolver must translate them through the same mdast offset map to land
+// on the right DOM range. Without the map, naive `colStart - blockSrcCol`
+// arithmetic walks past the rendered chars by 2 (`**`) per inline boundary
+// crossed and the highlight rectangles drift onto unrelated words.
+describe("resolveSourceAnchorToRange (mdast map path)", () => {
+  beforeEach(() => {
+    document.body.replaceChildren();
+  });
+
+  function renderInto(text: string): {
+    wrapper: HTMLElement;
+    sourceMap: ReturnType<typeof buildDocumentSourceMap>;
+  } {
+    const result = renderMarkdown({ file: "doc.md", text });
+    if (!result.ok) throw new Error(`renderMarkdown failed: ${result.error.kind}`);
+    // Parse the rendered HTML through DOMParser instead of innerHTML so the
+    // PreToolUse innerHTML guard stays clean (the bytes are local-only test
+    // fixtures, but the rule applies project-wide).
+    const parsed = new DOMParser().parseFromString(`<div>${result.html}</div>`, "text/html");
+    const root = parsed.body.firstElementChild;
+    if (!root) throw new Error("DOMParser returned no root");
+    const wrapper = document.importNode(root, true) as HTMLElement;
+    document.body.replaceChildren(wrapper);
+    const sourceMap = buildDocumentSourceMap(text);
+    return { wrapper, sourceMap };
+  }
+
+  it("paints a bullet's bold prefix without picking up the leading list marker", () => {
+    const text = "- **Built + tested** rest";
+    const { wrapper, sourceMap } = renderInto(text);
+    // Refined anchor (what the selection-side fix produces): "Built + tested"
+    // lives at source cols 4..18 on line 1.
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      { file: "doc.md", lineStart: 1, colStart: 4, lineEnd: 1, colEnd: 18 },
+      sourceMap,
+      text,
+    );
+    expect(range).not.toBeNull();
+    expect(range?.toString()).toBe("Built + tested");
+  });
+
+  it("paints a span that crosses a closing inline delimiter", () => {
+    const text = "**bold** tail";
+    const { wrapper, sourceMap } = renderInto(text);
+    // Refined anchor for selecting from "b" of bold through "l" of tail:
+    // colStart=2 (inside `**…**`), colEnd=13 (end of "tail").
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      { file: "doc.md", lineStart: 1, colStart: 2, lineEnd: 1, colEnd: 13 },
+      sourceMap,
+      text,
+    );
+    expect(range).not.toBeNull();
+    // Range sees the rendered text — the `**` closing delim contributes no
+    // characters, so toString() yields the visually selected span.
+    expect(range?.toString()).toBe("bold tail");
+  });
+
+  it("paints a span inside an inline code element with no off-by-backtick", () => {
+    const text = "a `foo` b";
+    const { wrapper, sourceMap } = renderInto(text);
+    // Source cols 3..6 = "foo" (after the opening backtick).
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      { file: "doc.md", lineStart: 1, colStart: 3, lineEnd: 1, colEnd: 6 },
+      sourceMap,
+      text,
+    );
+    expect(range?.toString()).toBe("foo");
+  });
+
+  it("paints a link's text only, not the URL portion", () => {
+    const text = "[link text](http://e.com)";
+    const { wrapper, sourceMap } = renderInto(text);
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      { file: "doc.md", lineStart: 1, colStart: 1, lineEnd: 1, colEnd: 10 },
+      sourceMap,
+      text,
+    );
+    expect(range?.toString()).toBe("link text");
+  });
+
+  it("falls back to the legacy block-local path when sourceMap is null", () => {
+    // The legacy path produces wrong rects for inline-bordered selections
+    // (that's the bug we're fixing) but must keep working for plain blocks
+    // so callers that have no source text — tests, transitional adapters —
+    // don't break.
+    const p = block("p", fullLine(1, 1, 0), ["hello world"]);
+    const wrapper = mount(p);
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      { file: "x.md", lineStart: 1, colStart: 0, lineEnd: 1, colEnd: 5 },
+      null,
+      null,
+    );
+    expect(range?.toString()).toBe("hello");
   });
 });

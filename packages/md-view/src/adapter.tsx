@@ -6,6 +6,7 @@ import type { JSX, ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { resolveSourceAnchorToRects } from "./highlights";
 import { type MarkdownRenderStatus, MarkdownView, type MarkdownViewHandle } from "./MarkdownView";
+import { buildDocumentSourceMap, type DocumentSourceMap } from "./source-map";
 import { type MarkdownSelection, useMarkdownSelection } from "./use-md-selection";
 
 type Params = {
@@ -95,7 +96,7 @@ export function useMdDocumentView({
   const viewRef = useRef<MarkdownViewHandle | null>(null);
   const containerRef = useRef<HTMLElement | null>(null);
   const [renderVersion, setRenderVersion] = useState(0);
-  const [, setLayoutTick] = useState(0);
+  const [layoutTick, setLayoutTick] = useState(0);
 
   const onRender = useCallback(
     (status: MarkdownRenderStatus) => {
@@ -149,13 +150,28 @@ export function useMdDocumentView({
     return () => scroll.removeEventListener("scroll", onScroll);
   }, [renderVersion]);
 
-  const rectsForAnchor = useCallback((anchor: SourceAnchor2 | SourceAnchorFields): DOMRect[] => {
-    const container = containerRef.current;
-    if (!container) return [];
-    return resolveSourceAnchorToRects(container, anchor, findScrollAncestor(container));
-  }, []);
+  // Memoised mdast offset map for the current source. Used by the highlight
+  // resolver to translate `SourceAnchor` cols (now source-byte-accurate after
+  // the selection-side refinement) into rendered DOM offsets that line up
+  // with the same text the user dragged. Built once per text change.
+  const sourceMap = useMemo<DocumentSourceMap | null>(() => buildDocumentSourceMap(text), [text]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: renderVersion is an intentional re-trigger so we recompute rects after MarkdownView re-parses — not an omitted dep of the function body.
+  const rectsForAnchor = useCallback(
+    (anchor: SourceAnchor2 | SourceAnchorFields): DOMRect[] => {
+      const container = containerRef.current;
+      if (!container) return [];
+      return resolveSourceAnchorToRects(
+        container,
+        anchor,
+        findScrollAncestor(container),
+        sourceMap,
+        text,
+      );
+    },
+    [sourceMap, text],
+  );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: renderVersion and layoutTick are intentional re-triggers so we recompute rects after MarkdownView re-parses or after a ResizeObserver / scroll tick — not omitted deps of the function body.
   const annotationRects = useMemo<Map<string, DOMRect[]>>(() => {
     const out = new Map<string, DOMRect[]>();
     for (const row of annotations) {
@@ -164,7 +180,7 @@ export function useMdDocumentView({
       if (rects.length > 0) out.set(row.id, rects);
     }
     return out;
-  }, [annotations, rectsForAnchor, renderVersion]);
+  }, [annotations, rectsForAnchor, renderVersion, layoutTick]);
 
   const annotationTops = useMemo<Map<string, number>>(() => {
     const out = new Map<string, number>();
@@ -189,15 +205,23 @@ export function useMdDocumentView({
     [annotationTops],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: layoutTick is an intentional re-trigger so draft rects refresh on ResizeObserver / scroll bumps even when no other dep changed — without it the dashed-outline draft layer stays painted at pre-resize coords.
   const overlayRects = useMemo<HighlightRect[]>(() => {
     const out: HighlightRect[] = [];
+    let rectIndex = 0;
     for (const row of annotations) {
       const rects = annotationRects.get(row.id);
       if (!rects) continue;
       const stale = row.staleness !== undefined && row.staleness !== "ok";
       for (const r of rects) {
+        // The (left, top) pair isn't unique on its own — a Range spanning two
+        // visual lines can produce rects whose origins land at the same
+        // pixel coords after scroll-container math. Including a monotonic
+        // index keeps React's reconciler from leaking phantom highlights
+        // when the source rect set changes shape (the bug we paid for in
+        // the form of orphan dashed rects that wouldn't dismiss on Esc).
         out.push({
-          key: `ann-${row.id}-${r.left}-${r.top}`,
+          key: `ann-${row.id}-${rectIndex++}`,
           category: row.category,
           draft: false,
           focused: focusedId === row.id,
@@ -214,7 +238,7 @@ export function useMdDocumentView({
         if (slice.kind !== "source") continue;
         for (const r of rectsForAnchor(slice.anchor)) {
           out.push({
-            key: `draft-${r.left}-${r.top}`,
+            key: `draft-${rectIndex++}`,
             category: draftCategory ?? "",
             draft: true,
             focused: false,
@@ -228,7 +252,15 @@ export function useMdDocumentView({
       }
     }
     return out;
-  }, [annotations, annotationRects, selectedAnchor, draftCategory, focusedId, rectsForAnchor]);
+  }, [
+    annotations,
+    annotationRects,
+    selectedAnchor,
+    draftCategory,
+    focusedId,
+    rectsForAnchor,
+    layoutTick,
+  ]);
 
   const content: ReactNode = (
     <div className="md-adapter">
