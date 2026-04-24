@@ -471,9 +471,9 @@ function assertLexicalMorphologyCascade(result, dir) {
   // the surface set {failure, failures, failure modes, failure mode}, excluding the
   // originating span ('three failure modes', line 13).
   const variantPatterns = [
-    { label: "'failures' (plural)", re: /^-\s.*\bfailures\b/m },
-    { label: "'failure mode' (singular compound)", re: /^-\s.*\bfailure\s+mode\b(?!s)/m },
-    { label: "bare 'failure' (singular)", re: /^-\s.*\bfailure\b(?!\s*mode)(?!s)/m },
+    { label: "'failures' (plural)", re: /^-.*\bfailures\b/m },
+    { label: "'failure mode' (singular compound)", re: /^-.*\bfailure\s+mode\b(?!s)/m },
+    { label: "bare 'failure' (singular)", re: /^-.*\bfailure\b(?!\s*mode)(?!s)/m },
   ];
   const covered = new Set();
   for (const c of cascades) {
