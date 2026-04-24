@@ -202,9 +202,7 @@ export function buildBundleV2(input: BuildBundleV2Input): Bundle2 {
       title: p.title,
       revision: p.revisionNumber,
       createdAt: p.createdAt,
-      ...(p.pdfRelPath !== undefined &&
-      p.pdfSha256 !== undefined &&
-      p.pageCount !== undefined
+      ...(p.pdfRelPath !== undefined && p.pdfSha256 !== undefined && p.pageCount !== undefined
         ? {
             pdf: {
               relPath: p.pdfRelPath,

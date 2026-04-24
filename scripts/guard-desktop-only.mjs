@@ -7,11 +7,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-const WEB_APP_DESKTOP_ONLY = [
-  "@obelus/claude-sidecar",
-  "@obelus/repo/sqlite",
-  "@tauri-apps/",
-];
+const WEB_APP_DESKTOP_ONLY = ["@obelus/claude-sidecar", "@obelus/repo/sqlite", "@tauri-apps/"];
 
 // Refused as a bare or deeply-pathed import. The `/browser` subpath alone is
 // allowed — see packages/source-render/src/browser.ts for why.
@@ -28,9 +24,7 @@ function lsFiles(...patterns) {
 const IMPORT_SPEC_RE = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
 
 function* importsOf(contents) {
-  IMPORT_SPEC_RE.lastIndex = 0;
-  let match;
-  while ((match = IMPORT_SPEC_RE.exec(contents)) !== null) {
+  for (const match of contents.matchAll(IMPORT_SPEC_RE)) {
     yield match[1];
   }
 }
@@ -63,7 +57,9 @@ for (const file of lsFiles("packages/repo/src/web/**/*.ts", "packages/repo/src/w
   for (const spec of importsOf(contents)) {
     for (const name of WEB_REPO_FORBIDDEN) {
       if (spec === name || spec.startsWith(`${name}/`) || spec.startsWith(name)) {
-        console.error(`[guard:desktop-only] ${file} (web repo impl) reaches desktop-only '${spec}'`);
+        console.error(
+          `[guard:desktop-only] ${file} (web repo impl) reaches desktop-only '${spec}'`,
+        );
         fail = true;
       }
     }

@@ -80,13 +80,18 @@ describe("resolveSourceAnchorToRange", () => {
   it("resolves a single-line in-block anchor to a Range", () => {
     const p = block("p", fullLine(1, 1, 0), ["hello world"]);
     const wrapper = mount(p);
-    const range = resolveSourceAnchorToRange(wrapper, {
-      file: "x.md",
-      lineStart: 1,
-      colStart: 0,
-      lineEnd: 1,
-      colEnd: 5,
-    }, null, null);
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      {
+        file: "x.md",
+        lineStart: 1,
+        colStart: 0,
+        lineEnd: 1,
+        colEnd: 5,
+      },
+      null,
+      null,
+    );
     expect(range).not.toBeNull();
     expect(range?.toString()).toBe("hello");
   });
@@ -96,13 +101,18 @@ describe("resolveSourceAnchorToRange", () => {
     // stamps data-src-col="2" so source-column math still aligns.
     const p = block("p", fullLine(1, 1, 2), ["hello"]);
     const wrapper = mount(p);
-    const range = resolveSourceAnchorToRange(wrapper, {
-      file: "x.md",
-      lineStart: 1,
-      colStart: 2,
-      lineEnd: 1,
-      colEnd: 7,
-    }, null, null);
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      {
+        file: "x.md",
+        lineStart: 1,
+        colStart: 2,
+        lineEnd: 1,
+        colEnd: 7,
+      },
+      null,
+      null,
+    );
     expect(range?.toString()).toBe("hello");
   });
 
@@ -110,13 +120,18 @@ describe("resolveSourceAnchorToRange", () => {
     const p1 = block("p", fullLine(1, 1, 0), ["alpha"]);
     const p2 = block("p", fullLine(3, 3, 0), ["beta"]);
     const wrapper = mount(p1, p2);
-    const range = resolveSourceAnchorToRange(wrapper, {
-      file: "x.md",
-      lineStart: 1,
-      colStart: 0,
-      lineEnd: 3,
-      colEnd: 4,
-    }, null, null);
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      {
+        file: "x.md",
+        lineStart: 1,
+        colStart: 0,
+        lineEnd: 3,
+        colEnd: 4,
+      },
+      null,
+      null,
+    );
     expect(range).not.toBeNull();
     const text = range?.toString() ?? "";
     expect(text).toContain("alpha");
@@ -126,26 +141,36 @@ describe("resolveSourceAnchorToRange", () => {
   it("returns null when the anchor's file doesn't match any block", () => {
     const p = block("p", { ...fullLine(1, 1, 0), "data-src-file": "other.md" }, ["hello"]);
     const wrapper = mount(p);
-    const range = resolveSourceAnchorToRange(wrapper, {
-      file: "x.md",
-      lineStart: 1,
-      colStart: 0,
-      lineEnd: 1,
-      colEnd: 5,
-    }, null, null);
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      {
+        file: "x.md",
+        lineStart: 1,
+        colStart: 0,
+        lineEnd: 1,
+        colEnd: 5,
+      },
+      null,
+      null,
+    );
     expect(range).toBeNull();
   });
 
   it("returns null when the anchor's line range falls outside all blocks", () => {
     const p = block("p", fullLine(1, 1, 0), ["hello"]);
     const wrapper = mount(p);
-    const range = resolveSourceAnchorToRange(wrapper, {
-      file: "x.md",
-      lineStart: 5,
-      colStart: 0,
-      lineEnd: 5,
-      colEnd: 5,
-    }, null, null);
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      {
+        file: "x.md",
+        lineStart: 5,
+        colStart: 0,
+        lineEnd: 5,
+        colEnd: 5,
+      },
+      null,
+      null,
+    );
     expect(range).toBeNull();
   });
 
@@ -153,13 +178,18 @@ describe("resolveSourceAnchorToRange", () => {
     const code = block("code", {}, ["line1\nline2\nline3"]);
     const pre = block("pre", fullLine(1, 5, 0), [code]);
     const wrapper = mount(pre);
-    const range = resolveSourceAnchorToRange(wrapper, {
-      file: "x.md",
-      lineStart: 2,
-      colStart: 0,
-      lineEnd: 4,
-      colEnd: 5,
-    }, null, null);
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      {
+        file: "x.md",
+        lineStart: 2,
+        colStart: 0,
+        lineEnd: 4,
+        colEnd: 5,
+      },
+      null,
+      null,
+    );
     expect(range).not.toBeNull();
   });
 });

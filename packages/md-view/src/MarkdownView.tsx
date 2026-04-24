@@ -1,32 +1,20 @@
-import { renderMarkdown, type RenderError } from "@obelus/source-render/browser";
-import {
-  type ForwardedRef,
-  forwardRef,
-  type JSX,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-} from "react";
+import { type RenderError, renderMarkdown } from "@obelus/source-render/browser";
+import { type JSX, type Ref, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 
-export type MarkdownRenderStatus =
-  | { kind: "ok" }
-  | { kind: "parse-failed"; error: RenderError };
+export type MarkdownRenderStatus = { kind: "ok" } | { kind: "parse-failed"; error: RenderError };
 
 export interface MarkdownViewProps {
   file: string;
   text: string;
   onRender?: (status: MarkdownRenderStatus) => void;
+  ref?: Ref<MarkdownViewHandle>;
 }
 
 export interface MarkdownViewHandle {
   getContainer(): HTMLDivElement | null;
 }
 
-function Component(
-  { file, text, onRender }: MarkdownViewProps,
-  ref: ForwardedRef<MarkdownViewHandle>,
-): JSX.Element {
+export function MarkdownView({ file, text, onRender, ref }: MarkdownViewProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useImperativeHandle(ref, () => ({ getContainer: () => containerRef.current }), []);
@@ -60,9 +48,7 @@ function Component(
     );
   }
 
-  return (
-    <div ref={containerRef} className="md-view" data-md-view-root={file} {...innerHtmlProp} />
-  );
+  return <div ref={containerRef} className="md-view" data-md-view-root={file} {...innerHtmlProp} />;
 }
 
 // `renderMarkdown` calls toHast WITHOUT allowDangerousHtml: raw HTML in the
@@ -72,5 +58,3 @@ function Component(
 function innerHtmlFromRenderer(html: string): { dangerouslySetInnerHTML: { __html: string } } {
   return { dangerouslySetInnerHTML: { __html: html } };
 }
-
-export const MarkdownView = forwardRef<MarkdownViewHandle, MarkdownViewProps>(Component);

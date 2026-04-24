@@ -1,7 +1,7 @@
 import type { SourceAnchorFields } from "@obelus/repo";
 import {
-  type DocumentSourceMap,
   computeLineOffsets,
+  type DocumentSourceMap,
   lineColToSourceOffset,
   mapSourceToRendered,
 } from "./source-map";
