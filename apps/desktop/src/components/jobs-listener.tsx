@@ -16,6 +16,7 @@ import { compileLatex, compileTypst, type LatexCompiler } from "../ipc/commands"
 import { extractPhaseMarker, phaseFromEvent, SEMANTIC_PHASE_PREFIX } from "../lib/claude-phase";
 import { useJobsStore } from "../lib/jobs-store";
 import { getRepository } from "../lib/repo";
+import { getActiveBuffersStore } from "../routes/project/active-buffers-store";
 import { ingestPlanFile } from "../routes/project/ingest-plan";
 import { ingestWriteupFile } from "../routes/project/ingest-writeup";
 
@@ -202,6 +203,10 @@ async function handleExit(
       const message = await ingestReview(job.rootId, job.reviewSessionId, job.obelusWrotePath);
       store.markDone(sessionId, message);
     } else if (job.kind === "compile-fix") {
+      // The skill edits source directly. Refresh any open buffers so the
+      // editor picks up the new bytes on disk — before verify, so the user
+      // still sees the edits even if the recompile fails (throws below).
+      await refreshOpenBuffers();
       const message = await verifyCompileFix(
         job.rootId,
         job.reviewSessionId,
@@ -386,6 +391,25 @@ async function verifyCompileFix(
 
 function isLatexCompiler(c: string): c is LatexCompiler {
   return c === "latexmk" || c === "pdflatex" || c === "xelatex";
+}
+
+// Re-read every open source buffer from disk. Clean buffers get their text
+// replaced and their externalVersion bumped (the editor remounts with fresh
+// content); dirty buffers are left alone by refreshFromDisk, so an in-flight
+// edit is never clobbered. Safe no-op when no project is mounted.
+async function refreshOpenBuffers(): Promise<void> {
+  const store = getActiveBuffersStore();
+  if (!store) return;
+  const paths = Array.from(store.getState().buffers.keys());
+  if (paths.length === 0) return;
+  try {
+    await store.getState().refreshFromDisk(paths);
+    console.info("[buffers-refresh]", { paths });
+  } catch (err) {
+    console.warn("[buffers-refresh]", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 async function ingestWriteup(
