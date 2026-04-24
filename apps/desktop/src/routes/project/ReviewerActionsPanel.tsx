@@ -1,7 +1,7 @@
 import { formatReviewPrompt, type PromptAnnotation } from "@obelus/bundle-builder";
 import type { PaperRow } from "@obelus/repo";
 import { save } from "@tauri-apps/plugin-dialog";
-import type { JSX, MutableRefObject } from "react";
+import type { JSX, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { readClaudeStatus } from "../../boot/detect";
 import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
@@ -385,7 +385,7 @@ interface ClaudeProps {
   streaming: boolean;
   hasBody: boolean;
   body: string;
-  outputRef: MutableRefObject<HTMLDivElement | null>;
+  outputRef: RefObject<HTMLDivElement | null>;
   onDraft: () => void;
   onCancel: () => void;
   onSaveDraft: () => void;
@@ -425,15 +425,13 @@ function ClaudeAction({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const transcriptRef = useRef<HTMLPreElement | null>(null);
 
-  const transcriptLen = transcript.length;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: transcript.length is the re-fire trigger so the effect follows content growth; the body reads el.scrollHeight live and doesn't need the numeric length.
   useEffect(() => {
     if (!transcriptOpen || !streaming) return;
     const el = transcriptRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-    // transcriptLen is the scroll trigger.
-    void transcriptLen;
-  }, [transcriptLen, transcriptOpen, streaming]);
+  }, [transcript.length, transcriptOpen, streaming]);
 
   const phaseLabel = streaming
     ? phase || (assistantChars > 0 ? "Drafting…" : "Reading your marks…")
