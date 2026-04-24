@@ -5,6 +5,7 @@ import { fsReadFile } from "../../ipc/commands";
 import type { CompileStatus } from "../../lib/diff-store";
 import { type PhaseEntry, useJobsStore } from "../../lib/jobs-store";
 import { paperHasSources } from "../../lib/paper-has-sources";
+import { splitHeadline } from "../../lib/split-headline";
 import { useKeyNav } from "../../lib/use-key-nav";
 import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
@@ -276,7 +277,30 @@ export default function DiffReview(props: Props): JSX.Element {
         : !hasSources
           ? "This paper has no source files — the Diff tab records notes, not edits."
           : "Plan loaded but no hunks were produced.";
-    return <p className="review-column__hint">{hint}</p>;
+    const { headline, details } = splitHeadline(hint);
+    return (
+      <div className="review-column__empty">
+        <p className="review-column__hint">{headline}</p>
+        {details !== null ? (
+          <details className="review-column__details">
+            <summary>Details</summary>
+            <pre>{details}</pre>
+          </details>
+        ) : null}
+        {sessionId !== null ? (
+          <div className="review-column__empty-actions">
+            <button
+              type="button"
+              className="btn btn--subtle"
+              onClick={() => void props.onDiscard()}
+              title="Dismiss this review and unlock the source editor."
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   const acceptedTotal = counts.accepted + counts.modified;
@@ -333,10 +357,13 @@ export default function DiffReview(props: Props): JSX.Element {
               title={
                 counts.pending > 0
                   ? `Handle the remaining ${counts.pending} hunk${counts.pending === 1 ? "" : "s"} first.`
-                  : undefined
+                  : "Apply the accepted changes to source (keyboard: .)"
               }
             >
-              keep these changes · .
+              keep these changes
+              <span className="diff-review__kbd" aria-hidden>
+                · .
+              </span>
             </button>
           </div>
         </div>

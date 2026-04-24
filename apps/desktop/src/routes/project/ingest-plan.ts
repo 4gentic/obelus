@@ -134,9 +134,8 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
       : timestamped;
 
     if (planNames.length === 0 && scannedPlans.length === 0) {
-      throw new Error(
-        `Claude finished without writing a plan file under .obelus/. This usually means the spawn prompt reached Claude without the "Run apply-revision" trigger — check the job log. Directory contents: ${directoryNames.join(", ") || "(empty)"}`,
-      );
+      const details = `Usually this means the spawn prompt reached Claude without the "Run apply-revision" trigger — check the job log. Directory contents: ${directoryNames.join(", ") || "(empty)"}`;
+      throw new Error(`Claude finished without writing a plan file under .obelus/.\n\n${details}`);
     }
 
     // Walk plans newest-first; stop at the first one whose bundleId basename
@@ -164,12 +163,14 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
       directoryNames.length > 0 ? `; .obelus/ contains: ${directoryNames.join(", ")}` : "";
     const scannedSummary = scannedPlans.join("; ") || "(none)";
     const wroteAnyPlan = scannedPlans.length > 0;
-    const leadIn = wroteAnyPlan
-      ? `Claude finished but no plan file matched this session's bundle ${sessionBundleBasename}; the plans on disk reference older bundles.`
-      : `Claude finished but wrote no plan file matching bundle ${sessionBundleBasename}. This usually means the spawn prompt reached Claude without the "Run apply-revision" trigger — check the job log.`;
-    throw new Error(
-      `${leadIn} Scanned ${scannedPlans.length} plan file(s): ${scannedSummary}${dirSummary}`,
-    );
+    const headline = wroteAnyPlan
+      ? "No plan matched this run's bundle — Claude may have decided the marks were already applied in your working tree."
+      : `Claude finished but wrote no plan file matching bundle ${sessionBundleBasename}.`;
+    const detailsLeadIn = wroteAnyPlan
+      ? `Session bundle: ${sessionBundleBasename}. The plans on disk reference older bundles.`
+      : 'Usually this means the spawn prompt reached Claude without the "Run apply-revision" trigger — check the job log.';
+    const details = `${detailsLeadIn} Scanned ${scannedPlans.length} plan file(s): ${scannedSummary}${dirSummary}`;
+    throw new Error(`${headline}\n\n${details}`);
   }
 
   const {

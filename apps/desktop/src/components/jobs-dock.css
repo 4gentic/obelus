@@ -294,6 +294,32 @@
   border-left-color: var(--hl-wrong);
 }
 
+.jobs-dock__panel-details {
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  padding: 0 var(--space-3);
+}
+
+.jobs-dock__panel-details > summary {
+  cursor: pointer;
+  font-style: italic;
+  color: var(--ink-soft);
+  user-select: none;
+}
+
+.jobs-dock__panel-details > pre {
+  font-family: var(--font-mono);
+  line-height: 1.5;
+  margin-top: var(--space-1);
+  padding: var(--space-2);
+  background: var(--panel);
+  border: 1px solid var(--rule-soft);
+  border-radius: 2px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .jobs-dock__panel-foot {
   display: flex;
   justify-content: flex-end;

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { type JobRecord, useJobsStore } from "../lib/jobs-store";
 import { emitOpenFile } from "../lib/open-file-event";
 import { getRepository } from "../lib/repo";
+import { splitHeadline } from "../lib/split-headline";
 import { useInlineConfirm } from "../routes/project/use-inline-confirm";
 import "./jobs-dock.css";
 
@@ -240,7 +241,7 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
 
       <PhaseLog job={job} />
 
-      {job.message ? <p className="jobs-dock__panel-message">{job.message}</p> : null}
+      {job.message ? <JobMessage message={job.message} /> : null}
 
       <footer className="jobs-dock__panel-foot">
         <button type="button" className="jobs-dock__btn" onClick={() => void handleOpen()}>
@@ -308,6 +309,21 @@ function shortPhase(job: JobRecord): string {
     case "cancelled":
       return "Cancelled";
   }
+}
+
+function JobMessage({ message }: { message: string }): JSX.Element {
+  const { headline, details } = splitHeadline(message);
+  return (
+    <>
+      <p className="jobs-dock__panel-message">{headline}</p>
+      {details !== null ? (
+        <details className="jobs-dock__panel-details">
+          <summary>Details</summary>
+          <pre>{details}</pre>
+        </details>
+      ) : null}
+    </>
+  );
 }
 
 function statusWord(job: JobRecord): string {

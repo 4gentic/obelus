@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
+import { splitHeadline } from "../../lib/split-headline";
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
 import { useReviewRunner } from "./review-runner-context";
@@ -168,12 +169,24 @@ function WriterStartReview({
             Starting a new pass will discard Drafts {discards.map((d) => d.ordinal).join(", ")}.
           </p>
         )}
-      {statusKind === "done" && statusMessage !== null && (
-        <p className="review-column__hint">{statusMessage}</p>
-      )}
-      {statusKind === "error" && statusMessage !== null && (
-        <p className="review-column__hint">{statusMessage}</p>
+      {(statusKind === "done" || statusKind === "error") && statusMessage !== null && (
+        <StatusMessage message={statusMessage} />
       )}
     </div>
+  );
+}
+
+function StatusMessage({ message }: { message: string }): JSX.Element {
+  const { headline, details } = splitHeadline(message);
+  return (
+    <>
+      <p className="review-column__hint">{headline}</p>
+      {details !== null ? (
+        <details className="review-column__details">
+          <summary>Details</summary>
+          <pre>{details}</pre>
+        </details>
+      ) : null}
+    </>
   );
 }

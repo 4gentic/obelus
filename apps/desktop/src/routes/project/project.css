@@ -1255,24 +1255,27 @@ button.files__row {
   padding-bottom: var(--space-1);
   border-bottom: 1px solid var(--rule-soft);
   z-index: 1;
+  container-type: inline-size;
 }
 
 .diff-review__counter {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--step--1);
   color: var(--ink-soft);
 }
 
 .diff-review__counter-text {
-  flex: 1;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
+  flex: 1 1 auto;
   min-width: 0;
+  line-height: 1.4;
+}
+
+.diff-review__counter-text > span {
+  white-space: nowrap;
 }
 
 .diff-review__counter-sep {
@@ -1294,9 +1297,28 @@ button.files__row {
 
 .diff-review__head-tools {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: flex-end;
+  gap: var(--space-1) var(--space-2);
   flex-shrink: 0;
+  margin-left: auto;
+}
+
+.diff-review__head-tools .btn {
+  white-space: nowrap;
+}
+
+.diff-review__kbd {
+  color: color-mix(in oklab, currentcolor 70%, transparent);
+  margin-left: 0.4em;
+  font-family: var(--font-mono);
+}
+
+@container (max-width: 320px) {
+  .diff-review__kbd {
+    display: none;
+  }
 }
 
 .diff-review__files {
@@ -1661,6 +1683,44 @@ button.files__row {
   word-break: break-word;
 }
 
+.review-column__empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.review-column__empty-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.review-column__details {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.review-column__details > summary {
+  cursor: pointer;
+  font-style: italic;
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  user-select: none;
+}
+
+.review-column__details > pre {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  line-height: 1.5;
+  margin-top: var(--space-1);
+  padding: var(--space-2);
+  background: var(--panel);
+  border: 1px solid var(--rule-soft);
+  border-radius: 2px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .review-column__actions {
   display: flex;
   flex-direction: column;
@@ -1716,6 +1776,9 @@ button.files__row {
   border-left: 2px solid var(--rule-soft);
   padding-left: var(--space-2);
   cursor: pointer;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .review-list__item[data-focused="true"] {
@@ -1760,6 +1823,9 @@ button.files__row {
   font-family: var(--font-body);
   font-size: var(--step--1);
   font-style: italic;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .review-list__note {
