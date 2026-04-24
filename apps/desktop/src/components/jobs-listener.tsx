@@ -12,6 +12,7 @@ import {
 } from "@obelus/claude-sidecar";
 import type { ReactNode } from "react";
 import { type JSX, useEffect } from "react";
+import { compileLatex, compileTypst, type LatexCompiler } from "../ipc/commands";
 import { extractPhaseMarker, phaseFromEvent, SEMANTIC_PHASE_PREFIX } from "../lib/claude-phase";
 import { useJobsStore } from "../lib/jobs-store";
 import { getRepository } from "../lib/repo";
@@ -201,7 +202,12 @@ async function handleExit(
       const message = await ingestReview(job.rootId, job.reviewSessionId, job.obelusWrotePath);
       store.markDone(sessionId, message);
     } else if (job.kind === "compile-fix") {
-      const message = await ingestCompileFix(job.rootId, job.reviewSessionId, job.obelusWrotePath);
+      const message = await verifyCompileFix(
+        job.rootId,
+        job.reviewSessionId,
+        job.compiler,
+        job.mainRelPath,
+      );
       store.markDone(sessionId, message);
     } else {
       const ingested = await ingestWriteup(
@@ -331,45 +337,55 @@ async function ingestReview(
   return `Plan ready. ${result.hunkCount} change${result.hunkCount === 1 ? "" : "s"} proposed.`;
 }
 
-async function ingestCompileFix(
+// fix-compile is a direct-edit skill: Claude edits the source files in place
+// and stops. The desktop verifies by re-running the compiler here. Success →
+// "Fix applied …"; failure propagates as a thrown Error whose message carries
+// the new compile stderr, so handleExit's catch marks the session as Error
+// with that detail — the user sees what's still wrong and can try again.
+async function verifyCompileFix(
   rootId: string,
   reviewSessionId: string | undefined,
-  hintPath: string | undefined,
+  compiler: string | undefined,
+  mainRelPath: string | undefined,
 ): Promise<string> {
   if (!reviewSessionId) throw new Error("compile-fix job is missing reviewSessionId");
   const repo = await getRepository();
-  const result = await ingestPlanFile({
-    repo,
-    rootId,
-    sessionId: reviewSessionId,
-    ...(hintPath !== undefined ? { hintPath } : {}),
-  });
   await repo.reviewSessions.complete(reviewSessionId);
 
-  console.info("[ingest-compile-fix]", {
-    sessionId: reviewSessionId,
-    planPath: result.planPath,
-    planBundleId: result.planBundleId,
-    sessionBundleId: result.sessionBundleId,
-    blockCount: result.blockCount,
-    hunkCount: result.hunkCount,
-    ambiguousCount: result.ambiguousCount,
-    synthesisedKept: result.synthesisedKept,
-    droppedForUnknownAnnotation: result.droppedForUnknownAnnotation,
-    scannedPlans: result.scannedPlans,
-  });
+  if (!compiler || !mainRelPath) {
+    console.info("[verify-compile-fix]", {
+      sessionId: reviewSessionId,
+      verified: false,
+      reason: "missing-compiler-or-main",
+    });
+    return "Fix applied. Click Compile to verify.";
+  }
 
-  if (result.blockCount === 0) {
-    return "No compile fix was produced — stderr did not yield any locatable errors.";
+  const fileLabel = mainRelPath.split("/").pop() ?? mainRelPath;
+  try {
+    if (compiler === "typst") {
+      await compileTypst(rootId, mainRelPath);
+    } else if (isLatexCompiler(compiler)) {
+      await compileLatex(rootId, mainRelPath, compiler);
+    } else {
+      console.info("[verify-compile-fix]", {
+        sessionId: reviewSessionId,
+        verified: false,
+        reason: `compiler-${compiler}-not-wired`,
+      });
+      return `Fix applied. Click Compile to verify (${compiler} auto-verify is not wired).`;
+    }
+  } catch (err) {
+    const stderr = err instanceof Error ? err.message : String(err);
+    console.info("[verify-compile-fix]", { sessionId: reviewSessionId, verified: false, stderr });
+    throw new Error(`Fix attempt did not clear the compile error:\n${stderr}`);
   }
-  if (result.ambiguousCount === result.hunkCount) {
-    return `Compile-fix plan ready. Every block (${result.hunkCount}) was flagged ambiguous — review notes in the Diff pane.`;
-  }
-  const concrete = result.hunkCount - result.ambiguousCount;
-  if (result.ambiguousCount > 0) {
-    return `Fix ready. ${concrete} change${concrete === 1 ? "" : "s"} proposed (${result.ambiguousCount} ambiguous).`;
-  }
-  return `Fix ready. ${result.hunkCount} change${result.hunkCount === 1 ? "" : "s"} proposed.`;
+  console.info("[verify-compile-fix]", { sessionId: reviewSessionId, verified: true });
+  return `Fix applied. ${fileLabel} now compiles cleanly.`;
+}
+
+function isLatexCompiler(c: string): c is LatexCompiler {
+  return c === "latexmk" || c === "pdflatex" || c === "xelatex";
 }
 
 async function ingestWriteup(

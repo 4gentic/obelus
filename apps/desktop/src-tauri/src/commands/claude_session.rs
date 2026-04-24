@@ -184,7 +184,8 @@ fn claude_command(
         .arg("Read")
         .arg("Glob")
         .arg("Grep")
-        .arg("Write");
+        .arg("Write")
+        .arg("Edit");
     if let Some(m) = model.filter(|s| !s.is_empty()) {
         cmd.arg("--model").arg(m);
     }

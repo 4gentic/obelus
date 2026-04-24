@@ -155,6 +155,8 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     reviewSessionId: fixSession.id,
     paperId,
     ...(paper.title ? { paperTitle: paper.title } : {}),
+    compiler,
+    mainRelPath,
   });
 
   console.info("[fix-compile-start]", {

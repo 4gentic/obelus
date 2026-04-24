@@ -40,6 +40,12 @@ export interface JobRecord {
   // by ingest as a hint when the desktop's filesystem scan would otherwise
   // miss the file (e.g. a smaller model wrote to a non-canonical name).
   obelusWrotePath?: string;
+  // compile-fix jobs only: the compiler + main file to re-run once the skill
+  // finishes editing source. Mirrors the fields sent to the skill in the
+  // compile-error bundle; retained on the record so the post-exit recompile
+  // has everything it needs without another round-trip to the paper_build row.
+  compiler?: string;
+  mainRelPath?: string;
 }
 
 export interface RegisterInput {
@@ -53,6 +59,8 @@ export interface RegisterInput {
   reviewSessionId?: string;
   paperId?: string;
   paperTitle?: string;
+  compiler?: string;
+  mainRelPath?: string;
 }
 
 export interface JobsState {
@@ -88,6 +96,8 @@ export const useJobsStore: JobsStore = create<JobsState>()((set, get) => ({
       ...(input.reviewSessionId !== undefined ? { reviewSessionId: input.reviewSessionId } : {}),
       ...(input.paperId !== undefined ? { paperId: input.paperId } : {}),
       ...(input.paperTitle !== undefined ? { paperTitle: input.paperTitle } : {}),
+      ...(input.compiler !== undefined ? { compiler: input.compiler } : {}),
+      ...(input.mainRelPath !== undefined ? { mainRelPath: input.mainRelPath } : {}),
     };
     set((s) => ({ jobs: { ...s.jobs, [input.claudeSessionId]: record } }));
   },
