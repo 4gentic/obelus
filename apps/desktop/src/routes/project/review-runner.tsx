@@ -8,6 +8,11 @@ import {
 } from "@obelus/claude-sidecar";
 import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { fsWriteBytes } from "../../ipc/commands";
+import {
+  collectBundleSourcePaths,
+  snapshotBundleSources,
+  stashSnapshotForSession,
+} from "../../lib/bundle-sources";
 import { useJobsStore } from "../../lib/jobs-store";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { useBuffersStore } from "./buffers-store-context";
@@ -250,6 +255,22 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           effort: overrides.effort,
         });
         createdSessionId = session.id;
+        // Snapshot the paper's source files now, so on exit we can tell
+        // whether Claude bypassed plan-fix and mutated source directly. If
+        // any of these files' sha256 changes and no plan file is produced,
+        // the jobs-listener surfaces a tool-policy-violation error.
+        try {
+          const bundleShape = JSON.parse(json) as Parameters<typeof collectBundleSourcePaths>[0];
+          const paths = collectBundleSourcePaths(bundleShape);
+          const snap = await snapshotBundleSources(rootId, paths);
+          stashSnapshotForSession(session.id, snap);
+        } catch (err) {
+          console.warn("[source-snapshot]", {
+            sessionId: session.id,
+            outcome: "pre-spawn-snapshot-failed",
+            detail: err instanceof Error ? err.message : String(err),
+          });
+        }
         console.info("[review-session]", {
           sessionId: session.id,
           paperId,
