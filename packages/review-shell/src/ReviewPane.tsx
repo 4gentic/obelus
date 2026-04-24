@@ -239,6 +239,101 @@ function draftLocationLabel(draft: DraftInput): string {
   return Array.from(labels).join(", ");
 }
 
+// Stable per-draft identity so React remounts DraftSection when the user
+// switches selections, discarding `saveError` naturally.
+function draftSectionKey(draft: DraftInput): string {
+  const first = draft.slices[0];
+  if (!first) return draft.quote;
+  if (first.kind === "source") {
+    const a = first.anchor;
+    return `s:${a.file}:${a.lineStart}:${a.colStart}:${a.lineEnd}:${a.colEnd}`;
+  }
+  return `p:${first.anchor.pageIndex}:${draft.quote}`;
+}
+
+interface DraftSectionProps {
+  draft: DraftInput;
+  draftCategory: string | null;
+  draftNote: string;
+  onSave: Props["onSave"];
+  onDiscard: () => void;
+  onDraftCategoryChange: (category: string | null) => void;
+  onDraftNoteChange: (note: string) => void;
+}
+
+function DraftSection({
+  draft,
+  draftCategory,
+  draftNote,
+  onSave,
+  onDiscard,
+  onDraftCategoryChange,
+  onDraftNoteChange,
+}: DraftSectionProps): JSX.Element {
+  const [saveError, setSaveError] = useState(false);
+  const locLabel = draftLocationLabel(draft);
+  const handleCategoryChange = (c: string | null): void => {
+    onDraftCategoryChange(c);
+    if (c !== null) setSaveError(false);
+  };
+  return (
+    <section className="review-pane__draft" aria-label="Draft mark">
+      <header className="review-pane__draft-head">
+        <span className="review-pane__draft-tag">{"DRAFT · unsaved"}</span>
+        {locLabel ? <span className="review-pane__draft-pages">{locLabel}</span> : null}
+      </header>
+      <p className="review-pane__draft-hint">
+        Pick a category and save, or discard this selection.
+      </p>
+      <blockquote className="review-pane__quote">
+        <span className="review-pane__context">{draft.contextBefore}</span>
+        <mark className="review-pane__quote-mark">{draft.quote}</mark>
+        <span className="review-pane__context">{draft.contextAfter}</span>
+      </blockquote>
+      <CategoryPicker
+        name="draft-category"
+        value={draftCategory}
+        onChange={handleCategoryChange}
+        invalid={saveError}
+        errorId="draft-category-error"
+      />
+      {saveError ? (
+        <p className="review-pane__draft-error" id="draft-category-error" role="alert">
+          Pick a category to save this mark.
+        </p>
+      ) : null}
+      <NoteEditor
+        value={draftNote}
+        onChange={onDraftNoteChange}
+        onCommit={onDraftNoteChange}
+        placeholder="What needs attention?"
+      />
+      <div className="review-pane__draft-actions">
+        <button
+          type="button"
+          className="review-pane__btn review-pane__btn--primary"
+          onClick={() => {
+            if (!draftCategory) {
+              setSaveError(true);
+              return;
+            }
+            void onSave({ draft, category: draftCategory, note: draftNote.trim() });
+          }}
+        >
+          Save mark
+        </button>
+        <button
+          type="button"
+          className="review-pane__btn review-pane__btn--ghost"
+          onClick={onDiscard}
+        >
+          Discard
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function ReviewPane({
   annotations,
   selectedAnchor,
@@ -265,7 +360,6 @@ export default function ReviewPane({
   const [tab, setTab] = useState<Tab>("marks");
   const [reviewExportedName, setReviewExportedName] = useState<string | null>(null);
   const [reviseExportedName, setReviseExportedName] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState(false);
 
   const exportReview = async (): Promise<void> => {
     const name = await exports.onExportReview();
@@ -275,8 +369,6 @@ export default function ReviewPane({
     const name = await exports.onExportRevise();
     if (name) setReviseExportedName(name);
   };
-
-  const locLabel = selectedAnchor ? draftLocationLabel(selectedAnchor) : "";
 
   useEffect(() => {
     if (tab !== "marks") return;
@@ -290,79 +382,22 @@ export default function ReviewPane({
   }, [focusedAnnotationId, tab]);
 
   useEffect(() => {
-    if (focusedAnnotationId) setTab("marks");
-  }, [focusedAnnotationId]);
-
-  useEffect(() => {
-    if (selectedAnchor) setTab("marks");
-  }, [selectedAnchor]);
-
-  useEffect(() => {
-    if (draftCategory || !selectedAnchor) setSaveError(false);
-  }, [draftCategory, selectedAnchor]);
+    if (focusedAnnotationId || selectedAnchor) setTab("marks");
+  }, [focusedAnnotationId, selectedAnchor]);
 
   return (
     <aside className="review-pane" aria-label="Review pane">
       {selectedAnchor ? (
-        <section className="review-pane__draft" aria-label="Draft mark">
-          <header className="review-pane__draft-head">
-            <span className="review-pane__draft-tag">{"DRAFT · unsaved"}</span>
-            {locLabel ? <span className="review-pane__draft-pages">{locLabel}</span> : null}
-          </header>
-          <p className="review-pane__draft-hint">
-            Pick a category and save, or discard this selection.
-          </p>
-          <blockquote className="review-pane__quote">
-            <span className="review-pane__context">{selectedAnchor.contextBefore}</span>
-            <mark className="review-pane__quote-mark">{selectedAnchor.quote}</mark>
-            <span className="review-pane__context">{selectedAnchor.contextAfter}</span>
-          </blockquote>
-          <CategoryPicker
-            name="draft-category"
-            value={draftCategory}
-            onChange={onDraftCategoryChange}
-            invalid={saveError}
-            errorId="draft-category-error"
-          />
-          {saveError ? (
-            <p className="review-pane__draft-error" id="draft-category-error" role="alert">
-              Pick a category to save this mark.
-            </p>
-          ) : null}
-          <NoteEditor
-            value={draftNote}
-            onChange={onDraftNoteChange}
-            onCommit={onDraftNoteChange}
-            placeholder="What needs attention?"
-          />
-          <div className="review-pane__draft-actions">
-            <button
-              type="button"
-              className="review-pane__btn review-pane__btn--primary"
-              onClick={() => {
-                if (!selectedAnchor) return;
-                if (!draftCategory) {
-                  setSaveError(true);
-                  return;
-                }
-                void onSave({
-                  draft: selectedAnchor,
-                  category: draftCategory,
-                  note: draftNote.trim(),
-                });
-              }}
-            >
-              Save mark
-            </button>
-            <button
-              type="button"
-              className="review-pane__btn review-pane__btn--ghost"
-              onClick={onDiscard}
-            >
-              Discard
-            </button>
-          </div>
-        </section>
+        <DraftSection
+          key={draftSectionKey(selectedAnchor)}
+          draft={selectedAnchor}
+          draftCategory={draftCategory}
+          draftNote={draftNote}
+          onSave={onSave}
+          onDiscard={onDiscard}
+          onDraftCategoryChange={onDraftCategoryChange}
+          onDraftNoteChange={onDraftNoteChange}
+        />
       ) : null}
 
       <div className="review-pane__tabs" role="tablist" aria-label="Review pane">
