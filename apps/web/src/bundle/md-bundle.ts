@@ -17,8 +17,12 @@ export async function buildMdBundleJson(
   input: BuildInput,
 ): Promise<{ filename: string; json: string }> {
   const rows = await annotations.listForRevision(input.revision.id);
+  const droppedForMissingAnchor: string[] = [];
   const v2Annotations: AnnotationV2Input[] = rows.flatMap((r) => {
-    if (r.anchor.kind !== "source") return [];
+    if (r.anchor.kind !== "source") {
+      droppedForMissingAnchor.push(r.id);
+      return [];
+    }
     return [
       {
         id: r.id,
@@ -61,7 +65,7 @@ export async function buildMdBundleJson(
   console.info("[export-bundle-md]", {
     paperId: input.paper.id,
     annotationCount: v2Annotations.length,
-    droppedForMissingAnchor: rows.length - v2Annotations.length,
+    droppedForMissingAnchor,
     filename,
   });
   return { filename, json };
