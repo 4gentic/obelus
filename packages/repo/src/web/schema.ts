@@ -53,6 +53,24 @@ export class ObelusDb extends Dexie {
         settings: "key",
       })
       .upgrade(() => {});
+    // v5 adds `format` on PaperRow — 'pdf' for every existing row, 'md' (and
+    // later 'html') for natively reviewed source papers. Index `format` so we
+    // can quickly partition the library.
+    this.version(5)
+      .stores({
+        papers: "id, createdAt, pdfSha256, format",
+        revisions: "id, paperId, pdfSha256, createdAt",
+        annotations: "id, revisionId, page, category, createdAt",
+        settings: "key",
+      })
+      .upgrade((tx) =>
+        tx
+          .table("papers")
+          .toCollection()
+          .modify((p) => {
+            if (p.format === undefined) p.format = "pdf";
+          }),
+      );
   }
 }
 

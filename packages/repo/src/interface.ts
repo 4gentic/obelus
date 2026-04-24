@@ -13,6 +13,7 @@ import type {
   PaperBuildRow,
   PaperEditKind,
   PaperEditRow,
+  PaperFormat,
   PaperRow,
   PaperRubric,
   ProjectFileFormat,
@@ -30,7 +31,7 @@ import type {
 // the desktop impl references on-disk paths.
 
 export type PaperCreateInput =
-  | { source: "bytes"; title: string; pdfBytes: ArrayBuffer }
+  | { source: "bytes"; title: string; pdfBytes: ArrayBuffer; format?: PaperFormat }
   | {
       source: "ondisk";
       title: string;
@@ -38,6 +39,7 @@ export type PaperCreateInput =
       pdfRelPath: string;
       pdfSha256: string;
       pageCount: number;
+      format?: PaperFormat;
     };
 
 export type RevisionCreateInput =

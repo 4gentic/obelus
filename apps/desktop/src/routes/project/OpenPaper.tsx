@@ -35,7 +35,7 @@ async function findOrCreatePaper(
   }
   const stat = await fsStat(rootId, relPath);
   const title = relPath.split("/").pop() ?? relPath;
-  return repo.papers.create({
+  const result = await repo.papers.create({
     source: "ondisk",
     title,
     projectId,
@@ -43,6 +43,14 @@ async function findOrCreatePaper(
     pdfSha256: stat.sha256,
     pageCount,
   });
+  console.info("[ingest-paper]", {
+    paperId: result.paper.id,
+    format: result.paper.format,
+    projectId,
+    relPath,
+    pageCount,
+  });
+  return result;
 }
 
 export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.Element {

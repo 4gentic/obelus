@@ -41,6 +41,7 @@ export type {
   PaperEditKind,
   PaperEditRow,
   PaperEditState,
+  PaperFormat,
   PaperRow,
   PaperRubric,
   ProjectFileFormat,

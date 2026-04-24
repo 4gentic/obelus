@@ -11,10 +11,13 @@ export interface PaperRubric {
   updatedAt: string;
 }
 
+export type PaperFormat = "pdf" | "md";
+
 export interface PaperRow {
   id: string;
   title: string;
   createdAt: string;
+  format: PaperFormat;
   pdfSha256: string;
   projectId?: string;
   pdfRelPath?: string;

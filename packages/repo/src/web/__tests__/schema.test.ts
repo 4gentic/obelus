@@ -19,6 +19,7 @@ describe.skipIf(!hasIdb)("schema round-trip", () => {
       id: crypto.randomUUID(),
       title: "On Citations",
       createdAt: new Date().toISOString(),
+      format: "pdf" as const,
       pdfSha256: pdfSha,
     };
     await db.papers.add(paper);

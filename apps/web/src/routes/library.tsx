@@ -171,6 +171,12 @@ export default function Library(): JSX.Element {
         title: titleFromFilename(file.name),
         pdfBytes: bytes,
       });
+      console.info("[ingest-paper]", {
+        paperId: paper.id,
+        format: paper.format,
+        title: paper.title,
+        byteLength: bytes.byteLength,
+      });
       navigate(`/app/review/${paper.id}`);
     } catch (err) {
       setStatus("error");

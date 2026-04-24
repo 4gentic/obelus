@@ -33,7 +33,13 @@ export const papers = {
     await requestPersistOnce();
     const pdfSha256 = await putPdf(input.pdfBytes);
     const createdAt = nowIso();
-    const paper: PaperRow = { id: uuid(), title: input.title, createdAt, pdfSha256 };
+    const paper: PaperRow = {
+      id: uuid(),
+      title: input.title,
+      createdAt,
+      format: input.format ?? "pdf",
+      pdfSha256,
+    };
     const revision: RevisionRow = {
       id: uuid(),
       paperId: paper.id,
