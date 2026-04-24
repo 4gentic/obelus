@@ -47,9 +47,27 @@ const base = EditorView.theme(
     "&.cm-focused .cm-activeLine": {
       backgroundColor: `color-mix(in oklab, ${PANEL} 60%, ${PAPER})`,
     },
-    ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": {
-      backgroundColor: `color-mix(in oklab, ${RUBRIC} 22%, ${PAPER})`,
+    // CodeMirror paints selections through two painters:
+    //  1. `.cm-selectionBackground` — a rect overlay `drawSelection` lays over
+    //     glyph boxes. Dominant for multi-line ranges.
+    //  2. Native `::selection` — the pseudo-element on the actual text. What
+    //     you see for single-line intra-line ranges and for blurred-window.
+    //
+    // CM's `drawSelection` extension injects
+    //   `.ͼN .cm-line ::selection { background: transparent !important }`
+    // which is 2-class + pseudo = (0,2,1). To win reliably our selectors
+    // must out-specify that: `&.cm-editor .cm-line ::selection` is (0,3,1)
+    // because the editor root carries both `&` (theme class) and `.cm-editor`.
+    // Same band color on both painters so the selection reads identically
+    // whether focused, blurred, single-line, or multi-line.
+    "&.cm-editor .cm-selectionBackground, &.cm-editor.cm-focused .cm-selectionBackground": {
+      backgroundColor: `color-mix(in oklab, ${RUBRIC} 32%, ${PAPER}) !important`,
     },
+    "&.cm-editor .cm-line ::selection, &.cm-editor .cm-line::selection, &.cm-editor .cm-content ::selection, &.cm-editor ::selection, &.cm-editor::selection":
+      {
+        backgroundColor: `color-mix(in oklab, ${RUBRIC} 32%, ${PAPER}) !important`,
+        color: `${INK} !important`,
+      },
     "&.cm-focused .cm-cursor": {
       borderLeftColor: INK,
     },
