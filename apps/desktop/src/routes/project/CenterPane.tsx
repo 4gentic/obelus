@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
 import MdReviewSurface from "./MdReviewSurface";
 import { useOpenPaper } from "./OpenPaper";
@@ -7,11 +8,40 @@ import PdfPane from "./PdfPane";
 import SourcePane from "./SourcePane";
 import TypstPane from "./TypstPane";
 import UnsupportedPane from "./UnsupportedPane";
+
+// True for files that route through `SourcePane`, which hydrates a buffer
+// and exposes an editable dirty/save cycle. MD under a reviewer project
+// bypasses the editor entirely (mounts `MdReviewSurface` directly), so the
+// Save affordance has no buffer to reach and stays hidden.
+function isEditablePath(relPath: string, projectKind: "reviewer" | "writer"): boolean {
+  const ext = extensionOf(relPath);
+  if (!SOURCE_EXTS.has(ext)) return false;
+  if (ext === "md" && projectKind === "reviewer") return false;
+  return true;
+}
+
+function PathHeaderSave({ relPath }: { relPath: string }): JSX.Element {
+  const buffers = useBuffersStore();
+  const dirty = buffers((s) => s.isDirty(relPath));
+  const hasEntry = buffers((s) => s.buffers.has(relPath));
+  return (
+    <button
+      type="button"
+      className="btn btn--subtle pane__path-save"
+      disabled={!dirty || !hasEntry}
+      onClick={() => void buffers.getState().save(relPath)}
+    >
+      Save (⌘S)
+    </button>
+  );
+}
+
 export default function CenterPane(): JSX.Element {
   const { project, openFilePath, rootId } = useProject();
   const openPaper = useOpenPaper();
 
   const absolutePath = openFilePath ? `${project.root}/${openFilePath}` : null;
+  const showSave = openFilePath !== null && isEditablePath(openFilePath, project.kind);
 
   const body = ((): JSX.Element => {
     if (!openFilePath) return <UnsupportedPane path={null} />;
@@ -64,7 +94,8 @@ export default function CenterPane(): JSX.Element {
     <>
       {absolutePath && (
         <header className="pane__path" title={absolutePath}>
-          <code>{absolutePath}</code>
+          <code className="pane__path-code">{absolutePath}</code>
+          {showSave && openFilePath !== null && <PathHeaderSave relPath={openFilePath} />}
         </header>
       )}
       {body}

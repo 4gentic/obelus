@@ -788,22 +788,31 @@ button.files__row {
   position: sticky;
   top: 0;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   background: var(--paper);
   border-bottom: 1px solid var(--rule-soft);
   padding: var(--space-1) var(--space-4);
   font-family: var(--font-mono);
   font-size: var(--step--1);
   color: var(--ink-soft);
+}
+
+.pane__path-code {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pane__path code {
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  color: inherit;
+.pane__path-save {
+  flex: 0 0 auto;
 }
 
 .pdf-pane {
@@ -1112,33 +1121,6 @@ button.files__row {
 
 .source-pane__editor .cm-editor {
   height: 100%;
-}
-
-.source-pane__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  border-top: 1px solid var(--rule-soft);
-  background: var(--panel);
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-}
-
-.source-pane__foot-path {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.source-pane__foot-dot {
-  color: var(--rubric);
-  font-weight: 700;
 }
 
 .source-pane__switch-banner {

@@ -25,7 +25,6 @@ import { type JSX, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
 import { setActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
-import CompileMainButton from "./CompileMainButton";
 import { useProject } from "./context";
 import DraftsRail from "./DraftsRail";
 import { editorTheme } from "./editor-theme";
@@ -396,25 +395,6 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
         </div>
       )}
       <DraftsRail />
-      <footer className="source-pane__foot">
-        <span className="source-pane__foot-path">
-          {dirty && (
-            <span className="source-pane__foot-dot" aria-hidden="true">
-              •
-            </span>
-          )}
-          {relPath}
-        </span>
-        <CompileMainButton />
-        <button
-          type="button"
-          className="btn btn--subtle"
-          disabled={!dirty}
-          onClick={() => void buffers.getState().save(relPath)}
-        >
-          Save (⌘S)
-        </button>
-      </footer>
     </div>
   );
 }
