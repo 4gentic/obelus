@@ -103,7 +103,11 @@ function decodeSource(buffer: ArrayBuffer): LoadedBuffer {
 export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   const buffers = useBuffersStore();
   const { setOpenFilePath } = useProject();
-  const entry = buffers((s) => s.buffers.get(relPath));
+  // Subscribe to a boolean hydration flag, not the full BufferEntry. setText
+  // allocates a new entry object on every keystroke; using it as an effect
+  // dep would re-run the view-mount effect per keystroke and destroy the
+  // CodeMirror view (losing focus and the per-view undo history).
+  const hasEntry = buffers((s) => s.buffers.has(relPath));
   const dirty = buffers((s) => s.isDirty(relPath));
   const externalVersion = buffers((s) => s.buffers.get(relPath)?.externalVersion ?? 0);
   const pendingSwitch = buffers((s) => s.pendingSwitch);
@@ -122,7 +126,7 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   // biome-ignore lint/correctness/useExhaustiveDependencies: `retryTick` is a deliberate re-fire trigger — the body doesn't read its value, just needs the effect to re-run when the user clicks "retry" after a transient read failure.
   useEffect(() => {
     buffers.getState().setCurrentPath(relPath);
-    if (entry) {
+    if (hasEntry) {
       setLoad({ kind: "ready" });
       return;
     }
@@ -148,23 +152,24 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [rootId, relPath, entry, buffers, retryTick]);
+  }, [rootId, relPath, hasEntry, buffers, retryTick]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `locked` seeds the compartment once on view creation; lock flips are handled by the reconfigure effect below. Adding it to deps would rebuild the view on every flip and lose caret/scroll position.
   useEffect(() => {
-    // Gate on `entry` (the buffer for this relPath) instead of `load.kind`.
-    // When the user switches files, `load.kind` briefly stays "ready" from
-    // the *previous* file's async completion — if we gated on that, we'd
-    // mount an editor with an empty doc for the new file before its read
-    // lands. `entry` is the authoritative "buffer for THIS relPath is
-    // hydrated" signal and re-fires the effect via its selector subscription.
-    if (!entry) return;
+    // Gate on `hasEntry` (the buffer for this relPath is hydrated) instead
+    // of `load.kind`. When the user switches files, `load.kind` briefly
+    // stays "ready" from the *previous* file's async completion — if we
+    // gated on that, we'd mount an editor with an empty doc for the new
+    // file before its read lands. Reading the full entry via the store
+    // inside the effect (rather than via a selector subscription) keeps
+    // per-keystroke setText churn out of this effect's deps.
+    if (!hasEntry) return;
     const host = hostRef.current;
     if (!host) return;
     // Remount the editor when the buffer is replaced from disk (e.g. after
     // apply-hunks). `externalVersion` is read so biome keeps it in the deps.
     void externalVersion;
-    const initial = entry.text;
+    const initial = buffers.getState().buffers.get(relPath)?.text ?? "";
 
     const saveCmd = (): boolean => {
       void buffers.getState().save(relPath);
@@ -228,7 +233,7 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
       view.destroy();
       viewRef.current = null;
     };
-  }, [entry, relPath, externalVersion, buffers, editableCompartment]);
+  }, [hasEntry, relPath, externalVersion, buffers, editableCompartment]);
 
   useEffect(() => {
     const view = viewRef.current;
