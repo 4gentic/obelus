@@ -508,6 +508,31 @@ export default function FilesColumn(): JSX.Element {
     };
   }, [rootId]);
 
+  // Keep the Workspace tree open down to the currently-open file so the user
+  // can always see where it lives (Cmd+P, the Papers/Pinned lists, and the
+  // on-disk file watcher can all change the open file without touching the
+  // tree's expanded set). Gates on `tree.walking` so project switches reveal
+  // after the initial walk finishes. Only adds; the user's manual collapses
+  // stick until the open file changes again.
+  useEffect(() => {
+    if (!openFilePath) return;
+    if (tree.walking) return;
+    const parts = openFilePath.split("/");
+    if (parts.length <= 1) return;
+    setTree((prev) => {
+      const expanded = new Set(prev.expanded);
+      let changed = false;
+      for (let i = 1; i < parts.length; i++) {
+        const dir = parts.slice(0, i).join("/");
+        if (!expanded.has(dir)) {
+          expanded.add(dir);
+          changed = true;
+        }
+      }
+      return changed ? { ...prev, expanded } : prev;
+    });
+  }, [openFilePath, tree.walking]);
+
   const loadDir = useCallback(
     async (path: string): Promise<void> => {
       try {
