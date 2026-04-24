@@ -8,16 +8,24 @@ allowed-tools: Read Glob Grep Write
 
 # Fix compile
 
-The paper failed to compile. Read the compile-error bundle at `<bundle-path>`, parse the compiler's stderr, locate each reported error in source, and propose a minimal-diff edit per error. Write the result as a plan file paired with a machine-readable companion, then emit the `OBELUS_WROTE:` marker.
+## Scope — read this before anything else
+
+This skill **proposes** a fix as two plan files. It does **not** apply the fix.
+
+- The only files you may `Write` are, exactly: `.obelus/.gitkeep`, `.obelus/plan-<iso>.md`, and `.obelus/plan-<iso>.json`. Every other `Write` call is a contract violation.
+- Do not `Write` (or otherwise overwrite) any source file: `.tex`, `.ltx`, `.md`, `.typ`, `.bib`, `.cls`, `.sty`, `.yml`, `.json` outside of `.obelus/`, or any file named `main.*`, `bibliography.*`, or a numbered section (`NN-*.typ`, `NN-*.tex`, etc.).
+- Do not try to verify your fix by compiling, re-running the build, or re-reading the file after writing. The desktop applies the plan through its own diff-review UI; that is the verification step, not this skill.
+- If you are about to call `Write` on a path that is not one of the three listed above: **stop**. Do not proceed. Finish the plan files using only the content you already have in mind and emit the marker.
+- Violating any of the above makes the run a failure even if it looks like you "solved" the compile error. The desktop will surface an ingest error to the user because no plan was produced.
+
+The paper failed to compile. Read the compile-error bundle at `<bundle-path>`, parse the compiler's stderr, locate each reported error in source via `Read`, and write the result as a plan file paired with a machine-readable companion, then emit the `OBELUS_WROTE:` marker.
 
 This skill is invoked by the desktop app on two paths:
 
 - **Auto** (`trigger: "apply"`): the user just applied AI-proposed hunks in the diff-review UI; auto-compile failed; the desktop spawned this skill to repair what the apply broke.
-- **Manual** (`trigger: "manual"`): the user clicked "Ask Claude to fix" next to the compile button after a manual compile failed.
+- **Manual** (`trigger: "manual"`): the user clicked "Fix with AI" next to the compile button after a manual compile failed.
 
 Both paths produce the same output. Do not branch behaviour on `trigger`.
-
-Do **not** edit any source file in this skill — the desktop surfaces the plan in the diff-review UI and the user applies each block individually via the existing apply flow.
 
 ## File output contract — non-negotiable
 
@@ -165,9 +173,10 @@ Rules:
 
 ## Refusals
 
+- **Do not `Write` any file outside `.obelus/`.** The only legal Write targets are `.obelus/.gitkeep`, `.obelus/plan-<iso>.md`, and `.obelus/plan-<iso>.json`. If you find yourself about to call `Write("paper/…")`, `Write("01-introduction.typ")`, or any other source path: stop and go emit the plan instead. Editing the source is the user's job via the Diff UI, not yours.
 - Do not proceed past a schema error on the compile-error bundle.
-- Do not edit any source file in this skill.
 - Do not invent errors the compiler did not report.
+- Do not attempt to verify the fix by recompiling, re-reading the edited file, or re-running build tooling. There is no verification step in this skill — the desktop applies the plan and the user inspects the result.
 - Do not omit the `OBELUS_WROTE:` marker. The desktop relies on it.
 - Do not branch behaviour on `bundle.trigger`; the output is identical for `"apply"` and `"manual"`.
 

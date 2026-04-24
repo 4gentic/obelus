@@ -168,7 +168,12 @@ fn claude_command(
     effort: Option<&str>,
 ) -> Command {
     let mut cmd = Command::new(claude);
-    cmd.arg("--print")
+    // Scope the CLI's world to the paper project. Without `current_dir`, the
+    // child inherits the Tauri dev CWD (the Obelus worktree), and Glob/Grep
+    // will happily walk our own source tree — adding minutes of wasted
+    // exploration and leaking unrelated files into the model's context.
+    cmd.current_dir(project_root)
+        .arg("--print")
         .arg("--output-format")
         .arg("stream-json")
         .arg("--include-partial-messages")
