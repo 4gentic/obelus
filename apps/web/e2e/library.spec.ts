@@ -58,14 +58,14 @@ test.describe("library", () => {
     await expect(page.getByText(/no papers yet\./i)).toBeVisible();
   });
 
-  test("rejects non-PDF uploads with a visible error", async ({ page }) => {
+  test("rejects unsupported uploads with a visible error", async ({ page }) => {
     await page.locator('input[type="file"]').setInputFiles({
-      name: "not-a-pdf.txt",
+      name: "not-supported.txt",
       mimeType: "text/plain",
       buffer: Buffer.from("hello"),
     });
 
-    await expect(page.getByRole("alert")).toContainText(/does not look like a pdf/i);
+    await expect(page.getByRole("alert")).toContainText(/supports \.pdf and \.md/i);
     await expect(page).toHaveURL(/\/app$/);
     await expect(page.getByText(/no papers yet\./i)).toBeVisible();
   });

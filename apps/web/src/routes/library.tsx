@@ -24,10 +24,17 @@ function formatDate(iso: string): string {
 function titleFromFilename(name: string): string {
   return (
     name
-      .replace(/\.pdf$/i, "")
+      .replace(/\.(pdf|md|markdown)$/i, "")
       .replace(/[_-]+/g, " ")
       .trim() || "Untitled"
   );
+}
+
+function detectFormat(file: File): "pdf" | "md" | null {
+  const lower = file.name.toLowerCase();
+  if (file.type.includes("pdf") || lower.endsWith(".pdf")) return "pdf";
+  if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "md";
+  return null;
 }
 
 type RowItemProps = {
@@ -80,7 +87,10 @@ function RowItem({ row, onRename, onRemove }: RowItemProps): JSX.Element {
           }}
         />
       ) : (
-        <Link to={`/app/review/${paper.id}`} className="library__row-title">
+        <Link
+          to={paper.format === "md" ? `/app/review-md/${paper.id}` : `/app/review/${paper.id}`}
+          className="library__row-title"
+        >
           {paper.title}
         </Link>
       )}
@@ -152,12 +162,13 @@ export default function Library(): JSX.Element {
   }, []);
 
   async function onFile(file: File): Promise<void> {
-    if (!file.type.includes("pdf") && !file.name.toLowerCase().endsWith(".pdf")) {
+    const format = detectFormat(file);
+    if (format === null) {
       setStatus("error");
-      setError("That does not look like a PDF.");
+      setError("Obelus supports .pdf and .md papers.");
       return;
     }
-    if (file.size > MAX_PDF_BYTES) {
+    if (format === "pdf" && file.size > MAX_PDF_BYTES) {
       setStatus("error");
       setError(`That PDF is larger than ${MAX_PDF_BYTES_LABEL}. Obelus cannot open it.`);
       return;
@@ -165,6 +176,24 @@ export default function Library(): JSX.Element {
     setStatus("working");
     setError(null);
     try {
+      if (format === "md") {
+        const text = await file.text();
+        const { paper } = await papers.create({
+          source: "md",
+          title: titleFromFilename(file.name),
+          mdText: text,
+          file: file.name,
+        });
+        console.info("[ingest-paper]", {
+          paperId: paper.id,
+          format: paper.format,
+          title: paper.title,
+          byteLength: text.length,
+          file: file.name,
+        });
+        navigate(`/app/review-md/${paper.id}`);
+        return;
+      }
       const bytes = await file.arrayBuffer();
       const { paper } = await papers.create({
         source: "bytes",
@@ -180,7 +209,7 @@ export default function Library(): JSX.Element {
       navigate(`/app/review/${paper.id}`);
     } catch (err) {
       setStatus("error");
-      setError(err instanceof Error ? err.message : "Could not open that PDF.");
+      setError(err instanceof Error ? err.message : "Could not open that paper.");
     }
   }
 
@@ -212,7 +241,7 @@ export default function Library(): JSX.Element {
       <input
         ref={fileInputRef}
         type="file"
-        accept="application/pdf,.pdf"
+        accept="application/pdf,.pdf,.md,.markdown,text/markdown"
         className="library__file"
         onChange={(e) => {
           const f = e.target.files?.[0];

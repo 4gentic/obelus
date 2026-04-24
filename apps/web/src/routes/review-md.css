@@ -1,0 +1,53 @@
+.review-md {
+  min-height: 100vh;
+  background: var(--page, #f6f1e7);
+  color: var(--ink, #2b2a26);
+  display: flex;
+  flex-direction: column;
+}
+
+.review-md__header {
+  padding: 1.25rem 2rem 0.75rem;
+  border-bottom: 1px solid var(--panel, #ede5d3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1.5rem;
+}
+
+.review-md__back {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--secondary, #6b655a);
+  text-decoration: none;
+}
+
+.review-md__back:hover {
+  color: var(--rubric, #b84a2e);
+}
+
+.review-md__title {
+  font-family: "Newsreader", "Source Serif 4", Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.review-md__render-error {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--rubric, #b84a2e);
+  margin: 0;
+}
+
+.review-md__scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.review-md--loading,
+.review-md--missing {
+  padding: 4rem 2rem;
+  text-align: center;
+  color: var(--secondary, #6b655a);
+}

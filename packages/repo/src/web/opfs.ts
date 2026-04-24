@@ -9,18 +9,21 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   return out;
 }
 
-async function pdfDir(): Promise<FileSystemDirectoryHandle> {
+const PDF_DIR = "pdfs";
+const MD_DIR = "mds";
+
+async function blobDir(name: string): Promise<FileSystemDirectoryHandle> {
   const root = await navigator.storage.getDirectory();
-  return root.getDirectoryHandle("pdfs", { create: true });
+  return root.getDirectoryHandle(name, { create: true });
 }
 
 function isNotFound(err: unknown): boolean {
   return err instanceof DOMException && err.name === "NotFoundError";
 }
 
-export async function hasPdf(sha256: string): Promise<boolean> {
+async function hasBlob(dirName: string, sha256: string): Promise<boolean> {
   try {
-    const dir = await pdfDir();
+    const dir = await blobDir(dirName);
     await dir.getFileHandle(sha256);
     return true;
   } catch (err) {
@@ -29,9 +32,9 @@ export async function hasPdf(sha256: string): Promise<boolean> {
   }
 }
 
-export async function getPdf(sha256: string): Promise<ArrayBuffer | null> {
+async function getBlob(dirName: string, sha256: string): Promise<ArrayBuffer | null> {
   try {
-    const dir = await pdfDir();
+    const dir = await blobDir(dirName);
     const handle = await dir.getFileHandle(sha256);
     const file = await handle.getFile();
     return await file.arrayBuffer();
@@ -39,6 +42,39 @@ export async function getPdf(sha256: string): Promise<ArrayBuffer | null> {
     if (isNotFound(err)) return null;
     throw err;
   }
+}
+
+async function deleteBlob(dirName: string, sha256: string): Promise<void> {
+  try {
+    const dir = await blobDir(dirName);
+    await dir.removeEntry(sha256);
+  } catch {
+    // Swallow: the file may already be gone, or OPFS is unavailable. The
+    // paper/revision rows are already deleted, so the worst case is a
+    // harmless orphan blob on disk.
+  }
+}
+
+export async function hasPdf(sha256: string): Promise<boolean> {
+  return hasBlob(PDF_DIR, sha256);
+}
+
+export async function getPdf(sha256: string): Promise<ArrayBuffer | null> {
+  return getBlob(PDF_DIR, sha256);
+}
+
+export async function hasMd(sha256: string): Promise<boolean> {
+  return hasBlob(MD_DIR, sha256);
+}
+
+export async function getMd(sha256: string): Promise<ArrayBuffer | null> {
+  return getBlob(MD_DIR, sha256);
+}
+
+export async function getMdText(sha256: string): Promise<string | null> {
+  const bytes = await getBlob(MD_DIR, sha256);
+  if (bytes === null) return null;
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
 let writer: Worker | null = null;
@@ -60,31 +96,37 @@ function getWriter(): Worker {
   return writer;
 }
 
-async function writeViaWorker(sha256: string, bytes: ArrayBuffer): Promise<void> {
+async function writeViaWorker(dir: string, sha256: string, bytes: ArrayBuffer): Promise<void> {
   const w = getWriter();
   nextId += 1;
   const id = nextId;
   await new Promise<void>((resolve, reject) => {
     pending.set(id, { resolve, reject });
-    w.postMessage({ id, sha256, bytes }, [bytes]);
+    w.postMessage({ id, dir, sha256, bytes }, [bytes]);
   });
 }
 
 export async function putPdf(bytes: ArrayBuffer): Promise<string> {
   const sha256 = await sha256Hex(bytes);
-  if (await hasPdf(sha256)) return sha256;
+  if (await hasBlob(PDF_DIR, sha256)) return sha256;
   const copy = bytes.slice(0);
-  await writeViaWorker(sha256, copy);
+  await writeViaWorker(PDF_DIR, sha256, copy);
+  return sha256;
+}
+
+export async function putMd(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text).buffer as ArrayBuffer;
+  const sha256 = await sha256Hex(bytes);
+  if (await hasBlob(MD_DIR, sha256)) return sha256;
+  // bytes is fresh from the encoder, safe to transfer.
+  await writeViaWorker(MD_DIR, sha256, bytes);
   return sha256;
 }
 
 export async function deletePdf(sha256: string): Promise<void> {
-  try {
-    const dir = await pdfDir();
-    await dir.removeEntry(sha256);
-  } catch {
-    // Swallow: the file may already be gone, or OPFS is unavailable. The
-    // paper/revision rows are already deleted, so the worst case is a
-    // harmless orphan blob on disk.
-  }
+  await deleteBlob(PDF_DIR, sha256);
+}
+
+export async function deleteMd(sha256: string): Promise<void> {
+  await deleteBlob(MD_DIR, sha256);
 }

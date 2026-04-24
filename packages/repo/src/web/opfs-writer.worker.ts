@@ -2,6 +2,7 @@
 
 interface WriteMessage {
   id: number;
+  dir: string;
   sha256: string;
   bytes: ArrayBuffer;
 }
@@ -13,10 +14,10 @@ interface WriteMessage {
 const post = self as unknown as Worker;
 
 self.onmessage = async (event: MessageEvent<WriteMessage>) => {
-  const { id, sha256, bytes } = event.data;
+  const { id, dir: dirName, sha256, bytes } = event.data;
   try {
     const root = await navigator.storage.getDirectory();
-    const dir = await root.getDirectoryHandle("pdfs", { create: true });
+    const dir = await root.getDirectoryHandle(dirName, { create: true });
     const handle = await dir.getFileHandle(sha256, { create: true });
     const access = await handle.createSyncAccessHandle();
     try {

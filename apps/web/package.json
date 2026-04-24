@@ -22,6 +22,7 @@
     "@obelus/bundle-schema": "workspace:*",
     "@obelus/categories": "workspace:*",
     "@obelus/design-tokens": "workspace:*",
+    "@obelus/md-view": "workspace:*",
     "@obelus/pdf-view": "workspace:*",
     "@obelus/repo": "workspace:*",
     "@obelus/review-store": "workspace:*",

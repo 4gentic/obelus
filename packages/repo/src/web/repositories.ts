@@ -1,6 +1,6 @@
 import type { PaperCreateInput, PaperPathsPatch, RevisionCreateInput } from "../interface";
 import type { PaperRubric } from "../types";
-import { deletePdf, putPdf } from "./opfs";
+import { deleteMd, deletePdf, putMd, putPdf } from "./opfs";
 import { requestPersistOnce } from "./persist";
 import { type AnnotationRow, getDb, type PaperRow, type RevisionRow } from "./schema";
 
@@ -27,24 +27,28 @@ export const papers = {
   },
 
   async create(input: PaperCreateInput): Promise<{ paper: PaperRow; revision: RevisionRow }> {
-    if (input.source !== "bytes") {
-      throw new Error("web PapersRepo.create requires source: 'bytes'");
+    if (input.source === "ondisk") {
+      throw new Error("web PapersRepo.create does not support source: 'ondisk'");
     }
     await requestPersistOnce();
-    const pdfSha256 = await putPdf(input.pdfBytes);
     const createdAt = nowIso();
+    const contentSha256 =
+      input.source === "md" ? await putMd(input.mdText) : await putPdf(input.pdfBytes);
+    const entrypointRelPath = input.source === "md" ? input.file : undefined;
+    const format = input.source === "md" ? "md" : (input.format ?? "pdf");
     const paper: PaperRow = {
       id: uuid(),
       title: input.title,
       createdAt,
-      format: input.format ?? "pdf",
-      pdfSha256,
+      format,
+      pdfSha256: contentSha256,
+      ...(entrypointRelPath !== undefined ? { entrypointRelPath } : {}),
     };
     const revision: RevisionRow = {
       id: uuid(),
       paperId: paper.id,
       revisionNumber: 1,
-      pdfSha256,
+      pdfSha256: contentSha256,
       createdAt,
     };
     const db = getDb();
@@ -86,6 +90,8 @@ export const papers = {
 
   async remove(id: string): Promise<void> {
     const db = getDb();
+    const paper = await db.papers.get(id);
+    const format = paper?.format ?? "pdf";
     const revs = await db.revisions.where("paperId").equals(id).toArray();
     const sha256s = Array.from(new Set(revs.map((r) => r.pdfSha256)));
     const revIds = revs.map((r) => r.id);
@@ -97,9 +103,13 @@ export const papers = {
       await db.papers.delete(id);
     });
     // Drop OPFS blobs only if no surviving revision still references them.
+    // Revisions of different papers can share a sha (same bytes); we probe
+    // before deleting. The blob lives in either the PDF or MD OPFS dir
+    // depending on the paper's format.
+    const deleteBlob = format === "md" ? deleteMd : deletePdf;
     for (const sha256 of sha256s) {
       const stillReferenced = await db.revisions.where("pdfSha256").equals(sha256).first();
-      if (!stillReferenced) await deletePdf(sha256);
+      if (!stillReferenced) await deleteBlob(sha256);
     }
   },
 };

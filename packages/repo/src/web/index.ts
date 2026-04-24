@@ -1,4 +1,15 @@
-export { getPdf, hasPdf, putPdf, sha256Hex } from "./opfs";
+export {
+  deleteMd,
+  deletePdf,
+  getMd,
+  getMdText,
+  getPdf,
+  hasMd,
+  hasPdf,
+  putMd,
+  putPdf,
+  sha256Hex,
+} from "./opfs";
 export type { QuotaEstimate } from "./persist";
 export { estimateQuota, isPersisted, requestPersistOnce } from "./persist";
 export { annotations, papers, revisions, settings } from "./repositories";

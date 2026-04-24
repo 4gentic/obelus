@@ -180,6 +180,9 @@ importers:
       '@obelus/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@obelus/md-view':
+        specifier: workspace:*
+        version: link:../../packages/md-view
       '@obelus/pdf-view':
         specifier: workspace:*
         version: link:../../packages/pdf-view
@@ -334,6 +337,25 @@ importers:
         specifier: 4.3.6
         version: 4.3.6
     devDependencies:
+      vitest:
+        specifier: 4.1.4
+        version: 4.1.4(@edge-runtime/vm@3.2.0)(@types/node@25.6.0)(happy-dom@20.9.0)(vite@8.0.9(@types/node@25.6.0)(esbuild@0.27.7)(terser@5.46.1)(tsx@4.21.0))
+
+  packages/md-view:
+    dependencies:
+      '@obelus/anchor':
+        specifier: workspace:*
+        version: link:../anchor
+      '@obelus/source-render':
+        specifier: workspace:*
+        version: link:../source-render
+    devDependencies:
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      react:
+        specifier: 19.2.5
+        version: 19.2.5
       vitest:
         specifier: 4.1.4
         version: 4.1.4(@edge-runtime/vm@3.2.0)(@types/node@25.6.0)(happy-dom@20.9.0)(vite@8.0.9(@types/node@25.6.0)(esbuild@0.27.7)(terser@5.46.1)(tsx@4.21.0))

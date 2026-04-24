@@ -32,6 +32,7 @@ import type {
 
 export type PaperCreateInput =
   | { source: "bytes"; title: string; pdfBytes: ArrayBuffer; format?: PaperFormat }
+  | { source: "md"; title: string; mdText: string; file: string }
   | {
       source: "ondisk";
       title: string;

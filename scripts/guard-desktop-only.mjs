@@ -9,10 +9,14 @@ import { readFileSync } from "node:fs";
 
 const WEB_APP_DESKTOP_ONLY = [
   "@obelus/claude-sidecar",
-  "@obelus/source-render",
   "@obelus/repo/sqlite",
   "@tauri-apps/",
 ];
+
+// Refused as a bare or deeply-pathed import. The `/browser` subpath alone is
+// allowed — see packages/source-render/src/browser.ts for why.
+const WEB_APP_SOURCE_RENDER_ALLOWED_SUBPATH = "@obelus/source-render/browser";
+const WEB_APP_SOURCE_RENDER_ROOT = "@obelus/source-render";
 
 const WEB_REPO_FORBIDDEN = ["../sqlite", "./sqlite", "@obelus/repo/sqlite", "@tauri-apps/"];
 
@@ -21,13 +25,34 @@ function lsFiles(...patterns) {
   return out.split("\n").filter(Boolean);
 }
 
+const IMPORT_SPEC_RE = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
+
+function* importsOf(contents) {
+  IMPORT_SPEC_RE.lastIndex = 0;
+  let match;
+  while ((match = IMPORT_SPEC_RE.exec(contents)) !== null) {
+    yield match[1];
+  }
+}
+
 let fail = false;
 
 for (const file of lsFiles("apps/web/src/**/*.ts", "apps/web/src/**/*.tsx")) {
   const contents = readFileSync(file, "utf8");
-  for (const name of WEB_APP_DESKTOP_ONLY) {
-    if (contents.includes(`"${name}`) || contents.includes(`'${name}`)) {
-      console.error(`[guard:desktop-only] ${file} imports desktop-only '${name}'`);
+  for (const spec of importsOf(contents)) {
+    for (const name of WEB_APP_DESKTOP_ONLY) {
+      if (spec === name || spec.startsWith(`${name}/`) || spec.startsWith(name)) {
+        console.error(`[guard:desktop-only] ${file} imports desktop-only '${spec}'`);
+        fail = true;
+      }
+    }
+    if (
+      (spec === WEB_APP_SOURCE_RENDER_ROOT || spec.startsWith(`${WEB_APP_SOURCE_RENDER_ROOT}/`)) &&
+      spec !== WEB_APP_SOURCE_RENDER_ALLOWED_SUBPATH
+    ) {
+      console.error(
+        `[guard:desktop-only] ${file} imports desktop-only '${spec}' — only '${WEB_APP_SOURCE_RENDER_ALLOWED_SUBPATH}' is allowed`,
+      );
       fail = true;
     }
   }
@@ -35,10 +60,12 @@ for (const file of lsFiles("apps/web/src/**/*.ts", "apps/web/src/**/*.tsx")) {
 
 for (const file of lsFiles("packages/repo/src/web/**/*.ts", "packages/repo/src/web/**/*.tsx")) {
   const contents = readFileSync(file, "utf8");
-  for (const name of WEB_REPO_FORBIDDEN) {
-    if (contents.includes(`"${name}`) || contents.includes(`'${name}`)) {
-      console.error(`[guard:desktop-only] ${file} (web repo impl) reaches desktop-only '${name}'`);
-      fail = true;
+  for (const spec of importsOf(contents)) {
+    for (const name of WEB_REPO_FORBIDDEN) {
+      if (spec === name || spec.startsWith(`${name}/`) || spec.startsWith(name)) {
+        console.error(`[guard:desktop-only] ${file} (web repo impl) reaches desktop-only '${spec}'`);
+        fail = true;
+      }
     }
   }
 }
