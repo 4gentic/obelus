@@ -116,7 +116,8 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
   };
 
   const stamp = isoStampForFilename();
-  const bundleRelPath = `.obelus-compile-error-${stamp}.json`;
+  const nonce = crypto.randomUUID().slice(0, 8);
+  const bundleRelPath = `.obelus-compile-error-${stamp}-${nonce}.json`;
   const encoded = new TextEncoder().encode(`${JSON.stringify(bundle, null, 2)}\n`);
   await fsWriteBytes(rootId, bundleRelPath, encoded);
 

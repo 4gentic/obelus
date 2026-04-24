@@ -330,6 +330,7 @@ async function ingestCompileFix(
     sessionBundleId: result.sessionBundleId,
     blockCount: result.blockCount,
     hunkCount: result.hunkCount,
+    ambiguousCount: result.ambiguousCount,
     synthesisedKept: result.synthesisedKept,
     droppedForUnknownAnnotation: result.droppedForUnknownAnnotation,
     scannedPlans: result.scannedPlans,
@@ -338,8 +339,12 @@ async function ingestCompileFix(
   if (result.blockCount === 0) {
     return "No compile fix was produced — stderr did not yield any locatable errors.";
   }
-  if (result.hunkCount === 0) {
-    return "Compile-fix plan ready. Every block was flagged ambiguous — review notes in the Diff pane.";
+  if (result.ambiguousCount === result.hunkCount) {
+    return `Compile-fix plan ready. Every block (${result.hunkCount}) was flagged ambiguous — review notes in the Diff pane.`;
+  }
+  const concrete = result.hunkCount - result.ambiguousCount;
+  if (result.ambiguousCount > 0) {
+    return `Fix ready. ${concrete} change${concrete === 1 ? "" : "s"} proposed (${result.ambiguousCount} ambiguous).`;
   }
   return `Fix ready. ${result.hunkCount} change${result.hunkCount === 1 ? "" : "s"} proposed.`;
 }

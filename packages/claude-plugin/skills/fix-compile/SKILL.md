@@ -158,7 +158,7 @@ Rules:
 - `category: "wrong"` for every block — a compile error is a correctness defect, not a stylistic nudge. The diff-review UI renders `wrong` with an error-coloured swatch.
 - `patch` is empty string when `ambiguous: true`; the `\n` rule applies to the final body line when non-empty (see `plan-fix` for the long explanation).
 - `reviewerNotes` starts with `"Compile fix: "` and quotes the verbatim stderr message for that error. Keep it under 400 characters — truncate a long message mid-word with a trailing `…` rather than dropping it.
-- `format` and `entrypoint` come directly from `bundle.project.main` (not re-detected — the desktop already resolved them).
+- `entrypoint` is `bundle.project.main.relPath` verbatim. `format` is derived from `bundle.project.main.format` via a fixed mapping: `"typ"` → `"typst"`, `"tex"` → `"latex"`, `"md"` → `"markdown"`. Do not re-detect — the desktop already resolved the source format; you are only translating vocabularies.
 - No optional fields. Empty-string-over-absence keeps the shape stable.
 
 9. **Report + marker.** After writing both files, print a compact report: the two plan paths on their own lines, then a single sentence naming totals (e.g. `Wrote 2 compile-fix blocks — 0 ambiguous.`). On the last line, print the `OBELUS_WROTE:` marker pointing at the `.json`. If the parser produced zero errors, the report instead reads `No compile-fix blocks produced — stderr did not yield any locatable errors.` and the plan files still exist with an empty `blocks: []`.
@@ -251,7 +251,7 @@ Same JSON shape, `annotationId: "compile-1"`.
 - `.obelus/plan-<iso>.md` and `.obelus/plan-<iso>.json` exist on disk and share the same timestamp.
 - Every `annotationId` matches `^compile-\d+$`.
 - Every non-empty `patch` ends with `\n` and fits the single-hunk unified-diff shape.
-- `bundleId`, `format`, `entrypoint` are filled from the input bundle (never empty unless the error parse failed entirely).
+- `bundleId` and `entrypoint` are filled from the input bundle, and `format` is the translated token (`typst` / `latex` / `markdown`) — never the raw bundle token (`typ` / `tex` / `md`), and never empty unless the error parse failed entirely.
 - The last stdout line is `OBELUS_WROTE: .obelus/plan-<iso>.json` with nothing else on it.
 
 If the last stdout line is not the marker, the desktop may not surface the plan to the user.
