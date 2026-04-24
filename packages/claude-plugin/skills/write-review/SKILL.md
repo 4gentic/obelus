@@ -1,7 +1,7 @@
 ---
 name: write-review
 description: Turn an Obelus bundle's marks into a structured Markdown review — a reviewer's letter to the editor.
-argument-hint: <bundle-path> [paper-id] [rubric-path] [--out [path]]
+argument-hint: <bundle-path> [paper-id] [rubric-path] [--inline | --out [path]]
 disable-model-invocation: true
 allowed-tools: Read Glob Grep Write
 ---
@@ -10,18 +10,22 @@ allowed-tools: Read Glob Grep Write
 
 Compose a first-person reviewer's letter from an Obelus bundle's marks. The letter is a reviewer's letter — first-person, written for a journal editor or conference chair. This skill does **not** edit paper source; see `apply-revision` for that.
 
-The same skill serves different clients. Some callers (the Obelus desktop app) read the letter from a file the skill writes; others (claude.ai/code on the web, a plain Claude Code CLI install with the obelus plugin, any agentic harness) can only see what appears in the transcript. Callers that want a file pass `--out`; the default is inline.
+The same skill serves different clients. Some callers (the Obelus desktop app) read the letter from a file the skill writes; others (claude.ai/code on the web, a plain Claude Code CLI install with the obelus plugin, any agentic harness) can only see what appears in the transcript. Callers that want a file pass `--out`; the default is inline. Scripts that want to be explicit can pass `--inline`.
 
-## Output mode — pick one based on `--out`
+## Output mode — pick one based on the flags
 
-Parse the arguments before composing anything. The `--out` flag is optional and may appear anywhere after the positional args. Two shapes:
+Parse the arguments before composing anything. The mode flags may appear anywhere after the positional args. Four shapes:
 
+- *no flag* → inline mode (default).
+- `--inline` → inline mode (explicit; same behavior as no flag).
 - `--out` alone → write-to-file mode, default path `.obelus/writeup-<paper-id>-<iso-timestamp>.md` (relative to the current working directory).
 - `--out <path>` → write-to-file mode, use `<path>` verbatim.
 
-If `--out` is absent, the skill is in **inline mode**: no `Write` call for the letter, no stdout marker, no `.obelus/` directory created. The full Markdown review is your final assistant message and is itself the deliverable.
+**Conflict rule.** If both `--inline` and `--out` are passed in the same invocation, refuse and stop: print `"ambiguous output mode: --inline and --out cannot both be set"` and do nothing else. Do not try to pick a winner; the caller is confused and needs to resolve the ambiguity before the skill runs.
 
-### Inline mode (default — no `--out`)
+In inline mode — whether implicit or via `--inline` — there is no `Write` call for the letter, no stdout marker, no `.obelus/` directory created. The full Markdown review is your final assistant message and is itself the deliverable.
+
+### Inline mode (default — no flag, or `--inline`)
 
 1. **Deliverable is the final message.** Output the full Markdown review — `# Review · …` heading, opening paragraph, `## Major comments`, `## Minor comments` — as your final assistant message. That is the entire visible deliverable.
 2. **No file side-effects.** Do not call `Write` for the letter. Do not create `.obelus/`. Do not paste the review into intermediate progress text; emit it exactly once, at the end, as the final message.
@@ -216,7 +220,7 @@ The opening folds in the two `praise` marks without a `## Strengths` heading; th
 
 After all reasoning, the last actions of every successful run look like one of these, depending on output mode.
 
-**Inline mode (default — no `--out`).** The last action is the final assistant message containing the full letter:
+**Inline mode (default — no flag, or `--inline`).** The last action is the final assistant message containing the full letter:
 
 ```
 [final assistant message]

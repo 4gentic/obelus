@@ -54,8 +54,9 @@ The skills are prompted, not coded — so a working plugin today can regress sil
 
 | # | Scenario | Skill | Expected |
 | --- | --- | --- | --- |
-| 1.1 | V1 bundle alone | `write-review` | Markdown letter with `# Review ·` heading and annotation traces. |
-| 1.2 | V1 bundle + `.tex`/`.md`/`.typ` alongside | `write-review` | Same letter — co-located sources are ignored. |
+| 1.1 | V1 bundle alone, `--out` passed | `write-review` | Markdown letter at `.obelus/writeup-*.md` with `# Review ·` heading, annotation traces, and the `OBELUS_WROTE:` marker on stdout. |
+| 1.2 | V1 bundle + `.tex`/`.md`/`.typ` alongside, `--out` passed | `write-review` | Same letter — co-located sources are ignored. |
+| 1.3 | V1 bundle alone, no flag (inline default) | `write-review` | Markdown letter in stdout (final assistant message); no `.obelus/` directory created, no `OBELUS_WROTE:` marker. |
 | 2.1 | V1 bundle, no sources in cwd | `apply-revision` | Graceful refusal; `/obelus:write-review` suggested; no plan written. |
 | 2.2 | V1 bundle + `.tex` source | `apply-revision` | `.obelus/plan-*.md` and `plan-*.json` written. |
 
