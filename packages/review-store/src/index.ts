@@ -49,6 +49,11 @@ export type ReviewState = {
   draftNote: string;
   focusedAnnotationId: string | null;
   load: (revisionId: string, visibleFromEditId?: string) => Promise<void>;
+  // Clears everything paper-scoped in the store. Called when the open paper
+  // has no revision yet (writer-mode MD pre-first-save, or the no-paper
+  // state between file switches) so a stale `revisionId` from a previously
+  // open paper doesn't leak into the next save.
+  reset: () => void;
   setSelectedAnchor: (draft: DraftInput | null) => void;
   setDraftCategory: (category: Category | null) => void;
   setDraftNote: (note: string) => void;
@@ -98,6 +103,17 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
       set({
         revisionId,
         annotations: rows,
+        selectedAnchor: null,
+        draftCategory: null,
+        draftNote: "",
+        focusedAnnotationId: null,
+      });
+    },
+
+    reset() {
+      set({
+        revisionId: null,
+        annotations: [],
         selectedAnchor: null,
         draftCategory: null,
         draftNote: "",
@@ -182,6 +198,12 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
           createdAt,
           ...(groupId ? { groupId } : {}),
         };
+      });
+      console.info("[save-mark/pre-persist]", {
+        revisionId,
+        rowCount: rows.length,
+        ids: rows.map((r) => r.id),
+        kind: rows[0]?.sourceAnchor ? "source" : "pdf",
       });
       await repo.bulkPut(revisionId, rows);
       const firstRow = rows[0];
