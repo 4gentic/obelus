@@ -89,7 +89,14 @@
 
 .project-shell__margin,
 .project-shell__review {
+  position: relative;
   border-right: 1px solid var(--rule-soft);
+  overflow: hidden;
+}
+
+.project-shell__margin-scroll,
+.project-shell__review-scroll {
+  height: 100%;
   overflow: auto;
 }
 
@@ -99,12 +106,43 @@
 
 .project-shell__body--no-pdf .project-shell__margin {
   border: none;
-  overflow: hidden;
 }
 
 .project-shell__body--review-wide .project-shell__margin {
   border: none;
-  overflow: hidden;
+}
+
+.project-shell__divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.project-shell__divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: transparent;
+  transition: background-color 120ms ease-out;
+}
+
+.project-shell__divider:hover::before,
+.project-shell__divider:focus-visible::before,
+.project-shell__divider:active::before {
+  background-color: var(--ink-soft);
+}
+
+.project-shell__divider:focus-visible {
+  outline: none;
 }
 
 /* Below 1280px the margin gutter eats the PDF. The Marks tab in the */
