@@ -110,8 +110,18 @@ function shouldCountTextNode(text: Text): boolean {
 // designed to match what `buildDocumentSourceMap` produces from the same
 // source: real content text in source order, with no inter-block whitespace.
 // `hast-util-to-html` injects newline text nodes between block siblings;
-// `shouldCountTextNode` skips those.
-function textNodeInDocument(root: HTMLElement, target: number): Found | null {
+// `shouldCountTextNode` skips them from the counting walk, but a Range
+// endpoint pinned at one counted node's end and another's start still spans
+// those skipped whitespace nodes (`range.toString()` walks the DOM, not our
+// filtered view). Bias disambiguates the boundary: a `start` endpoint at a
+// counted-node boundary snaps forward to the next node's offset 0, so the
+// range body begins past the inter-block "\n"; an `end` endpoint stays at
+// the previous node's end so its tail doesn't include a leading whitespace.
+function textNodeInDocument(
+  root: HTMLElement,
+  target: number,
+  bias: "start" | "end",
+): Found | null {
   if (target < 0) return null;
   let remaining = target;
   let last: Text | null = null;
@@ -126,7 +136,8 @@ function textNodeInDocument(root: HTMLElement, target: number): Found | null {
       const text = n as Text;
       last = text;
       const len = text.data.length;
-      if (remaining <= len) return { node: text, offset: remaining };
+      const match = bias === "start" ? remaining < len : remaining <= len;
+      if (match) return { node: text, offset: remaining };
       remaining -= len;
     }
     n = walker.nextNode();
@@ -157,8 +168,8 @@ export function resolveSourceAnchorToRange(
         startRendered <= endRendered &&
         endRendered <= sourceMap.rendered.length
       ) {
-        const startTarget = textNodeInDocument(container, startRendered);
-        const endTarget = textNodeInDocument(container, endRendered);
+        const startTarget = textNodeInDocument(container, startRendered, "start");
+        const endTarget = textNodeInDocument(container, endRendered, "end");
         if (startTarget && endTarget) {
           const range = container.ownerDocument?.createRange();
           if (!range) return null;

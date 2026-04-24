@@ -251,6 +251,35 @@ describe("resolveSourceAnchorToRange (mdast map path)", () => {
     expect(range?.toString()).toBe("link text");
   });
 
+  it("paints a span in a paragraph that sits after a fenced code block", () => {
+    // Regression for the ROADMAP.md shape: an ASCII-diagram code block
+    // precedes the target paragraph. Before the `code` branch in
+    // `buildDocumentSourceMap`, the map's rendered string skipped the
+    // block's text while the DOM walker still consumed it, so painting
+    // the paragraph landed a rect inside the code block.
+    const text = "# Heading\n\n```\nrow one\nrow two\n```\n\nAfter text here.\n";
+    const { wrapper, sourceMap } = renderInto(text);
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      { file: "doc.md", lineStart: 8, colStart: 0, lineEnd: 8, colEnd: 10 },
+      sourceMap,
+      text,
+    );
+    expect(range?.toString()).toBe("After text");
+  });
+
+  it("paints a span inside a fenced code block", () => {
+    const text = "```\nalpha\nbeta\n```\n";
+    const { wrapper, sourceMap } = renderInto(text);
+    const range = resolveSourceAnchorToRange(
+      wrapper,
+      { file: "doc.md", lineStart: 2, colStart: 0, lineEnd: 2, colEnd: 5 },
+      sourceMap,
+      text,
+    );
+    expect(range?.toString()).toBe("alpha");
+  });
+
   it("falls back to the legacy block-local path when sourceMap is null", () => {
     // The legacy path produces wrong rects for inline-bordered selections
     // (that's the bug we're fixing) but must keep working for plain blocks

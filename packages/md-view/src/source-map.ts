@@ -76,6 +76,25 @@ export function buildDocumentSourceMap(text: string): DocumentSourceMap | null {
       rendered += value.length;
       return;
     }
+    if (node.type === "code") {
+      // mdast-util-to-hast renders a fenced/indented code block as
+      // <pre><code>{value + "\n"}</code></pre>. The DOM walker in
+      // highlights.ts counts that text node, so the breakpoint walk must
+      // contribute the same length or rendered offsets drift past every
+      // code block between the document start and the anchor.
+      const value = node.value;
+      if (value.length === 0) return;
+      const contentStart = text.indexOf(value, srcStart);
+      const sourceStart = contentStart === -1 ? srcStart : contentStart;
+      breakpoints.push({
+        renderedStart: rendered,
+        sourceStart,
+        length: value.length + 1,
+      });
+      parts.push(`${value}\n`);
+      rendered += value.length + 1;
+      return;
+    }
     if (node.type === "break") {
       breakpoints.push({ renderedStart: rendered, sourceStart: srcStart, length: 1 });
       parts.push("\n");
