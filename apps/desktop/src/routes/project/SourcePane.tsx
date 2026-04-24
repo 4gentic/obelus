@@ -127,10 +127,10 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   // on demand without remounting the pane.
   const [retryTick, setRetryTick] = useState(0);
   const [hadInvalidBytes, setHadInvalidBytes] = useState(false);
-  const [viewMode, setViewMode] = useState<"source" | "preview">("source");
+  const [viewMode, setViewMode] = useState<"source" | "preview">("preview");
   const isMd = extensionOf(relPath) === "md";
   useEffect(() => {
-    if (!isMd) setViewMode("source");
+    setViewMode(isMd ? "preview" : "source");
   }, [isMd]);
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -368,22 +368,24 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
         </div>
       )}
       {isMd && (
-        <div className="source-pane__viewmode">
+        <div className="source-pane__viewmode" role="tablist" aria-label="View mode">
           <button
             type="button"
-            className={`source-pane__viewmode-opt${viewMode === "source" ? " is-active" : ""}`}
-            aria-pressed={viewMode === "source"}
-            onClick={() => setViewMode("source")}
-          >
-            Source
-          </button>
-          <button
-            type="button"
+            role="tab"
             className={`source-pane__viewmode-opt${viewMode === "preview" ? " is-active" : ""}`}
-            aria-pressed={viewMode === "preview"}
+            aria-selected={viewMode === "preview"}
             onClick={() => setViewMode("preview")}
           >
             Preview
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={`source-pane__viewmode-opt${viewMode === "source" ? " is-active" : ""}`}
+            aria-selected={viewMode === "source"}
+            onClick={() => setViewMode("source")}
+          >
+            Source
           </button>
         </div>
       )}

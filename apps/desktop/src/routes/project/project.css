@@ -1079,31 +1079,27 @@ button.files__row {
 
 .source-pane__viewmode {
   display: flex;
-  gap: 0;
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
   border-bottom: 1px solid var(--rule-soft);
   background: var(--panel);
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
 }
 
 .source-pane__viewmode-opt {
-  padding: 2px var(--space-2);
-  border: 1px solid var(--rule-soft);
-  background: var(--paper);
+  background: transparent;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step--1);
   color: var(--ink-soft);
-  font: inherit;
   cursor: pointer;
-}
-
-.source-pane__viewmode-opt + .source-pane__viewmode-opt {
-  border-left: 0;
+  border-bottom: 2px solid transparent;
 }
 
 .source-pane__viewmode-opt.is-active {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
+  color: var(--ink);
+  border-bottom-color: var(--rubric);
 }
 
 .source-pane__preview {
