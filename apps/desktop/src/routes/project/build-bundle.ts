@@ -231,3 +231,103 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
     fileCount: papers.length,
   };
 }
+
+export interface ExportMdBundleInput {
+  repo: Repository;
+  paperId: string;
+}
+
+// MD reviewer papers carry source anchors directly from the reviewer's
+// selection; there is no PDF to resolve across, so the candidate-files hunt
+// from `exportBundleV2ForPaper` is skipped. The emitted paper has
+// `entrypoint` set and no `pdf` block.
+export async function exportMdBundleV2ForPaper(
+  input: ExportMdBundleInput,
+): Promise<ExportedBundle> {
+  const { repo, paperId } = input;
+  const paper = await repo.papers.get(paperId);
+  if (!paper) throw new Error("paper not found");
+  if (paper.format !== "md") throw new Error("paper is not a markdown source");
+  if (paper.projectId === undefined) throw new Error("paper has no project");
+  if (paper.pdfRelPath === undefined) throw new Error("paper has no entrypoint path");
+  const project = await repo.projects.get(paper.projectId);
+  if (!project) throw new Error("project not found");
+
+  const revisions = await repo.revisions.listForPaper(paper.id);
+  const latest = revisions[revisions.length - 1];
+  if (!latest) throw new Error("paper has no revision");
+
+  const rows = await repo.annotations.listForRevision(latest.id);
+  if (rows.length === 0) throw new Error("no annotations to review");
+
+  const droppedForMissingAnchor: string[] = [];
+  const annotations: AnnotationV2Input[] = [];
+  for (const row of rows) {
+    if (row.sourceAnchor === undefined) {
+      droppedForMissingAnchor.push(row.id);
+      continue;
+    }
+    annotations.push({
+      id: row.id,
+      paperId: paper.id,
+      category: row.category,
+      quote: row.quote,
+      contextBefore: row.contextBefore,
+      contextAfter: row.contextAfter,
+      sourceAnchor: row.sourceAnchor,
+      note: row.note,
+      thread: row.thread,
+      createdAt: row.createdAt,
+      ...(row.groupId !== undefined ? { groupId: row.groupId } : {}),
+    });
+  }
+
+  const entrypoint = paper.pdfRelPath;
+  const papers: PaperRefV2Input[] = [
+    {
+      id: paper.id,
+      title: paper.title,
+      revisionNumber: latest.revisionNumber,
+      createdAt: latest.createdAt,
+      entrypoint,
+      ...(paper.rubric !== undefined
+        ? {
+            rubric: {
+              body: paper.rubric.body,
+              label: paper.rubric.label,
+              source: paper.rubric.source,
+            },
+          }
+        : {}),
+    },
+  ];
+
+  const projectInput: ProjectV2Input = {
+    id: project.id,
+    label: project.label,
+    kind: project.kind,
+    categories: DEFAULT_CATEGORIES.map((c) => ({ slug: c.id, label: c.label })),
+    main: entrypoint,
+  };
+
+  const bundle = buildBundleV2({
+    project: projectInput,
+    papers,
+    annotations,
+  });
+
+  const filename = `.obelus/bundle-${isoStampForFilename()}.json`;
+  const json = `${JSON.stringify(bundle, null, 2)}\n`;
+  console.info("[export-bundle-md]", {
+    paperId: paper.id,
+    annotationCount: annotations.length,
+    droppedForMissingAnchor,
+    filename,
+  });
+  return {
+    filename,
+    json,
+    annotationCount: annotations.length,
+    fileCount: papers.length,
+  };
+}
