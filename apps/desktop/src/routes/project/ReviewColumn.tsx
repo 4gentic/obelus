@@ -30,8 +30,6 @@ interface Props {
   onRepass: () => void | Promise<void>;
   onDiscard: () => void | Promise<void>;
   forkInfo: ForkInfo | null;
-  wide: boolean;
-  onToggleWide: () => void;
 }
 
 interface WriterProps {
@@ -39,41 +37,25 @@ interface WriterProps {
   onRepass: () => void | Promise<void>;
   onDiscard: () => void | Promise<void>;
   forkInfo: ForkInfo | null;
-  wide: boolean;
-  onToggleWide: () => void;
 }
+
+const BUSY_TAB_TITLE = "Review in progress — switch back when it finishes.";
 
 export default function ReviewColumn({
   onApply,
   onRepass,
   onDiscard,
   forkInfo,
-  wide,
-  onToggleWide,
 }: Props): JSX.Element {
   const { project } = useProject();
   return project.kind === "reviewer" ? (
-    <ReviewerColumn wide={wide} onToggleWide={onToggleWide} />
+    <ReviewerColumn />
   ) : (
-    <WriterColumn
-      onApply={onApply}
-      onRepass={onRepass}
-      onDiscard={onDiscard}
-      forkInfo={forkInfo}
-      wide={wide}
-      onToggleWide={onToggleWide}
-    />
+    <WriterColumn onApply={onApply} onRepass={onRepass} onDiscard={onDiscard} forkInfo={forkInfo} />
   );
 }
 
-function WriterColumn({
-  onApply,
-  onRepass,
-  onDiscard,
-  forkInfo,
-  wide,
-  onToggleWide,
-}: WriterProps): JSX.Element {
+function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): JSX.Element {
   const store = useReviewStore();
   const diffStore = useDiffStore();
   const runner = useReviewRunner();
@@ -82,7 +64,6 @@ function WriterColumn({
   const sessionId = diffStore((s) => s.sessionId);
   const runnerKind = runner.status.kind;
   const [view, setView] = useState<WriterView>("marks");
-  const autoWidenedRef = useRef(false);
 
   useEffect(() => {
     if (
@@ -102,16 +83,7 @@ function WriterColumn({
   const resolvedView: WriterView = view === "diff" && !diffAvailable ? "marks" : view;
   const fallbackWhenNoPaper: WriterView = diffAvailable ? "diff" : "marks";
   const effectiveView: WriterView = paperOpen ? resolvedView : fallbackWhenNoPaper;
-
-  // One-shot auto-widen the first time the Diff tab is shown. Users can narrow
-  // again with the toggle; we don't re-widen on subsequent entries so their
-  // preference sticks for the session.
-  useEffect(() => {
-    if (effectiveView !== "diff") return;
-    if (autoWidenedRef.current) return;
-    autoWidenedRef.current = true;
-    if (!wide) onToggleWide();
-  }, [effectiveView, wide, onToggleWide]);
+  const lockNonDiffTabs = runnerBusy;
 
   return (
     <aside className="review-column">
@@ -122,6 +94,8 @@ function WriterColumn({
               type="button"
               className={`review-column__tab${effectiveView === "marks" ? " review-column__tab--on" : ""}`}
               onClick={() => setView("marks")}
+              disabled={lockNonDiffTabs}
+              title={lockNonDiffTabs ? BUSY_TAB_TITLE : undefined}
             >
               Marks
             </button>
@@ -138,6 +112,8 @@ function WriterColumn({
               type="button"
               className={`review-column__tab${effectiveView === "drafts" ? " review-column__tab--on" : ""}`}
               onClick={() => setView("drafts")}
+              disabled={lockNonDiffTabs}
+              title={lockNonDiffTabs ? BUSY_TAB_TITLE : undefined}
             >
               Drafts
             </button>
@@ -146,6 +122,8 @@ function WriterColumn({
                 type="button"
                 className={`review-column__tab${effectiveView === "drafter" ? " review-column__tab--on" : ""}`}
                 onClick={() => setView("drafter")}
+                disabled={lockNonDiffTabs}
+                title={lockNonDiffTabs ? BUSY_TAB_TITLE : undefined}
               >
                 Draft
               </button>
@@ -170,20 +148,13 @@ function WriterColumn({
           onRepass={onRepass}
           onDiscard={onDiscard}
           forkInfo={forkInfo}
-          wide={wide}
-          onToggleWide={onToggleWide}
         />
       )}
     </aside>
   );
 }
 
-interface ReviewerColumnProps {
-  wide: boolean;
-  onToggleWide: () => void;
-}
-
-function ReviewerColumn({ wide, onToggleWide }: ReviewerColumnProps): JSX.Element {
+function ReviewerColumn(): JSX.Element {
   const store = useReviewStore();
   const openPaper = useOpenPaper();
   const selected = store((s) => s.selectedAnchor);
@@ -248,7 +219,7 @@ function ReviewerColumn({ wide, onToggleWide }: ReviewerColumnProps): JSX.Elemen
           <DrafterTab />
         </Suspense>
       ) : (
-        <ReviewerActionsPanel wide={wide} onToggleWide={onToggleWide} />
+        <ReviewerActionsPanel />
       )}
     </aside>
   );

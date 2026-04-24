@@ -9,7 +9,7 @@ import { useProject } from "./context";
 import FilesColumn from "./FilesColumn";
 import FindBar from "./FindBar";
 import { useFindStore } from "./find-store-context";
-import { useProjectLayout } from "./layout-store";
+import { type PaneWidths, useProjectLayout } from "./layout-store";
 import MarginGutter from "./MarginGutter";
 import { useOpenPaper } from "./OpenPaper";
 import PaneDivider from "./PaneDivider";
@@ -47,8 +47,6 @@ export default function ProjectShell(): JSX.Element {
     [edits.live, edits.currentDraftId],
   );
   const divergence = useWorkingTreeDivergence(rootId, currentDraft);
-  const [reviewWide, setReviewWide] = useState(false);
-  const onToggleReviewWide = useCallback(() => setReviewWide((w) => !w), []);
   const findStore = useFindStore();
   const quickOpenStore = useQuickOpenStore();
   const pdfOpen = openPaper.kind === "ready";
@@ -131,7 +129,6 @@ export default function ProjectShell(): JSX.Element {
   const classes = ["project-shell__body"];
   if (noPdf) classes.push("project-shell__body--no-pdf");
   if (hideLeft) classes.push("project-shell__body--no-left");
-  if (reviewWide) classes.push("project-shell__body--review-wide");
   const bodyClass = classes.join(" ");
 
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -148,20 +145,25 @@ export default function ProjectShell(): JSX.Element {
   }, []);
 
   const { widths, setWidth } = useProjectLayout(project.id);
+  const onFilesResize = useCallback(
+    (v: number, measured: PaneWidths) => setWidth("files", v, measured),
+    [setWidth],
+  );
   const onMarginResize = useCallback(
-    (v: number, other: number) => setWidth("margin", v, other),
+    (v: number, measured: PaneWidths) => setWidth("margin", v, measured),
     [setWidth],
   );
   const onReviewResize = useCallback(
-    (v: number, other: number) => setWidth("review", v, other),
+    (v: number, measured: PaneWidths) => setWidth("review", v, measured),
     [setWidth],
   );
 
-  // Drag only takes effect in layouts that expose both (or the review) column at
-  // a fixed pixel width. Below 1024 the layout compacts; when --no-pdf or
-  // --review-wide is active, the existing CSS collapses the margin or pins the
-  // review column, so user-dragged widths are ignored until the state clears.
-  const dragApplies = !noPdf && !reviewWide && bodyWidth >= 1024;
+  // Drag only takes effect in layouts that expose the fixed-width columns.
+  // Below 1024 the layout compacts; when --no-pdf is active the margin gutter
+  // collapses and the review pane hides, so user-dragged widths are ignored
+  // until the state clears.
+  const dragApplies = !noPdf && bodyWidth >= 1024;
+  const showFilesDivider = dragApplies && !hideLeft;
   const showMarginDivider = dragApplies && bodyWidth >= 1280;
   const showReviewDivider = dragApplies;
 
@@ -180,7 +182,20 @@ export default function ProjectShell(): JSX.Element {
         <DivergenceBanner report={divergence.report} currentOrdinal={divergence.currentOrdinal} />
       )}
       <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
-        {project.kind === "writer" ? <FilesColumn /> : null}
+        {project.kind === "writer" ? (
+          <div className="project-shell__files">
+            <FilesColumn />
+            {showFilesDivider ? (
+              <PaneDivider
+                side="files"
+                bodyRef={bodyRef}
+                hideLeft={hideLeft}
+                valueNow={widths?.filesWidth}
+                onChange={onFilesResize}
+              />
+            ) : null}
+          </div>
+        ) : null}
         <main className="project-shell__center">
           <div className="find-bar-anchor">
             <FindBar />
@@ -220,8 +235,6 @@ export default function ProjectShell(): JSX.Element {
               onRepass={repass}
               onDiscard={discard}
               forkInfo={forkInfo}
-              wide={reviewWide}
-              onToggleWide={onToggleReviewWide}
             />
           </div>
         </div>
@@ -233,17 +246,14 @@ export default function ProjectShell(): JSX.Element {
 interface ComposeArgs {
   hideLeft: boolean;
   bodyWidth: number;
-  widths: { marginWidth: number; reviewWidth: number };
+  widths: PaneWidths;
 }
 
-// Mirrors the responsive breakpoints in project.css so a user drag at one
-// viewport size still resolves to the correct files-column width after resize.
 function composeGridColumns({ hideLeft, bodyWidth, widths }: ComposeArgs): string {
   const marginPx = bodyWidth >= 1280 ? `${widths.marginWidth}px` : "0";
   const reviewPx = `${widths.reviewWidth}px`;
   if (hideLeft) return `minmax(0, 1fr) ${marginPx} ${reviewPx}`;
-  const filesPx = bodyWidth < 1024 ? "180px" : bodyWidth < 1920 ? "220px" : "240px";
-  return `${filesPx} minmax(0, 1fr) ${marginPx} ${reviewPx}`;
+  return `${widths.filesWidth}px minmax(0, 1fr) ${marginPx} ${reviewPx}`;
 }
 
 interface DivergenceBannerProps {

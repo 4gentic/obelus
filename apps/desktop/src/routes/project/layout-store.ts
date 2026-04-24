@@ -1,27 +1,34 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 export const MIN_CENTER_WIDTH = 400;
+export const MIN_FILES_WIDTH = 180;
 export const MIN_MARGIN_WIDTH = 180;
 export const MIN_REVIEW_WIDTH = 320;
 
 export interface PaneWidths {
+  filesWidth: number;
   marginWidth: number;
   reviewWidth: number;
 }
 
-export type DividerSide = "margin" | "review";
+export type DividerSide = "files" | "margin" | "review";
+
+const MIN_BY_SIDE: Record<DividerSide, number> = {
+  files: MIN_FILES_WIDTH,
+  margin: MIN_MARGIN_WIDTH,
+  review: MIN_REVIEW_WIDTH,
+};
 
 interface ClampContext {
   side: DividerSide;
   desired: number;
   bodyWidth: number;
-  filesWidth: number;
-  otherWidth: number;
+  otherFixedWidth: number;
 }
 
 export function clampPaneWidth(ctx: ClampContext): number {
-  const min = ctx.side === "margin" ? MIN_MARGIN_WIDTH : MIN_REVIEW_WIDTH;
-  const max = ctx.bodyWidth - ctx.filesWidth - MIN_CENTER_WIDTH - ctx.otherWidth;
+  const min = MIN_BY_SIDE[ctx.side];
+  const max = ctx.bodyWidth - MIN_CENTER_WIDTH - ctx.otherFixedWidth;
   if (max < min) return min;
   if (ctx.desired < min) return min;
   if (ctx.desired > max) return max;
@@ -41,12 +48,13 @@ function setPaneWidth(
   projectId: string,
   side: DividerSide,
   value: number,
-  otherCurrent: number,
+  measured: PaneWidths,
 ): void {
   const prev = widthsByProject.get(projectId);
   const next: PaneWidths = {
-    marginWidth: side === "margin" ? value : (prev?.marginWidth ?? otherCurrent),
-    reviewWidth: side === "review" ? value : (prev?.reviewWidth ?? otherCurrent),
+    filesWidth: side === "files" ? value : (prev?.filesWidth ?? measured.filesWidth),
+    marginWidth: side === "margin" ? value : (prev?.marginWidth ?? measured.marginWidth),
+    reviewWidth: side === "review" ? value : (prev?.reviewWidth ?? measured.reviewWidth),
   };
   widthsByProject.set(projectId, next);
   notify(projectId);
@@ -54,7 +62,7 @@ function setPaneWidth(
 
 export interface ProjectLayout {
   widths: PaneWidths | null;
-  setWidth: (side: DividerSide, value: number, otherCurrent: number) => void;
+  setWidth: (side: DividerSide, value: number, measured: PaneWidths) => void;
 }
 
 export function useProjectLayout(projectId: string): ProjectLayout {
@@ -75,8 +83,8 @@ export function useProjectLayout(projectId: string): ProjectLayout {
   const getSnapshot = useCallback(() => widthsByProject.get(projectId) ?? null, [projectId]);
   const widths = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const setWidth = useCallback(
-    (side: DividerSide, value: number, otherCurrent: number) => {
-      setPaneWidth(projectId, side, value, otherCurrent);
+    (side: DividerSide, value: number, measured: PaneWidths) => {
+      setPaneWidth(projectId, side, value, measured);
     },
     [projectId],
   );

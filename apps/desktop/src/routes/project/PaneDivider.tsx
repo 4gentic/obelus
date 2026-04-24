@@ -3,8 +3,10 @@ import { useCallback, useRef } from "react";
 import {
   clampPaneWidth,
   type DividerSide,
+  MIN_FILES_WIDTH,
   MIN_MARGIN_WIDTH,
   MIN_REVIEW_WIDTH,
+  type PaneWidths,
 } from "./layout-store";
 
 interface PaneDividerProps {
@@ -12,18 +14,30 @@ interface PaneDividerProps {
   bodyRef: RefObject<HTMLDivElement | null>;
   hideLeft: boolean;
   valueNow: number | undefined;
-  onChange: (value: number, otherWidth: number) => void;
+  onChange: (value: number, measured: PaneWidths) => void;
 }
 
 interface DragStart {
   pointerX: number;
   startWidth: number;
   bodyWidth: number;
-  filesWidth: number;
-  otherWidth: number;
+  otherFixedWidth: number;
+  measured: PaneWidths;
 }
 
 type BaseMeasure = Omit<DragStart, "pointerX">;
+
+const MIN_BY_SIDE: Record<DividerSide, number> = {
+  files: MIN_FILES_WIDTH,
+  margin: MIN_MARGIN_WIDTH,
+  review: MIN_REVIEW_WIDTH,
+};
+
+const LABEL_BY_SIDE: Record<DividerSide, string> = {
+  files: "Resize files column",
+  margin: "Resize margin column",
+  review: "Resize review column",
+};
 
 function measure(body: HTMLDivElement, side: DividerSide, hideLeft: boolean): BaseMeasure | null {
   const cols = getComputedStyle(body).gridTemplateColumns.split(" ").map(Number.parseFloat);
@@ -33,11 +47,18 @@ function measure(body: HTMLDivElement, side: DividerSide, hideLeft: boolean): Ba
   const marginWidth = hideLeft ? (cols[1] ?? 0) : (cols[2] ?? 0);
   const reviewWidth = hideLeft ? (cols[2] ?? 0) : (cols[3] ?? 0);
   const bodyWidth = body.getBoundingClientRect().width;
+  const startWidth = side === "files" ? filesWidth : side === "margin" ? marginWidth : reviewWidth;
+  const otherFixedWidth =
+    side === "files"
+      ? marginWidth + reviewWidth
+      : side === "margin"
+        ? filesWidth + reviewWidth
+        : filesWidth + marginWidth;
   return {
-    startWidth: side === "margin" ? marginWidth : reviewWidth,
-    otherWidth: side === "margin" ? reviewWidth : marginWidth,
+    startWidth,
+    otherFixedWidth,
     bodyWidth,
-    filesWidth,
+    measured: { filesWidth, marginWidth, reviewWidth },
   };
 }
 
@@ -68,16 +89,18 @@ export default function PaneDivider({
     (ev: PointerEvent<HTMLDivElement>) => {
       const s = startRef.current;
       if (!s) return;
-      const desired = s.startWidth - (ev.clientX - s.pointerX);
+      // Files is anchored on the left: rightward drag widens it. Margin and
+      // review are anchored on the right: rightward drag narrows them.
+      const delta = ev.clientX - s.pointerX;
+      const desired = side === "files" ? s.startWidth + delta : s.startWidth - delta;
       onChange(
         clampPaneWidth({
           side,
           desired,
           bodyWidth: s.bodyWidth,
-          filesWidth: s.filesWidth,
-          otherWidth: s.otherWidth,
+          otherFixedWidth: s.otherFixedWidth,
         }),
-        s.otherWidth,
+        s.measured,
       );
     },
     [side, onChange],
@@ -97,16 +120,18 @@ export default function PaneDivider({
       if (!body) return;
       const base = measure(body, side, hideLeft);
       if (!base) return;
-      const step = (ev.shiftKey ? 32 : 8) * (ev.key === "ArrowLeft" ? 1 : -1);
+      // ArrowLeft moves the divider left → files shrinks, margin/review grow.
+      // ArrowRight is the opposite.
+      const magnitude = (ev.shiftKey ? 32 : 8) * (ev.key === "ArrowLeft" ? -1 : 1);
+      const signed = side === "files" ? magnitude : -magnitude;
       onChange(
         clampPaneWidth({
           side,
-          desired: base.startWidth + step,
+          desired: base.startWidth + signed,
           bodyWidth: base.bodyWidth,
-          filesWidth: base.filesWidth,
-          otherWidth: base.otherWidth,
+          otherFixedWidth: base.otherFixedWidth,
         }),
-        base.otherWidth,
+        base.measured,
       );
       ev.preventDefault();
     },
@@ -119,8 +144,8 @@ export default function PaneDivider({
       className={`project-shell__divider project-shell__divider--${side}`}
       role="separator"
       aria-orientation="vertical"
-      aria-label={side === "margin" ? "Resize margin column" : "Resize review column"}
-      aria-valuemin={side === "margin" ? MIN_MARGIN_WIDTH : MIN_REVIEW_WIDTH}
+      aria-label={LABEL_BY_SIDE[side]}
+      aria-valuemin={MIN_BY_SIDE[side]}
       aria-valuenow={valueNow}
       tabIndex={0}
       onPointerDown={onPointerDown}
