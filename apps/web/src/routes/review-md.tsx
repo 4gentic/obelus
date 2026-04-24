@@ -1,3 +1,8 @@
+import {
+  type AnnotationV2Input,
+  buildBundleV2,
+  suggestBundleFilename,
+} from "@obelus/bundle-builder";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
 import {
   MarkdownView,
@@ -7,7 +12,7 @@ import {
   useMarkdownSelection,
 } from "@obelus/md-view";
 import "@obelus/md-view/md.css";
-import type { AnnotationRow, PaperRow } from "@obelus/repo";
+import type { AnnotationRow, PaperRow, RevisionRow } from "@obelus/repo";
 import { annotations, getMdText, papers, revisions } from "@obelus/repo/web";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -130,6 +135,79 @@ export default function ReviewMd(): JSX.Element {
     setRows((prev) => prev.filter((r) => r.id !== id));
   }, []);
 
+  const [exportError, setExportError] = useState<string | null>(null);
+  const onExport = useCallback(async () => {
+    if (state.kind !== "ready") return;
+    if (rows.length === 0) {
+      setExportError("No marks to export yet.");
+      return;
+    }
+    setExportError(null);
+    const revList = await revisions.listForPaper(state.paper.id);
+    const revision: RevisionRow | undefined = revList.at(-1);
+    if (!revision) {
+      setExportError("Paper has no revision.");
+      return;
+    }
+    const v2Annotations: AnnotationV2Input[] = rows.flatMap((r) => {
+      if (r.sourceAnchor === undefined) return [];
+      return [
+        {
+          id: r.id,
+          paperId: state.paper.id,
+          category: r.category,
+          quote: r.quote,
+          contextBefore: r.contextBefore,
+          contextAfter: r.contextAfter,
+          sourceAnchor: r.sourceAnchor,
+          note: r.note,
+          thread: r.thread,
+          createdAt: r.createdAt,
+          ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
+        },
+      ];
+    });
+    const bundle = buildBundleV2({
+      project: {
+        // The web app has no project concept; fold the single paper into a
+        // synthetic project so the bundle validates against BundleV2 and the
+        // plugin's apply-revision skill treats it like any other reviewer job.
+        id: state.paper.id,
+        label: state.paper.title,
+        kind: "reviewer",
+        categories: DEFAULT_CATEGORIES.map((c) => ({ slug: c.id, label: c.label })),
+        main: state.file,
+      },
+      papers: [
+        {
+          id: state.paper.id,
+          title: state.paper.title,
+          revisionNumber: revision.revisionNumber,
+          createdAt: revision.createdAt,
+          entrypoint: state.file,
+        },
+      ],
+      annotations: v2Annotations,
+    });
+    const json = JSON.stringify(bundle, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const filename = suggestBundleFilename("review");
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    console.info("[export-bundle-md]", {
+      paperId: state.paper.id,
+      annotationCount: v2Annotations.length,
+      droppedForMissingAnchor: rows.length - v2Annotations.length,
+      filename,
+    });
+  }, [rows, state]);
+
   if (state.kind === "loading") {
     return (
       <section className="review-md review-md--loading" aria-busy>
@@ -160,6 +238,21 @@ export default function ReviewMd(): JSX.Element {
             Markdown render failed: {renderError}
           </p>
         ) : null}
+        <div className="review-md__header-actions">
+          <button
+            type="button"
+            className="review-md__export"
+            onClick={() => void onExport()}
+            disabled={rows.length === 0}
+          >
+            Export bundle ({rows.length})
+          </button>
+          {exportError !== null ? (
+            <span className="review-md__export-error" role="alert">
+              {exportError}
+            </span>
+          ) : null}
+        </div>
       </header>
 
       <div className="review-md__body">

@@ -40,6 +40,40 @@
   margin: 0;
 }
 
+.review-md__header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.review-md__export {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--panel, #ede5d3);
+  background: transparent;
+  color: var(--ink, #2b2a26);
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.review-md__export:hover:not(:disabled) {
+  border-color: var(--rubric, #b84a2e);
+  color: var(--rubric, #b84a2e);
+}
+
+.review-md__export:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.review-md__export-error {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  color: var(--rubric, #b84a2e);
+}
+
 .review-md__body {
   flex: 1;
   display: grid;

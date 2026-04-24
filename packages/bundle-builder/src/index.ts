@@ -96,9 +96,12 @@ export interface PaperRefV2Input {
   title: string;
   revisionNumber: number;
   createdAt: string;
-  pdfRelPath: string;
-  pdfSha256: string;
-  pageCount: number;
+  // PDF fields are present for writer-project reviews built around a compiled
+  // PDF; reviewer-side markdown papers (no compile) leave them unset and rely
+  // on `entrypoint` plus source-anchored annotations.
+  pdfRelPath?: string;
+  pdfSha256?: string;
+  pageCount?: number;
   entrypoint?: string;
   rubric?: { body: string; label: string; source: "file" | "paste" | "inline" };
 }
@@ -138,15 +141,18 @@ export interface AnnotationV2Input {
   quote: string;
   contextBefore: string;
   contextAfter: string;
-  page: number;
-  bbox: readonly [number, number, number, number];
-  textItemRange: {
+  // PDF-anchor fields are required for marks on a compiled-PDF paper. For
+  // source-anchored marks (markdown review), leave them unset and populate
+  // `sourceAnchor` — the builder emits a { kind: "source", ... } anchor.
+  page?: number;
+  bbox?: readonly [number, number, number, number];
+  textItemRange?: {
     start: readonly [number, number];
     end: readonly [number, number];
   };
-  // Desktop-resolved source-file span. When present, the emitted annotation
-  // carries a `source` anchor and the plugin skips its fuzzy PDF→source hunt.
-  // Omit to fall through to the default PDF anchor.
+  // When set, the emitted annotation carries a `source` anchor and the plugin
+  // skips its fuzzy PDF→source hunt. Desktop populates this from its
+  // resolveAcrossFiles step; markdown reviews populate it from the selection.
   sourceAnchor?: {
     file: string;
     lineStart: number;
@@ -196,42 +202,67 @@ export function buildBundleV2(input: BuildBundleV2Input): Bundle2 {
       title: p.title,
       revision: p.revisionNumber,
       createdAt: p.createdAt,
-      pdf: {
-        relPath: p.pdfRelPath,
-        sha256: p.pdfSha256,
-        pageCount: p.pageCount,
-      },
+      ...(p.pdfRelPath !== undefined &&
+      p.pdfSha256 !== undefined &&
+      p.pageCount !== undefined
+        ? {
+            pdf: {
+              relPath: p.pdfRelPath,
+              sha256: p.pdfSha256,
+              pageCount: p.pageCount,
+            },
+          }
+        : {}),
       ...(p.entrypoint !== undefined ? { entrypoint: p.entrypoint } : {}),
       ...(p.rubric !== undefined ? { rubric: p.rubric } : {}),
     })),
-    annotations: input.annotations.map((a) => ({
-      id: a.id,
-      paperId: a.paperId,
-      category: a.category,
-      quote: a.quote,
-      contextBefore: a.contextBefore,
-      contextAfter: a.contextAfter,
-      anchor:
-        a.sourceAnchor !== undefined
-          ? {
-              kind: "source" as const,
-              file: a.sourceAnchor.file,
-              lineStart: a.sourceAnchor.lineStart,
-              colStart: a.sourceAnchor.colStart,
-              lineEnd: a.sourceAnchor.lineEnd,
-              colEnd: a.sourceAnchor.colEnd,
-            }
-          : {
-              kind: "pdf" as const,
-              page: a.page,
-              bbox: a.bbox,
-              textItemRange: a.textItemRange,
-            },
-      note: a.note,
-      thread: a.thread,
-      createdAt: a.createdAt,
-      ...(a.groupId !== undefined ? { groupId: a.groupId } : {}),
-    })),
+    annotations: input.annotations.map((a) => {
+      if (a.sourceAnchor !== undefined) {
+        return {
+          id: a.id,
+          paperId: a.paperId,
+          category: a.category,
+          quote: a.quote,
+          contextBefore: a.contextBefore,
+          contextAfter: a.contextAfter,
+          anchor: {
+            kind: "source" as const,
+            file: a.sourceAnchor.file,
+            lineStart: a.sourceAnchor.lineStart,
+            colStart: a.sourceAnchor.colStart,
+            lineEnd: a.sourceAnchor.lineEnd,
+            colEnd: a.sourceAnchor.colEnd,
+          },
+          note: a.note,
+          thread: a.thread,
+          createdAt: a.createdAt,
+          ...(a.groupId !== undefined ? { groupId: a.groupId } : {}),
+        };
+      }
+      if (a.page === undefined || a.bbox === undefined || a.textItemRange === undefined) {
+        throw new Error(
+          `annotation ${a.id} has no valid anchor: expected PDF fields or sourceAnchor`,
+        );
+      }
+      return {
+        id: a.id,
+        paperId: a.paperId,
+        category: a.category,
+        quote: a.quote,
+        contextBefore: a.contextBefore,
+        contextAfter: a.contextAfter,
+        anchor: {
+          kind: "pdf" as const,
+          page: a.page,
+          bbox: a.bbox,
+          textItemRange: a.textItemRange,
+        },
+        note: a.note,
+        thread: a.thread,
+        createdAt: a.createdAt,
+        ...(a.groupId !== undefined ? { groupId: a.groupId } : {}),
+      };
+    }),
   };
   return BundleV2.parse(candidate);
 }
