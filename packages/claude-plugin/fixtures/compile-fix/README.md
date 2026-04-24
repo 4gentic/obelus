@@ -20,5 +20,8 @@ claude -p --plugin-dir packages/claude-plugin \
   /obelus:fix-compile packages/claude-plugin/fixtures/compile-fix/typst-error.bundle.json
 ```
 
-Expect a `.obelus/plan-<ts>.{md,json}` pair plus a final `OBELUS_WROTE:` marker
-pointing at the `.json`.
+The skill edits the broken source file in place (`broken-typst.typ` or
+`broken-latex.tex`) and stops. No plan file is written under `.obelus/`, and
+no `OBELUS_WROTE:` marker is emitted — Claude prints a one-paragraph summary
+on stdout. Re-run the compiler (`typst compile`, `latexmk`, etc.) manually to
+verify the fix landed.

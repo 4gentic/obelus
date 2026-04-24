@@ -355,14 +355,18 @@ async function verifyCompileFix(
 ): Promise<string> {
   if (!reviewSessionId) throw new Error("compile-fix job is missing reviewSessionId");
   const repo = await getRepository();
-  await repo.reviewSessions.complete(reviewSessionId);
 
+  // `complete()` stamps `completed_at` and sets status='completed'. Defer it
+  // to the success returns below: if the verify recompile throws, the outer
+  // handleExit catch calls setStatus('failed', …) which leaves completed_at
+  // NULL — the invariant migration 0002 relies on.
   if (!compiler || !mainRelPath) {
     console.info("[verify-compile-fix]", {
       sessionId: reviewSessionId,
       verified: false,
       reason: "missing-compiler-or-main",
     });
+    await repo.reviewSessions.complete(reviewSessionId);
     return "Fix applied. Click Compile to verify.";
   }
 
@@ -378,6 +382,7 @@ async function verifyCompileFix(
         verified: false,
         reason: `compiler-${compiler}-not-wired`,
       });
+      await repo.reviewSessions.complete(reviewSessionId);
       return `Fix applied. Click Compile to verify (${compiler} auto-verify is not wired).`;
     }
   } catch (err) {
@@ -386,6 +391,7 @@ async function verifyCompileFix(
     throw new Error(`Fix attempt did not clear the compile error:\n${stderr}`);
   }
   console.info("[verify-compile-fix]", { sessionId: reviewSessionId, verified: true });
+  await repo.reviewSessions.complete(reviewSessionId);
   return `Fix applied. ${fileLabel} now compiles cleanly.`;
 }
 
