@@ -14,7 +14,10 @@ function mockDb() {
   };
 }
 
-function makeRow(overrides: Partial<AnnotationRow> = {}): AnnotationRow {
+function makeRow(
+  overrides: Partial<AnnotationRow> = {},
+  rects?: Array<[number, number, number, number]>,
+): AnnotationRow {
   return {
     id: "a1",
     revisionId: "rev-1",
@@ -22,9 +25,13 @@ function makeRow(overrides: Partial<AnnotationRow> = {}): AnnotationRow {
     quote: "the thing",
     contextBefore: "",
     contextAfter: "",
-    page: 1,
-    bbox: [0, 0, 100, 20],
-    textItemRange: { start: [0, 0], end: [0, 9] },
+    anchor: {
+      kind: "pdf",
+      page: 1,
+      bbox: [0, 0, 100, 20],
+      textItemRange: { start: [0, 0], end: [0, 9] },
+      ...(rects !== undefined ? { rects } : {}),
+    },
     note: "",
     thread: [],
     createdAt: "2026-04-19T00:00:00.000Z",
@@ -46,7 +53,7 @@ describe("buildAnnotationsRepo", () => {
     invokeMock.mockClear();
     const db = mockDb();
     const repo = buildAnnotationsRepo(db as never);
-    await repo.bulkPut("rev-1", [makeRow({ rects: [[0, 0, 50, 10]] })]);
+    await repo.bulkPut("rev-1", [makeRow({}, [[0, 0, 50, 10]])]);
     expect(invokeMock).toHaveBeenCalledTimes(1);
     const [cmd, args] = invokeMock.mock.calls[0] as [
       string,

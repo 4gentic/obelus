@@ -1,4 +1,3 @@
-import type { SourceAnchor2 } from "@obelus/bundle-schema";
 import type { AnnotationRow, SourceAnchorFields } from "@obelus/repo";
 import type { DocumentView } from "@obelus/review-shell";
 import type { DraftInput, SourceDraftSlice } from "@obelus/review-store";
@@ -157,7 +156,7 @@ export function useMdDocumentView({
   const sourceMap = useMemo<DocumentSourceMap | null>(() => buildDocumentSourceMap(text), [text]);
 
   const rectsForAnchor = useCallback(
-    (anchor: SourceAnchor2 | SourceAnchorFields): DOMRect[] => {
+    (anchor: SourceAnchorFields): DOMRect[] => {
       const container = containerRef.current;
       if (!container) return [];
       return resolveSourceAnchorToRects(
@@ -175,8 +174,8 @@ export function useMdDocumentView({
   const annotationRects = useMemo<Map<string, DOMRect[]>>(() => {
     const out = new Map<string, DOMRect[]>();
     for (const row of annotations) {
-      if (!row.sourceAnchor) continue;
-      const rects = rectsForAnchor(row.sourceAnchor);
+      if (row.anchor.kind !== "source") continue;
+      const rects = rectsForAnchor(row.anchor);
       if (rects.length > 0) out.set(row.id, rects);
     }
     return out;

@@ -134,6 +134,29 @@ export interface ProjectV2Input {
   files?: ReadonlyArray<ProjectV2FileSummaryInput>;
 }
 
+// Discriminated input anchor mirroring the bundle's wire shape. Callers pass
+// either arm — the builder forwards it through `BundleV2.parse` for canonical
+// validation. The builder takes no responsibility for impossible cases; the
+// row-side discriminant is the contract.
+export type AnnotationV2InputAnchor =
+  | {
+      kind: "pdf";
+      page: number;
+      bbox: readonly [number, number, number, number];
+      textItemRange: {
+        start: readonly [number, number];
+        end: readonly [number, number];
+      };
+    }
+  | {
+      kind: "source";
+      file: string;
+      lineStart: number;
+      colStart: number;
+      lineEnd: number;
+      colEnd: number;
+    };
+
 export interface AnnotationV2Input {
   id: string;
   paperId: string;
@@ -141,25 +164,7 @@ export interface AnnotationV2Input {
   quote: string;
   contextBefore: string;
   contextAfter: string;
-  // PDF-anchor fields are required for marks on a compiled-PDF paper. For
-  // source-anchored marks (markdown review), leave them unset and populate
-  // `sourceAnchor` — the builder emits a { kind: "source", ... } anchor.
-  page?: number;
-  bbox?: readonly [number, number, number, number];
-  textItemRange?: {
-    start: readonly [number, number];
-    end: readonly [number, number];
-  };
-  // When set, the emitted annotation carries a `source` anchor and the plugin
-  // skips its fuzzy PDF→source hunt. Desktop populates this from its
-  // resolveAcrossFiles step; markdown reviews populate it from the selection.
-  sourceAnchor?: {
-    file: string;
-    lineStart: number;
-    colStart: number;
-    lineEnd: number;
-    colEnd: number;
-  };
+  anchor: AnnotationV2InputAnchor;
   note: string;
   thread: ReadonlyArray<{ at: string; body: string }>;
   createdAt: string;
@@ -214,53 +219,19 @@ export function buildBundleV2(input: BuildBundleV2Input): Bundle2 {
       ...(p.entrypoint !== undefined ? { entrypoint: p.entrypoint } : {}),
       ...(p.rubric !== undefined ? { rubric: p.rubric } : {}),
     })),
-    annotations: input.annotations.map((a) => {
-      if (a.sourceAnchor !== undefined) {
-        return {
-          id: a.id,
-          paperId: a.paperId,
-          category: a.category,
-          quote: a.quote,
-          contextBefore: a.contextBefore,
-          contextAfter: a.contextAfter,
-          anchor: {
-            kind: "source" as const,
-            file: a.sourceAnchor.file,
-            lineStart: a.sourceAnchor.lineStart,
-            colStart: a.sourceAnchor.colStart,
-            lineEnd: a.sourceAnchor.lineEnd,
-            colEnd: a.sourceAnchor.colEnd,
-          },
-          note: a.note,
-          thread: a.thread,
-          createdAt: a.createdAt,
-          ...(a.groupId !== undefined ? { groupId: a.groupId } : {}),
-        };
-      }
-      if (a.page === undefined || a.bbox === undefined || a.textItemRange === undefined) {
-        throw new Error(
-          `annotation ${a.id} has no valid anchor: expected PDF fields or sourceAnchor`,
-        );
-      }
-      return {
-        id: a.id,
-        paperId: a.paperId,
-        category: a.category,
-        quote: a.quote,
-        contextBefore: a.contextBefore,
-        contextAfter: a.contextAfter,
-        anchor: {
-          kind: "pdf" as const,
-          page: a.page,
-          bbox: a.bbox,
-          textItemRange: a.textItemRange,
-        },
-        note: a.note,
-        thread: a.thread,
-        createdAt: a.createdAt,
-        ...(a.groupId !== undefined ? { groupId: a.groupId } : {}),
-      };
-    }),
+    annotations: input.annotations.map((a) => ({
+      id: a.id,
+      paperId: a.paperId,
+      category: a.category,
+      quote: a.quote,
+      contextBefore: a.contextBefore,
+      contextAfter: a.contextAfter,
+      anchor: a.anchor,
+      note: a.note,
+      thread: a.thread,
+      createdAt: a.createdAt,
+      ...(a.groupId !== undefined ? { groupId: a.groupId } : {}),
+    })),
   };
   return BundleV2.parse(candidate);
 }

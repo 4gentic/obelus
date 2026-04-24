@@ -13,9 +13,9 @@ export function verifyMarksAgainstText(
 ): AnnotationStalenessPatch[] {
   const patches: AnnotationStalenessPatch[] = [];
   for (const row of annotations) {
-    if (!row.sourceAnchor) continue;
-    if (row.sourceAnchor.file !== relPath) continue;
-    const outcome = verifySourceAnchor({ kind: "source", ...row.sourceAnchor }, text, row.quote);
+    if (row.anchor.kind !== "source") continue;
+    if (row.anchor.file !== relPath) continue;
+    const outcome = verifySourceAnchor(row.anchor, text, row.quote);
     const nextStaleness = outcome.ok ? "ok" : outcome.reason;
     const prev = row.staleness ?? "ok";
     if (prev === nextStaleness) continue;

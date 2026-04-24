@@ -159,9 +159,12 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
       quote: row.quote,
       contextBefore: row.contextBefore,
       contextAfter: row.contextAfter,
-      page: row.page,
-      bbox: row.bbox,
-      textItemRange: row.textItemRange,
+      anchor: {
+        kind: "pdf",
+        page: row.anchor.page,
+        bbox: row.anchor.bbox,
+        textItemRange: row.anchor.textItemRange,
+      },
       note: row.note,
       thread: row.thread,
       createdAt: row.createdAt,
@@ -179,7 +182,7 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
           resolved.span.file,
           (resolutionsByFile.get(resolved.span.file) ?? 0) + 1,
         );
-        return { ...base, sourceAnchor: resolved.span };
+        return { ...base, anchor: { kind: "source", ...resolved.span } };
       }
     }
     return base;
@@ -263,7 +266,7 @@ export async function exportMdBundleV2ForPaper(
   const droppedForMissingAnchor: string[] = [];
   const annotations: AnnotationV2Input[] = [];
   for (const row of rows) {
-    if (row.sourceAnchor === undefined) {
+    if (row.anchor.kind !== "source") {
       droppedForMissingAnchor.push(row.id);
       continue;
     }
@@ -274,7 +277,7 @@ export async function exportMdBundleV2ForPaper(
       quote: row.quote,
       contextBefore: row.contextBefore,
       contextAfter: row.contextAfter,
-      sourceAnchor: row.sourceAnchor,
+      anchor: row.anchor,
       note: row.note,
       thread: row.thread,
       createdAt: row.createdAt,

@@ -7,14 +7,14 @@ import { trimQuoteMiddle } from "./trim-quote";
 
 const INTERACTIVE_SELECTOR = ".category-picker, textarea, .review-list__remove";
 
-// PDF marks carry a `page` number; source-anchored (MD / future HTML) marks
-// carry `sourceAnchor` with line info. Render whichever applies.
+// Renders the mark's location chip. PDF anchors → "p. N"; source anchors → a
+// line range. Switches on the anchor's discriminant.
 function markLocationLabel(a: AnnotationRow): string {
-  if (a.sourceAnchor) {
-    const { lineStart, lineEnd } = a.sourceAnchor;
+  if (a.anchor.kind === "source") {
+    const { lineStart, lineEnd } = a.anchor;
     return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
   }
-  return a.page !== undefined ? `p. ${a.page}` : "";
+  return `p. ${a.anchor.page}`;
 }
 
 function NoteField({

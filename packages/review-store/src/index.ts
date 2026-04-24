@@ -166,7 +166,8 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
             quote: slice.quote,
             contextBefore: slice.contextBefore,
             contextAfter: slice.contextAfter,
-            sourceAnchor: {
+            anchor: {
+              kind: "source",
               file: slice.anchor.file,
               lineStart: slice.anchor.lineStart,
               colStart: slice.anchor.colStart,
@@ -186,12 +187,15 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
           quote: slice.quote,
           contextBefore: slice.contextBefore,
           contextAfter: slice.contextAfter,
-          page: slice.anchor.pageIndex + 1,
-          bbox: [slice.bbox[0], slice.bbox[1], slice.bbox[2], slice.bbox[3]],
-          rects: slice.rects.map((r) => [r[0], r[1], r[2], r[3]]),
-          textItemRange: {
-            start: [slice.anchor.startItem, slice.anchor.startOffset],
-            end: [slice.anchor.endItem, slice.anchor.endOffset],
+          anchor: {
+            kind: "pdf",
+            page: slice.anchor.pageIndex + 1,
+            bbox: [slice.bbox[0], slice.bbox[1], slice.bbox[2], slice.bbox[3]],
+            rects: slice.rects.map((r) => [r[0], r[1], r[2], r[3]]),
+            textItemRange: {
+              start: [slice.anchor.startItem, slice.anchor.startOffset],
+              end: [slice.anchor.endItem, slice.anchor.endOffset],
+            },
           },
           note,
           thread: [],
@@ -203,7 +207,7 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
         revisionId,
         rowCount: rows.length,
         ids: rows.map((r) => r.id),
-        kind: rows[0]?.sourceAnchor ? "source" : "pdf",
+        kind: rows[0]?.anchor.kind,
       });
       await repo.bulkPut(revisionId, rows);
       const firstRow = rows[0];
@@ -211,7 +215,7 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
         revisionId,
         rowCount: rows.length,
         category,
-        kind: firstRow?.sourceAnchor ? "source" : "pdf",
+        kind: firstRow?.anchor.kind,
         ...(groupId ? { groupId } : {}),
       });
       set({

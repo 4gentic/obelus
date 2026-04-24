@@ -43,15 +43,12 @@ type DisplayEntry =
   | { kind: "single"; row: AnnotationRow }
   | { kind: "group"; groupId: string; rows: readonly [AnnotationRow, ...AnnotationRow[]] };
 
-// Row-agnostic "where in the paper" label. PDF rows carry `page`; source rows
-// carry `sourceAnchor.lineStart/lineEnd`. The pane shows whichever exists.
+// Row-agnostic "where in the paper" label. The pane switches on the anchor's
+// discriminant: PDF anchors render as "p. N", source anchors as a line range.
 function locationLabel(row: AnnotationRow): string {
-  if (row.page !== undefined) return `p. ${row.page}`;
-  if (row.sourceAnchor) {
-    const { lineStart, lineEnd } = row.sourceAnchor;
-    return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
-  }
-  return "";
+  if (row.anchor.kind === "pdf") return `p. ${row.anchor.page}`;
+  const { lineStart, lineEnd } = row.anchor;
+  return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
 }
 
 function entryLocationLabel(entry: DisplayEntry): string {
@@ -153,16 +150,13 @@ function AnnotationItem({
 // line/column. Cross-flavour comparisons fall back to createdAt — not expected
 // (a paper is one format) but keeps the sort total.
 function rowSortKey(row: AnnotationRow): [number, string, number, number] {
-  if (row.page !== undefined) {
-    const start0 = row.textItemRange?.start[0] ?? 0;
-    const start1 = row.textItemRange?.start[1] ?? 0;
-    return [row.page, "", start0, start1];
+  if (row.anchor.kind === "pdf") {
+    const start0 = row.anchor.textItemRange.start[0];
+    const start1 = row.anchor.textItemRange.start[1];
+    return [row.anchor.page, "", start0, start1];
   }
-  if (row.sourceAnchor) {
-    const { file, lineStart, colStart } = row.sourceAnchor;
-    return [0, file, lineStart, colStart];
-  }
-  return [0, row.createdAt, 0, 0];
+  const { file, lineStart, colStart } = row.anchor;
+  return [0, file, lineStart, colStart];
 }
 
 function compareRows(a: AnnotationRow, b: AnnotationRow): number {

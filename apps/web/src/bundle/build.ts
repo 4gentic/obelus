@@ -27,9 +27,23 @@ export async function buildBundle(input: BuildInput): Promise<Bundle> {
       createdAt: revision.createdAt,
     },
     pdf: { filename: input.pdfFilename, pageCount: input.pageCount },
-    // buildBundleV1 is PDF-specific; md-anchored rows ride the separate
-    // v2 export path (see review-md flow).
-    annotations: rows.filter(isPdfAnchored),
+    // buildBundleV1 is PDF-specific; md-anchored rows ride the separate v2
+    // export path (see review-md flow). V1's wire shape predates the
+    // discriminated anchor, so we flatten the row's PDF anchor here.
+    annotations: rows.filter(isPdfAnchored).map((r) => ({
+      id: r.id,
+      category: r.category,
+      quote: r.quote,
+      contextBefore: r.contextBefore,
+      contextAfter: r.contextAfter,
+      page: r.anchor.page,
+      bbox: r.anchor.bbox,
+      textItemRange: r.anchor.textItemRange,
+      note: r.note,
+      thread: r.thread,
+      createdAt: r.createdAt,
+      ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
+    })),
   });
 }
 

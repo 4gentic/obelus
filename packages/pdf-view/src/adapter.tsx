@@ -105,9 +105,9 @@ export function usePdfDocumentView({
     const out = new Map<string, number>();
     for (const row of annotations) {
       if (!isPdfAnchored(row)) continue;
-      const page = pageRects[row.page - 1];
+      const page = pageRects[row.anchor.page - 1];
       if (!page) continue;
-      out.set(row.id, page.top + row.bbox[1] * scale);
+      out.set(row.id, page.top + row.anchor.bbox[1] * scale);
     }
     return out;
   }, [annotations, pageRects, scale]);
@@ -174,8 +174,9 @@ export function usePdfDocumentView({
       const draftCls = `${cls} ${cls}--draft`;
       const savedRects = annotations.flatMap((row) => {
         if (!isPdfAnchored(row)) return [];
-        if (row.page - 1 !== pageIndex) return [];
-        const lineRects = row.rects && row.rects.length > 0 ? row.rects : [row.bbox];
+        if (row.anchor.page - 1 !== pageIndex) return [];
+        const lineRects =
+          row.anchor.rects && row.anchor.rects.length > 0 ? row.anchor.rects : [row.anchor.bbox];
         return lineRects.map((r) => {
           const [x, y, w, h] = r;
           return (
@@ -237,8 +238,9 @@ export function usePdfDocumentView({
       for (let i = annotations.length - 1; i >= 0; i -= 1) {
         const row = annotations[i];
         if (!row || !isPdfAnchored(row)) continue;
-        if (row.page - 1 !== pageIndex) continue;
-        const rects = row.rects && row.rects.length > 0 ? row.rects : [row.bbox];
+        if (row.anchor.page - 1 !== pageIndex) continue;
+        const rects =
+          row.anchor.rects && row.anchor.rects.length > 0 ? row.anchor.rects : [row.anchor.bbox];
         for (const r of rects) {
           if (px >= r[0] && px <= r[0] + r[2] && py >= r[1] && py <= r[1] + r[3]) {
             onFocusMark(row.id);

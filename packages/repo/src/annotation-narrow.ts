@@ -1,11 +1,10 @@
-import type { AnnotationRow, PdfAnchoredAnnotation } from "./types";
+import type { AnnotationRow, PdfAnchorFields } from "./types";
 
-// A PDF paper's annotations always carry `page` + `bbox` + `textItemRange`.
-// An MD paper's annotations carry `sourceAnchor` instead and leave the PDF
-// coordinate fields unset. These helpers let a PDF-specific consumer narrow
-// AnnotationRow[] to the subset it can render.
-export type AnnotationPdfRow = AnnotationRow & PdfAnchoredAnnotation;
+// A PDF paper's annotations carry an `anchor` whose `kind === "pdf"`; an MD
+// paper's annotations carry `kind === "source"`. This guard lets a PDF-only
+// consumer narrow AnnotationRow[] to the subset it can render in one step.
+export type AnnotationPdfRow = AnnotationRow & { anchor: PdfAnchorFields };
 
 export function isPdfAnchored(row: AnnotationRow): row is AnnotationPdfRow {
-  return row.page !== undefined && row.bbox !== undefined && row.textItemRange !== undefined;
+  return row.anchor.kind === "pdf";
 }

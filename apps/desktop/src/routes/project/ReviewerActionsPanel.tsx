@@ -109,17 +109,21 @@ export default function ReviewerActionsPanel(): JSX.Element {
     // The reviewer clipboard prompt is PDF-paper-specific — page numbers
     // anchor the review report. MD-anchored rows have no page and are
     // skipped (their export flow uses v2 source anchors elsewhere).
-    const pdfRows = rows.filter((r): r is typeof r & { page: number } => r.page !== undefined);
-    const annotations: PromptAnnotation[] = pdfRows.map((r) => ({
-      id: r.id,
-      category: r.category,
-      page: r.page,
-      quote: r.quote,
-      contextBefore: r.contextBefore,
-      contextAfter: r.contextAfter,
-      note: r.note,
-      ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
-    }));
+    const annotations: PromptAnnotation[] = rows.flatMap((r) => {
+      if (r.anchor.kind !== "pdf") return [];
+      return [
+        {
+          id: r.id,
+          category: r.category,
+          page: r.anchor.page,
+          quote: r.quote,
+          contextBefore: r.contextBefore,
+          contextAfter: r.contextAfter,
+          note: r.note,
+          ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
+        },
+      ];
+    });
     const pdfFilename = openPaper.path.split("/").pop() ?? "";
     return { paperRow: paper, annotations, revisionNumber: latest.revisionNumber, pdfFilename };
   }

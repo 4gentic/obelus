@@ -157,7 +157,8 @@ describe("exportMdBundleV2ForPaper", () => {
       quote: "some quoted passage",
       contextBefore: "before ",
       contextAfter: " after",
-      sourceAnchor: {
+      anchor: {
+        kind: "source",
         file: "paper.md",
         lineStart: 3,
         colStart: 2,
@@ -227,7 +228,14 @@ describe("exportMdBundleV2ForPaper", () => {
       quote: "q",
       contextBefore: "",
       contextAfter: "",
-      sourceAnchor: { file: "paper.md", lineStart: 1, colStart: 0, lineEnd: 1, colEnd: 1 },
+      anchor: {
+        kind: "source",
+        file: "paper.md",
+        lineStart: 1,
+        colStart: 0,
+        lineEnd: 1,
+        colEnd: 1,
+      },
       note: "",
       thread: [],
       createdAt: paper.createdAt,
@@ -239,6 +247,12 @@ describe("exportMdBundleV2ForPaper", () => {
       quote: "q",
       contextBefore: "",
       contextAfter: "",
+      anchor: {
+        kind: "pdf",
+        page: 1,
+        bbox: [0, 0, 1, 1],
+        textItemRange: { start: [0, 0], end: [0, 1] },
+      },
       note: "",
       thread: [],
       createdAt: paper.createdAt,

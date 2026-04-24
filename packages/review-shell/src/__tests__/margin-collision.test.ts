@@ -12,6 +12,12 @@ function makeRow(id: string): AnnotationRow {
     quote: "q",
     contextBefore: "",
     contextAfter: "",
+    anchor: {
+      kind: "pdf",
+      page: 1,
+      bbox: [0, 0, 1, 1],
+      textItemRange: { start: [0, 0], end: [0, 1] },
+    },
     note: "",
     thread: [],
     createdAt: "2026-01-01T00:00:00Z",

@@ -35,23 +35,24 @@ export interface RevisionRow {
   note?: string;
 }
 
-export interface SourceAnchorFields {
-  file: string;
-  lineStart: number;
-  colStart: number;
-  lineEnd: number;
-  colEnd: number;
-}
-
-export interface PdfAnchoredAnnotation {
+// Anchor fields mirror the bundle-schema's discriminated `Anchor` Zod, plus
+// `rects` on the PDF arm — a UI cache for the per-line highlight overlay that
+// the canonical `bbox` doesn't carry. The wire format (bundle JSON) intentionally
+// omits `rects`; only the row carries it because only the renderer needs it.
+export type PdfAnchorFields = {
+  kind: "pdf";
   page: number;
   bbox: [number, number, number, number];
-  rects?: Array<[number, number, number, number]>;
   textItemRange: {
     start: [number, number];
     end: [number, number];
   };
-}
+  rects?: Array<[number, number, number, number]>;
+};
+
+export type SourceAnchorFields = z.infer<typeof BundleSchema.SourceAnchor>;
+
+export type AnchorFields = PdfAnchorFields | SourceAnchorFields;
 
 export interface AnnotationRow {
   id: string;
@@ -60,21 +61,7 @@ export interface AnnotationRow {
   quote: string;
   contextBefore: string;
   contextAfter: string;
-  // Anchor fields are pairwise exclusive by the paper's `format`:
-  //   pdf  → page + bbox + textItemRange (+ rects) are present; sourceAnchor
-  //          is absent.
-  //   md   → sourceAnchor is present; the PDF-coordinate fields are absent.
-  // Readers that need PDF coordinates should narrow through the paper's
-  // format (which is known at the call site) rather than deriving it from
-  // these fields — keeps the narrow cheap and the intent explicit.
-  page?: number;
-  bbox?: [number, number, number, number];
-  rects?: Array<[number, number, number, number]>;
-  textItemRange?: {
-    start: [number, number];
-    end: [number, number];
-  };
-  sourceAnchor?: SourceAnchorFields;
+  anchor: AnchorFields;
   note: string;
   thread: Array<{ at: string; body: string }>;
   createdAt: string;

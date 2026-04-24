@@ -1,5 +1,7 @@
+import { PdfAnchor, SourceAnchor } from "@obelus/bundle-schema";
+import { z } from "zod";
 import type { AnnotationStalenessPatch, AnnotationsRepo } from "../interface";
-import type { AnnotationRow, AnnotationStaleness } from "../types";
+import type { AnchorFields, AnnotationRow, AnnotationStaleness } from "../types";
 import type { Database } from "./db";
 import { dbTxBatch, type TxStmt } from "./transaction";
 
@@ -23,59 +25,31 @@ function isStaleness(value: string): value is AnnotationStaleness {
   return value === "ok" || value === "line-out-of-range" || value === "quote-mismatch";
 }
 
-interface PdfAnchorJson {
-  kind: "pdf";
-  page: number;
-  bbox: [number, number, number, number];
-  rects?: Array<[number, number, number, number]>;
-  textItemRange: { start: [number, number]; end: [number, number] };
-}
-
-interface SourceAnchorJson {
-  kind: "source";
-  file: string;
-  lineStart: number;
-  colStart: number;
-  lineEnd: number;
-  colEnd: number;
-}
-
-type AnchorJson = PdfAnchorJson | SourceAnchorJson;
+// Row-shape Zod that extends bundle-schema's PdfAnchor with the optional `rects`
+// cache — a UI-only field the canonical wire schema deliberately omits.
+const Bbox4 = z.tuple([z.number(), z.number(), z.number(), z.number()]);
+const PdfAnchorRow = PdfAnchor.extend({
+  rects: z.array(Bbox4).optional(),
+});
+const RowAnchor = z.discriminatedUnion("kind", [PdfAnchorRow, SourceAnchor]);
+const ThreadEntries = z.array(z.object({ at: z.string(), body: z.string() }));
 
 function toAnnotationRow(r: AnnotationSqlRow): AnnotationRow {
-  const anchor = JSON.parse(r.anchor_json) as AnchorJson;
-  const thread = JSON.parse(r.thread_json) as AnnotationRow["thread"];
-  const common = {
+  const anchor = RowAnchor.parse(JSON.parse(r.anchor_json)) as AnchorFields;
+  const thread = ThreadEntries.parse(JSON.parse(r.thread_json));
+  const base: AnnotationRow = {
     id: r.id,
     revisionId: r.revision_id,
     category: r.category,
     quote: r.quote,
     contextBefore: r.context_before,
     contextAfter: r.context_after,
+    anchor,
     note: r.note,
     thread,
     createdAt: r.created_at,
   };
-  const anchored: AnnotationRow =
-    anchor.kind === "pdf"
-      ? {
-          ...common,
-          page: anchor.page,
-          bbox: anchor.bbox,
-          textItemRange: anchor.textItemRange,
-          ...(anchor.rects !== undefined ? { rects: anchor.rects } : {}),
-        }
-      : {
-          ...common,
-          sourceAnchor: {
-            file: anchor.file,
-            lineStart: anchor.lineStart,
-            colStart: anchor.colStart,
-            lineEnd: anchor.lineEnd,
-            colEnd: anchor.colEnd,
-          },
-        };
-  const withGroup = r.group_id !== null ? { ...anchored, groupId: r.group_id } : anchored;
+  const withGroup = r.group_id !== null ? { ...base, groupId: r.group_id } : base;
   const withResolved =
     r.resolved_in_edit_id !== null
       ? { ...withGroup, resolvedInEditId: r.resolved_in_edit_id }
@@ -86,28 +60,7 @@ function toAnnotationRow(r: AnnotationSqlRow): AnnotationRow {
 }
 
 function toAnchorJson(row: AnnotationRow): string {
-  if (row.sourceAnchor) {
-    const anchor: SourceAnchorJson = {
-      kind: "source",
-      file: row.sourceAnchor.file,
-      lineStart: row.sourceAnchor.lineStart,
-      colStart: row.sourceAnchor.colStart,
-      lineEnd: row.sourceAnchor.lineEnd,
-      colEnd: row.sourceAnchor.colEnd,
-    };
-    return JSON.stringify(anchor);
-  }
-  if (row.page !== undefined && row.bbox !== undefined && row.textItemRange !== undefined) {
-    const anchor: PdfAnchorJson = {
-      kind: "pdf",
-      page: row.page,
-      bbox: row.bbox,
-      textItemRange: row.textItemRange,
-      ...(row.rects !== undefined ? { rects: row.rects } : {}),
-    };
-    return JSON.stringify(anchor);
-  }
-  throw new Error(`annotation ${row.id} has no valid anchor; pdf or source is required`);
+  return JSON.stringify(row.anchor);
 }
 
 export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
@@ -209,7 +162,7 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
         revisionId,
         rowCount: rows.length,
         ids: rows.map((r) => r.id),
-        kind: rows[0]?.sourceAnchor ? "source" : "pdf",
+        kind: rows[0]?.anchor.kind,
       });
     },
 

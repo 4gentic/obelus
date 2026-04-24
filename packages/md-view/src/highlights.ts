@@ -6,6 +6,15 @@ import {
   mapSourceToRendered,
 } from "./source-map";
 
+// The highlight resolver only needs the geometry — file + line/col bounds. The
+// `kind` discriminant on `SourceAnchorFields` is irrelevant here, so we accept
+// the geometric subset and let callers pass either a saved row's anchor or a
+// freshly-built selection without ceremony.
+type SourceAnchorGeometry = Pick<
+  SourceAnchorFields,
+  "file" | "lineStart" | "colStart" | "lineEnd" | "colEnd"
+>;
+
 // Resolve a SourceAnchor to a DOM Range inside a rendered markdown container.
 //
 // The renderer stamps `data-src-file`, `data-src-line`, `data-src-end-line`,
@@ -148,7 +157,7 @@ function textNodeInDocument(
 
 export function resolveSourceAnchorToRange(
   container: HTMLElement,
-  anchor: SourceAnchorFields,
+  anchor: SourceAnchorGeometry,
   sourceMap: DocumentSourceMap | null,
   sourceText: string | null,
 ): Range | null {
@@ -222,7 +231,7 @@ export function resolveSourceAnchorToRange(
 // gutter until the next layout pass.
 export function resolveSourceAnchorToRects(
   container: HTMLElement,
-  anchor: SourceAnchorFields,
+  anchor: SourceAnchorGeometry,
   scrollContainer: HTMLElement,
   sourceMap: DocumentSourceMap | null,
   sourceText: string | null,

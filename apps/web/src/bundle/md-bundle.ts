@@ -18,7 +18,7 @@ export async function buildMdBundleJson(
 ): Promise<{ filename: string; json: string }> {
   const rows = await annotations.listForRevision(input.revision.id);
   const v2Annotations: AnnotationV2Input[] = rows.flatMap((r) => {
-    if (r.sourceAnchor === undefined) return [];
+    if (r.anchor.kind !== "source") return [];
     return [
       {
         id: r.id,
@@ -27,7 +27,7 @@ export async function buildMdBundleJson(
         quote: r.quote,
         contextBefore: r.contextBefore,
         contextAfter: r.contextAfter,
-        sourceAnchor: r.sourceAnchor,
+        anchor: r.anchor,
         note: r.note,
         thread: r.thread,
         createdAt: r.createdAt,

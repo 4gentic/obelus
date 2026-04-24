@@ -3,16 +3,12 @@ import type { AnnotationRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { useReviewStore } from "./store-context";
 
-// Row-agnostic "where in the paper" label. PDF rows carry `page`; source rows
-// (markdown, future html) carry `sourceAnchor.lineStart/lineEnd`. Mirrors
-// `packages/review-shell/src/ReviewPane.tsx::locationLabel`.
+// Row-agnostic "where in the paper" label. Switches on the anchor's
+// discriminant. Mirrors `packages/review-shell/src/ReviewPane.tsx::locationLabel`.
 function locationLabel(row: AnnotationRow): string {
-  if (row.page !== undefined) return `p. ${row.page}`;
-  if (row.sourceAnchor) {
-    const { lineStart, lineEnd } = row.sourceAnchor;
-    return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
-  }
-  return "";
+  if (row.anchor.kind === "pdf") return `p. ${row.anchor.page}`;
+  const { lineStart, lineEnd } = row.anchor;
+  return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
 }
 
 export default function MarginGutter(): JSX.Element {
