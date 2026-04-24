@@ -35,7 +35,7 @@ export interface PickedRoot {
   rootId: string;
 }
 
-export interface PickedPdf {
+export interface PickedPaper {
   path: string;
   rootId: string;
   fileName: string;
@@ -45,8 +45,8 @@ export function openFolderPicker(): Promise<PickedRoot | null> {
   return invoke<PickedRoot | null>("open_folder_picker");
 }
 
-export function openPdfPicker(): Promise<PickedPdf | null> {
-  return invoke<PickedPdf | null>("open_pdf_picker");
+export function openPaperPicker(): Promise<PickedPaper | null> {
+  return invoke<PickedPaper | null>("open_paper_picker");
 }
 
 export interface PickedRubric {

@@ -71,16 +71,18 @@ describe("wizardReducer", () => {
     expect(s.project).toEqual({ kind: "writer", root: "/tmp/work", label: "work" });
   });
 
-  it("PICK_FILE records kind=reviewer", () => {
+  it("PICK_FILE records kind=reviewer with the picked file's relative path", () => {
     const s = wizardReducer(initialWizardState, {
       type: "PICK_FILE",
-      root: "/tmp/a.pdf",
+      root: "/tmp",
       label: "a",
+      relPath: "a.md",
     });
     expect(s.project).toEqual({
       kind: "reviewer",
-      root: "/tmp/a.pdf",
+      root: "/tmp",
       label: "a",
+      relPath: "a.md",
     });
   });
 

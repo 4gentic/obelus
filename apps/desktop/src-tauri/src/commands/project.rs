@@ -12,7 +12,7 @@ use tauri::State;
 // following invariants to stay safe:
 //
 // 1. The only writer to the projects table is the app's own wizard flow,
-//    which obtains paths via `open_folder_picker` / `open_pdf_picker`.
+//    which obtains paths via `open_folder_picker` / `open_paper_picker`.
 // 2. The `sql:*` capability set is trimmed to the minimum commands the app
 //    actually uses, so untrusted code cannot insert arbitrary project rows.
 // 3. The deep-link handler (`apps/desktop/src/lib/deep-link.ts`) only

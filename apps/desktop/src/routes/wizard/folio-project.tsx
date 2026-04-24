@@ -1,11 +1,11 @@
 import type { JSX } from "react";
 import { useState } from "react";
-import { openFolderPicker, openPdfPicker } from "../../ipc/commands";
+import { openFolderPicker, openPaperPicker } from "../../ipc/commands";
 
 interface Props {
   firstProject: boolean;
   onPickFolder: (root: string, label: string) => void;
-  onPickFile: (root: string, label: string) => void;
+  onPickFile: (root: string, label: string, relPath: string) => void;
   onBack: () => void;
 }
 
@@ -49,7 +49,7 @@ export default function FolioProject({
     setBusy("reviewer");
     setError(null);
     try {
-      const picked = await openPdfPicker();
+      const picked = await openPaperPicker();
       if (!picked) {
         setBusy(null);
         return;
@@ -58,7 +58,7 @@ export default function FolioProject({
         0,
         Math.max(0, picked.path.length - picked.fileName.length - 1),
       );
-      onPickFile(parent, stripExt(picked.fileName));
+      onPickFile(parent, stripExt(picked.fileName), picked.fileName);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(null);
@@ -94,10 +94,10 @@ export default function FolioProject({
         >
           <span className="folio__card-title">I'm a reviewer.</span>
           <span className="folio__card-legend">
-            For critics and reviewers. Open a single PDF, mark what needs attention, and draft a
-            reviewer's letter.
+            For critics and reviewers. Open a single PDF or Markdown file, mark what needs
+            attention, and draft a reviewer's letter.
           </span>
-          <span className="folio__card-sub">Pick PDF →</span>
+          <span className="folio__card-sub">Pick paper →</span>
         </button>
       </div>
       {error ? (

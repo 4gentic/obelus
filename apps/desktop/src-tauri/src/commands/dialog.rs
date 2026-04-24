@@ -52,18 +52,18 @@ pub async fn open_folder_picker(app: AppHandle) -> Option<PickedRoot> {
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct PickedPdf {
+pub struct PickedPaper {
     pub path: String,
     pub root_id: String,
     pub file_name: String,
 }
 
 #[tauri::command]
-pub async fn open_pdf_picker(app: AppHandle) -> Option<PickedPdf> {
+pub async fn open_paper_picker(app: AppHandle) -> Option<PickedPaper> {
     let (tx, rx) = oneshot::channel();
     app.dialog()
         .file()
-        .add_filter("PDF", &["pdf"])
+        .add_filter("Paper", &["pdf", "md"])
         .pick_file(move |picked| {
             let path = picked.and_then(|p| p.as_path().map(PathBuf::from));
             let _ = tx.send(path);
@@ -74,7 +74,7 @@ pub async fn open_pdf_picker(app: AppHandle) -> Option<PickedPdf> {
     let file_name = canon.file_name()?.to_string_lossy().into_owned();
     let state = app.state::<AppState>();
     let root = register_root(&state, parent)?;
-    Some(PickedPdf {
+    Some(PickedPaper {
         path: canon.display().to_string(),
         root_id: root.root_id,
         file_name,

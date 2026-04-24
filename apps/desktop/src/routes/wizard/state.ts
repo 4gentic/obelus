@@ -7,6 +7,7 @@ export interface PickedProject {
   kind: ProjectKind;
   root: string;
   label: string;
+  relPath?: string;
 }
 
 export interface WizardState {
@@ -21,7 +22,7 @@ export type WizardAction =
   | { type: "DETECT_RESULT"; claude: ClaudeStatus }
   | { type: "SET_DESK"; desk: string }
   | { type: "PICK_FOLDER"; root: string; label: string }
-  | { type: "PICK_FILE"; root: string; label: string }
+  | { type: "PICK_FILE"; root: string; label: string; relPath: string }
   | { type: "ADVANCE" }
   | { type: "BACK" }
   | { type: "FINISH" };
@@ -63,7 +64,12 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
     case "PICK_FILE":
       return {
         ...state,
-        project: { kind: "reviewer", root: action.root, label: action.label },
+        project: {
+          kind: "reviewer",
+          root: action.root,
+          label: action.label,
+          relPath: action.relPath,
+        },
       };
     case "ADVANCE":
       return { ...state, folio: next(state.folio) };

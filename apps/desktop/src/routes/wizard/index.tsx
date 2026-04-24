@@ -86,12 +86,15 @@ export default function Wizard(): JSX.Element {
           deskId = desk.id;
           await setAppState("currentDeskId", deskId);
         }
-        await repo.projects.create({
+        const created = await repo.projects.create({
           label: picked.label,
           kind: picked.kind,
           root: picked.root,
           deskId,
         });
+        if (picked.relPath) {
+          await repo.projects.setLastOpenedFile(created.id, picked.relPath);
+        }
       }
       await setAppState("wizard", { folio: "done", seenOnce: true });
       navigate("/home", { replace: true });
@@ -139,8 +142,8 @@ export default function Wizard(): JSX.Element {
               onPickFolder={(root, label) => {
                 dispatch({ type: "PICK_FOLDER", root, label });
               }}
-              onPickFile={(root, label) => {
-                dispatch({ type: "PICK_FILE", root, label });
+              onPickFile={(root, label, relPath) => {
+                dispatch({ type: "PICK_FILE", root, label, relPath });
                 dispatch({ type: "FINISH" });
               }}
               onBack={
