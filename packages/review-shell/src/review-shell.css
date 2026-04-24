@@ -75,6 +75,15 @@
   outline-offset: 0;
 }
 
+/* Marks whose anchor no longer matches the current source — file shifted
+   under us, or the line range was deleted. The sidebar carries the
+   actionable "relocate or delete" affordance; the overlay just fades so
+   the stale paint doesn't pretend to be authoritative. */
+.review-shell__hl[data-stale="true"] {
+  background: color-mix(in srgb, var(--hl-color) 12%, transparent);
+  outline: 1px dotted color-mix(in srgb, var(--hl-color) 45%, transparent);
+}
+
 /* Hover description for category chips. The highlights themselves are
    pointer-events:none to preserve text selection over the document, so the
    tooltip is hosted by the margin note chip and the picker chip. */

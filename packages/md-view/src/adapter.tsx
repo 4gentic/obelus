@@ -34,11 +34,33 @@ type HighlightRect = {
   category: string;
   draft: boolean;
   focused: boolean;
+  stale: boolean;
   left: number;
   top: number;
   width: number;
   height: number;
 };
+
+// Walk up from the md container to the first scrollable ancestor, falling
+// back to the document's scrolling element. The adapter is mounted both
+// inside `.review-shell__scroll` (web `ReviewShell`) and inside
+// `.md-pane { overflow: auto }` (desktop `MdReviewSurface`), so hard-coding
+// a wrapper class misses one surface and silently breaks scroll-relative
+// coordinates.
+function findScrollAncestor(el: HTMLElement): HTMLElement {
+  let cur: HTMLElement | null = el.parentElement;
+  while (cur) {
+    const style = cur.ownerDocument?.defaultView?.getComputedStyle(cur);
+    const overflow = (style?.overflowY ?? "") + (style?.overflowX ?? "");
+    if (/(auto|scroll|overlay)/.test(overflow)) return cur;
+    cur = cur.parentElement;
+  }
+  return (
+    (el.ownerDocument?.scrollingElement as HTMLElement | null) ??
+    el.ownerDocument?.documentElement ??
+    el
+  );
+}
 
 // Paints absolute rects inside `.review-shell__hl-layer` (provided by the
 // adapter). Coordinates are scroll-container-relative — same convention as
@@ -52,6 +74,7 @@ function HighlightLayer({ rects }: { rects: ReadonlyArray<HighlightRect> }): JSX
           className={r.draft ? "review-shell__hl review-shell__hl--draft" : "review-shell__hl"}
           data-category={r.category}
           data-focused={r.focused ? "true" : undefined}
+          data-stale={r.stale ? "true" : undefined}
           style={{ left: r.left, top: r.top, width: r.width, height: r.height }}
         />
       ))}
@@ -86,6 +109,7 @@ export function useMdDocumentView({
 
   useMarkdownSelection({
     containerRef,
+    renderVersion,
     onSelection: (sel) => {
       if (sel === null) return;
       onAnchor({
@@ -118,8 +142,7 @@ export function useMdDocumentView({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const scroll = container.closest<HTMLElement>(".review-shell__scroll");
-    if (!scroll) return;
+    const scroll = findScrollAncestor(container);
     const onScroll = (): void => setLayoutTick((t) => t + 1);
     scroll.addEventListener("scroll", onScroll, { passive: true });
     return () => scroll.removeEventListener("scroll", onScroll);
@@ -128,9 +151,7 @@ export function useMdDocumentView({
   const rectsForAnchor = useCallback((anchor: SourceAnchor2 | SourceAnchorFields): DOMRect[] => {
     const container = containerRef.current;
     if (!container) return [];
-    const scroll = container.closest<HTMLElement>(".review-shell__scroll");
-    if (!scroll) return [];
-    return resolveSourceAnchorToRects(container, anchor, scroll);
+    return resolveSourceAnchorToRects(container, anchor, findScrollAncestor(container));
   }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: renderVersion is an intentional re-trigger so we recompute rects after MarkdownView re-parses — not an omitted dep of the function body.
@@ -157,9 +178,11 @@ export function useMdDocumentView({
     (id: string): void => {
       const top = annotationTops.get(id);
       const container = containerRef.current;
-      const scroll = container?.closest<HTMLElement>(".review-shell__scroll");
-      if (scroll && top !== undefined) {
-        scroll.scrollTo({ top: Math.max(0, top - 100), behavior: "smooth" });
+      if (container && top !== undefined) {
+        findScrollAncestor(container).scrollTo({
+          top: Math.max(0, top - 100),
+          behavior: "smooth",
+        });
       }
     },
     [annotationTops],
@@ -170,12 +193,14 @@ export function useMdDocumentView({
     for (const row of annotations) {
       const rects = annotationRects.get(row.id);
       if (!rects) continue;
+      const stale = row.staleness !== undefined && row.staleness !== "ok";
       for (const r of rects) {
         out.push({
           key: `ann-${row.id}-${r.left}-${r.top}`,
           category: row.category,
           draft: false,
           focused: focusedId === row.id,
+          stale,
           left: r.left,
           top: r.top,
           width: r.width,
@@ -192,6 +217,7 @@ export function useMdDocumentView({
             category: draftCategory ?? "",
             draft: true,
             focused: false,
+            stale: false,
             left: r.left,
             top: r.top,
             width: r.width,

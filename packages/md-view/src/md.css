@@ -18,6 +18,26 @@
   overflow-wrap: break-word;
 }
 
+.md-view,
+.md-view * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* WebKit snaps the native Selection's anchor to the block's start the moment
+   the drag crosses an inline/block boundary. Our draft-rect overlay paints
+   the *correct* span (from the mousedown click point to the drag endpoint),
+   so let that be the sole drag feedback instead of the browser's misleading
+   block-start-to-cursor highlight. */
+.md-view ::selection {
+  background: transparent;
+  color: inherit;
+}
+.md-view ::-moz-selection {
+  background: transparent;
+  color: inherit;
+}
+
 .md-view h1,
 .md-view h2,
 .md-view h3,

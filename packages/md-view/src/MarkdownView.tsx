@@ -38,6 +38,15 @@ function Component(
     onRender(render.ok ? { kind: "ok" } : { kind: "parse-failed", error: render.error });
   }, [render, onRender]);
 
+  // Stable prop reference when the rendered HTML is unchanged — React's
+  // reconciler then skips re-applying the inner-HTML setter, which would
+  // otherwise rewrite the div's children and detach text nodes mid-drag.
+  const html = render.ok ? render.html : null;
+  const innerHtmlProp: ReturnType<typeof innerHtmlFromRenderer> | undefined = useMemo(
+    () => (html === null ? undefined : innerHtmlFromRenderer(html)),
+    [html],
+  );
+
   if (!render.ok) {
     return (
       <div
@@ -52,12 +61,7 @@ function Component(
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="md-view"
-      data-md-view-root={file}
-      {...innerHtmlFromRenderer(render.html)}
-    />
+    <div ref={containerRef} className="md-view" data-md-view-root={file} {...innerHtmlProp} />
   );
 }
 
