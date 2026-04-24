@@ -112,6 +112,11 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   const hasEntry = buffers((s) => s.buffers.has(relPath));
   const dirty = buffers((s) => s.isDirty(relPath));
   const externalVersion = buffers((s) => s.buffers.get(relPath)?.externalVersion ?? 0);
+  // Subscribed only for the MD preview path below. Source-mode renders skip
+  // the dependent branch so re-renders here are cheap; CodeMirror owns its
+  // own DOM and isn't rebuilt because `hasEntry` / `externalVersion` drive
+  // the view-mount effect, not `bufferText`.
+  const bufferText = buffers((s) => s.buffers.get(relPath)?.text ?? "");
   const pendingSwitch = buffers((s) => s.pendingSwitch);
   const locked = useSourceLocked();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
@@ -350,7 +355,7 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
       <div className="source-pane__editor" ref={hostRef} hidden={isMd && viewMode === "preview"} />
       {isMd && viewMode === "preview" && (
         <div className="source-pane__preview">
-          <MarkdownView file={relPath} text={entry?.text ?? ""} />
+          <MarkdownView file={relPath} text={bufferText} />
         </div>
       )}
       <DraftsRail />
