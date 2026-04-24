@@ -309,4 +309,58 @@ describe("computeMarkdownSelection", () => {
     const result = computeMarkdownSelection(wrapper, null, snapshot(t, 0, strayText, 5));
     expect(result).toBeNull();
   });
+
+  it("uses live pointer to resolve focus when WebKit snaps focus to a container element", () => {
+    // Observed: drag from inside a <strong> inside a <li>, focus is WebKit-
+    // snapped to the <li> element at a high child index. Without the pointer
+    // fallback, `normalizeEndpoint` descends to the <li>'s last text child
+    // and the anchor would span the entire bullet. With the pointer, we land
+    // on a text-node caret roughly where the user's cursor is.
+    const strong = block("strong", src(5, 2), ["Built"]);
+    const trailingCode = block("code", src(5, 20), ["fast-check"]);
+    const li = document.createElement("li");
+    li.setAttribute("data-src-file", "doc.md");
+    li.setAttribute("data-src-line", "5");
+    li.setAttribute("data-src-end-line", "5");
+    li.setAttribute("data-src-col", "0");
+    li.appendChild(strong);
+    li.appendChild(document.createTextNode(" + tested "));
+    li.appendChild(trailingCode);
+    li.appendChild(document.createTextNode(" tail text at end of line"));
+    const wrapper = mount(block("ul", {}, [li]));
+    const strongText = firstText(strong);
+
+    (document as Document & { caretRangeFromPoint?: unknown }).caretRangeFromPoint = vi
+      .fn()
+      .mockImplementation((x: number, _y: number) => {
+        const r = document.createRange();
+        // Pointer lands on the " + tested " text node at offset 5 ("+ tes|ted")
+        // — strictly inside the bullet, before the trailing code span.
+        if (x === 200) {
+          const tested = li.childNodes[1] as Text;
+          r.setStart(tested, 5);
+          r.setEnd(tested, 5);
+          return r;
+        }
+        return null;
+      });
+
+    const snapped: NativeSelectionSnapshot = {
+      anchorNode: strongText,
+      anchorOffset: 0,
+      focusNode: li,
+      focusOffset: 4, // WebKit points at a child index deep into the <li>
+      isCollapsed: false,
+      rangeCount: 1,
+    };
+    const result = computeMarkdownSelection(wrapper, null, snapped, undefined, { x: 200, y: 10 });
+    expect(result).not.toBeNull();
+    // Focus should land at the pointer-resolved caret, not the block's last
+    // text child. The selection does NOT span to the end of the bullet.
+    expect(result?.anchor.lineStart).toBe(5);
+    expect(result?.anchor.lineEnd).toBe(5);
+    // colEnd reflects the pointer-resolved caret inside " + tested ", which
+    // is within the bullet but well before the trailing tail text.
+    expect(result?.anchor.colEnd).toBeLessThan(30);
+  });
 });

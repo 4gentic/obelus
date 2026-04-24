@@ -2,6 +2,36 @@ import { selectionToSourceAnchor } from "@obelus/anchor";
 import type { SourceAnchor2 } from "@obelus/bundle-schema";
 import { useEffect, useRef } from "react";
 
+// Slices the quote and surrounding context from the raw markdown source using
+// the anchor's 1-indexed line range + 0-indexed column range. The bundle must
+// carry source bytes (with markdown syntax intact) so plan-fix's source-side
+// verifier can round-trip — reading the rendered DOM's `innerText` strips
+// `**`, backticks, etc. and confuses downstream quote matching.
+function sliceSourceSpan(
+  text: string,
+  anchor: SourceAnchor2,
+): { quote: string; contextBefore: string; contextAfter: string } | null {
+  const lines = text.split("\n");
+  if (anchor.lineStart < 1 || anchor.lineEnd > lines.length) return null;
+  let startOffset = 0;
+  for (let i = 0; i < anchor.lineStart - 1; i += 1) {
+    startOffset += (lines[i]?.length ?? 0) + 1;
+  }
+  startOffset += anchor.colStart;
+  let endOffset = 0;
+  for (let i = 0; i < anchor.lineEnd - 1; i += 1) {
+    endOffset += (lines[i]?.length ?? 0) + 1;
+  }
+  endOffset += anchor.colEnd;
+  if (startOffset > endOffset) return null;
+  if (startOffset < 0 || endOffset > text.length) return null;
+  const quote = text.slice(startOffset, endOffset);
+  if (quote.trim() === "") return null;
+  const contextBefore = text.slice(Math.max(0, startOffset - CONTEXT_CHARS), startOffset);
+  const contextAfter = text.slice(endOffset, Math.min(text.length, endOffset + CONTEXT_CHARS));
+  return { quote, contextBefore, contextAfter };
+}
+
 export interface MarkdownSelection {
   anchor: SourceAnchor2;
   quote: string;
@@ -16,6 +46,11 @@ const CONTEXT_CHARS = 200;
 
 interface UseMarkdownSelectionOptions {
   containerRef: { current: HTMLElement | null };
+  // Raw markdown source. The selection hook slices quote/context from this
+  // so the emitted bundle carries source bytes (`**bold**`, backticks, etc.)
+  // rather than rendered-DOM plain text. Passed explicitly (not read via a
+  // closure) so a file switch doesn't force the hook to re-attach.
+  text: string;
   onSelection: (selection: MarkdownSelection | null) => void;
   // Rising-edge callback: only fires when a new non-empty selection appears,
   // so opening the composer doesn't re-trigger on every mousemove.
@@ -205,6 +240,8 @@ export function computeMarkdownSelection(
   container: HTMLElement,
   mousedown: { x: number; y: number } | null,
   sel: NativeSelectionSnapshot,
+  text?: string,
+  pointer?: { x: number; y: number } | null,
 ): MarkdownSelection | null {
   if (sel.rangeCount === 0 || sel.isCollapsed) return null;
   const anchorNode = sel.anchorNode;
@@ -220,8 +257,21 @@ export function computeMarkdownSelection(
   const anchorInput: CaretPoint = useMouse
     ? (freshCaret as CaretPoint)
     : { node: anchorNode, offset: sel.anchorOffset };
+  // Focus-side snap mitigation. WebKit collapses `focusNode` to a container
+  // element when a drag crosses inline boundaries (e.g. from a <strong> inside
+  // a <li> across an inline <code> span); `normalizeEndpoint` would then
+  // descend to that block's last text child and extend the anchor to the
+  // entire bullet. Prefer the live pointer's caret when the native focus is
+  // element-typed — that tracks where the user actually is.
+  const focusInput: CaretPoint =
+    focusNode.nodeType !== TEXT_NODE && pointer
+      ? (captureMousedownCaret(container, pointer.x, pointer.y) ?? {
+          node: focusNode,
+          offset: sel.focusOffset,
+        })
+      : { node: focusNode, offset: sel.focusOffset };
   const normA = normalizeEndpoint(anchorInput.node, anchorInput.offset);
-  const normF = normalizeEndpoint(focusNode, sel.focusOffset);
+  const normF = normalizeEndpoint(focusInput.node, focusInput.offset);
   const anchor = selectionToSourceAnchor({
     anchorNode: normA.node,
     anchorOffset: normA.offset,
@@ -229,6 +279,14 @@ export function computeMarkdownSelection(
     focusOffset: normF.offset,
   });
   if (anchor === null) return null;
+
+  if (text !== undefined) {
+    const sourceSpan = sliceSourceSpan(text, anchor);
+    if (sourceSpan !== null) return { anchor, ...sourceSpan };
+    // Fall through to DOM-derived if source slicing failed (line out of range
+    // after re-render, mid-parse state). Better to ship a rendered-text quote
+    // than drop the selection entirely.
+  }
 
   const quote = quoteFromRange(container, normA, normF);
   if (quote === "") return null;
@@ -245,7 +303,7 @@ export function computeMarkdownSelection(
 }
 
 export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void {
-  const { containerRef, onSelection } = options;
+  const { containerRef, onSelection, text } = options;
   // Keep `onSelection` in a ref so the listener closure below reads the latest
   // callback without our useEffect re-running on every parent render — if we
   // re-attached the listener on each render (the original bug), a fast drag
@@ -253,17 +311,45 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
   // was attached got lost, pinning the composer to the first character.
   const onSelectionRef = useRef(onSelection);
   onSelectionRef.current = onSelection;
+  // Same ref trick for source text: the selectionchange listener reads the
+  // latest buffer without re-attaching on every keystroke in writer-mode
+  // (where the buffer updates live from the CodeMirror editor).
+  const textRef = useRef(text);
+  textRef.current = text;
   const lastQuoteRef = useRef<string>("");
   const mousedownRef = useRef<{ x: number; y: number } | null>(null);
+  // Live pointer position, updated on every pointermove during a drag.
+  // `computeMarkdownSelection` consults it when WebKit snaps `focusNode` to a
+  // container element mid-drag — the pointer tracks where the cursor actually
+  // is, so we can land on a text-node caret instead of extending to the
+  // block's last text child.
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     function onMousedown(ev: MouseEvent): void {
       mousedownRef.current = { x: ev.clientX, y: ev.clientY };
+      pointerRef.current = { x: ev.clientX, y: ev.clientY };
+    }
+    function onMouseMove(ev: MouseEvent): void {
+      // Only track while a button is held (a drag in progress). Without a
+      // button-mask gate, idle mouse movement would fire thousands of
+      // updates per minute for no benefit.
+      if (ev.buttons === 0) return;
+      pointerRef.current = { x: ev.clientX, y: ev.clientY };
+    }
+    function onMouseUp(ev: MouseEvent): void {
+      pointerRef.current = { x: ev.clientX, y: ev.clientY };
     }
     container.addEventListener("mousedown", onMousedown, true);
-    return () => container.removeEventListener("mousedown", onMousedown, true);
+    container.addEventListener("mousemove", onMouseMove, true);
+    container.addEventListener("mouseup", onMouseUp, true);
+    return () => {
+      container.removeEventListener("mousedown", onMousedown, true);
+      container.removeEventListener("mousemove", onMouseMove, true);
+      container.removeEventListener("mouseup", onMouseUp, true);
+    };
   }, [containerRef]);
 
   useEffect(() => {
@@ -272,14 +358,20 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
       if (!container) return;
       const sel = document.getSelection();
       if (!sel) return;
-      const result = computeMarkdownSelection(container, mousedownRef.current, {
-        anchorNode: sel.anchorNode,
-        anchorOffset: sel.anchorOffset,
-        focusNode: sel.focusNode,
-        focusOffset: sel.focusOffset,
-        isCollapsed: sel.isCollapsed,
-        rangeCount: sel.rangeCount,
-      });
+      const result = computeMarkdownSelection(
+        container,
+        mousedownRef.current,
+        {
+          anchorNode: sel.anchorNode,
+          anchorOffset: sel.anchorOffset,
+          focusNode: sel.focusNode,
+          focusOffset: sel.focusOffset,
+          isCollapsed: sel.isCollapsed,
+          rangeCount: sel.rangeCount,
+        },
+        textRef.current,
+        pointerRef.current,
+      );
       if (result === null) {
         if (lastQuoteRef.current !== "") {
           lastQuoteRef.current = "";

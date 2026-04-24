@@ -109,6 +109,7 @@ export function useMdDocumentView({
 
   useMarkdownSelection({
     containerRef,
+    text,
     renderVersion,
     onSelection: (sel) => {
       if (sel === null) return;
