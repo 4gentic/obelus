@@ -148,8 +148,14 @@ export default function ProjectShell(): JSX.Element {
   }, []);
 
   const { widths, setWidth } = useProjectLayout(project.id);
-  const onMarginResize = useCallback((v: number) => setWidth("margin", v), [setWidth]);
-  const onReviewResize = useCallback((v: number) => setWidth("review", v), [setWidth]);
+  const onMarginResize = useCallback(
+    (v: number, other: number) => setWidth("margin", v, other),
+    [setWidth],
+  );
+  const onReviewResize = useCallback(
+    (v: number, other: number) => setWidth("review", v, other),
+    [setWidth],
+  );
 
   // Drag only takes effect in layouts that expose both (or the review) column at
   // a fixed pixel width. Below 1024 the layout compacts; when --no-pdf or

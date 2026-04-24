@@ -12,7 +12,7 @@ interface PaneDividerProps {
   bodyRef: RefObject<HTMLDivElement | null>;
   hideLeft: boolean;
   valueNow: number | undefined;
-  onChange: (value: number) => void;
+  onChange: (value: number, otherWidth: number) => void;
 }
 
 interface DragStart {
@@ -77,6 +77,7 @@ export default function PaneDivider({
           filesWidth: s.filesWidth,
           otherWidth: s.otherWidth,
         }),
+        s.otherWidth,
       );
     },
     [side, onChange],
@@ -105,6 +106,7 @@ export default function PaneDivider({
           filesWidth: base.filesWidth,
           otherWidth: base.otherWidth,
         }),
+        base.otherWidth,
       );
       ev.preventDefault();
     },

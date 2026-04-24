@@ -37,11 +37,16 @@ function notify(projectId: string): void {
   for (const cb of set) cb();
 }
 
-function setPaneWidth(projectId: string, side: DividerSide, value: number): void {
+function setPaneWidth(
+  projectId: string,
+  side: DividerSide,
+  value: number,
+  otherCurrent: number,
+): void {
   const prev = widthsByProject.get(projectId);
   const next: PaneWidths = {
-    marginWidth: side === "margin" ? value : (prev?.marginWidth ?? value),
-    reviewWidth: side === "review" ? value : (prev?.reviewWidth ?? value),
+    marginWidth: side === "margin" ? value : (prev?.marginWidth ?? otherCurrent),
+    reviewWidth: side === "review" ? value : (prev?.reviewWidth ?? otherCurrent),
   };
   widthsByProject.set(projectId, next);
   notify(projectId);
@@ -49,7 +54,7 @@ function setPaneWidth(projectId: string, side: DividerSide, value: number): void
 
 export interface ProjectLayout {
   widths: PaneWidths | null;
-  setWidth: (side: DividerSide, value: number) => void;
+  setWidth: (side: DividerSide, value: number, otherCurrent: number) => void;
 }
 
 export function useProjectLayout(projectId: string): ProjectLayout {
@@ -70,8 +75,8 @@ export function useProjectLayout(projectId: string): ProjectLayout {
   const getSnapshot = useCallback(() => widthsByProject.get(projectId) ?? null, [projectId]);
   const widths = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const setWidth = useCallback(
-    (side: DividerSide, value: number) => {
-      setPaneWidth(projectId, side, value);
+    (side: DividerSide, value: number, otherCurrent: number) => {
+      setPaneWidth(projectId, side, value, otherCurrent);
     },
     [projectId],
   );
