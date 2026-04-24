@@ -10,7 +10,11 @@ export function useLoadRevision(): void {
   const { project, repo } = useProject();
   const edits = usePaperEdits(repo, project.id);
   const revisionId =
-    openPaper.kind === "ready" || openPaper.kind === "ready-md" ? openPaper.revision.id : null;
+    openPaper.kind === "ready"
+      ? openPaper.revision.id
+      : openPaper.kind === "ready-md"
+        ? (openPaper.revision?.id ?? null)
+        : null;
   const visibleFromEditId = edits.currentDraftId;
 
   useEffect(() => {

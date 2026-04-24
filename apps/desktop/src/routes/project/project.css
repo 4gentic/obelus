@@ -1670,6 +1670,15 @@ button.files__row {
   border-bottom: 1px solid var(--rule-soft);
 }
 
+.review-column__md-export {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--rule-soft);
+}
+
 .review-column__indications {
   width: 100%;
   min-height: 4.5em;

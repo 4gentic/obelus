@@ -20,9 +20,8 @@ import {
   lineNumbers,
   rectangularSelection,
 } from "@codemirror/view";
-import { MarkdownView } from "@obelus/md-view";
 import "@obelus/md-view/md.css";
-import { type JSX, useEffect, useMemo, useRef, useState } from "react";
+import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
 import { setActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
@@ -30,6 +29,10 @@ import CompileMainButton from "./CompileMainButton";
 import { useProject } from "./context";
 import DraftsRail from "./DraftsRail";
 import { editorTheme } from "./editor-theme";
+import { EnsureRevisionProvider } from "./ensure-revision-context";
+import { findOrCreatePaper } from "./find-or-create-paper";
+import MdReviewSurface from "./MdReviewSurface";
+import { useOpenPaper, useRefreshOpenPaper } from "./OpenPaper";
 import { extensionOf } from "./openable";
 import SwitchResolveBanner from "./SwitchResolveBanner";
 import { useSourceLocked } from "./use-source-lock";
@@ -44,6 +47,49 @@ function langForPath(path: string): Extension[] {
   if (ext === "md") return [markdown(), EditorView.lineWrapping];
   if (ext === "html") return [html()];
   return [];
+}
+
+// Bridge from the SourcePane's live buffer to the shared MD review surface.
+// Mounts an `EnsureRevisionProvider` around it: when the open MD file has no
+// paper row yet (writer-mode pre-first-mark), `ReviewDraft` pulls this
+// callback from context and hands it to the review store so the first save
+// materializes paper + revision on demand, then refreshes `OpenPaper` so
+// subsequent saves skip the lazy path.
+function MdPreviewReview({
+  rootId,
+  relPath,
+  text,
+}: {
+  rootId: string;
+  relPath: string;
+  text: string;
+}): JSX.Element {
+  const { project, repo } = useProject();
+  const openPaper = useOpenPaper();
+  const refreshOpenPaper = useRefreshOpenPaper();
+  const paper =
+    openPaper.kind === "ready-md" && openPaper.path === relPath ? openPaper.paper : null;
+
+  const ensureRevision = useCallback(async () => {
+    const { revision } = await findOrCreatePaper({
+      repo,
+      projectId: project.id,
+      rootId,
+      relPath,
+      format: "md",
+      pageCount: 0,
+    });
+    refreshOpenPaper();
+    return revision.id;
+  }, [repo, project.id, rootId, relPath, refreshOpenPaper]);
+
+  return (
+    <div className="source-pane__preview">
+      <EnsureRevisionProvider value={paper === null ? ensureRevision : null}>
+        <MdReviewSurface path={relPath} text={text} />
+      </EnsureRevisionProvider>
+    </div>
+  );
 }
 
 type LoadState = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready" };
@@ -354,9 +400,7 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
       )}
       <div className="source-pane__editor" ref={hostRef} hidden={isMd && viewMode === "preview"} />
       {isMd && viewMode === "preview" && (
-        <div className="source-pane__preview">
-          <MarkdownView file={relPath} text={bufferText} />
-        </div>
+        <MdPreviewReview rootId={rootId} relPath={relPath} text={bufferText} />
       )}
       <DraftsRail />
       <footer className="source-pane__foot">

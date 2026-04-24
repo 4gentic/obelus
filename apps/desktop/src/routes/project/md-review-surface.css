@@ -1,0 +1,23 @@
+.md-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--page, #f6f1e7);
+  color: var(--ink, #2b2a26);
+  overflow: auto;
+  /* Scroll container must be the positioning context for the adapter's
+     absolute-positioned `.review-shell__hl-layer`; otherwise the layer
+     escapes to the viewport and highlight rects don't scroll with the
+     document content. */
+  position: relative;
+}
+
+.md-pane__render-error {
+  margin: 0;
+  padding: 0.5rem 1.25rem;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--rubric, #b84a2e);
+  border-bottom: 1px solid var(--panel, #ede5d3);
+}

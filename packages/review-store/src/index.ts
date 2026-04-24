@@ -53,7 +53,16 @@ export type ReviewState = {
   setDraftCategory: (category: Category | null) => void;
   setDraftNote: (note: string) => void;
   setFocusedAnnotation: (id: string | null) => void;
-  saveAnnotation: (input: { draft: DraftInput; category: Category; note: string }) => Promise<void>;
+  saveAnnotation: (input: {
+    draft: DraftInput;
+    category: Category;
+    note: string;
+    // Optional lazy-revision resolver. When the store has no revisionId yet
+    // (writer-mode MD that hasn't been ingested as a paper), this callback
+    // materializes one — typically by creating a PaperRow + RevisionRow. The
+    // returned id is stored and used for the bulkPut that follows.
+    ensureRevision?: () => Promise<string>;
+  }) => Promise<void>;
   updateAnnotation: (id: string, patch: Partial<AnnotationRow>) => Promise<void>;
   deleteAnnotation: (id: string) => Promise<void>;
   deleteGroup: (groupId: string) => Promise<void>;
@@ -116,9 +125,13 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
       set({ focusedAnnotationId: id });
     },
 
-    async saveAnnotation({ draft, category, note }) {
-      const revisionId = get().revisionId;
-      if (!revisionId) return;
+    async saveAnnotation({ draft, category, note, ensureRevision }) {
+      let revisionId = get().revisionId;
+      if (!revisionId) {
+        if (!ensureRevision) return;
+        revisionId = await ensureRevision();
+        set({ revisionId });
+      }
       const createdAt = nowIso();
       const groupId = draft.slices.length > 1 ? uuid() : undefined;
       const rows: AnnotationRow[] = draft.slices.map((slice) => {
