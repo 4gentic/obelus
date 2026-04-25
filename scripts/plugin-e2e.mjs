@@ -147,22 +147,23 @@ function cascadeScenario(id, name, assertFn) {
   };
 }
 
-function assertReviewLetter(result, dir) {
+function assertReviewLetter(result, _dir, workspaceDir) {
   const stdout = typeof result.result === "string" ? result.result : "";
   if (containsRefusal(stdout)) {
     return { ok: false, reason: "apply-revision refusal appeared in write-review output" };
   }
-  // write-review's contract: review body is written to .obelus/writeup-<paper-id>-<iso>.md;
+  // write-review's contract: review body is written to $OBELUS_WORKSPACE_DIR/writeup-<paper-id>-<iso>.md;
   // stdout carries only the OBELUS_WROTE: marker (and at most a few sentences of narration).
-  const planDir = resolve(dir, ".obelus");
-  if (!existsSync(planDir)) {
-    return { ok: false, reason: ".obelus/ directory not created by write-review" };
+  if (!existsSync(workspaceDir)) {
+    return { ok: false, reason: "workspace dir not created by write-review" };
   }
-  const writeup = readdirSync(planDir).find((e) => e.startsWith("writeup-") && e.endsWith(".md"));
+  const writeup = readdirSync(workspaceDir).find(
+    (e) => e.startsWith("writeup-") && e.endsWith(".md"),
+  );
   if (!writeup) {
     return { ok: false, reason: "no writeup-*.md written by write-review" };
   }
-  const body = readFileSync(resolve(planDir, writeup), "utf8");
+  const body = readFileSync(resolve(workspaceDir, writeup), "utf8");
   if (!body.includes("# Review")) {
     return { ok: false, reason: `${writeup} missing \`# Review\` heading` };
   }
@@ -177,19 +178,19 @@ function assertReviewLetter(result, dir) {
       reason: `${writeup} surfaced neither citation nor unclear-claim annotation`,
     };
   }
-  if (!stdout.includes(`OBELUS_WROTE: .obelus/${writeup}`)) {
+  if (!stdout.includes(`OBELUS_WROTE: ${resolve(workspaceDir, writeup)}`)) {
     return { ok: false, reason: "OBELUS_WROTE: marker missing or does not name the writeup" };
   }
   return { ok: true, reason: `letter well-formed in ${writeup}` };
 }
 
-function assertInlineReviewLetter(result, dir) {
+function assertInlineReviewLetter(result, _dir, workspaceDir) {
   const stdout = typeof result.result === "string" ? result.result : "";
   if (containsRefusal(stdout)) {
     return { ok: false, reason: "apply-revision refusal appeared in write-review inline output" };
   }
   // Inline mode: the review body is the final assistant message, not a file.
-  // No .obelus/ directory should be created and no OBELUS_WROTE: marker emitted.
+  // No file should land in the workspace dir and no OBELUS_WROTE: marker emitted.
   if (!stdout.includes("# Review")) {
     return { ok: false, reason: "stdout missing `# Review` heading in inline mode" };
   }
@@ -204,8 +205,11 @@ function assertInlineReviewLetter(result, dir) {
       reason: "inline review surfaced neither citation nor unclear-claim annotation",
     };
   }
-  if (existsSync(resolve(dir, ".obelus"))) {
-    return { ok: false, reason: ".obelus/ directory should not be created in inline mode" };
+  if (existsSync(workspaceDir) && readdirSync(workspaceDir).length > 0) {
+    return {
+      ok: false,
+      reason: `workspace dir should be empty in inline mode, got: ${readdirSync(workspaceDir).join(", ")}`,
+    };
   }
   if (/^OBELUS_WROTE:/m.test(stdout)) {
     return { ok: false, reason: "OBELUS_WROTE: marker should not appear in inline mode" };
@@ -213,7 +217,7 @@ function assertInlineReviewLetter(result, dir) {
   return { ok: true, reason: "inline review letter well-formed in stdout" };
 }
 
-function assertNoSourceRefusal(result, dir) {
+function assertNoSourceRefusal(result, _dir, workspaceDir) {
   const text = typeof result.result === "string" ? result.result : "";
   if (!containsRefusal(text)) {
     return { ok: false, reason: "expected no-source refusal text not present" };
@@ -221,9 +225,8 @@ function assertNoSourceRefusal(result, dir) {
   if (!text.includes(WRITE_REVIEW_FALLBACK)) {
     return { ok: false, reason: "refusal did not suggest /obelus:write-review fallback" };
   }
-  const planDir = resolve(dir, ".obelus");
-  if (existsSync(planDir)) {
-    const stale = readdirSync(planDir).filter((e) => e.startsWith("plan-"));
+  if (existsSync(workspaceDir)) {
+    const stale = readdirSync(workspaceDir).filter((e) => e.startsWith("plan-"));
     if (stale.length > 0) {
       return { ok: false, reason: `plan file written despite refusal: ${stale.join(", ")}` };
     }
@@ -231,42 +234,40 @@ function assertNoSourceRefusal(result, dir) {
   return { ok: true, reason: "refused gracefully and wrote no plan" };
 }
 
-function assertPlanWritten(result, dir) {
+function assertPlanWritten(result, _dir, workspaceDir) {
   const text = typeof result.result === "string" ? result.result : "";
   if (containsRefusal(text)) {
     return { ok: false, reason: "unexpected no-source refusal despite staged .tex" };
   }
-  const planDir = resolve(dir, ".obelus");
-  if (!existsSync(planDir)) {
-    return { ok: false, reason: ".obelus/ directory not created" };
+  if (!existsSync(workspaceDir)) {
+    return { ok: false, reason: "workspace dir not created" };
   }
-  const entries = readdirSync(planDir);
+  const entries = readdirSync(workspaceDir);
   const mdPlan = entries.find((e) => e.startsWith("plan-") && e.endsWith(".md"));
   const jsonPlan = entries.find((e) => e.startsWith("plan-") && e.endsWith(".json"));
   if (!mdPlan) return { ok: false, reason: "no plan-*.md written" };
   if (!jsonPlan) return { ok: false, reason: "no plan-*.json companion written" };
-  const body = readFileSync(resolve(planDir, mdPlan), "utf8");
+  const body = readFileSync(resolve(workspaceDir, mdPlan), "utf8");
   if (body.length < 200) {
     return { ok: false, reason: `plan markdown suspiciously short (${body.length} bytes)` };
   }
   return { ok: true, reason: `plan written: ${mdPlan}` };
 }
 
-function assertMarkdownRoundTrip(result, dir) {
+function assertMarkdownRoundTrip(result, dir, workspaceDir) {
   const text = typeof result.result === "string" ? result.result : "";
   if (containsRefusal(text)) {
     return { ok: false, reason: "unexpected refusal despite staged sample.md" };
   }
-  const planDir = resolve(dir, ".obelus");
-  if (!existsSync(planDir)) {
-    return { ok: false, reason: ".obelus/ directory not created" };
+  if (!existsSync(workspaceDir)) {
+    return { ok: false, reason: "workspace dir not created" };
   }
-  const entries = readdirSync(planDir);
+  const entries = readdirSync(workspaceDir);
   const jsonPlan = entries.find((e) => e.startsWith("plan-") && e.endsWith(".json"));
   if (!jsonPlan) return { ok: false, reason: "no plan-*.json companion written" };
   let plan;
   try {
-    plan = JSON.parse(readFileSync(resolve(planDir, jsonPlan), "utf8"));
+    plan = JSON.parse(readFileSync(resolve(workspaceDir, jsonPlan), "utf8"));
   } catch (e) {
     return { ok: false, reason: `plan-*.json not valid JSON (${e.message.slice(0, 80)})` };
   }
@@ -330,7 +331,7 @@ function assertMarkdownRoundTrip(result, dir) {
   if (!applySummary) {
     return {
       ok: false,
-      reason: "apply-fix did not run (no .obelus/apply-*.md summary)",
+      reason: "apply-fix did not run (no apply-*.md summary in workspace dir)",
     };
   }
 
@@ -358,7 +359,7 @@ function assertMarkdownRoundTrip(result, dir) {
     };
   }
 
-  if (!text.includes("OBELUS_WROTE: .obelus/")) {
+  if (!text.includes(`OBELUS_WROTE: ${workspaceDir}/`)) {
     return { ok: false, reason: "OBELUS_WROTE: marker missing from stdout" };
   }
 
@@ -368,12 +369,12 @@ function assertMarkdownRoundTrip(result, dir) {
   };
 }
 
-function assertHtmlPairedRoundTrip(result, dir) {
+function assertHtmlPairedRoundTrip(result, dir, workspaceDir) {
   const text = typeof result.result === "string" ? result.result : "";
   if (containsRefusal(text)) {
     return { ok: false, reason: "unexpected refusal despite staged sample.html + sample.md" };
   }
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
   // Paired bundles inherit the source's format; the planner reads the html
   // anchor's sourceHint and writes diffs against sample.md, not sample.html.
@@ -411,14 +412,13 @@ function assertHtmlPairedRoundTrip(result, dir) {
     }
   }
 
-  const planDir = resolve(dir, ".obelus");
-  const applySummary = readdirSync(planDir).find(
+  const applySummary = readdirSync(workspaceDir).find(
     (e) => e.startsWith("apply-") && e.endsWith(".md"),
   );
   if (!applySummary) {
     return {
       ok: false,
-      reason: "apply-fix did not run (no .obelus/apply-*.md summary)",
+      reason: "apply-fix did not run (no apply-*.md summary in workspace dir)",
     };
   }
   const applied = readFileSync(resolve(dir, "sample.md"), "utf8");
@@ -429,7 +429,7 @@ function assertHtmlPairedRoundTrip(result, dir) {
       reason: "sample.md on disk is byte-identical to the fixture — apply-fix did not edit",
     };
   }
-  if (!text.includes("OBELUS_WROTE: .obelus/")) {
+  if (!text.includes(`OBELUS_WROTE: ${workspaceDir}/`)) {
     return { ok: false, reason: "OBELUS_WROTE: marker missing from stdout" };
   }
   return {
@@ -438,7 +438,7 @@ function assertHtmlPairedRoundTrip(result, dir) {
   };
 }
 
-function assertHtmlHandAuthoredPlan(result, dir) {
+function assertHtmlHandAuthoredPlan(result, _dir, workspaceDir) {
   const text = typeof result.result === "string" ? result.result : "";
   if (containsRefusal(text)) {
     return {
@@ -446,7 +446,7 @@ function assertHtmlHandAuthoredPlan(result, dir) {
       reason: "unexpected refusal despite staged sample-handauthored.html",
     };
   }
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
   if (plan.format !== "html") {
     return {
@@ -534,9 +534,8 @@ function assertHtmlHandAuthoredPlan(result, dir) {
     };
   }
   // The user did not ask for apply-fix; ensure no apply-*.md summary exists.
-  const planDir = resolve(dir, ".obelus");
-  if (existsSync(planDir)) {
-    const applySummary = readdirSync(planDir).find(
+  if (existsSync(workspaceDir)) {
+    const applySummary = readdirSync(workspaceDir).find(
       (e) => e.startsWith("apply-") && e.endsWith(".md"),
     );
     if (applySummary) {
@@ -552,15 +551,14 @@ function assertHtmlHandAuthoredPlan(result, dir) {
   };
 }
 
-function loadPlanJson(dir) {
-  const planDir = resolve(dir, ".obelus");
-  if (!existsSync(planDir)) return { error: ".obelus/ directory not created" };
-  const entries = readdirSync(planDir);
+function loadPlanJson(workspaceDir) {
+  if (!existsSync(workspaceDir)) return { error: "workspace dir not created" };
+  const entries = readdirSync(workspaceDir);
   const jsonPlan = entries.find((e) => e.startsWith("plan-") && e.endsWith(".json"));
   if (!jsonPlan) return { error: "no plan-*.json companion written" };
   let plan;
   try {
-    plan = JSON.parse(readFileSync(resolve(planDir, jsonPlan), "utf8"));
+    plan = JSON.parse(readFileSync(resolve(workspaceDir, jsonPlan), "utf8"));
   } catch (e) {
     return { error: `plan-*.json not valid JSON (${e.message.slice(0, 80)})` };
   }
@@ -587,10 +585,10 @@ function guardRefusal(result) {
   return null;
 }
 
-function assertLexicalTerminologyCascade(result, dir) {
+function assertLexicalTerminologyCascade(result, _dir, workspaceDir) {
   const refusal = guardRefusal(result);
   if (refusal) return refusal;
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
 
   const cascades = plan.blocks.filter((b) => classifyBlock(b) === "cascade");
@@ -623,10 +621,10 @@ function assertLexicalTerminologyCascade(result, dir) {
   };
 }
 
-function assertLexicalNumericalCascade(result, dir) {
+function assertLexicalNumericalCascade(result, _dir, workspaceDir) {
   const refusal = guardRefusal(result);
   if (refusal) return refusal;
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
 
   const cascades = plan.blocks.filter((b) => classifyBlock(b) === "cascade");
@@ -644,10 +642,10 @@ function assertLexicalNumericalCascade(result, dir) {
   return { ok: true, reason: `${cascades.length} numerical cascade block(s) emitted` };
 }
 
-function assertStructuralLabelCascade(result, dir) {
+function assertStructuralLabelCascade(result, _dir, workspaceDir) {
   const refusal = guardRefusal(result);
   if (refusal) return refusal;
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
 
   const cascades = plan.blocks.filter((b) => classifyBlock(b) === "cascade");
@@ -668,10 +666,10 @@ function assertStructuralLabelCascade(result, dir) {
   return { ok: true, reason: `${cascades.length} label-reference cascade block(s) emitted` };
 }
 
-function assertPropositionalImpact(result, dir) {
+function assertPropositionalImpact(result, _dir, workspaceDir) {
   const refusal = guardRefusal(result);
   if (refusal) return refusal;
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
 
   const cascades = plan.blocks.filter((b) => classifyBlock(b) === "cascade");
@@ -713,10 +711,10 @@ function assertPropositionalImpact(result, dir) {
   return { ok: true, reason: `${impacts.length} impact-* flag-note(s) emitted; zero cascades` };
 }
 
-function assertVacuousPhase(result, dir) {
+function assertVacuousPhase(result, _dir, workspaceDir) {
   const refusal = guardRefusal(result);
   if (refusal) return refusal;
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
 
   const synthesised = plan.blocks.filter((b) => {
@@ -733,10 +731,10 @@ function assertVacuousPhase(result, dir) {
   return { ok: true, reason: "praise-only bundle: zero cascade/impact blocks as expected" };
 }
 
-function assertCitationOnlyNoTrigger(result, dir) {
+function assertCitationOnlyNoTrigger(result, _dir, workspaceDir) {
   const refusal = guardRefusal(result);
   if (refusal) return refusal;
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
 
   const synthesised = plan.blocks.filter((b) => {
@@ -757,10 +755,10 @@ function assertCitationOnlyNoTrigger(result, dir) {
   return { ok: true, reason: "citation-needed edit produced no cascade/impact (pure addition)" };
 }
 
-function assertDriftVsCascade(result, dir) {
+function assertDriftVsCascade(result, _dir, workspaceDir) {
   const refusal = guardRefusal(result);
   if (refusal) return refusal;
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
 
   const sources = plan.blocks.filter((b) => classifyBlock(b) === "source");
@@ -788,10 +786,10 @@ function assertDriftVsCascade(result, dir) {
   };
 }
 
-function assertLexicalMorphologyCascade(result, dir) {
+function assertLexicalMorphologyCascade(result, _dir, workspaceDir) {
   const refusal = guardRefusal(result);
   if (refusal) return refusal;
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
 
   const cascades = plan.blocks.filter((b) => classifyBlock(b) === "cascade");
@@ -855,10 +853,10 @@ function hunkLineRange(patch) {
   return { start: Number(m[1]), len: Number(m[2]) };
 }
 
-function assertQualitySweep(result, dir) {
+function assertQualitySweep(result, _dir, workspaceDir) {
   const refusal = guardRefusal(result);
   if (refusal) return refusal;
-  const { plan, error } = loadPlanJson(dir);
+  const { plan, error } = loadPlanJson(workspaceDir);
   if (error) return { ok: false, reason: error };
 
   const quality = plan.blocks.filter((b) => classifyBlock(b) === "quality");
@@ -977,9 +975,16 @@ function runScenario(s, mode) {
   mkdirSync(dir, { recursive: true });
   s.stage(dir);
 
+  const workspaceDir = resolve(tmpRoot, `${s.name}-workspace`);
+  if (existsSync(workspaceDir)) rmSync(workspaceDir, { recursive: true, force: true });
+  mkdirSync(workspaceDir, { recursive: true });
+
+  const env = { ...process.env, OBELUS_WORKSPACE_DIR: workspaceDir };
+
   const started = Date.now();
   const cp = spawnSync("claude", buildArgs(s.prompt, mode), {
     cwd: dir,
+    env,
     encoding: "utf8",
     timeout: TIMEOUT_MS,
     maxBuffer: MAX_BUFFER,
@@ -1013,7 +1018,16 @@ function runScenario(s, mode) {
     return { ...meta(s), ok: false, reason: `claude reported is_error: ${r}`, durationMs, output };
   }
 
-  const { ok, reason } = s.assert(parsed, dir);
+  const { ok, reason } = s.assert(parsed, dir, workspaceDir);
+  if (ok && existsSync(resolve(dir, ".obelus"))) {
+    return {
+      ...meta(s),
+      ok: false,
+      reason: "paper folder polluted: .obelus/ created inside cwd",
+      durationMs,
+      output,
+    };
+  }
   return { ...meta(s), ok, reason, durationMs, output };
 }
 
