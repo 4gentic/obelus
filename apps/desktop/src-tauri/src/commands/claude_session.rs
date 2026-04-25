@@ -178,8 +178,9 @@ fn claude_command(
     // `OBELUS_WORKSPACE_DIR` tells the plugin's skills where to write their
     // artifacts (plans, writeups, apply summaries, rendered previews). It
     // lives in app-data, not the user's repo, so the paper folder stays
-    // pristine. The skills fall back to `.obelus/` when this var is unset, so
-    // the plugin still works for users running it standalone via the CLI.
+    // pristine. The skills require this var to be set and refuse to run
+    // without it — there is no `.obelus/` fallback that would otherwise
+    // write into the user's paper repo.
     cmd.current_dir(project_root)
         .env("OBELUS_WORKSPACE_DIR", workspace_dir)
         .arg("--print")

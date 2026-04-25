@@ -18,10 +18,26 @@ Parse the arguments before composing anything. The mode flags may appear anywher
 
 - *no flag* → inline mode (default).
 - `--inline` → inline mode (explicit; same behavior as no flag).
-- `--out` alone → write-to-file mode, default path `${OBELUS_WORKSPACE_DIR:-.obelus}/writeup-<paper-id>-<iso-timestamp>.md` — that is, an absolute path under `$OBELUS_WORKSPACE_DIR` when set (Obelus desktop spawn), else `.obelus/writeup-<paper-id>-<iso-timestamp>.md` relative to the current working directory (standalone CLI).
-- `--out <path>` → write-to-file mode, use `<path>` verbatim.
+- `--out` alone → write-to-file mode, default path `$OBELUS_WORKSPACE_DIR/writeup-<paper-id>-<iso-timestamp>.md`. The env var must be set to an absolute writable directory (the Obelus desktop sets it automatically). If it is unset, **refuse** — see "Workspace requirement" below.
+- `--out <path>` → write-to-file mode, use `<path>` verbatim. The path must still sit outside the paper repo; do not write into the user's source tree.
 
 **Conflict rule.** If both `--inline` and `--out` are passed in the same invocation, refuse and stop: print `"ambiguous output mode: --inline and --out cannot both be set"` and do nothing else. Do not try to pick a winner; the caller is confused and needs to resolve the ambiguity before the skill runs.
+
+## Workspace requirement (file output mode only)
+
+When `--out` is passed without an explicit path, the default expansion needs `$OBELUS_WORKSPACE_DIR` to be set. The Obelus desktop spawns Claude Code with this env var pointing at a per-project subdirectory under app-data; standalone CLI users must export it themselves before invoking the skill. There is no `.obelus/` fallback — the plugin must never write into the user's paper repo.
+
+If the spawn invocation does not give you a value for `$OBELUS_WORKSPACE_DIR` and the caller did not pass `--out <path>`, **stop and refuse** with:
+
+> This skill needs `$OBELUS_WORKSPACE_DIR` to be set to an absolute writable directory outside the paper repo, or an explicit `--out <path>` argument. The Obelus desktop sets the env var automatically; standalone CLI users should export it before invoking the plugin, e.g.:
+>
+> ```
+> export OBELUS_WORKSPACE_DIR="$HOME/.local/share/obelus/runs/$(date +%Y%m%d-%H%M%S)"
+> mkdir -p "$OBELUS_WORKSPACE_DIR"
+> claude --add-dir "$OBELUS_WORKSPACE_DIR" /obelus:write-review <bundle-path> --out
+> ```
+>
+> Or run inline (no flag, or `--inline`) — the review letter prints as the final message and no files are written.
 
 In inline mode — whether implicit or via `--inline` — there is no `Write` call for the letter, no stdout marker, and no workspace directory is created. The full Markdown review is your final assistant message and is itself the deliverable.
 
@@ -35,10 +51,10 @@ In inline mode — whether implicit or via `--inline` — there is no `Write` ca
 
 The Obelus desktop app and other file-ingesting callers rely on this contract; do not loosen it when `--out` is set. If the file is not where the caller expects, nothing surfaces in their UI.
 
-1. **Path.** If the caller passed `--out <path>`, use `<path>` verbatim. If they passed `--out` with no value, write to `${OBELUS_WORKSPACE_DIR:-.obelus}/writeup-<paper-id>-<iso-timestamp>.md` — that resolves to an absolute path under `$OBELUS_WORKSPACE_DIR` when the env var is set (Obelus desktop spawn), or `.obelus/writeup-<paper-id>-<iso-timestamp>.md` relative to the current working directory in standalone mode.
+1. **Path.** If the caller passed `--out <path>`, use `<path>` verbatim. If they passed `--out` with no value, write to `$OBELUS_WORKSPACE_DIR/writeup-<paper-id>-<iso-timestamp>.md` — an absolute path under the workspace the caller set up. If `$OBELUS_WORKSPACE_DIR` is unset, refuse per the **Workspace requirement** section above.
 2. **Timestamp format.** Compact UTC: `YYYYMMDD-HHmmss` — e.g. `20260423-143012`. No colons, no `T`, no `Z`. Generate it once at the start of the run and reuse it.
-3. **Worked example (default path).** For `paper-id = paper-1` at 14:30:12 UTC on 2026-04-23, in standalone mode the path is exactly `.obelus/writeup-paper-1-20260423-143012.md`. Under Obelus desktop with `$OBELUS_WORKSPACE_DIR=/Users/juan/Library/Application Support/app.obelus.desktop/projects/abcd-1234`, the path is `/Users/juan/Library/Application Support/app.obelus.desktop/projects/abcd-1234/writeup-paper-1-20260423-143012.md`.
-4. **Pre-flight.** Before composing, if the target directory does not exist, create `<dir>/.gitkeep` (empty body) via `Write` to materialise it. This is cheap and idempotent. **Do not use `Bash`** to probe the directory — `Bash` is not in this session's allow-list and a denied call forces a re-plan round-trip that users see as a stuck phase label. `Write` creates the parent directory on its own; just call it.
+3. **Worked example (default path).** For `paper-id = paper-1` at 14:30:12 UTC on 2026-04-23 with `$OBELUS_WORKSPACE_DIR=<workspace>`, the path is exactly `<workspace>/writeup-paper-1-20260423-143012.md`.
+4. **Pre-flight.** The desktop creates `$OBELUS_WORKSPACE_DIR` before spawning you, so the directory already exists. **Do not use `Bash`** to probe it — `Bash` is not in this session's allow-list and a denied call forces a re-plan round-trip that users see as a stuck phase label. Just call `Write` for the file path; if the parent doesn't exist for some reason, `Write` creates it.
 5. **Use `Write`.** The review body must reach disk via the `Write` tool. If `Write` fails for any reason, **stop and report the failure** — do **not** paste the body into stdout as a fallback. Stdout is not a substitute for the file in this mode.
 6. **Final marker line.** After `Write` succeeds, print exactly one line on stdout in this form, with nothing else on the line:
 
@@ -46,7 +62,7 @@ The Obelus desktop app and other file-ingesting callers rely on this contract; d
    OBELUS_WROTE: <path>
    ```
 
-   Use the resolved path (explicit `<path>` if given, else the default `${OBELUS_WORKSPACE_DIR:-.obelus}/writeup-<paper-id>-<iso-timestamp>.md`). The desktop scans stdout for this marker as a fallback locator and only ever sees absolute paths because Obelus always sets `$OBELUS_WORKSPACE_DIR` when it spawns Claude. Print it once, at the end, and only after the file is on disk.
+   Use the resolved path (explicit `<path>` if given, else the default `$OBELUS_WORKSPACE_DIR/writeup-<paper-id>-<iso-timestamp>.md`). The desktop scans stdout for this marker as a fallback locator and always sees an absolute path. Print it once, at the end, and only after the file is on disk.
 7. **No body in stdout.** Do not print the review letter to stdout in file mode. Brief progress narration is fine ("reading the bundle", "composing the letter") but keep it under three short sentences. Everything the user reads lives in the file.
 
 ## Input
@@ -229,18 +245,18 @@ After all reasoning, the last actions of every successful run look like one of t
 
 That message is the entire visible deliverable. No `Write` call, no `OBELUS_WROTE:` line.
 
-**File output mode (`--out` passed, Obelus desktop spawn with `$OBELUS_WORKSPACE_DIR=/Users/juan/Library/Application Support/app.obelus.desktop/projects/abcd-1234`).** The last two actions are the `Write` and the marker line:
+**File output mode (`--out` passed, `$OBELUS_WORKSPACE_DIR=<workspace>`).** The last two actions are the `Write` and the marker line:
 
 ```
 [Write tool call]
-  file_path: /Users/juan/Library/Application Support/app.obelus.desktop/projects/abcd-1234/writeup-paper-1-20260423-143012.md
+  file_path: <workspace>/writeup-paper-1-20260423-143012.md
   content: "# Review · …\n\n<the full letter>\n"
 
 [stdout]
-OBELUS_WROTE: /Users/juan/Library/Application Support/app.obelus.desktop/projects/abcd-1234/writeup-paper-1-20260423-143012.md
+OBELUS_WROTE: <workspace>/writeup-paper-1-20260423-143012.md
 ```
 
-In standalone mode (`$OBELUS_WORKSPACE_DIR` unset), the same two lines would read `file_path: .obelus/writeup-paper-1-20260423-143012.md` and `OBELUS_WROTE: .obelus/writeup-paper-1-20260423-143012.md`. If `--out <path>` was explicit, both the `file_path` and the marker use `<path>` verbatim.
+In a real run, `<workspace>` expands to the absolute path the caller supplied via `$OBELUS_WORKSPACE_DIR`. If `--out <path>` was explicit, both the `file_path` and the marker use `<path>` verbatim. If `$OBELUS_WORKSPACE_DIR` is unset and no explicit `--out <path>` was given, refuse per the **Workspace requirement** section.
 
 ## Before returning, verify
 
