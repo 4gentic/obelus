@@ -13,7 +13,7 @@ test.describe("library", () => {
     await expect(page.getByRole("heading", { name: /your library\./i })).toBeVisible();
     await expect(page.getByText(/no papers yet\./i)).toBeVisible();
     await expect(page.getByRole("button", { name: /open a paper/i })).toBeVisible();
-    await expect(page.getByText(/PDF · Markdown · HTML/)).toBeVisible();
+    await expect(page.getByText(/PDF · Markdown \(Beta\) · HTML \(Beta\)/)).toBeVisible();
     await expect.poll(() => errors.length, { message: errors.join("\n") }).toBe(0);
   });
 

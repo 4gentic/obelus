@@ -79,7 +79,6 @@ brand/              SVG marks, favicon, OG image.
 packages/claude-plugin/fixtures/sample/
                     Sample paper in .tex / .md / .typ + rendered PDF — used by plugin e2e.
 scripts/            guard-network.mjs and other CI helpers.
-docs/marketing/     Twitter / LinkedIn / HN copy, all tracked in-repo.
 ```
 
 ## Web/desktop parity

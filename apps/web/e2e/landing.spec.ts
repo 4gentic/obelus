@@ -12,7 +12,7 @@ test.describe("landing page", () => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: /writing ai papers is cheap/i }),
+      page.getByRole("heading", { level: 1, name: /writing a paper with ai is cheap/i }),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: /review a paper\./i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /keep a writing desk\./i })).toBeVisible();

@@ -290,7 +290,9 @@ export default function Library(): JSX.Element {
           <button type="button" className="library__cta" onClick={pickFile}>
             Open a paper <span aria-hidden="true">&rarr;</span>
           </button>
-          <p className="library__empty-formats">PDF · Markdown · HTML</p>
+          <p className="library__empty-formats">
+            PDF · Markdown <em>(Beta)</em> · HTML <em>(Beta)</em>
+          </p>
         </section>
       )}
 
