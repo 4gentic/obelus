@@ -1,7 +1,7 @@
 import type { PaperEditRow, Repository } from "@obelus/repo";
 import { useCallback, useMemo, useSyncExternalStore } from "react";
-import { create, type StoreApi, type UseBoundStore } from "zustand";
 import { z } from "zod";
+import { create, type StoreApi, type UseBoundStore } from "zustand";
 
 const CurrentDraftIdSchema = z.string();
 

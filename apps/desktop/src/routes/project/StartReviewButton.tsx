@@ -2,14 +2,14 @@ import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { splitHeadline } from "../../lib/split-headline";
-
-const IndicationsSchema = z.string();
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
 import { useReviewRunner } from "./review-runner-context";
 import { useReviewStore } from "./store-context";
 import { useInlineConfirm } from "./use-inline-confirm";
 import { descendantsOf, usePaperEdits } from "./use-paper-edits";
+
+const IndicationsSchema = z.string();
 
 export default function StartReviewButton(): JSX.Element {
   const { project, repo } = useProject();

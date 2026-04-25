@@ -1,10 +1,10 @@
+import type { ZodType } from "zod";
 import type {
   AnnotationStalenessPatch,
   PaperCreateInput,
   PaperPathsPatch,
   RevisionCreateInput,
 } from "../interface";
-import type { ZodType } from "zod";
 import type { PaperRubric } from "../types";
 import { deleteMd, deletePdf, putMd, putPdf } from "./opfs";
 import { requestPersistOnce } from "./persist";

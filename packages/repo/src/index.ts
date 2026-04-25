@@ -28,6 +28,7 @@ export type {
 } from "./interface";
 export { NotSupportedError } from "./interface";
 export type {
+  AnchorFields,
   AnnotationRow,
   AnnotationStaleness,
   AppliedSnapshot,
@@ -48,7 +49,6 @@ export type {
   PaperFormat,
   PaperRow,
   PaperRubric,
-  AnchorFields,
   PdfAnchorFields,
   ProjectFileFormat,
   ProjectFileRole,

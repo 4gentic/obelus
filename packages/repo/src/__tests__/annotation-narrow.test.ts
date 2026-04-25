@@ -10,9 +10,9 @@ const baseFields = {
   contextBefore: "",
   contextAfter: "",
   note: "",
-  thread: [],
+  thread: [] as Array<{ at: string; body: string }>,
   createdAt: "2026-04-25T00:00:00.000Z",
-} as const;
+};
 
 describe("isPdfAnchored", () => {
   it("returns true for a row whose anchor.kind is 'pdf'", () => {
