@@ -695,7 +695,7 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
     <>
       {props.renderError !== null ? (
         <p className="review-crumb__render-error" role="alert">
-          Markdown render failed: {props.renderError}
+          Render failed: {props.renderError}
         </p>
       ) : null}
       <ReviewShell
