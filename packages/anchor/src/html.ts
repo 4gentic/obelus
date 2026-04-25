@@ -5,6 +5,16 @@ import { normalizeQuote } from "./anchor";
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
 
+// Tags whose text content is part of the document's bytes but not its
+// rendered prose. The view-side walks in `@obelus/html-view` skip the same
+// set — both walks must agree, or character offsets shift between anchor
+// creation and resolution.
+const SKIP_TAGS = new Set(["style", "script", "template", "noscript"]);
+
+function isSkippableElement(node: Node): boolean {
+  return node.nodeType === ELEMENT_NODE && SKIP_TAGS.has((node as Element).tagName.toLowerCase());
+}
+
 // Walks up from `node` to the nearest ancestor element bearing
 // `data-html-file` (the convention rendered .html files use to declare
 // themselves). Returns the element + the file name, or null if the node
@@ -94,6 +104,7 @@ function charOffsetInRoot(root: HTMLElement, targetNode: Node, targetOffset: num
       return;
     }
     if (node.nodeType === ELEMENT_NODE) {
+      if (isSkippableElement(node)) return;
       const el = node as HTMLElement;
       for (let i = 0; i < el.childNodes.length && !done; i += 1) {
         const child = el.childNodes[i];
@@ -169,6 +180,7 @@ function collectText(node: Node): string {
       return;
     }
     if (n.nodeType === ELEMENT_NODE) {
+      if (isSkippableElement(n)) return;
       const el = n as HTMLElement;
       for (let i = 0; i < el.childNodes.length; i += 1) {
         const child = el.childNodes[i];
