@@ -260,6 +260,16 @@ export {
   type PromptRubric,
 } from "./format-prompts";
 
+export {
+  type HtmlMapAnchor,
+  type HtmlMapAnchorHtml,
+  type HtmlMapAnchorPdf,
+  type HtmlMapAnchorSource,
+  type HtmlMapResult,
+  type HtmlMapRow,
+  mapHtmlAnnotations,
+} from "./html";
+
 export type BundleKind = "review" | "revise";
 
 export function suggestBundleFilename(kind: BundleKind, now: Date = new Date()): string {
