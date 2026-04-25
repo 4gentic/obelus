@@ -1,4 +1,4 @@
-import { PdfAnchor, SourceAnchor } from "@obelus/bundle-schema";
+import { HtmlAnchor, HtmlElementAnchor, PdfAnchor, SourceAnchor } from "@obelus/bundle-schema";
 import { z } from "zod";
 import type { AnnotationStalenessPatch, AnnotationsRepo } from "../interface";
 import type { AnchorFields, AnnotationRow, AnnotationStaleness } from "../types";
@@ -31,7 +31,12 @@ const Bbox4 = z.tuple([z.number(), z.number(), z.number(), z.number()]);
 const PdfAnchorRow = PdfAnchor.extend({
   rects: z.array(Bbox4).optional(),
 });
-const RowAnchor = z.discriminatedUnion("kind", [PdfAnchorRow, SourceAnchor]);
+const RowAnchor = z.discriminatedUnion("kind", [
+  PdfAnchorRow,
+  SourceAnchor,
+  HtmlAnchor,
+  HtmlElementAnchor,
+]);
 const ThreadEntries = z.array(z.object({ at: z.string(), body: z.string() }));
 
 function toAnnotationRow(r: AnnotationSqlRow): AnnotationRow {

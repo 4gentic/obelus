@@ -40,6 +40,7 @@ export type {
   DiffHunkRow,
   DiffHunkState,
   FilePinRow,
+  HtmlAnchorFields,
   PaperBuildCompiler,
   PaperBuildFormat,
   PaperBuildRow,

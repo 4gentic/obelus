@@ -1,5 +1,10 @@
-import { selectionToSourceAnchor } from "@obelus/anchor";
-import type { SourceAnchor2 } from "@obelus/bundle-schema";
+import {
+  findImageTarget,
+  imageElementToSourceAnchor,
+  quoteForImage,
+  selectionToSourceAnchor,
+} from "@obelus/anchor";
+import type { SourceAnchor } from "@obelus/bundle-schema";
 import { useEffect, useRef } from "react";
 import {
   buildDocumentSourceMap,
@@ -15,7 +20,7 @@ import {
 // `**`, backticks, etc. and confuses downstream quote matching.
 function sliceSourceSpan(
   text: string,
-  anchor: SourceAnchor2,
+  anchor: SourceAnchor,
 ): { quote: string; contextBefore: string; contextAfter: string } | null {
   const lines = text.split("\n");
   if (anchor.lineStart < 1 || anchor.lineEnd > lines.length) return null;
@@ -106,9 +111,9 @@ function findRenderedInSource(
 // NFKC + whitespace-collapse `.includes()`.
 function refineAnchorWithRenderedQuote(
   text: string,
-  initialAnchor: SourceAnchor2,
+  initialAnchor: SourceAnchor,
   renderedQuote: string,
-): { anchor: SourceAnchor2; quote: string; contextBefore: string; contextAfter: string } | null {
+): { anchor: SourceAnchor; quote: string; contextBefore: string; contextAfter: string } | null {
   const built = buildDocumentSourceMap(text);
   if (!built) return null;
   const match = findRenderedInSource(built.rendered, renderedQuote);
@@ -126,7 +131,7 @@ function refineAnchorWithRenderedQuote(
     return null;
   }
 
-  const anchor: SourceAnchor2 = {
+  const anchor: SourceAnchor = {
     kind: "source",
     file: initialAnchor.file,
     lineStart: startPos.line,
@@ -142,7 +147,7 @@ function refineAnchorWithRenderedQuote(
 }
 
 export interface MarkdownSelection {
-  anchor: SourceAnchor2;
+  anchor: SourceAnchor;
   quote: string;
   contextBefore: string;
   contextAfter: string;
@@ -422,6 +427,23 @@ export function computeMarkdownSelection(
   return { anchor, quote: renderedQuote, contextBefore, contextAfter };
 }
 
+// Synthesises a markdown selection from a click on a rendered image. Mirrors
+// the html-view image-click path, but always emits a `SourceAnchor` because
+// every block in the md preview carries `data-src-file` / `data-src-line`.
+// Returns null when the image is outside any source-tagged block (e.g. a
+// rendering failure left it orphan).
+export function computeImageClickSelection(
+  container: HTMLElement,
+  img: HTMLElement,
+): MarkdownSelection | null {
+  if (!container.contains(img)) return null;
+  const anchor = imageElementToSourceAnchor(img);
+  if (!anchor) return null;
+  const quote = quoteForImage(img);
+  if (quote === "") return null;
+  return { anchor, quote, contextBefore: "", contextAfter: "" };
+}
+
 export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void {
   const { containerRef, onSelection, text } = options;
   // Keep `onSelection` in a ref so the listener closure below reads the latest
@@ -462,13 +484,33 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
     function onMouseUp(ev: MouseEvent): void {
       pointerRef.current = { x: ev.clientX, y: ev.clientY };
     }
+    // Image clicks bypass the drag-selection path: `<img>` clicks don't
+    // produce a non-collapsed Selection range, so the selectionchange
+    // listener below never fires for them. Capture-phase so author handlers
+    // can't swallow it; no preventDefault, so any inline handler still runs.
+    function onClick(ev: MouseEvent): void {
+      const liveContainer = containerRef.current;
+      if (!liveContainer) return;
+      const target = ev.target as { nodeType?: unknown } | null;
+      if (!target || typeof target.nodeType !== "number") return;
+      const img = findImageTarget(target as Node);
+      if (!img || !liveContainer.contains(img)) return;
+      const result = computeImageClickSelection(liveContainer, img);
+      if (result === null) return;
+      const dedupKey = `img:${result.anchor.file}:${result.anchor.lineStart}:${result.quote}`;
+      if (dedupKey === lastQuoteRef.current) return;
+      lastQuoteRef.current = dedupKey;
+      onSelectionRef.current(result);
+    }
     container.addEventListener("mousedown", onMousedown, true);
     container.addEventListener("mousemove", onMouseMove, true);
     container.addEventListener("mouseup", onMouseUp, true);
+    container.addEventListener("click", onClick, true);
     return () => {
       container.removeEventListener("mousedown", onMousedown, true);
       container.removeEventListener("mousemove", onMouseMove, true);
       container.removeEventListener("mouseup", onMouseUp, true);
+      container.removeEventListener("click", onClick, true);
     };
   }, [containerRef]);
 

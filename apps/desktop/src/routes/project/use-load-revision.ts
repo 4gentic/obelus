@@ -12,7 +12,7 @@ export function useLoadRevision(): void {
   const revisionId =
     openPaper.kind === "ready"
       ? openPaper.revision.id
-      : openPaper.kind === "ready-md"
+      : openPaper.kind === "ready-md" || openPaper.kind === "ready-html"
         ? (openPaper.revision?.id ?? null)
         : null;
   const visibleFromEditId = edits.currentDraftId;
@@ -22,7 +22,7 @@ export function useLoadRevision(): void {
       void store.getState().load(revisionId, visibleFromEditId);
     } else {
       // No revision to load — clear whatever the previous paper put in the
-      // store so the next writer-mode MD save doesn't attach its mark to a
+      // store so the next writer-mode save doesn't attach its mark to a
       // stale revisionId from the paper we just navigated away from.
       store.getState().reset();
     }

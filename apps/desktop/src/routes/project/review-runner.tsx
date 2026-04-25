@@ -16,7 +16,11 @@ import {
 import { useJobsStore } from "../../lib/jobs-store";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { useBuffersStore } from "./buffers-store-context";
-import { exportBundleV2ForPaper, exportMdBundleV2ForPaper } from "./build-bundle";
+import {
+  exportBundleForPaper,
+  exportHtmlBundleForPaper,
+  exportMdBundleForPaper,
+} from "./build-bundle";
 import { buildPriorDraftsPrompt } from "./build-prior-drafts-prompt";
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
@@ -239,8 +243,10 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         if (!paper) throw new Error(`paper ${paperId} not found`);
         const { filename, json, annotationCount, fileCount } =
           paper.format === "md"
-            ? await exportMdBundleV2ForPaper({ repo, paperId })
-            : await exportBundleV2ForPaper({ repo, paperId, rootId });
+            ? await exportMdBundleForPaper({ repo, paperId })
+            : paper.format === "html"
+              ? await exportHtmlBundleForPaper({ repo, paperId })
+              : await exportBundleForPaper({ repo, paperId, rootId });
         const counts: RunCounts = { marks: annotationCount, files: fileCount, startedAt };
         const bytes = new TextEncoder().encode(json);
         await fsWriteBytes(rootId, filename, bytes);

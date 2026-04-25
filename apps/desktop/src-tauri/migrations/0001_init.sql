@@ -44,6 +44,7 @@ CREATE TABLE papers (
   rubric_source TEXT,
   rubric_label TEXT,
   rubric_updated_at TEXT,
+  format TEXT NOT NULL DEFAULT 'pdf' CHECK (format IN ('pdf', 'md', 'html')),
   created_at TEXT NOT NULL
 );
 
@@ -69,11 +70,21 @@ CREATE TABLE review_sessions (
   effort TEXT,
   started_at TEXT NOT NULL,
   completed_at TEXT,
-  applied_at TEXT
+  applied_at TEXT,
+  status TEXT NOT NULL DEFAULT 'completed',
+  last_error TEXT,
+  apply_status_json TEXT,
+  claude_session_id TEXT
 );
+
+-- No CHECK on status: the Zod schema in @obelus/repo guards the boundary.
+-- Allowed values: 'running' | 'ingesting' | 'completed' | 'failed' | 'discarded'.
+-- apply_status_json is the post-apply banner snapshot; claude_session_id lets a
+-- mount-time reattach find the still-running subprocess by id.
 
 CREATE INDEX review_sessions_project_idx ON review_sessions(project_id);
 CREATE INDEX review_sessions_paper_idx ON review_sessions(paper_id);
+CREATE INDEX review_sessions_paper_status_idx ON review_sessions(paper_id, status);
 
 CREATE TABLE paper_edits (
   id TEXT PRIMARY KEY,
@@ -107,7 +118,9 @@ CREATE TABLE annotations (
   thread_json TEXT NOT NULL DEFAULT '[]',
   group_id TEXT,
   created_at TEXT NOT NULL,
-  resolved_in_edit_id TEXT REFERENCES paper_edits(id) ON DELETE SET NULL
+  resolved_in_edit_id TEXT REFERENCES paper_edits(id) ON DELETE SET NULL,
+  staleness TEXT
+    CHECK (staleness IS NULL OR staleness IN ('ok', 'line-out-of-range', 'quote-mismatch'))
 );
 
 CREATE INDEX annotations_revision_idx ON annotations(revision_id);
@@ -124,8 +137,11 @@ CREATE TABLE diff_hunks (
   state TEXT NOT NULL CHECK (state IN ('pending', 'accepted', 'rejected', 'modified')) DEFAULT 'pending',
   ambiguous INTEGER NOT NULL DEFAULT 0,
   note_text TEXT NOT NULL DEFAULT '',
-  ordinal INTEGER NOT NULL DEFAULT 0
+  ordinal INTEGER NOT NULL DEFAULT 0,
+  apply_failure_json TEXT
 );
+
+-- apply_failure_json shape: `{ "reason": string, "attemptedAt": ISO-8601 string }`.
 
 CREATE INDEX diff_hunks_session_idx ON diff_hunks(session_id);
 CREATE INDEX diff_hunks_session_ordinal_idx ON diff_hunks(session_id, ordinal);

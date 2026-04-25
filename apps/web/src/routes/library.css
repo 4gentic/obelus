@@ -165,6 +165,14 @@
   color: var(--rubric);
 }
 
+.library__empty-formats {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
 .library__file {
   position: absolute;
   width: 1px;

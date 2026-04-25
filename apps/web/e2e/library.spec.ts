@@ -12,7 +12,8 @@ test.describe("library", () => {
     const errors = collectConsoleErrors(page);
     await expect(page.getByRole("heading", { name: /your library\./i })).toBeVisible();
     await expect(page.getByText(/no papers yet\./i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /open a pdf/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /open a paper/i })).toBeVisible();
+    await expect(page.getByText(/PDF · Markdown · HTML/)).toBeVisible();
     await expect.poll(() => errors.length, { message: errors.join("\n") }).toBe(0);
   });
 
@@ -65,7 +66,7 @@ test.describe("library", () => {
       buffer: Buffer.from("hello"),
     });
 
-    await expect(page.getByRole("alert")).toContainText(/supports \.pdf and \.md/i);
+    await expect(page.getByRole("alert")).toContainText(/supports \.pdf, \.md, and \.html/i);
     await expect(page).toHaveURL(/\/app$/);
     await expect(page.getByText(/no papers yet\./i)).toBeVisible();
   });

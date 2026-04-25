@@ -8,11 +8,27 @@ import { trimQuoteMiddle } from "./trim-quote";
 const INTERACTIVE_SELECTOR = ".category-picker, textarea, .review-list__remove";
 
 // Renders the mark's location chip. PDF anchors → "p. N"; source anchors → a
-// line range. Switches on the anchor's discriminant.
+// line range; html anchors → source-hint line range when paired, else char
+// offset range. Switches on the anchor's discriminant.
 function markLocationLabel(a: AnnotationRow): string {
   if (a.anchor.kind === "source") {
     const { lineStart, lineEnd } = a.anchor;
     return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+  }
+  if (a.anchor.kind === "html") {
+    if (a.anchor.sourceHint) {
+      const { lineStart, lineEnd } = a.anchor.sourceHint;
+      return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+    }
+    const { charOffsetStart, charOffsetEnd } = a.anchor;
+    return `c${charOffsetStart}–${charOffsetEnd}`;
+  }
+  if (a.anchor.kind === "html-element") {
+    if (a.anchor.sourceHint) {
+      const { lineStart, lineEnd } = a.anchor.sourceHint;
+      return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+    }
+    return a.anchor.file;
   }
   return `p. ${a.anchor.page}`;
 }
@@ -130,7 +146,7 @@ export default function ReviewList(): JSX.Element {
   }, [focusedId]);
 
   if (annotations.length === 0) {
-    return <p className="review-column__hint">No marks yet. Select text in the PDF to begin.</p>;
+    return <p className="review-column__hint">No marks yet. Select text to begin.</p>;
   }
 
   return (

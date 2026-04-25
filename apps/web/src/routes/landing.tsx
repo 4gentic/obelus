@@ -24,8 +24,8 @@ export default function Landing() {
               <em>Review a paper.</em>
             </h2>
             <p className="doors__body">
-              Works in the browser. Mark passages in any PDF, write margin notes, and export a
-              bundle your coding agent can apply. No install, nothing uploaded.
+              Works in the browser. Mark passages in any PDF, Markdown, or HTML paper, write margin
+              notes, and export a bundle your coding agent can apply. No install, nothing uploaded.
             </p>
             <p className="doors__for">
               <strong>Best for reviewers.</strong> Also for writers doing a final self-review pass.
@@ -317,7 +317,7 @@ export default function Landing() {
           <div className="principles__row">
             <dt className="principles__term">Privacy-first.</dt>
             <dd className="principles__def">
-              Your draft, your device. Obelus reviews PDFs in the browser and hands your coding
+              Your draft, your device. Obelus reviews papers in the browser and hands your coding
               agent a single file to apply.
             </dd>
           </div>
@@ -340,7 +340,7 @@ export default function Landing() {
       <section className="privacy" aria-label="Privacy contract">
         <h2 className="section__title">The privacy contract.</h2>
         <ul className="privacy__list">
-          <li>PDFs live on your device.</li>
+          <li>Your papers live on your device.</li>
           <li>Annotations live on your device.</li>
           <li>No network calls. No analytics. No telemetry.</li>
         </ul>

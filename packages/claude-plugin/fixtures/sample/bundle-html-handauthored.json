@@ -1,0 +1,64 @@
+{
+  "bundleVersion": "1.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.1.0"
+  },
+  "project": {
+    "id": "6f0d0d60-0000-4000-8000-000000000030",
+    "label": "margin-note-handauthored",
+    "kind": "reviewer",
+    "categories": [
+      { "slug": "unclear", "label": "unclear" },
+      { "slug": "citation-needed", "label": "citation needed", "color": "#B84A2E" },
+      { "slug": "praise", "label": "praise" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5ea0",
+      "title": "Notes on the Margin Note",
+      "revision": 1,
+      "createdAt": "2026-04-22T10:00:00.000Z",
+      "entrypoint": "sample-handauthored.html"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      "paperId": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5ea0",
+      "category": "unclear",
+      "quote": "the disagreement is not local",
+      "contextBefore": "A reviewer who finds themselves writing three paragraphs in the margin has discovered that ",
+      "contextAfter": " — it belongs in a separate document, addressed to the author rather than to the page.",
+      "anchor": {
+        "kind": "html",
+        "file": "sample-handauthored.html",
+        "xpath": "./article[1]/p[4]",
+        "charOffsetStart": 1271,
+        "charOffsetEnd": 1300
+      },
+      "note": "What does 'not local' mean here? Either define it (spans multiple sections, depends on global structure, …) or rephrase.",
+      "thread": [],
+      "createdAt": "2026-04-22T10:12:03.000Z"
+    },
+    {
+      "id": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+      "paperId": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5ea0",
+      "category": "citation-needed",
+      "quote": "Bourdieu",
+      "contextBefore": "A page covered in marginalia is a page asking to be rewritten, not a page that has been improved. ",
+      "contextAfter": " noted somewhere that the proliferation of glosses on a text is a sign of its declining authority",
+      "anchor": {
+        "kind": "html",
+        "file": "sample-handauthored.html",
+        "xpath": "./article[1]/p[5]/cite[1]",
+        "charOffsetStart": 1668,
+        "charOffsetEnd": 1676
+      },
+      "note": "'Bourdieu noted somewhere' is exactly the kind of half-citation a reviewer should flag — name the work and the page.",
+      "thread": [],
+      "createdAt": "2026-04-22T10:14:21.000Z"
+    }
+  ]
+}

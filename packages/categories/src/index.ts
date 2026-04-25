@@ -1,6 +1,13 @@
-import type { Category } from "@obelus/bundle-schema";
-
-export type { Category };
+export type Category =
+  | "unclear"
+  | "wrong"
+  | "weak-argument"
+  | "citation-needed"
+  | "rephrase"
+  | "praise"
+  | "enhancement"
+  | "aside"
+  | "flag";
 
 export type CategoryMeta = {
   readonly id: Category;

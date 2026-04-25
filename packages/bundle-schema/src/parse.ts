@@ -1,13 +1,11 @@
 import type { z } from "zod";
-import { BundleV1 } from "./schema.js";
-import { BundleV2 } from "./schema-v2.js";
-import type { Bundle } from "./types.js";
-import type { Bundle2 } from "./types-v2.js";
+import { type Bundle, Bundle as BundleSchema } from "./schema.js";
 
 export type ParseResult =
-  | { ok: true; version: "1.0"; bundle: Bundle }
-  | { ok: true; version: "2.0"; bundle: Bundle2 }
+  | { ok: true; version: typeof BUNDLE_VERSION_LITERAL; bundle: Bundle }
   | { ok: false; error: string };
+
+const BUNDLE_VERSION_LITERAL = "1.0";
 
 export function parseBundle(input: unknown): ParseResult {
   if (typeof input !== "object" || input === null || !("bundleVersion" in input)) {
@@ -15,22 +13,16 @@ export function parseBundle(input: unknown): ParseResult {
   }
   const version = (input as { bundleVersion: unknown }).bundleVersion;
 
-  if (version === "1.0") {
-    const result = BundleV1.safeParse(input);
-    if (result.success) return { ok: true, version: "1.0", bundle: result.data };
-    return formatError(result.error);
+  if (version !== BUNDLE_VERSION_LITERAL) {
+    return {
+      ok: false,
+      error: `(root).bundleVersion: unsupported "${String(version)}"`,
+    };
   }
 
-  if (version === "2.0") {
-    const result = BundleV2.safeParse(input);
-    if (result.success) return { ok: true, version: "2.0", bundle: result.data };
-    return formatError(result.error);
-  }
-
-  return {
-    ok: false,
-    error: `(root).bundleVersion: unsupported "${String(version)}"`,
-  };
+  const result = BundleSchema.safeParse(input);
+  if (result.success) return { ok: true, version: BUNDLE_VERSION_LITERAL, bundle: result.data };
+  return formatError(result.error);
 }
 
 function formatError(error: z.ZodError): ParseResult {

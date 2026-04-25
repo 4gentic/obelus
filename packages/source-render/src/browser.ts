@@ -8,5 +8,11 @@
 // `scripts/guard-desktop-only.mjs` explicitly whitelists this subpath; a bare
 // `@obelus/source-render` import from apps/web is still refused.
 
+export type { AssetResolver } from "./asset-rewrite.js";
+export {
+  blockExternalAssets,
+  rewriteRelativeAssets,
+  scrubExternalCssUrls,
+} from "./asset-rewrite.js";
 export { renderMarkdown } from "./markdown.js";
 export type { RenderError, RenderResult, SourceMap, SourceMapBlock } from "./types.js";

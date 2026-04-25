@@ -1,9 +1,19 @@
-import type { HtmlAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
+import type { HtmlAnchor, HtmlElementAnchor, SourceAnchor } from "@obelus/bundle-schema";
 import { normalizeQuote } from "./anchor";
 
 // See source.ts: hard-coded so these helpers run outside DOM environments.
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
+
+// Tags whose text content is part of the document's bytes but not its
+// rendered prose. The view-side walks in `@obelus/html-view` skip the same
+// set — both walks must agree, or character offsets shift between anchor
+// creation and resolution.
+const SKIP_TAGS = new Set(["style", "script", "template", "noscript"]);
+
+function isSkippableElement(node: Node): boolean {
+  return node.nodeType === ELEMENT_NODE && SKIP_TAGS.has((node as Element).tagName.toLowerCase());
+}
 
 // Walks up from `node` to the nearest ancestor element bearing
 // `data-html-file` (the convention rendered .html files use to declare
@@ -94,6 +104,7 @@ function charOffsetInRoot(root: HTMLElement, targetNode: Node, targetOffset: num
       return;
     }
     if (node.nodeType === ELEMENT_NODE) {
+      if (isSkippableElement(node)) return;
       const el = node as HTMLElement;
       for (let i = 0; i < el.childNodes.length && !done; i += 1) {
         const child = el.childNodes[i];
@@ -108,8 +119,8 @@ function charOffsetInRoot(root: HTMLElement, targetNode: Node, targetOffset: num
 
 export function selectionToHtmlAnchor(
   selection: Pick<Selection, "anchorNode" | "anchorOffset" | "focusNode" | "focusOffset">,
-  sourceHint?: SourceAnchor2,
-): HtmlAnchor2 | null {
+  sourceHint?: SourceAnchor,
+): HtmlAnchor | null {
   const { anchorNode, focusNode } = selection;
   if (!anchorNode || !focusNode) return null;
 
@@ -125,7 +136,7 @@ export function selectionToHtmlAnchor(
   const endOffset = charOffsetInRoot(endInfo.root, focusNode, selection.focusOffset);
   const [lo, hi] = startOffset <= endOffset ? [startOffset, endOffset] : [endOffset, startOffset];
 
-  const anchor: HtmlAnchor2 = {
+  const anchor: HtmlAnchor = {
     kind: "html",
     file: startInfo.file,
     xpath,
@@ -138,12 +149,30 @@ export function selectionToHtmlAnchor(
   return anchor;
 }
 
+// Builds an element-only anchor (no char offsets) for a single image element
+// inside a `data-html-file`-tagged root. Used when the user clicks an `<img>`
+// rather than dragging a text range — the text walk has nothing to anchor to.
+export function imageElementToHtmlAnchor(
+  img: HTMLElement,
+  sourceHint?: SourceAnchor,
+): HtmlElementAnchor | null {
+  const info = findHtmlRoot(img);
+  if (!info) return null;
+  const xpath = xpathFromRoot(info.root, img);
+  if (xpath === null) return null;
+  const anchor: HtmlElementAnchor = { kind: "html-element", file: info.file, xpath };
+  if (sourceHint) {
+    return { ...anchor, sourceHint };
+  }
+  return anchor;
+}
+
 // Round-trips an HtmlAnchor against the rendered HTML root it references.
 // The caller passes in the same root the anchor was captured against
 // (e.g. the writer-mode preview pane); the verifier walks to the resolved
 // node by re-evaluating the XPath, then compares the substring.
 export function verifyHtmlAnchor(
-  anchor: HtmlAnchor2,
+  anchor: HtmlAnchor,
   root: HTMLElement,
   expectedQuote: string,
 ): { ok: true } | { ok: false; reason: "xpath-miss" | "quote-mismatch" | "out-of-range" } {
@@ -169,6 +198,7 @@ function collectText(node: Node): string {
       return;
     }
     if (n.nodeType === ELEMENT_NODE) {
+      if (isSkippableElement(n)) return;
       const el = n as HTMLElement;
       for (let i = 0; i < el.childNodes.length; i += 1) {
         const child = el.childNodes[i];

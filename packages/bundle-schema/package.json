@@ -11,8 +11,7 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
-    "./json-schema/v1": "./schemas/bundle-v1.schema.json",
-    "./json-schema/v2": "./schemas/bundle-v2.schema.json",
+    "./json-schema/bundle": "./schemas/bundle.schema.json",
     "./json-schema/project-meta": "./schemas/project-meta.schema.json",
     "./json-schema/compile-error": "./schemas/compile-error.schema.json"
   },

@@ -44,9 +44,26 @@ type DisplayEntry =
   | { kind: "group"; groupId: string; rows: readonly [AnnotationRow, ...AnnotationRow[]] };
 
 // Row-agnostic "where in the paper" label. The pane switches on the anchor's
-// discriminant: PDF anchors render as "p. N", source anchors as a line range.
+// discriminant: PDF anchors render as "p. N", source anchors as a line range,
+// HTML anchors fall back to the source-hint line range when present (paired)
+// or a char offset range (hand-authored).
 function locationLabel(row: AnnotationRow): string {
   if (row.anchor.kind === "pdf") return `p. ${row.anchor.page}`;
+  if (row.anchor.kind === "html") {
+    if (row.anchor.sourceHint) {
+      const { lineStart, lineEnd } = row.anchor.sourceHint;
+      return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+    }
+    const { charOffsetStart, charOffsetEnd } = row.anchor;
+    return `c${charOffsetStart}–${charOffsetEnd}`;
+  }
+  if (row.anchor.kind === "html-element") {
+    if (row.anchor.sourceHint) {
+      const { lineStart, lineEnd } = row.anchor.sourceHint;
+      return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+    }
+    return row.anchor.file;
+  }
   const { lineStart, lineEnd } = row.anchor;
   return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
 }
@@ -145,15 +162,31 @@ function AnnotationItem({
   );
 }
 
-// Sorts annotations in reading order across both anchor flavours. PDF rows
+// Sorts annotations in reading order across all anchor flavours. PDF rows
 // compare by page then text-item start; source rows compare by file then
-// line/column. Cross-flavour comparisons fall back to createdAt — not expected
-// (a paper is one format) but keeps the sort total.
+// line/column; html rows compare by file then char offset (or by source-hint
+// line/column when present, so paired-source HTML interleaves with native
+// source rows). Cross-flavour comparisons fall back to createdAt — not
+// expected (a paper is one format) but keeps the sort total.
 function rowSortKey(row: AnnotationRow): [number, string, number, number] {
   if (row.anchor.kind === "pdf") {
     const start0 = row.anchor.textItemRange.start[0];
     const start1 = row.anchor.textItemRange.start[1];
     return [row.anchor.page, "", start0, start1];
+  }
+  if (row.anchor.kind === "html") {
+    if (row.anchor.sourceHint) {
+      const { file, lineStart, colStart } = row.anchor.sourceHint;
+      return [0, file, lineStart, colStart];
+    }
+    return [0, row.anchor.file, row.anchor.charOffsetStart, row.anchor.charOffsetEnd];
+  }
+  if (row.anchor.kind === "html-element") {
+    if (row.anchor.sourceHint) {
+      const { file, lineStart, colStart } = row.anchor.sourceHint;
+      return [0, file, lineStart, colStart];
+    }
+    return [0, row.anchor.file, 0, 0];
   }
   const { file, lineStart, colStart } = row.anchor;
   return [0, file, lineStart, colStart];
@@ -232,6 +265,8 @@ function draftLocationLabel(draft: DraftInput): string {
     if (slice.kind === "source") {
       const { lineStart, lineEnd } = slice.anchor;
       labels.add(lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`);
+    } else if (slice.kind === "html" || slice.kind === "html-element") {
+      labels.add(slice.anchor.file);
     } else {
       labels.add(`p. ${slice.anchor.pageIndex + 1}`);
     }
@@ -247,6 +282,14 @@ function draftSectionKey(draft: DraftInput): string {
   if (first.kind === "source") {
     const a = first.anchor;
     return `s:${a.file}:${a.lineStart}:${a.colStart}:${a.lineEnd}:${a.colEnd}`;
+  }
+  if (first.kind === "html") {
+    const a = first.anchor;
+    return `h:${a.file}:${a.charOffsetStart}:${a.charOffsetEnd}:${draft.quote}`;
+  }
+  if (first.kind === "html-element") {
+    const a = first.anchor;
+    return `he:${a.file}:${a.xpath}:${draft.quote}`;
   }
   return `p:${first.anchor.pageIndex}:${draft.quote}`;
 }
@@ -535,10 +578,12 @@ export default function ReviewPane({
           id="review-pane-panel-revise"
           aria-labelledby="review-pane-tab-revise"
         >
+          <RubricPanel rubric={rubric} onChange={onRubricChange} />
           <p className="review-pane__tabpanel-hint">
             Hand the paper folder to a coding agent and have it apply your marks as minimal-diff
-            source edits. The bundle is format-agnostic — the plugin detects <code>.tex</code> /{" "}
-            <code>.md</code> / <code>.typ</code> at run time.
+            source edits{rubric ? ", honoring the criteria your rubric names" : ""}. The bundle is
+            format-agnostic — the plugin detects <code>.tex</code> / <code>.md</code> /{" "}
+            <code>.typ</code> at run time.
           </p>
           <fieldset className="review-pane__actions" aria-label="Revise output">
             <div className="review-pane__actions-group">

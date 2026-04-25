@@ -20,17 +20,20 @@ import {
   lineNumbers,
   rectangularSelection,
 } from "@codemirror/view";
+import type { ClassifyResult } from "@obelus/html-view";
+import { usePaperTrust } from "../../store/use-paper-trust";
 import "@obelus/md-view/md.css";
-import { type JSX, useEffect, useMemo, useRef, useState } from "react";
+import { type JSX, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
 import { setActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
-import DraftsRail from "./DraftsRail";
 import { editorTheme } from "./editor-theme";
+import HtmlReviewSurface from "./HtmlReviewSurface";
 import MdReviewSurface from "./MdReviewSurface";
 import { extensionOf } from "./openable";
 import SwitchResolveBanner from "./SwitchResolveBanner";
+import { useAssetResolver } from "./use-asset-resolver";
 import { useSourceLocked } from "./use-source-lock";
 
 interface Props {
@@ -111,8 +114,8 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   const hasEntry = buffers((s) => s.buffers.has(relPath));
   const dirty = buffers((s) => s.isDirty(relPath));
   const externalVersion = buffers((s) => s.buffers.get(relPath)?.externalVersion ?? 0);
-  // Subscribed only for the MD preview path below. Source-mode renders skip
-  // the dependent branch so re-renders here are cheap; CodeMirror owns its
+  // Subscribed for the MD/HTML preview paths below. Source-mode renders skip
+  // the dependent branches so re-renders here are cheap; CodeMirror owns its
   // own DOM and isn't rebuilt because `hasEntry` / `externalVersion` drive
   // the view-mount effect, not `bufferText`.
   const bufferText = buffers((s) => s.buffers.get(relPath)?.text ?? "");
@@ -127,10 +130,32 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   const [retryTick, setRetryTick] = useState(0);
   const [hadInvalidBytes, setHadInvalidBytes] = useState(false);
   const [viewMode, setViewMode] = useState<"source" | "preview">("preview");
-  const isMd = extensionOf(relPath) === "md";
+  const ext = extensionOf(relPath);
+  const isMd = ext === "md";
+  const isHtml = ext === "html" || ext === "htm";
+  const hasPreview = isMd || isHtml;
   useEffect(() => {
-    setViewMode(isMd ? "preview" : "source");
-  }, [isMd]);
+    setViewMode(hasPreview ? "preview" : "source");
+  }, [hasPreview]);
+  // HTML writer-mode preview: defer the buffer off the keystroke fast path
+  // via `useDeferredValue` so the editor stays at 60 fps. HtmlView sanitizes
+  // its `html` prop internally; `deferredBuffer` arrives there as the full
+  // authored document (head + body) and is rendered faithfully inside the
+  // sandboxed iframe. Writer HTML is hand-authored by definition (the user
+  // is the author), so classification is a fixed `{ mode: "html" }`; pairing
+  // detection only matters for reviewer-mode files dropped in from elsewhere.
+  const deferredBuffer = useDeferredValue(bufferText);
+  const previewHtml = isHtml && viewMode === "preview" ? deferredBuffer : null;
+  const htmlClassification: ClassifyResult = useMemo(() => ({ mode: "html" }), []);
+  const htmlAssets = useAssetResolver(rootId, relPath);
+  // Writer-mode previews don't have a `paperId` (the file isn't necessarily
+  // registered as a paper yet), so derive a synthetic trust key from the
+  // root id + path. The user is the author, but the banner is still
+  // informative — it surfaces external resources the author may not have
+  // intended to ship and lets them grant trust once instead of every preview.
+  const writerTrustKey = hasPreview ? `writer:${rootId}:${relPath}` : null;
+  const writerTrust = usePaperTrust(writerTrustKey);
+
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   // One compartment per mount; holds the editable/readOnly extensions so we
@@ -366,7 +391,7 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
           </div>
         </div>
       )}
-      {isMd && (
+      {hasPreview && (
         <div className="source-pane__viewmode" role="tablist" aria-label="View mode">
           <button
             type="button"
@@ -388,13 +413,33 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
           </button>
         </div>
       )}
-      <div className="source-pane__editor" ref={hostRef} hidden={isMd && viewMode === "preview"} />
+      <div
+        className="source-pane__editor"
+        ref={hostRef}
+        hidden={hasPreview && viewMode === "preview"}
+      />
       {isMd && viewMode === "preview" && (
         <div className="source-pane__preview">
-          <MdReviewSurface path={relPath} text={bufferText} />
+          <MdReviewSurface
+            path={relPath}
+            text={bufferText}
+            trusted={writerTrust.trusted}
+            onTrust={writerTrust.trust}
+          />
         </div>
       )}
-      <DraftsRail />
+      {isHtml && viewMode === "preview" && previewHtml !== null && (
+        <div className="source-pane__preview">
+          <HtmlReviewSurface
+            path={relPath}
+            html={previewHtml}
+            classification={htmlClassification}
+            assets={htmlAssets}
+            trusted={writerTrust.trusted}
+            onTrust={writerTrust.trust}
+          />
+        </div>
+      )}
     </div>
   );
 }

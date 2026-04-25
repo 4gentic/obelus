@@ -12,17 +12,56 @@
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
-  gap: var(--space-5);
-  overflow: hidden;
+  /* Default: pane sizes to its content with a soft cap — short text leaves
+     more room for the document. Dragging the divider sets an explicit pane
+     width via --review-shell-pane-track. The 340px floor is enforced by
+     min-width on .review-shell__pane (fit-content() can't be nested in
+     minmax()). */
+  grid-template-columns:
+    minmax(0, 1fr)
+    var(--space-5)
+    var(--review-shell-pane-track, fit-content(560px));
+  gap: 0;
+  /* Single shared scroll: doc and pane move together. The page (or PDF) is
+     usually taller than the pane, so the row stretches to the doc and the
+     pane hangs at the top with sticky tabs. */
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--paper);
+}
+
+.review-shell__divider {
+  position: relative;
+  align-self: stretch;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.review-shell__divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  background: transparent;
+  transition: background-color 120ms ease-out;
+}
+
+.review-shell__divider:hover::before,
+.review-shell__divider:focus-visible::before,
+.review-shell__divider:active::before {
+  background-color: var(--ink-soft);
+}
+
+.review-shell__divider:focus-visible {
+  outline: none;
 }
 
 .review-shell__scroll {
   position: relative;
-  height: 100%;
-  overflow: auto;
-  overscroll-behavior: contain;
   padding: var(--space-5) var(--space-6);
   padding-right: calc(220px + var(--space-6));
 }
@@ -132,8 +171,7 @@
 }
 
 .review-shell__pane {
-  height: 100%;
-  min-height: 0;
+  min-width: 340px;
   display: flex;
   flex-direction: column;
 }
@@ -158,6 +196,10 @@
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) auto;
     gap: 0;
+  }
+
+  .review-shell__divider {
+    display: none;
   }
 
   .review-shell__scroll {
@@ -205,6 +247,11 @@
     z-index: 20;
     display: flex;
     flex-direction: column;
+    /* The desktop pane no longer has its own scroll (the shell scrolls
+       both columns together). The mobile sheet still needs an internal
+       scroll so the marks list doesn't escape the bottom of the sheet. */
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .review-shell__sheet[data-open="true"] {

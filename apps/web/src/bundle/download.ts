@@ -69,9 +69,9 @@ export async function exportBundleFile(bundle: Bundle, kind: BundleKind): Promis
   return ok ? suggestedName : null;
 }
 
-export async function exportBundleMarkdown(bundle: Bundle): Promise<void> {
+export async function exportBundleMarkdown(bundle: Bundle, rubric?: PromptRubric): Promise<void> {
   const suggestedName = suggestBundleFilename("revise").replace(/\.json$/, ".md");
-  const text = formatClipboardPrompt(bundle);
+  const text = formatClipboardPrompt(bundle, rubric);
   const blob = new Blob([text], { type: "text/markdown" });
   await saveBlob(blob, suggestedName, "Obelus marks (Markdown)", {
     "text/markdown": [".md"],

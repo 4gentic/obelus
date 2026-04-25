@@ -11,7 +11,7 @@ export interface PaperRubric {
   updatedAt: string;
 }
 
-export type PaperFormat = "pdf" | "md";
+export type PaperFormat = "pdf" | "md" | "html";
 
 export interface PaperRow {
   id: string;
@@ -52,7 +52,15 @@ export type PdfAnchorFields = {
 
 export type SourceAnchorFields = z.infer<typeof BundleSchema.SourceAnchor>;
 
-export type AnchorFields = PdfAnchorFields | SourceAnchorFields;
+export type HtmlAnchorFields = z.infer<typeof BundleSchema.HtmlAnchor>;
+
+export type HtmlElementAnchorFields = z.infer<typeof BundleSchema.HtmlElementAnchor>;
+
+export type AnchorFields =
+  | PdfAnchorFields
+  | SourceAnchorFields
+  | HtmlAnchorFields
+  | HtmlElementAnchorFields;
 
 export interface AnnotationRow {
   id: string;

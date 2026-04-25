@@ -25,7 +25,8 @@ type StoreKey =
   | "wizard"
   | "claudeDetectCache"
   | "lastOpenedProjectId"
-  | "currentDeskId";
+  | "currentDeskId"
+  | "trustedPapers";
 
 interface StoreShape {
   windowGeometry: WindowGeometry;
@@ -33,6 +34,12 @@ interface StoreShape {
   claudeDetectCache: ClaudeDetectCache;
   lastOpenedProjectId: string | null;
   currentDeskId: string;
+  // Per-paper external-resource trust. Keys are paper IDs (the repo's
+  // primary key); presence means "user said this paper's external
+  // requests are safe to load". The map shape is preserved so a future
+  // migration can attach metadata (granted-at, host allow-list) without
+  // churning the storage key.
+  trustedPapers: Record<string, true>;
 }
 
 let singleton: Promise<Store> | null = null;
@@ -60,4 +67,15 @@ export async function clearAppState(): Promise<void> {
   const s = await store();
   await s.clear();
   await s.save();
+}
+
+export async function isPaperTrusted(paperId: string): Promise<boolean> {
+  const map = await getAppState("trustedPapers");
+  return map?.[paperId] === true;
+}
+
+export async function trustPaper(paperId: string): Promise<void> {
+  const existing = (await getAppState("trustedPapers")) ?? {};
+  if (existing[paperId] === true) return;
+  await setAppState("trustedPapers", { ...existing, [paperId]: true });
 }

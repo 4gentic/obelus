@@ -21,7 +21,7 @@ import { useJobsStore } from "../../lib/jobs-store";
 import { getRepository } from "../../lib/repo";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { createWriteUpStore, type WriteUpStore } from "../../lib/writeup-store";
-import { exportBundleV2ForPaper } from "./build-bundle";
+import { exportBundleForPaper } from "./build-bundle";
 import { useProject } from "./context";
 import { createReviewProgressStore, type ReviewProgressStore } from "./review-progress-store";
 
@@ -148,7 +148,7 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
       }
 
       try {
-        const { filename, json } = await exportBundleV2ForPaper({ repo, paperId, rootId });
+        const { filename, json } = await exportBundleForPaper({ repo, paperId, rootId });
         const bytes = new TextEncoder().encode(json);
         await fsWriteBytes(rootId, filename, bytes);
         const paper = await repo.papers.get(paperId);

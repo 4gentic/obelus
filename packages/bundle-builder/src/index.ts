@@ -1,97 +1,9 @@
-import {
-  BUNDLE_VERSION,
-  BUNDLE_VERSION_V2,
-  type Bundle,
-  type Bundle2,
-  BundleV1,
-  BundleV2,
-} from "@obelus/bundle-schema";
+import type { Bundle as BundleType } from "@obelus/bundle-schema";
+import { BUNDLE_VERSION, Bundle } from "@obelus/bundle-schema";
 
 const DEFAULT_TOOL_VERSION = "0.1.0";
 
-export interface PaperInput {
-  id: string;
-  title: string;
-}
-
-export interface RevisionInput {
-  id: string;
-  paperId: string;
-  revisionNumber: number;
-  pdfSha256: string;
-  createdAt: string;
-}
-
-export interface PdfInput {
-  filename: string;
-  pageCount: number;
-}
-
-// `category` is intentionally `string`; BundleV1.parse enforces the enum at
-// the boundary so callers can pass DB rows whose schemas don't narrow it.
-export interface AnnotationInput {
-  id: string;
-  category: string;
-  quote: string;
-  contextBefore: string;
-  contextAfter: string;
-  page: number;
-  bbox: readonly [number, number, number, number];
-  textItemRange: {
-    start: readonly [number, number];
-    end: readonly [number, number];
-  };
-  note: string;
-  thread: ReadonlyArray<{ at: string; body: string }>;
-  createdAt: string;
-  groupId?: string;
-}
-
-export interface BuildBundleV1Input {
-  paper: PaperInput;
-  revision: RevisionInput;
-  pdf: PdfInput;
-  annotations: ReadonlyArray<AnnotationInput>;
-  toolVersion?: string;
-}
-
-export function buildBundleV1(input: BuildBundleV1Input): Bundle {
-  if (input.revision.paperId !== input.paper.id) {
-    throw new Error("revision/paper mismatch");
-  }
-  const candidate = {
-    bundleVersion: BUNDLE_VERSION,
-    tool: { name: "obelus", version: input.toolVersion ?? DEFAULT_TOOL_VERSION },
-    pdf: {
-      sha256: input.revision.pdfSha256,
-      filename: input.pdf.filename,
-      pageCount: input.pdf.pageCount,
-    },
-    paper: {
-      id: input.paper.id,
-      title: input.paper.title,
-      revision: input.revision.revisionNumber,
-      createdAt: input.revision.createdAt,
-    },
-    annotations: input.annotations.map((r) => ({
-      id: r.id,
-      category: r.category,
-      quote: r.quote,
-      contextBefore: r.contextBefore,
-      contextAfter: r.contextAfter,
-      page: r.page,
-      bbox: r.bbox,
-      textItemRange: r.textItemRange,
-      note: r.note,
-      thread: r.thread,
-      createdAt: r.createdAt,
-      ...(r.groupId ? { groupId: r.groupId } : {}),
-    })),
-  };
-  return BundleV1.parse(candidate);
-}
-
-export interface PaperRefV2Input {
+export interface PaperRefInput {
   id: string;
   title: string;
   revisionNumber: number;
@@ -106,7 +18,7 @@ export interface PaperRefV2Input {
   rubric?: { body: string; label: string; source: "file" | "paste" | "inline" };
 }
 
-export interface ProjectV2FileSummaryInput {
+export interface ProjectFileSummaryInput {
   relPath: string;
   format:
     | "tex"
@@ -124,21 +36,21 @@ export interface ProjectV2FileSummaryInput {
   role?: "main" | "include" | "bib" | "asset";
 }
 
-export interface ProjectV2Input {
+export interface ProjectInput {
   id: string;
   label: string;
   kind: "writer" | "reviewer";
   categories: ReadonlyArray<{ slug: string; label: string; color?: string }>;
   // Cached tree hint for the Claude plugin (skip globbing when present).
   main?: string;
-  files?: ReadonlyArray<ProjectV2FileSummaryInput>;
+  files?: ReadonlyArray<ProjectFileSummaryInput>;
 }
 
 // Discriminated input anchor mirroring the bundle's wire shape. Callers pass
-// either arm — the builder forwards it through `BundleV2.parse` for canonical
+// either arm — the builder forwards it through `Bundle.parse` for canonical
 // validation. The builder takes no responsibility for impossible cases; the
 // row-side discriminant is the contract.
-export type AnnotationV2InputAnchor =
+export type AnnotationAnchor =
   | {
       kind: "pdf";
       page: number;
@@ -155,32 +67,60 @@ export type AnnotationV2InputAnchor =
       colStart: number;
       lineEnd: number;
       colEnd: number;
+    }
+  | {
+      kind: "html";
+      file: string;
+      xpath: string;
+      charOffsetStart: number;
+      charOffsetEnd: number;
+      sourceHint?: {
+        kind: "source";
+        file: string;
+        lineStart: number;
+        colStart: number;
+        lineEnd: number;
+        colEnd: number;
+      };
+    }
+  | {
+      kind: "html-element";
+      file: string;
+      xpath: string;
+      sourceHint?: {
+        kind: "source";
+        file: string;
+        lineStart: number;
+        colStart: number;
+        lineEnd: number;
+        colEnd: number;
+      };
     };
 
-export interface AnnotationV2Input {
+export interface AnnotationInput {
   id: string;
   paperId: string;
   category: string;
   quote: string;
   contextBefore: string;
   contextAfter: string;
-  anchor: AnnotationV2InputAnchor;
+  anchor: AnnotationAnchor;
   note: string;
   thread: ReadonlyArray<{ at: string; body: string }>;
   createdAt: string;
   groupId?: string;
 }
 
-export interface BuildBundleV2Input {
-  project: ProjectV2Input;
-  papers: ReadonlyArray<PaperRefV2Input>;
-  annotations: ReadonlyArray<AnnotationV2Input>;
+export interface BuildBundleInput {
+  project: ProjectInput;
+  papers: ReadonlyArray<PaperRefInput>;
+  annotations: ReadonlyArray<AnnotationInput>;
   toolVersion?: string;
 }
 
-export function buildBundleV2(input: BuildBundleV2Input): Bundle2 {
+export function buildBundle(input: BuildBundleInput): BundleType {
   const candidate = {
-    bundleVersion: BUNDLE_VERSION_V2,
+    bundleVersion: BUNDLE_VERSION,
     tool: { name: "obelus", version: input.toolVersion ?? DEFAULT_TOOL_VERSION },
     project: {
       id: input.project.id,
@@ -233,7 +173,7 @@ export function buildBundleV2(input: BuildBundleV2Input): Bundle2 {
       ...(a.groupId !== undefined ? { groupId: a.groupId } : {}),
     })),
   };
-  return BundleV2.parse(candidate);
+  return Bundle.parse(candidate);
 }
 
 export {
@@ -241,9 +181,20 @@ export {
   formatReviewPrompt,
   type PromptAnnotation,
   type PromptInput,
+  type PromptLocator,
   type PromptPaper,
   type PromptRubric,
 } from "./format-prompts";
+
+export {
+  type HtmlMapAnchor,
+  type HtmlMapAnchorHtml,
+  type HtmlMapAnchorPdf,
+  type HtmlMapAnchorSource,
+  type HtmlMapResult,
+  type HtmlMapRow,
+  mapHtmlAnnotations,
+} from "./html";
 
 export type BundleKind = "review" | "revise";
 

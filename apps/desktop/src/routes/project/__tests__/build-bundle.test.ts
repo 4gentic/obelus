@@ -7,7 +7,11 @@ import type {
   RevisionRow,
 } from "@obelus/repo";
 import { describe, expect, it } from "vitest";
-import { exportMdBundleV2ForPaper, selectSiblingSourceCandidates } from "../build-bundle";
+import {
+  exportHtmlBundleForPaper,
+  exportMdBundleForPaper,
+  selectSiblingSourceCandidates,
+} from "../build-bundle";
 
 // Minimal shape the selector needs from a ProjectFileRow; the full row has
 // more columns we don't exercise here.
@@ -91,7 +95,7 @@ describe("selectSiblingSourceCandidates", () => {
   });
 });
 
-describe("exportMdBundleV2ForPaper", () => {
+describe("exportMdBundleForPaper", () => {
   function makeRepo(fixture: {
     paper: PaperRow;
     project: ProjectRow;
@@ -171,7 +175,7 @@ describe("exportMdBundleV2ForPaper", () => {
     };
     const repo = makeRepo({ paper, project, revisions: [revision], annotations: [ann] });
 
-    const { json, annotationCount } = await exportMdBundleV2ForPaper({
+    const { json, annotationCount } = await exportMdBundleForPaper({
       repo,
       paperId: paper.id,
     });
@@ -264,7 +268,200 @@ describe("exportMdBundleV2ForPaper", () => {
       annotations: [anchored, dangling],
     });
 
-    const { annotationCount } = await exportMdBundleV2ForPaper({ repo, paperId: paper.id });
+    const { annotationCount } = await exportMdBundleForPaper({ repo, paperId: paper.id });
     expect(annotationCount).toBe(1);
+  });
+});
+
+describe("exportHtmlBundleForPaper", () => {
+  function makeRepo(fixture: {
+    paper: PaperRow;
+    project: ProjectRow;
+    revisions: RevisionRow[];
+    annotations: AnnotationRow[];
+  }): Repository {
+    const stub = {
+      papers: {
+        get: async (id: string) => (id === fixture.paper.id ? fixture.paper : undefined),
+      },
+      projects: {
+        get: async (id: string) => (id === fixture.project.id ? fixture.project : undefined),
+      },
+      revisions: {
+        listForPaper: async (paperId: string) =>
+          fixture.revisions.filter((r) => r.paperId === paperId),
+      },
+      annotations: {
+        listForRevision: async (revId: string) =>
+          fixture.annotations.filter((a) => a.revisionId === revId),
+      },
+    };
+    return stub as unknown as Repository;
+  }
+
+  function htmlFixture(): {
+    paper: PaperRow;
+    project: ProjectRow;
+    revision: RevisionRow;
+  } {
+    const paper: PaperRow = {
+      id: "b453fe72-0bdd-4396-b2b8-bd39bb23da37",
+      title: "Diagram",
+      createdAt: "2026-04-25T00:00:00.000Z",
+      format: "html",
+      pdfSha256: "deadbeef",
+      projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      pdfRelPath: "diagram.html",
+      pageCount: 0,
+    };
+    const project: ProjectRow = {
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      label: "negotiated_autonomy",
+      kind: "reviewer",
+      root: "/tmp/htmlproj",
+      pinned: false,
+      archived: false,
+      lastOpenedAt: null,
+      lastOpenedFilePath: null,
+      createdAt: "2026-04-23T00:00:00.000Z",
+      deskId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    };
+    const revision: RevisionRow = {
+      id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      paperId: paper.id,
+      revisionNumber: 1,
+      pdfSha256: paper.pdfSha256,
+      createdAt: paper.createdAt,
+    };
+    return { paper, project, revision };
+  }
+
+  function htmlTextAnn(revisionId: string, createdAt: string): AnnotationRow {
+    return {
+      id: "f1111111-1111-4111-8111-111111111111",
+      revisionId,
+      category: "rephrase",
+      quote: "Trust Contract",
+      contextBefore: "the title says ",
+      contextAfter: " everywhere",
+      anchor: {
+        kind: "html",
+        file: "diagram.html",
+        xpath: "./body[1]/h1[1]/text()[1]",
+        charOffsetStart: 2273,
+        charOffsetEnd: 2287,
+      },
+      note: "change the title to Contract Deal",
+      thread: [],
+      createdAt,
+    };
+  }
+
+  function htmlElementAnn(revisionId: string, createdAt: string): AnnotationRow {
+    return {
+      id: "f2222222-2222-4222-8222-222222222222",
+      revisionId,
+      category: "wrong",
+      quote: "[image: test.png]",
+      contextBefore: "",
+      contextAfter: "",
+      anchor: {
+        kind: "html-element",
+        file: "diagram.html",
+        xpath: "./body[1]/figure[1]/img[1]",
+      },
+      note: "external test image",
+      thread: [],
+      createdAt,
+    };
+  }
+
+  it("accepts html + html-element on the same paper (regression)", async () => {
+    const { paper, project, revision } = htmlFixture();
+    const repo = makeRepo({
+      paper,
+      project,
+      revisions: [revision],
+      annotations: [
+        htmlTextAnn(revision.id, paper.createdAt),
+        htmlElementAnn(revision.id, paper.createdAt),
+      ],
+    });
+
+    const { json, annotationCount } = await exportHtmlBundleForPaper({
+      repo,
+      paperId: paper.id,
+    });
+    expect(annotationCount).toBe(2);
+
+    const bundle = JSON.parse(json) as {
+      papers: Array<{ entrypoint?: string }>;
+      annotations: Array<{ anchor: { kind: string } }>;
+    };
+    const first = bundle.papers[0];
+    if (!first) throw new Error("expected one paper");
+    expect(first.entrypoint).toBe("diagram.html");
+    const kinds = bundle.annotations.map((a) => a.anchor.kind).sort();
+    expect(kinds).toEqual(["html", "html-element"]);
+  });
+
+  it("rejects source-mode mixed with html-mode anchors", async () => {
+    const { paper, project, revision } = htmlFixture();
+    const sourceAnn: AnnotationRow = {
+      id: "f3333333-3333-4333-8333-333333333333",
+      revisionId: revision.id,
+      category: "unclear",
+      quote: "paired text",
+      contextBefore: "",
+      contextAfter: "",
+      anchor: {
+        kind: "source",
+        file: "diagram.md",
+        lineStart: 4,
+        colStart: 0,
+        lineEnd: 4,
+        colEnd: 11,
+      },
+      note: "",
+      thread: [],
+      createdAt: paper.createdAt,
+    };
+    const repo = makeRepo({
+      paper,
+      project,
+      revisions: [revision],
+      annotations: [sourceAnn, htmlTextAnn(revision.id, paper.createdAt)],
+    });
+
+    await expect(exportHtmlBundleForPaper({ repo, paperId: paper.id })).rejects.toThrow(
+      /mixes source-mode and html-mode anchors/,
+    );
+  });
+
+  it("accepts an html-element-only paper", async () => {
+    const { paper, project, revision } = htmlFixture();
+    const repo = makeRepo({
+      paper,
+      project,
+      revisions: [revision],
+      annotations: [htmlElementAnn(revision.id, paper.createdAt)],
+    });
+
+    const { json, annotationCount } = await exportHtmlBundleForPaper({
+      repo,
+      paperId: paper.id,
+    });
+    expect(annotationCount).toBe(1);
+
+    const bundle = JSON.parse(json) as {
+      papers: Array<{ entrypoint?: string }>;
+      annotations: Array<{ anchor: { kind: string } }>;
+    };
+    const first = bundle.papers[0];
+    if (!first) throw new Error("expected one paper");
+    expect(first.entrypoint).toBe("diagram.html");
+    const firstAnn = bundle.annotations[0];
+    if (!firstAnn) throw new Error("expected one annotation");
+    expect(firstAnn.anchor.kind).toBe("html-element");
   });
 });

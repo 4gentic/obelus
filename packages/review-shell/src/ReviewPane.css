@@ -4,15 +4,17 @@
   gap: var(--space-6);
   padding: var(--space-5);
   background: var(--paper);
-  height: 100%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
 .review-pane__tabs {
   display: flex;
   gap: var(--space-5);
   align-items: baseline;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper);
+  padding-top: var(--space-3);
   border-bottom: var(--rule-soft);
   padding-bottom: var(--space-2);
 }

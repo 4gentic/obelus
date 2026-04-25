@@ -24,6 +24,7 @@ const SELECT_COLUMNS =
 
 function paperFormat(raw: string): PaperFormat {
   if (raw === "md") return "md";
+  if (raw === "html") return "html";
   return "pdf";
 }
 

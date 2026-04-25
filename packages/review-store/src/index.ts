@@ -1,5 +1,5 @@
 import type { Anchor, Bbox } from "@obelus/anchor";
-import type { SourceAnchor2 } from "@obelus/bundle-schema";
+import type { HtmlAnchor, HtmlElementAnchor, SourceAnchor } from "@obelus/bundle-schema";
 import type {
   AnnotationRow,
   AnnotationStaleness,
@@ -26,13 +26,32 @@ export type PdfDraftSlice = {
 
 export type SourceDraftSlice = {
   kind: "source";
-  anchor: SourceAnchor2;
+  anchor: SourceAnchor;
   quote: string;
   contextBefore: string;
   contextAfter: string;
 };
 
-export type DraftSlice = PdfDraftSlice | SourceDraftSlice;
+export type HtmlDraftSlice = {
+  kind: "html";
+  anchor: HtmlAnchor;
+  quote: string;
+  contextBefore: string;
+  contextAfter: string;
+};
+
+// Element-anchored variant — used when the user clicks an `<img>` rather than
+// dragging a text range. The anchor addresses the element directly; the
+// resolver draws from `getBoundingClientRect()`.
+export type HtmlElementDraftSlice = {
+  kind: "html-element";
+  anchor: HtmlElementAnchor;
+  quote: string;
+  contextBefore: string;
+  contextAfter: string;
+};
+
+export type DraftSlice = PdfDraftSlice | SourceDraftSlice | HtmlDraftSlice | HtmlElementDraftSlice;
 
 export type DraftInput = {
   slices: DraftSlice[];
@@ -173,6 +192,52 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
               colStart: slice.anchor.colStart,
               lineEnd: slice.anchor.lineEnd,
               colEnd: slice.anchor.colEnd,
+            },
+            note,
+            thread: [],
+            createdAt,
+            ...(groupId ? { groupId } : {}),
+          };
+        }
+        if (slice.kind === "html") {
+          return {
+            id: uuid(),
+            revisionId,
+            category,
+            quote: slice.quote,
+            contextBefore: slice.contextBefore,
+            contextAfter: slice.contextAfter,
+            anchor: {
+              kind: "html",
+              file: slice.anchor.file,
+              xpath: slice.anchor.xpath,
+              charOffsetStart: slice.anchor.charOffsetStart,
+              charOffsetEnd: slice.anchor.charOffsetEnd,
+              ...(slice.anchor.sourceHint !== undefined
+                ? { sourceHint: slice.anchor.sourceHint }
+                : {}),
+            },
+            note,
+            thread: [],
+            createdAt,
+            ...(groupId ? { groupId } : {}),
+          };
+        }
+        if (slice.kind === "html-element") {
+          return {
+            id: uuid(),
+            revisionId,
+            category,
+            quote: slice.quote,
+            contextBefore: slice.contextBefore,
+            contextAfter: slice.contextAfter,
+            anchor: {
+              kind: "html-element",
+              file: slice.anchor.file,
+              xpath: slice.anchor.xpath,
+              ...(slice.anchor.sourceHint !== undefined
+                ? { sourceHint: slice.anchor.sourceHint }
+                : {}),
             },
             note,
             thread: [],

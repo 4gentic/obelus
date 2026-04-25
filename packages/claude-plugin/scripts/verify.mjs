@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { CompileErrorBundle, parseBundle } from "@obelus/bundle-schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const reviewFixtures = ["fixtures/sample/bundle.json", "fixtures/sample/bundle-v2.json"];
+const reviewFixtures = ["fixtures/sample/bundle.json"];
 const compileErrorFixtures = [
   "fixtures/compile-fix/typst-error.bundle.json",
   "fixtures/compile-fix/latex-error.bundle.json",

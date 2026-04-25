@@ -192,7 +192,9 @@ export function usePdfDocumentView({
       });
       const draftRects = selectedAnchor
         ? selectedAnchor.slices.flatMap((slice) => {
-            if (slice.kind === "source") return [];
+            if (slice.kind === "source" || slice.kind === "html" || slice.kind === "html-element") {
+              return [];
+            }
             if (slice.anchor.pageIndex !== pageIndex) return [];
             return slice.rects.map((r) => {
               const [x, y, w, h] = r;

@@ -1,5 +1,10 @@
-import { buildBundleV1, suggestBundleFilename } from "@obelus/bundle-builder";
+import {
+  type AnnotationInput,
+  buildBundle as build,
+  suggestBundleFilename,
+} from "@obelus/bundle-builder";
 import type { Bundle } from "@obelus/bundle-schema";
+import { DEFAULT_CATEGORIES } from "@obelus/categories";
 import { isPdfAnchored } from "@obelus/repo";
 import { annotations, papers, revisions } from "@obelus/repo/web";
 
@@ -17,33 +22,57 @@ export async function buildBundle(input: BuildInput): Promise<Bundle> {
   if (!revision) throw new Error(`revision not found: ${input.revisionId}`);
   const rows = await annotations.listForRevision(revision.id);
 
-  return buildBundleV1({
-    paper: { id: paper.id, title: paper.title },
-    revision: {
-      id: revision.id,
-      paperId: revision.paperId,
-      revisionNumber: revision.revisionNumber,
-      pdfSha256: revision.pdfSha256,
-      createdAt: revision.createdAt,
-    },
-    pdf: { filename: input.pdfFilename, pageCount: input.pageCount },
-    // buildBundleV1 is PDF-specific; md-anchored rows ride the separate v2
-    // export path (see review-md flow). V1's wire shape predates the
-    // discriminated anchor, so we flatten the row's PDF anchor here.
-    annotations: rows.filter(isPdfAnchored).map((r) => ({
-      id: r.id,
-      category: r.category,
-      quote: r.quote,
-      contextBefore: r.contextBefore,
-      contextAfter: r.contextAfter,
+  const v2Annotations: AnnotationInput[] = rows.filter(isPdfAnchored).map((r) => ({
+    id: r.id,
+    paperId: paper.id,
+    category: r.category,
+    quote: r.quote,
+    contextBefore: r.contextBefore,
+    contextAfter: r.contextAfter,
+    anchor: {
+      kind: "pdf",
       page: r.anchor.page,
       bbox: r.anchor.bbox,
       textItemRange: r.anchor.textItemRange,
-      note: r.note,
-      thread: r.thread,
-      createdAt: r.createdAt,
-      ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
-    })),
+    },
+    note: r.note,
+    thread: r.thread,
+    createdAt: r.createdAt,
+    ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
+  }));
+
+  return build({
+    project: {
+      // Web has no multi-paper project; fold the single paper into a synthetic
+      // project so the bundle validates.
+      id: paper.id,
+      label: paper.title,
+      kind: "reviewer",
+      categories: DEFAULT_CATEGORIES.map((c) => ({ slug: c.id, label: c.label })),
+      main: input.pdfFilename,
+    },
+    papers: [
+      {
+        id: paper.id,
+        title: paper.title,
+        revisionNumber: revision.revisionNumber,
+        createdAt: revision.createdAt,
+        pdfRelPath: input.pdfFilename,
+        pdfSha256: revision.pdfSha256,
+        pageCount: input.pageCount,
+        entrypoint: input.pdfFilename,
+        ...(paper.rubric !== undefined
+          ? {
+              rubric: {
+                body: paper.rubric.body,
+                label: paper.rubric.label,
+                source: paper.rubric.source,
+              },
+            }
+          : {}),
+      },
+    ],
+    annotations: v2Annotations,
   });
 }
 

@@ -1,13 +1,14 @@
+import { classifyHtml, useHtmlDocumentView } from "@obelus/html-view";
 import { useMdDocumentView } from "@obelus/md-view";
 import "@obelus/md-view/md.css";
 import { loadDocument, usePdfDocumentView } from "@obelus/pdf-view";
 import type { AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
-import { getMdText, getPdf, papers, revisions } from "@obelus/repo/web";
-import { type DocumentView, ReviewPane, ReviewShell } from "@obelus/review-shell";
+import { getHtml, getMdText, getPdf, papers, revisions } from "@obelus/repo/web";
+import { type DocumentView, ReviewPane, ReviewShell, TrustBanner } from "@obelus/review-shell";
 import type { DraftInput, ReviewState } from "@obelus/review-store";
 import "@obelus/review-shell/review-shell.css";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { buildBundle } from "../bundle/build";
 import { copyClipboardPrompt, copyReviewClipboardPrompt } from "../bundle/clipboard";
@@ -16,11 +17,14 @@ import {
   exportBundleMarkdown,
   exportReviewBundleMarkdown,
 } from "../bundle/download";
-import { downloadMdBundle } from "../bundle/md-bundle";
+import { buildHtmlBundleJson, downloadHtmlBundle } from "../bundle/html-bundle";
+import { buildMdBundleJson, downloadMdBundle } from "../bundle/md-bundle";
 import { useReviewStore } from "../store/review-store";
+import { usePaperTrust } from "../store/use-paper-trust";
 import "./review.css";
 
 import type { JSX } from "react";
+import { useOpfsAssetResolver } from "./use-opfs-asset-resolver";
 
 type Status = "idle" | "working" | "done" | "error";
 
@@ -40,6 +44,15 @@ type LoadState =
       revision: RevisionRow;
       file: string;
       text: string;
+    }
+  | {
+      kind: "ready-html";
+      paper: PaperRow;
+      revision: RevisionRow;
+      file: string;
+      html: string;
+      mode: "source" | "html";
+      sourceFile?: string;
     };
 
 export default function Review(): JSX.Element {
@@ -93,6 +106,27 @@ export default function Review(): JSX.Element {
         if (!cancelled) setState({ kind: "ready-md", paper, revision, file, text });
         return;
       }
+      if (paper.format === "html") {
+        const html = await getHtml(paper.pdfSha256);
+        if (html === null) {
+          if (!cancelled) setState({ kind: "missing" });
+          return;
+        }
+        const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.html`;
+        const classified = classifyHtml({ html, siblingPaths: [], file });
+        if (!cancelled) {
+          setState({
+            kind: "ready-html",
+            paper,
+            revision,
+            file,
+            html,
+            mode: classified.mode,
+            ...(classified.mode === "source" ? { sourceFile: classified.sourceFile } : {}),
+          });
+        }
+        return;
+      }
       const bytes = await getPdf(paper.pdfSha256);
       if (!bytes) {
         if (!cancelled) setState({ kind: "missing" });
@@ -114,7 +148,7 @@ export default function Review(): JSX.Element {
       if (!paperId) return;
       await papers.rename(paperId, title);
       setState((prev) =>
-        prev.kind === "ready-pdf" || prev.kind === "ready-md"
+        prev.kind === "ready-pdf" || prev.kind === "ready-md" || prev.kind === "ready-html"
           ? {
               ...prev,
               paper: { ...prev.paper, title: title.trim() || "Untitled" },
@@ -130,7 +164,9 @@ export default function Review(): JSX.Element {
       if (!paperId) return;
       await papers.setRubric(paperId, next);
       setState((prev) => {
-        if (prev.kind !== "ready-pdf" && prev.kind !== "ready-md") return prev;
+        if (prev.kind !== "ready-pdf" && prev.kind !== "ready-md" && prev.kind !== "ready-html") {
+          return prev;
+        }
         if (next === null) {
           const { rubric: _drop, ...rest } = prev.paper;
           return { ...prev, paper: rest };
@@ -178,10 +214,6 @@ export default function Review(): JSX.Element {
     setSelectedAnchor(draft);
   };
 
-  // Export handlers dispatch on paper.format. PDF papers ride the existing
-  // v1 Bundle flow; MD papers build a V2 bundle with sourceAnchor-carrying
-  // annotations and download JSON (clipboard/markdown paths reuse the JSON
-  // for now — V2 prompt formatting lands in a follow-up).
   const exportBundleForKind = async (kind: "review" | "revise"): Promise<string | null> => {
     setStatus("working");
     setMessage(null);
@@ -195,8 +227,18 @@ export default function Review(): JSX.Element {
           pageCount: pageCount || 1,
         });
         name = await exportBundleFile(bundle, kind);
-      } else {
+      } else if (state.kind === "ready-md") {
         name = await downloadMdBundle({ paper, revision, file: state.file }, kind);
+      } else {
+        name = await downloadHtmlBundle(
+          {
+            paper,
+            revision,
+            htmlFile: state.file,
+            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+          },
+          kind,
+        );
       }
       if (name) {
         setStatus("done");
@@ -212,6 +254,10 @@ export default function Review(): JSX.Element {
     }
   };
 
+  const rubricForExport = paper?.rubric
+    ? { label: paper.rubric.label, body: paper.rubric.body }
+    : undefined;
+
   const onExportMarkdown = async (): Promise<void> => {
     setStatus("working");
     setMessage(null);
@@ -223,9 +269,18 @@ export default function Review(): JSX.Element {
           pdfFilename: "paper.pdf",
           pageCount: pageCount || 1,
         });
-        await exportBundleMarkdown(bundle);
+        await exportBundleMarkdown(bundle, rubricForExport);
+      } else if (state.kind === "ready-md") {
+        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        await exportBundleMarkdown(bundle, rubricForExport);
       } else {
-        await downloadMdBundle({ paper, revision, file: state.file }, "revise");
+        const { bundle } = await buildHtmlBundleJson({
+          paper,
+          revision,
+          htmlFile: state.file,
+          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+        });
+        await exportBundleMarkdown(bundle, rubricForExport);
       }
       setStatus("done");
       setMessage("Markdown exported.");
@@ -246,14 +301,21 @@ export default function Review(): JSX.Element {
           pdfFilename: "paper.pdf",
           pageCount: pageCount || 1,
         });
-        await copyClipboardPrompt(bundle);
-        setStatus("done");
-        setMessage("Prompt copied to clipboard.");
+        await copyClipboardPrompt(bundle, rubricForExport);
+      } else if (state.kind === "ready-md") {
+        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        await copyClipboardPrompt(bundle, rubricForExport);
       } else {
-        await downloadMdBundle({ paper, revision, file: state.file }, "revise");
-        setStatus("done");
-        setMessage("Bundle exported (MD prompt formatter coming soon).");
+        const { bundle } = await buildHtmlBundleJson({
+          paper,
+          revision,
+          htmlFile: state.file,
+          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+        });
+        await copyClipboardPrompt(bundle, rubricForExport);
       }
+      setStatus("done");
+      setMessage(rubricForExport ? "Prompt copied with rubric." : "Prompt copied to clipboard.");
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Copy failed");
@@ -271,17 +333,21 @@ export default function Review(): JSX.Element {
           pdfFilename: "paper.pdf",
           pageCount: pageCount || 1,
         });
-        const rubric = paper.rubric
-          ? { label: paper.rubric.label, body: paper.rubric.body }
-          : undefined;
-        await copyReviewClipboardPrompt(bundle, rubric);
-        setStatus("done");
-        setMessage(rubric ? "Review prompt copied with rubric." : "Review prompt copied.");
+        await copyReviewClipboardPrompt(bundle, rubricForExport);
+      } else if (state.kind === "ready-md") {
+        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        await copyReviewClipboardPrompt(bundle, rubricForExport);
       } else {
-        await downloadMdBundle({ paper, revision, file: state.file }, "review");
-        setStatus("done");
-        setMessage("Bundle exported (MD prompt formatter coming soon).");
+        const { bundle } = await buildHtmlBundleJson({
+          paper,
+          revision,
+          htmlFile: state.file,
+          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+        });
+        await copyReviewClipboardPrompt(bundle, rubricForExport);
       }
+      setStatus("done");
+      setMessage(rubricForExport ? "Review prompt copied with rubric." : "Review prompt copied.");
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Copy failed");
@@ -299,12 +365,18 @@ export default function Review(): JSX.Element {
           pdfFilename: "paper.pdf",
           pageCount: pageCount || 1,
         });
-        const rubric = paper.rubric
-          ? { label: paper.rubric.label, body: paper.rubric.body }
-          : undefined;
-        await exportReviewBundleMarkdown(bundle, rubric);
+        await exportReviewBundleMarkdown(bundle, rubricForExport);
+      } else if (state.kind === "ready-md") {
+        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        await exportReviewBundleMarkdown(bundle, rubricForExport);
       } else {
-        await downloadMdBundle({ paper, revision, file: state.file }, "review");
+        const { bundle } = await buildHtmlBundleJson({
+          paper,
+          revision,
+          htmlFile: state.file,
+          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+        });
+        await exportReviewBundleMarkdown(bundle, rubricForExport);
       }
       setStatus("done");
       setMessage("Review Markdown exported.");
@@ -360,7 +432,16 @@ type ReviewContentProps = {
         doc: PDFDocumentProxy;
         pageCount: number;
       }
-    | { kind: "ready-md"; paper: PaperRow; revision: RevisionRow; file: string; text: string };
+    | { kind: "ready-md"; paper: PaperRow; revision: RevisionRow; file: string; text: string }
+    | {
+        kind: "ready-html";
+        paper: PaperRow;
+        revision: RevisionRow;
+        file: string;
+        html: string;
+        mode: "source" | "html";
+        sourceFile?: string;
+      };
   annotations: AnnotationRow[];
   selectedAnchor: DraftInput | null;
   draftCategory: string | null;
@@ -401,9 +482,63 @@ function usePdfSurface(
   });
 }
 
+interface SurfaceTrustState {
+  trusted: boolean;
+  trust: () => void;
+  blockedUris: ReadonlyArray<string>;
+  onBlocked: (uri: string) => void;
+  dismissed: boolean;
+  dismiss: () => void;
+}
+
+function useSurfaceTrust(paperId: string | null): SurfaceTrustState {
+  const { trusted, trust } = usePaperTrust(paperId);
+  const [blockedUris, setBlockedUris] = useState<ReadonlyArray<string>>([]);
+  const [dismissed, setDismissed] = useState(false);
+  const onBlocked = useCallback((uri: string) => {
+    setBlockedUris((prev) => (prev.includes(uri) ? prev : [...prev, uri]));
+  }, []);
+  return {
+    trusted,
+    trust,
+    blockedUris,
+    onBlocked,
+    dismissed,
+    dismiss: useCallback(() => setDismissed(true), []),
+  };
+}
+
+function bannerFor(t: SurfaceTrustState): JSX.Element | null {
+  if (t.trusted) return null;
+  if (t.dismissed) return null;
+  if (t.blockedUris.length === 0) return null;
+  const hosts = uniqueHosts(t.blockedUris);
+  return (
+    <TrustBanner
+      hosts={hosts}
+      blockedCount={t.blockedUris.length}
+      onTrust={t.trust}
+      onDismiss={t.dismiss}
+    />
+  );
+}
+
+function uniqueHosts(uris: ReadonlyArray<string>): string[] {
+  const out = new Set<string>();
+  for (const uri of uris) {
+    try {
+      out.add(new URL(uri).host);
+    } catch {
+      // Non-URL violations (rare) are dropped — they aren't network egress.
+    }
+  }
+  return Array.from(out);
+}
+
 function useMdSurface(
   props: ReviewContentProps,
   state: Extract<ReviewContentProps["state"], { kind: "ready-md" }>,
+  trust: SurfaceTrustState,
 ): DocumentView {
   return useMdDocumentView({
     file: state.file,
@@ -414,6 +549,30 @@ function useMdSurface(
     focusedId: props.focusedAnnotationId,
     onAnchor: props.onAnchor,
     onRenderError: props.onRenderError,
+    trusted: trust.trusted,
+    onExternalBlocked: ({ uri }) => trust.onBlocked(uri),
+  });
+}
+
+function useHtmlSurface(
+  props: ReviewContentProps,
+  state: Extract<ReviewContentProps["state"], { kind: "ready-html" }>,
+  trust: SurfaceTrustState,
+): DocumentView {
+  const assets = useOpfsAssetResolver();
+  return useHtmlDocumentView({
+    file: state.file,
+    html: state.html,
+    mode: state.mode,
+    ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+    assets,
+    annotations: props.annotations,
+    selectedAnchor: props.selectedAnchor,
+    draftCategory: props.draftCategory,
+    focusedId: props.focusedAnnotationId,
+    onAnchor: props.onAnchor,
+    trusted: trust.trusted,
+    onExternalBlocked: (event) => trust.onBlocked(event.uri),
   });
 }
 
@@ -431,15 +590,61 @@ function MdReviewContent(
     state: Extract<ReviewContentProps["state"], { kind: "ready-md" }>;
   },
 ): JSX.Element {
-  const documentView = useMdSurface(props, props.state);
-  return <ReviewBody {...props} documentView={documentView} />;
+  const trust = useSurfaceTrust(props.state.paper.id);
+  const documentView = useMdSurface(props, props.state, trust);
+  const banner = bannerFor(trust);
+  const wrapped = useMemo<DocumentView>(
+    () =>
+      banner === null
+        ? documentView
+        : {
+            ...documentView,
+            content: (
+              <>
+                {banner}
+                {documentView.content}
+              </>
+            ),
+          },
+    [banner, documentView],
+  );
+  return <ReviewBody {...props} documentView={wrapped} />;
+}
+
+function HtmlReviewContent(
+  props: ReviewContentProps & {
+    state: Extract<ReviewContentProps["state"], { kind: "ready-html" }>;
+  },
+): JSX.Element {
+  const trust = useSurfaceTrust(props.state.paper.id);
+  const documentView = useHtmlSurface(props, props.state, trust);
+  const banner = bannerFor(trust);
+  const wrapped = useMemo<DocumentView>(
+    () =>
+      banner === null
+        ? documentView
+        : {
+            ...documentView,
+            content: (
+              <>
+                {banner}
+                {documentView.content}
+              </>
+            ),
+          },
+    [banner, documentView],
+  );
+  return <ReviewBody {...props} documentView={wrapped} />;
 }
 
 function ReviewContent(props: ReviewContentProps): JSX.Element {
   if (props.state.kind === "ready-pdf") {
     return <PdfReviewContent {...props} state={props.state} />;
   }
-  return <MdReviewContent {...props} state={props.state} />;
+  if (props.state.kind === "ready-md") {
+    return <MdReviewContent {...props} state={props.state} />;
+  }
+  return <HtmlReviewContent {...props} state={props.state} />;
 }
 
 function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }): JSX.Element {
@@ -472,7 +677,7 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
     <>
       {props.renderError !== null ? (
         <p className="review-crumb__render-error" role="alert">
-          Markdown render failed: {props.renderError}
+          Render failed: {props.renderError}
         </p>
       ) : null}
       <ReviewShell

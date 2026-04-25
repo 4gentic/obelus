@@ -1,10 +1,9 @@
 import type { JSX } from "react";
 import { type ComponentType, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { fsWriteBytes } from "../../ipc/commands";
-import { exportMdBundleV2ForPaper } from "./build-bundle";
+import { exportMdBundleForPaper } from "./build-bundle";
 import { useProject } from "./context";
 import DiffReview from "./DiffReview";
-import DraftsPanel from "./DraftsPanel";
 import { useDiffStore } from "./diff-store-context";
 import { useOpenPaper } from "./OpenPaper";
 import ReviewDraft from "./ReviewDraft";
@@ -24,7 +23,7 @@ import type { ForkInfo } from "./use-diff-actions";
 const DrafterTab: ComponentType | null =
   import.meta.env.VITE_DRAFTER_PREVIEW === "1" ? lazy(() => import("./DrafterTab")) : null;
 
-type WriterView = "marks" | "diff" | "drafts" | "drafter";
+type WriterView = "marks" | "diff" | "drafter";
 type ReviewerView = "marks" | "review" | "drafter";
 
 interface Props {
@@ -110,15 +109,6 @@ function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): 
                 Diff
               </button>
             )}
-            <button
-              type="button"
-              className={`review-column__tab${effectiveView === "drafts" ? " review-column__tab--on" : ""}`}
-              onClick={() => setView("drafts")}
-              disabled={lockNonDiffTabs}
-              title={lockNonDiffTabs ? BUSY_TAB_TITLE : undefined}
-            >
-              Drafts
-            </button>
             {DrafterTab !== null && (
               <button
                 type="button"
@@ -139,8 +129,6 @@ function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): 
           <MdExportChip />
           {selected ? <ReviewDraft /> : <ReviewList />}
         </>
-      ) : effectiveView === "drafts" ? (
-        <DraftsPanel />
       ) : effectiveView === "drafter" && DrafterTab !== null ? (
         <Suspense fallback={null}>
           <DrafterTab />
@@ -247,7 +235,7 @@ function MdExportChip(): JSX.Element | null {
     if (!mdPaper) return;
     setStatus({ kind: "idle" });
     try {
-      const { filename, json } = await exportMdBundleV2ForPaper({ repo, paperId: mdPaper.id });
+      const { filename, json } = await exportMdBundleForPaper({ repo, paperId: mdPaper.id });
       const bytes = new TextEncoder().encode(json);
       await fsWriteBytes(rootId, filename, bytes);
       setStatus({ kind: "saved", relPath: filename });

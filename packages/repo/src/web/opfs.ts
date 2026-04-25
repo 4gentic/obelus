@@ -11,6 +11,7 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
 
 const PDF_DIR = "pdfs";
 const MD_DIR = "mds";
+const HTML_DIR = "htmls";
 
 async function blobDir(name: string): Promise<FileSystemDirectoryHandle> {
   const root = await navigator.storage.getDirectory();
@@ -77,6 +78,16 @@ export async function getMdText(sha256: string): Promise<string | null> {
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
+export async function hasHtml(sha256: string): Promise<boolean> {
+  return hasBlob(HTML_DIR, sha256);
+}
+
+export async function getHtml(sha256: string): Promise<string | null> {
+  const bytes = await getBlob(HTML_DIR, sha256);
+  if (bytes === null) return null;
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
 let writer: Worker | null = null;
 let nextId = 0;
 const pending = new Map<number, { resolve: () => void; reject: (err: Error) => void }>();
@@ -123,10 +134,22 @@ export async function putMd(text: string): Promise<string> {
   return sha256;
 }
 
+export async function putHtml(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text).buffer as ArrayBuffer;
+  const sha256 = await sha256Hex(bytes);
+  if (await hasBlob(HTML_DIR, sha256)) return sha256;
+  await writeViaWorker(HTML_DIR, sha256, bytes);
+  return sha256;
+}
+
 export async function deletePdf(sha256: string): Promise<void> {
   await deleteBlob(PDF_DIR, sha256);
 }
 
 export async function deleteMd(sha256: string): Promise<void> {
   await deleteBlob(MD_DIR, sha256);
+}
+
+export async function deleteHtml(sha256: string): Promise<void> {
+  await deleteBlob(HTML_DIR, sha256);
 }

@@ -1,5 +1,7 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useEffect, useState } from "react";
 import { readClaudeStatus } from "../boot/detect";
 import EngineBlock from "../components/engine-block";
@@ -28,11 +30,20 @@ export default function Settings(): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [resetting, setResetting] = useState<"wizard" | "factory" | null>(null);
   const [updater, setUpdater] = useState<UpdaterState>({ kind: "idle" });
+  const [version, setVersion] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
       setClaude(await readClaudeStatus());
     })();
+  }, []);
+
+  useEffect(() => {
+    void getVersion()
+      .then(setVersion)
+      .catch((err: unknown) => {
+        console.error("[settings] getVersion failed", err);
+      });
   }, []);
 
   async function recheck(): Promise<void> {
@@ -210,6 +221,26 @@ export default function Settings(): JSX.Element {
         >
           {resetting === "factory" ? "Wiping." : "Factory reset"}
         </button>
+      </article>
+
+      <article className="settings__block">
+        <h2 className="settings__block-title">About</h2>
+        <pre className="settings__pane">
+          {`version  ${version ?? "—"}\nbuild    ${import.meta.env.DEV ? "dev" : "release"}`}
+        </pre>
+        <p className="settings__body">
+          An imprint of{" "}
+          <a
+            href="https://4gentic.ai"
+            onClick={(e) => {
+              e.preventDefault();
+              void openExternal("https://4gentic.ai");
+            }}
+          >
+            4gentic
+          </a>
+          .
+        </p>
       </article>
     </section>
   );

@@ -7,6 +7,21 @@ import { useReviewStore } from "./store-context";
 // discriminant. Mirrors `packages/review-shell/src/ReviewPane.tsx::locationLabel`.
 function locationLabel(row: AnnotationRow): string {
   if (row.anchor.kind === "pdf") return `p. ${row.anchor.page}`;
+  if (row.anchor.kind === "html") {
+    if (row.anchor.sourceHint) {
+      const { lineStart, lineEnd } = row.anchor.sourceHint;
+      return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+    }
+    const { charOffsetStart, charOffsetEnd } = row.anchor;
+    return `c${charOffsetStart}–${charOffsetEnd}`;
+  }
+  if (row.anchor.kind === "html-element") {
+    if (row.anchor.sourceHint) {
+      const { lineStart, lineEnd } = row.anchor.sourceHint;
+      return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+    }
+    return row.anchor.file;
+  }
   const { lineStart, lineEnd } = row.anchor;
   return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
 }
