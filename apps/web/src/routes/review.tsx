@@ -1,8 +1,9 @@
+import { classifyHtml, useHtmlDocumentView } from "@obelus/html-view";
 import { useMdDocumentView } from "@obelus/md-view";
 import "@obelus/md-view/md.css";
 import { loadDocument, usePdfDocumentView } from "@obelus/pdf-view";
 import type { AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
-import { getMdText, getPdf, papers, revisions } from "@obelus/repo/web";
+import { getHtml, getMdText, getPdf, papers, revisions } from "@obelus/repo/web";
 import { type DocumentView, ReviewPane, ReviewShell } from "@obelus/review-shell";
 import type { DraftInput, ReviewState } from "@obelus/review-store";
 import "@obelus/review-shell/review-shell.css";
@@ -16,6 +17,7 @@ import {
   exportBundleMarkdown,
   exportReviewBundleMarkdown,
 } from "../bundle/download";
+import { downloadHtmlBundle } from "../bundle/html-bundle";
 import { downloadMdBundle } from "../bundle/md-bundle";
 import { useReviewStore } from "../store/review-store";
 import "./review.css";
@@ -40,6 +42,15 @@ type LoadState =
       revision: RevisionRow;
       file: string;
       text: string;
+    }
+  | {
+      kind: "ready-html";
+      paper: PaperRow;
+      revision: RevisionRow;
+      file: string;
+      html: string;
+      mode: "source" | "html";
+      sourceFile?: string;
     };
 
 export default function Review(): JSX.Element {
@@ -93,6 +104,27 @@ export default function Review(): JSX.Element {
         if (!cancelled) setState({ kind: "ready-md", paper, revision, file, text });
         return;
       }
+      if (paper.format === "html") {
+        const html = await getHtml(paper.pdfSha256);
+        if (html === null) {
+          if (!cancelled) setState({ kind: "missing" });
+          return;
+        }
+        const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.html`;
+        const classified = classifyHtml({ html, siblingPaths: [], file });
+        if (!cancelled) {
+          setState({
+            kind: "ready-html",
+            paper,
+            revision,
+            file,
+            html,
+            mode: classified.mode,
+            ...(classified.mode === "source" ? { sourceFile: classified.sourceFile } : {}),
+          });
+        }
+        return;
+      }
       const bytes = await getPdf(paper.pdfSha256);
       if (!bytes) {
         if (!cancelled) setState({ kind: "missing" });
@@ -114,7 +146,7 @@ export default function Review(): JSX.Element {
       if (!paperId) return;
       await papers.rename(paperId, title);
       setState((prev) =>
-        prev.kind === "ready-pdf" || prev.kind === "ready-md"
+        prev.kind === "ready-pdf" || prev.kind === "ready-md" || prev.kind === "ready-html"
           ? {
               ...prev,
               paper: { ...prev.paper, title: title.trim() || "Untitled" },
@@ -130,7 +162,9 @@ export default function Review(): JSX.Element {
       if (!paperId) return;
       await papers.setRubric(paperId, next);
       setState((prev) => {
-        if (prev.kind !== "ready-pdf" && prev.kind !== "ready-md") return prev;
+        if (prev.kind !== "ready-pdf" && prev.kind !== "ready-md" && prev.kind !== "ready-html") {
+          return prev;
+        }
         if (next === null) {
           const { rubric: _drop, ...rest } = prev.paper;
           return { ...prev, paper: rest };
@@ -195,8 +229,18 @@ export default function Review(): JSX.Element {
           pageCount: pageCount || 1,
         });
         name = await exportBundleFile(bundle, kind);
-      } else {
+      } else if (state.kind === "ready-md") {
         name = await downloadMdBundle({ paper, revision, file: state.file }, kind);
+      } else {
+        name = await downloadHtmlBundle(
+          {
+            paper,
+            revision,
+            htmlFile: state.file,
+            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+          },
+          kind,
+        );
       }
       if (name) {
         setStatus("done");
@@ -224,8 +268,18 @@ export default function Review(): JSX.Element {
           pageCount: pageCount || 1,
         });
         await exportBundleMarkdown(bundle);
-      } else {
+      } else if (state.kind === "ready-md") {
         await downloadMdBundle({ paper, revision, file: state.file }, "revise");
+      } else {
+        await downloadHtmlBundle(
+          {
+            paper,
+            revision,
+            htmlFile: state.file,
+            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+          },
+          "revise",
+        );
       }
       setStatus("done");
       setMessage("Markdown exported.");
@@ -249,10 +303,22 @@ export default function Review(): JSX.Element {
         await copyClipboardPrompt(bundle);
         setStatus("done");
         setMessage("Prompt copied to clipboard.");
-      } else {
+      } else if (state.kind === "ready-md") {
         await downloadMdBundle({ paper, revision, file: state.file }, "revise");
         setStatus("done");
         setMessage("Bundle exported (MD prompt formatter coming soon).");
+      } else {
+        await downloadHtmlBundle(
+          {
+            paper,
+            revision,
+            htmlFile: state.file,
+            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+          },
+          "revise",
+        );
+        setStatus("done");
+        setMessage("Bundle exported (HTML prompt formatter coming soon).");
       }
     } catch (err) {
       setStatus("error");
@@ -277,10 +343,22 @@ export default function Review(): JSX.Element {
         await copyReviewClipboardPrompt(bundle, rubric);
         setStatus("done");
         setMessage(rubric ? "Review prompt copied with rubric." : "Review prompt copied.");
-      } else {
+      } else if (state.kind === "ready-md") {
         await downloadMdBundle({ paper, revision, file: state.file }, "review");
         setStatus("done");
         setMessage("Bundle exported (MD prompt formatter coming soon).");
+      } else {
+        await downloadHtmlBundle(
+          {
+            paper,
+            revision,
+            htmlFile: state.file,
+            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+          },
+          "review",
+        );
+        setStatus("done");
+        setMessage("Bundle exported (HTML prompt formatter coming soon).");
       }
     } catch (err) {
       setStatus("error");
@@ -303,8 +381,18 @@ export default function Review(): JSX.Element {
           ? { label: paper.rubric.label, body: paper.rubric.body }
           : undefined;
         await exportReviewBundleMarkdown(bundle, rubric);
-      } else {
+      } else if (state.kind === "ready-md") {
         await downloadMdBundle({ paper, revision, file: state.file }, "review");
+      } else {
+        await downloadHtmlBundle(
+          {
+            paper,
+            revision,
+            htmlFile: state.file,
+            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+          },
+          "review",
+        );
       }
       setStatus("done");
       setMessage("Review Markdown exported.");
@@ -360,7 +448,16 @@ type ReviewContentProps = {
         doc: PDFDocumentProxy;
         pageCount: number;
       }
-    | { kind: "ready-md"; paper: PaperRow; revision: RevisionRow; file: string; text: string };
+    | { kind: "ready-md"; paper: PaperRow; revision: RevisionRow; file: string; text: string }
+    | {
+        kind: "ready-html";
+        paper: PaperRow;
+        revision: RevisionRow;
+        file: string;
+        html: string;
+        mode: "source" | "html";
+        sourceFile?: string;
+      };
   annotations: AnnotationRow[];
   selectedAnchor: DraftInput | null;
   draftCategory: string | null;
@@ -417,6 +514,23 @@ function useMdSurface(
   });
 }
 
+function useHtmlSurface(
+  props: ReviewContentProps,
+  state: Extract<ReviewContentProps["state"], { kind: "ready-html" }>,
+): DocumentView {
+  return useHtmlDocumentView({
+    file: state.file,
+    html: state.html,
+    mode: state.mode,
+    ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+    annotations: props.annotations,
+    selectedAnchor: props.selectedAnchor,
+    draftCategory: props.draftCategory,
+    focusedId: props.focusedAnnotationId,
+    onAnchor: props.onAnchor,
+  });
+}
+
 function PdfReviewContent(
   props: ReviewContentProps & {
     state: Extract<ReviewContentProps["state"], { kind: "ready-pdf" }>;
@@ -435,11 +549,23 @@ function MdReviewContent(
   return <ReviewBody {...props} documentView={documentView} />;
 }
 
+function HtmlReviewContent(
+  props: ReviewContentProps & {
+    state: Extract<ReviewContentProps["state"], { kind: "ready-html" }>;
+  },
+): JSX.Element {
+  const documentView = useHtmlSurface(props, props.state);
+  return <ReviewBody {...props} documentView={documentView} />;
+}
+
 function ReviewContent(props: ReviewContentProps): JSX.Element {
   if (props.state.kind === "ready-pdf") {
     return <PdfReviewContent {...props} state={props.state} />;
   }
-  return <MdReviewContent {...props} state={props.state} />;
+  if (props.state.kind === "ready-md") {
+    return <MdReviewContent {...props} state={props.state} />;
+  }
+  return <HtmlReviewContent {...props} state={props.state} />;
 }
 
 function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }): JSX.Element {

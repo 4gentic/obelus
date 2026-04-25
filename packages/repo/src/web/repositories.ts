@@ -6,7 +6,7 @@ import type {
   RevisionCreateInput,
 } from "../interface";
 import type { PaperRubric } from "../types";
-import { deleteMd, deletePdf, putMd, putPdf } from "./opfs";
+import { deleteHtml, deleteMd, deletePdf, putHtml, putMd, putPdf } from "./opfs";
 import { requestPersistOnce } from "./persist";
 import { type AnnotationRow, getDb, type PaperRow, type RevisionRow } from "./schema";
 
@@ -38,10 +38,15 @@ export const papers = {
     }
     await requestPersistOnce();
     const createdAt = nowIso();
-    const contentSha256 =
-      input.source === "md" ? await putMd(input.mdText) : await putPdf(input.pdfBytes);
-    const entrypointRelPath = input.source === "md" ? input.file : undefined;
-    const format = input.source === "md" ? "md" : (input.format ?? "pdf");
+    const contentSha256 = await (input.source === "md"
+      ? putMd(input.mdText)
+      : input.source === "html"
+        ? putHtml(input.htmlText)
+        : putPdf(input.pdfBytes));
+    const entrypointRelPath =
+      input.source === "md" || input.source === "html" ? input.file : undefined;
+    const format =
+      input.source === "md" ? "md" : input.source === "html" ? "html" : (input.format ?? "pdf");
     const paper: PaperRow = {
       id: uuid(),
       title: input.title,
@@ -112,7 +117,7 @@ export const papers = {
     // Revisions of different papers can share a sha (same bytes); we probe
     // before deleting. The blob lives in either the PDF or MD OPFS dir
     // depending on the paper's format.
-    const deleteBlob = format === "md" ? deleteMd : deletePdf;
+    const deleteBlob = format === "html" ? deleteHtml : format === "md" ? deleteMd : deletePdf;
     for (const sha256 of sha256s) {
       const stillReferenced = await db.revisions.where("pdfSha256").equals(sha256).first();
       if (!stillReferenced) await deleteBlob(sha256);

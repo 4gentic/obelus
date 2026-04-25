@@ -24,16 +24,17 @@ function formatDate(iso: string): string {
 function titleFromFilename(name: string): string {
   return (
     name
-      .replace(/\.(pdf|md|markdown)$/i, "")
+      .replace(/\.(pdf|md|markdown|html|htm)$/i, "")
       .replace(/[_-]+/g, " ")
       .trim() || "Untitled"
   );
 }
 
-function detectFormat(file: File): "pdf" | "md" | null {
+function detectFormat(file: File): "pdf" | "md" | "html" | null {
   const lower = file.name.toLowerCase();
   if (file.type.includes("pdf") || lower.endsWith(".pdf")) return "pdf";
   if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "md";
+  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "html";
   return null;
 }
 
@@ -162,7 +163,7 @@ export default function Library(): JSX.Element {
     const format = detectFormat(file);
     if (format === null) {
       setStatus("error");
-      setError("Obelus supports .pdf and .md papers.");
+      setError("Obelus supports .pdf, .md, and .html papers.");
       return;
     }
     if (format === "pdf" && file.size > MAX_PDF_BYTES) {
@@ -179,6 +180,24 @@ export default function Library(): JSX.Element {
           source: "md",
           title: titleFromFilename(file.name),
           mdText: text,
+          file: file.name,
+        });
+        console.info("[ingest-paper]", {
+          paperId: paper.id,
+          format: paper.format,
+          title: paper.title,
+          byteLength: text.length,
+          file: file.name,
+        });
+        navigate(`/app/review/${paper.id}`);
+        return;
+      }
+      if (format === "html") {
+        const text = await file.text();
+        const { paper } = await papers.create({
+          source: "html",
+          title: titleFromFilename(file.name),
+          htmlText: text,
           file: file.name,
         });
         console.info("[ingest-paper]", {
@@ -238,7 +257,7 @@ export default function Library(): JSX.Element {
       <input
         ref={fileInputRef}
         type="file"
-        accept="application/pdf,.pdf,.md,.markdown,text/markdown"
+        accept="application/pdf,.pdf,.md,.markdown,text/markdown,.html,.htm,text/html"
         className="library__file"
         onChange={(e) => {
           const f = e.target.files?.[0];
