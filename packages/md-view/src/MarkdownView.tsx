@@ -1,5 +1,6 @@
 import {
   type AssetResolver,
+  blockExternalAssets,
   type RenderError,
   renderMarkdown,
   rewriteRelativeAssets,
@@ -8,6 +9,11 @@ import { type JSX, type Ref, useEffect, useImperativeHandle, useMemo, useRef } f
 
 export type MarkdownRenderStatus = { kind: "ok" } | { kind: "parse-failed"; error: RenderError };
 
+export interface MarkdownExternalBlocked {
+  // Original URL the renderer emitted (e.g., `https://example.com/x.png`).
+  uri: string;
+}
+
 export interface MarkdownViewProps {
   file: string;
   text: string;
@@ -15,6 +21,12 @@ export interface MarkdownViewProps {
   // Resolves relative `<img src>` / `<a href>` paths to blob URLs. Optional;
   // omitting it preserves the renderer's raw paths (useful in tests).
   assets?: AssetResolver;
+  // When true, external `<img>` / `<source>` URLs are passed through and
+  // the browser fetches them normally. When false (the default), they're
+  // swapped to a 1×1 placeholder data URL before the rendered HTML
+  // reaches the DOM, and `onExternalBlocked` fires once per blocked URL.
+  trusted?: boolean;
+  onExternalBlocked?: (event: MarkdownExternalBlocked) => void;
   ref?: Ref<MarkdownViewHandle>;
 }
 
@@ -27,9 +39,13 @@ export function MarkdownView({
   text,
   onRender,
   assets,
+  trusted = false,
+  onExternalBlocked,
   ref,
 }: MarkdownViewProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const onExternalBlockedRef = useRef(onExternalBlocked);
+  onExternalBlockedRef.current = onExternalBlocked;
 
   useImperativeHandle(ref, () => ({ getContainer: () => containerRef.current }), []);
 
@@ -56,11 +72,30 @@ export function MarkdownView({
   // Stable prop reference when the rendered HTML is unchanged — React's
   // reconciler then skips re-applying the inner-HTML setter, which would
   // otherwise rewrite the div's children and detach text nodes mid-drag.
+  // External `<img>` / `<source>` URLs are swapped to a placeholder before
+  // the string reaches the DOM (otherwise the browser starts fetching as
+  // soon as innerHTML is set, and a post-render fix-up arrives too late).
   const html = render.ok ? render.html : null;
+  const gated = useMemo<{ html: string; blocked: ReadonlyArray<string> } | null>(() => {
+    if (html === null) return null;
+    if (trusted) return { html, blocked: [] };
+    return blockExternalAssets(html);
+  }, [html, trusted]);
   const innerHtmlProp: ReturnType<typeof innerHtmlFromRenderer> | undefined = useMemo(
-    () => (html === null ? undefined : innerHtmlFromRenderer(html)),
-    [html],
+    () => (gated === null ? undefined : innerHtmlFromRenderer(gated.html)),
+    [gated],
   );
+
+  // Notify the host surface about each blocked URL on the render that
+  // produced it. Listed deps are intentional: `gated` re-fires on every
+  // render that produces a different `html`/`trusted` pair, which is
+  // when the blocked set is recomputed.
+  useEffect(() => {
+    if (!gated || gated.blocked.length === 0) return;
+    const cb = onExternalBlockedRef.current;
+    if (!cb) return;
+    for (const uri of gated.blocked) cb({ uri });
+  }, [gated]);
 
   if (!render.ok) {
     return (

@@ -4,7 +4,12 @@ import type { DraftInput, SourceDraftSlice } from "@obelus/review-store";
 import type { JSX, ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { resolveSourceAnchorToRects } from "./highlights";
-import { type MarkdownRenderStatus, MarkdownView, type MarkdownViewHandle } from "./MarkdownView";
+import {
+  type MarkdownExternalBlocked,
+  type MarkdownRenderStatus,
+  MarkdownView,
+  type MarkdownViewHandle,
+} from "./MarkdownView";
 import { buildDocumentSourceMap, type DocumentSourceMap } from "./source-map";
 import { type MarkdownSelection, useMarkdownSelection } from "./use-md-selection";
 
@@ -17,6 +22,12 @@ type Params = {
   focusedId: string | null;
   onAnchor: (draft: DraftInput) => void;
   onRenderError?: (message: string | null) => void;
+  // When true, external `<img>` / `<source>` URLs in the rendered output
+  // are passed through to the browser. When false (the default), they're
+  // pre-rewritten to a placeholder before they reach the DOM and fired
+  // through `onExternalBlocked`.
+  trusted?: boolean;
+  onExternalBlocked?: (event: MarkdownExternalBlocked) => void;
 };
 
 function toSourceSlice(sel: MarkdownSelection): SourceDraftSlice {
@@ -91,6 +102,8 @@ export function useMdDocumentView({
   focusedId,
   onAnchor,
   onRenderError,
+  trusted = false,
+  onExternalBlocked,
 }: Params): DocumentView {
   const viewRef = useRef<MarkdownViewHandle | null>(null);
   const containerRef = useRef<HTMLElement | null>(null);
@@ -263,7 +276,14 @@ export function useMdDocumentView({
 
   const content: ReactNode = (
     <div className="md-adapter">
-      <MarkdownView ref={viewRef} file={file} text={text} onRender={onRender} />
+      <MarkdownView
+        ref={viewRef}
+        file={file}
+        text={text}
+        onRender={onRender}
+        trusted={trusted}
+        {...(onExternalBlocked !== undefined ? { onExternalBlocked } : {})}
+      />
       <HighlightLayer rects={overlayRects} />
     </div>
   );
