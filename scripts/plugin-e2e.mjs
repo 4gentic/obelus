@@ -97,6 +97,31 @@ const scenarios = [
     },
     assert: assertMarkdownRoundTrip,
   },
+  {
+    id: "2.4",
+    name: "revise-html-paired",
+    prompt:
+      "/obelus:apply-revision ./bundle.json — after the plan is written, run /skill apply-fix on the .md plan path it produced so the edits land in sample.md.",
+    stage(dir) {
+      cpSync(resolve(fixturesDir, "bundle-html-paired.json"), resolve(dir, "bundle.json"));
+      cpSync(resolve(fixturesDir, "sample.html"), resolve(dir, "sample.html"));
+      cpSync(resolve(fixturesDir, "sample.md"), resolve(dir, "sample.md"));
+    },
+    assert: assertHtmlPairedRoundTrip,
+  },
+  {
+    id: "2.5",
+    name: "revise-html-hand-authored",
+    prompt: "/obelus:apply-revision ./bundle.json",
+    stage(dir) {
+      cpSync(resolve(fixturesDir, "bundle-html-handauthored.json"), resolve(dir, "bundle.json"));
+      cpSync(
+        resolve(fixturesDir, "sample-handauthored.html"),
+        resolve(dir, "sample-handauthored.html"),
+      );
+    },
+    assert: assertHtmlHandAuthoredPlan,
+  },
   cascadeScenario("3.1", "cascade-lexical-terminology", assertLexicalTerminologyCascade),
   cascadeScenario("3.2", "cascade-lexical-numerical", assertLexicalNumericalCascade),
   cascadeScenario("3.3", "cascade-structural-label", assertStructuralLabelCascade),
@@ -340,6 +365,190 @@ function assertMarkdownRoundTrip(result, dir) {
   return {
     ok: true,
     reason: `markdown round-trip landed at line(s) ${changedInExpected.join(", ")}`,
+  };
+}
+
+function assertHtmlPairedRoundTrip(result, dir) {
+  const text = typeof result.result === "string" ? result.result : "";
+  if (containsRefusal(text)) {
+    return { ok: false, reason: "unexpected refusal despite staged sample.html + sample.md" };
+  }
+  const { plan, error } = loadPlanJson(dir);
+  if (error) return { ok: false, reason: error };
+  // Paired bundles inherit the source's format; the planner reads the html
+  // anchor's sourceHint and writes diffs against sample.md, not sample.html.
+  if (plan.format !== "markdown") {
+    return {
+      ok: false,
+      reason: `plan.format expected 'markdown' (paired source), got ${JSON.stringify(plan.format)}`,
+    };
+  }
+  if (plan.entrypoint !== "sample.md") {
+    return {
+      ok: false,
+      reason: `plan.entrypoint expected 'sample.md' (paired source), got ${JSON.stringify(plan.entrypoint)}`,
+    };
+  }
+  const userBlocks = plan.blocks.filter((b) => classifyBlock(b) === "source");
+  if (userBlocks.length < 2) {
+    return {
+      ok: false,
+      reason: `expected ≥2 source blocks (unclear + citation-needed), got ${userBlocks.length}`,
+    };
+  }
+  for (const b of userBlocks) {
+    if (b.file === "sample.html") {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} targets sample.html — paired bundles must follow the sourceHint to sample.md`,
+      };
+    }
+    if (b.file !== "sample.md") {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} file expected 'sample.md', got ${JSON.stringify(b.file)}`,
+      };
+    }
+  }
+
+  const planDir = resolve(dir, ".obelus");
+  const applySummary = readdirSync(planDir).find(
+    (e) => e.startsWith("apply-") && e.endsWith(".md"),
+  );
+  if (!applySummary) {
+    return {
+      ok: false,
+      reason: "apply-fix did not run (no .obelus/apply-*.md summary)",
+    };
+  }
+  const applied = readFileSync(resolve(dir, "sample.md"), "utf8");
+  const original = readFileSync(resolve(fixturesDir, "sample.md"), "utf8");
+  if (applied === original) {
+    return {
+      ok: false,
+      reason: "sample.md on disk is byte-identical to the fixture — apply-fix did not edit",
+    };
+  }
+  if (!text.includes("OBELUS_WROTE: .obelus/")) {
+    return { ok: false, reason: "OBELUS_WROTE: marker missing from stdout" };
+  }
+  return {
+    ok: true,
+    reason: `paired-html round-trip landed in sample.md (${userBlocks.length} blocks)`,
+  };
+}
+
+function assertHtmlHandAuthoredPlan(result, dir) {
+  const text = typeof result.result === "string" ? result.result : "";
+  if (containsRefusal(text)) {
+    return {
+      ok: false,
+      reason: "unexpected refusal despite staged sample-handauthored.html",
+    };
+  }
+  const { plan, error } = loadPlanJson(dir);
+  if (error) return { ok: false, reason: error };
+  if (plan.format !== "html") {
+    return {
+      ok: false,
+      reason: `plan.format expected 'html', got ${JSON.stringify(plan.format)}`,
+    };
+  }
+  if (plan.entrypoint !== "sample-handauthored.html") {
+    return {
+      ok: false,
+      reason: `plan.entrypoint expected 'sample-handauthored.html', got ${JSON.stringify(plan.entrypoint)}`,
+    };
+  }
+  const userBlocks = plan.blocks.filter((b) => classifyBlock(b) === "source");
+  if (userBlocks.length < 2) {
+    return {
+      ok: false,
+      reason: `expected ≥2 source blocks (unclear + citation-needed), got ${userBlocks.length}`,
+    };
+  }
+  // plan-fix's html branch (no sourceHint): emit ambiguous: true with a reviewer
+  // note that names the html file, the xpath, and the char-offset range. The
+  // JSON envelope's `file` is "" for unresolved html-only blocks (the html
+  // location lives inside reviewerNotes, not in a source-file field).
+  const expected = new Map([
+    ["eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", { xpath: "./article[1]/p[4]", offsets: "1271..1300" }],
+    [
+      "ffffffff-ffff-4fff-8fff-ffffffffffff",
+      { xpath: "./article[1]/p[5]/cite[1]", offsets: "1668..1676" },
+    ],
+  ]);
+  for (const b of userBlocks) {
+    if (b.ambiguous !== true) {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} expected ambiguous: true (no sourceHint), got ${JSON.stringify(b.ambiguous)}`,
+      };
+    }
+    if (b.patch !== "") {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} expected empty patch when ambiguous, got ${JSON.stringify(b.patch).slice(0, 60)}`,
+      };
+    }
+    if (b.file !== "") {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} expected file: "" (unresolved html-only block), got ${JSON.stringify(b.file)}`,
+      };
+    }
+    const notes = typeof b.reviewerNotes === "string" ? b.reviewerNotes : "";
+    if (!notes.startsWith("hand-authored HTML anchor —")) {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} reviewerNotes must start with 'hand-authored HTML anchor —', got ${JSON.stringify(notes).slice(0, 80)}`,
+      };
+    }
+    if (!notes.includes("sample-handauthored.html")) {
+      return {
+        ok: false,
+        reason: `block ${b.annotationId} reviewerNotes must name the html file, got ${JSON.stringify(notes).slice(0, 120)}`,
+      };
+    }
+    const want = expected.get(b.annotationId);
+    if (want) {
+      if (!notes.includes(want.xpath)) {
+        return {
+          ok: false,
+          reason: `block ${b.annotationId} reviewerNotes missing xpath ${want.xpath}, got ${JSON.stringify(notes).slice(0, 160)}`,
+        };
+      }
+      if (!notes.includes(`chars ${want.offsets}`)) {
+        return {
+          ok: false,
+          reason: `block ${b.annotationId} reviewerNotes missing 'chars ${want.offsets}', got ${JSON.stringify(notes).slice(0, 160)}`,
+        };
+      }
+    }
+  }
+  // Hand-authored HTML has no compile-verify path; apply-fix is not invoked.
+  if (/Compile fixes applied:/.test(text) || /Compile errors:/.test(text)) {
+    return {
+      ok: false,
+      reason: "result.result mentions compile-verify output; html has no compile path",
+    };
+  }
+  // The user did not ask for apply-fix; ensure no apply-*.md summary exists.
+  const planDir = resolve(dir, ".obelus");
+  if (existsSync(planDir)) {
+    const applySummary = readdirSync(planDir).find(
+      (e) => e.startsWith("apply-") && e.endsWith(".md"),
+    );
+    if (applySummary) {
+      return {
+        ok: false,
+        reason: `unexpected apply-fix summary on plan-only run: ${applySummary}`,
+      };
+    }
+  }
+  return {
+    ok: true,
+    reason: `hand-authored html plan emitted ${userBlocks.length} ambiguous block(s) with xpath/char-range notes`,
   };
 }
 
