@@ -18,26 +18,26 @@ Parse the arguments before composing anything. The mode flags may appear anywher
 
 - *no flag* → inline mode (default).
 - `--inline` → inline mode (explicit; same behavior as no flag).
-- `--out` alone → write-to-file mode, default path `.obelus/writeup-<paper-id>-<iso-timestamp>.md` (relative to the current working directory).
+- `--out` alone → write-to-file mode, default path `${OBELUS_WORKSPACE_DIR:-.obelus}/writeup-<paper-id>-<iso-timestamp>.md` — that is, an absolute path under `$OBELUS_WORKSPACE_DIR` when set (Obelus desktop spawn), else `.obelus/writeup-<paper-id>-<iso-timestamp>.md` relative to the current working directory (standalone CLI).
 - `--out <path>` → write-to-file mode, use `<path>` verbatim.
 
 **Conflict rule.** If both `--inline` and `--out` are passed in the same invocation, refuse and stop: print `"ambiguous output mode: --inline and --out cannot both be set"` and do nothing else. Do not try to pick a winner; the caller is confused and needs to resolve the ambiguity before the skill runs.
 
-In inline mode — whether implicit or via `--inline` — there is no `Write` call for the letter, no stdout marker, no `.obelus/` directory created. The full Markdown review is your final assistant message and is itself the deliverable.
+In inline mode — whether implicit or via `--inline` — there is no `Write` call for the letter, no stdout marker, and no workspace directory is created. The full Markdown review is your final assistant message and is itself the deliverable.
 
 ### Inline mode (default — no flag, or `--inline`)
 
 1. **Deliverable is the final message.** Output the full Markdown review — `# Review · …` heading, opening paragraph, `## Major comments`, `## Minor comments` — as your final assistant message. That is the entire visible deliverable.
-2. **No file side-effects.** Do not call `Write` for the letter. Do not create `.obelus/`. Do not paste the review into intermediate progress text; emit it exactly once, at the end, as the final message.
+2. **No file side-effects.** Do not call `Write` for the letter. Do not create the workspace directory. Do not paste the review into intermediate progress text; emit it exactly once, at the end, as the final message.
 3. **Brief narration is fine.** Short progress lines before the review ("reading the bundle", "composing the letter") are allowed — keep them under three short sentences.
 
 ### File output mode (when `--out` is passed)
 
 The Obelus desktop app and other file-ingesting callers rely on this contract; do not loosen it when `--out` is set. If the file is not where the caller expects, nothing surfaces in their UI.
 
-1. **Path.** If the caller passed `--out <path>`, use `<path>` verbatim. If they passed `--out` with no value, write to `.obelus/writeup-<paper-id>-<iso-timestamp>.md` relative to the current working directory.
+1. **Path.** If the caller passed `--out <path>`, use `<path>` verbatim. If they passed `--out` with no value, write to `${OBELUS_WORKSPACE_DIR:-.obelus}/writeup-<paper-id>-<iso-timestamp>.md` — that resolves to an absolute path under `$OBELUS_WORKSPACE_DIR` when the env var is set (Obelus desktop spawn), or `.obelus/writeup-<paper-id>-<iso-timestamp>.md` relative to the current working directory in standalone mode.
 2. **Timestamp format.** Compact UTC: `YYYYMMDD-HHmmss` — e.g. `20260423-143012`. No colons, no `T`, no `Z`. Generate it once at the start of the run and reuse it.
-3. **Worked example (default path).** For `paper-id = paper-1` at 14:30:12 UTC on 2026-04-23, the path is exactly `.obelus/writeup-paper-1-20260423-143012.md`.
+3. **Worked example (default path).** For `paper-id = paper-1` at 14:30:12 UTC on 2026-04-23, in standalone mode the path is exactly `.obelus/writeup-paper-1-20260423-143012.md`. Under Obelus desktop with `$OBELUS_WORKSPACE_DIR=/Users/juan/Library/Application Support/app.obelus.desktop/projects/abcd-1234`, the path is `/Users/juan/Library/Application Support/app.obelus.desktop/projects/abcd-1234/writeup-paper-1-20260423-143012.md`.
 4. **Pre-flight.** Before composing, if the target directory does not exist, create `<dir>/.gitkeep` (empty body) via `Write` to materialise it. This is cheap and idempotent. **Do not use `Bash`** to probe the directory — `Bash` is not in this session's allow-list and a denied call forces a re-plan round-trip that users see as a stuck phase label. `Write` creates the parent directory on its own; just call it.
 5. **Use `Write`.** The review body must reach disk via the `Write` tool. If `Write` fails for any reason, **stop and report the failure** — do **not** paste the body into stdout as a fallback. Stdout is not a substitute for the file in this mode.
 6. **Final marker line.** After `Write` succeeds, print exactly one line on stdout in this form, with nothing else on the line:
@@ -46,7 +46,7 @@ The Obelus desktop app and other file-ingesting callers rely on this contract; d
    OBELUS_WROTE: <path>
    ```
 
-   Use the resolved path (explicit `<path>` if given, else the default `.obelus/writeup-<paper-id>-<iso-timestamp>.md`). The desktop scans stdout for this marker as a fallback locator. Print it once, at the end, and only after the file is on disk.
+   Use the resolved path (explicit `<path>` if given, else the default `${OBELUS_WORKSPACE_DIR:-.obelus}/writeup-<paper-id>-<iso-timestamp>.md`). The desktop scans stdout for this marker as a fallback locator and only ever sees absolute paths because Obelus always sets `$OBELUS_WORKSPACE_DIR` when it spawns Claude. Print it once, at the end, and only after the file is on disk.
 7. **No body in stdout.** Do not print the review letter to stdout in file mode. Brief progress narration is fine ("reading the bundle", "composing the letter") but keep it under three short sentences. Everything the user reads lives in the file.
 
 ## Input
@@ -229,18 +229,18 @@ After all reasoning, the last actions of every successful run look like one of t
 
 That message is the entire visible deliverable. No `Write` call, no `OBELUS_WROTE:` line.
 
-**File output mode (`--out` passed).** The last two actions are the `Write` and the marker line:
+**File output mode (`--out` passed, Obelus desktop spawn with `$OBELUS_WORKSPACE_DIR=/Users/juan/Library/Application Support/app.obelus.desktop/projects/abcd-1234`).** The last two actions are the `Write` and the marker line:
 
 ```
 [Write tool call]
-  file_path: .obelus/writeup-paper-1-20260423-143012.md
+  file_path: /Users/juan/Library/Application Support/app.obelus.desktop/projects/abcd-1234/writeup-paper-1-20260423-143012.md
   content: "# Review · …\n\n<the full letter>\n"
 
 [stdout]
-OBELUS_WROTE: .obelus/writeup-paper-1-20260423-143012.md
+OBELUS_WROTE: /Users/juan/Library/Application Support/app.obelus.desktop/projects/abcd-1234/writeup-paper-1-20260423-143012.md
 ```
 
-If `--out <path>` was explicit, both the `file_path` and the marker use `<path>` verbatim.
+In standalone mode (`$OBELUS_WORKSPACE_DIR` unset), the same two lines would read `file_path: .obelus/writeup-paper-1-20260423-143012.md` and `OBELUS_WROTE: .obelus/writeup-paper-1-20260423-143012.md`. If `--out <path>` was explicit, both the `file_path` and the marker use `<path>` verbatim.
 
 ## Before returning, verify
 
@@ -252,7 +252,7 @@ Mode-independent:
 **Inline mode (default — no `--out`):**
 
 - The full Markdown review is your final assistant message.
-- You did not call `Write` for the letter and did not create `.obelus/`.
+- You did not call `Write` for the letter and did not create the workspace directory.
 - You did not emit an `OBELUS_WROTE:` line — that marker is for file mode only.
 
 **File output mode (`--out` passed):**

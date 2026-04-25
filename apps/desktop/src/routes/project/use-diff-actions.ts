@@ -222,6 +222,7 @@ export function useDiffActions(): DiffActions {
       stage = "apply-hunks";
       const report = await applyHunks({
         rootId,
+        projectId: project.id,
         sessionId,
         hunks: payload.map((p) => ({ file: p.file, patch: p.patch })),
       });

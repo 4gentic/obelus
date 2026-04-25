@@ -6,11 +6,12 @@ describe("formatSpawnInvocation", () => {
     expect(
       formatSpawnInvocation({
         kind: "apply-revision",
-        bundleAbsPath: "/repo/bundle-2026-04-23.json",
+        bundleAbsPath: "/app-data/projects/p/bundle-2026-04-23.json",
+        workspaceAbsPath: "/app-data/projects/p",
       }),
     ).toMatchInlineSnapshot(`
-      "Run apply-revision with bundle path /repo/bundle-2026-04-23.json.
-      Tool policy for this run: write .obelus/plan-<iso>.json and .obelus/plan-<iso>.md only. Do NOT use Edit, Write, or any tool that mutates a source file — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with \`OBELUS_WROTE: .obelus/plan-<iso>.json\`.
+      "Run apply-revision with bundle path /app-data/projects/p/bundle-2026-04-23.json.
+      Tool policy for this run: write only inside $OBELUS_WORKSPACE_DIR (/app-data/projects/p). Do NOT use Edit, Write, or any tool that mutates a source file under the project working tree — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with \`OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json\`.
       "
     `);
   });
@@ -19,12 +20,13 @@ describe("formatSpawnInvocation", () => {
     expect(
       formatSpawnInvocation({
         kind: "apply-revision",
-        bundleAbsPath: "/repo/bundle-2026-04-23.json",
+        bundleAbsPath: "/app-data/projects/p/bundle-2026-04-23.json",
+        workspaceAbsPath: "/app-data/projects/p",
         extraBody: "## Indications for this pass\n\nFocus on the introduction.",
       }),
     ).toMatchInlineSnapshot(`
-      "Run apply-revision with bundle path /repo/bundle-2026-04-23.json.
-      Tool policy for this run: write .obelus/plan-<iso>.json and .obelus/plan-<iso>.md only. Do NOT use Edit, Write, or any tool that mutates a source file — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with \`OBELUS_WROTE: .obelus/plan-<iso>.json\`.
+      "Run apply-revision with bundle path /app-data/projects/p/bundle-2026-04-23.json.
+      Tool policy for this run: write only inside $OBELUS_WORKSPACE_DIR (/app-data/projects/p). Do NOT use Edit, Write, or any tool that mutates a source file under the project working tree — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with \`OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json\`.
 
       ## Indications for this pass
 

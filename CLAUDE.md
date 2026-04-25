@@ -115,6 +115,8 @@ Two tracks:
 
 **Factory reset is dynamic** — new SQLite tables are covered automatically: `factory_reset` (Rust command in `apps/desktop/src-tauri/src/commands/factory_reset.rs`) discovers tables via `sqlite_master` and wipes every row. Likewise `clearAppState()` wipes every key in `app-state.json`. But if you add a **new kind of store** — a file under `~/Library/Application Support/app.obelus.desktop/` outside the DB, a new Tauri plugin-store path (not `app-state.json`), or (please don't) OPFS/IndexedDB on desktop — you must extend `apps/desktop/src/lib/reset.ts::factoryReset` to clear it, or the next factory reset will leak state.
 
+**Per-project workspace.** Writer-mode artifacts (review bundles, plans, writeups, rubrics, apply backups, `project.json`, compile-error bundles, rendered previews) live under `~/Library/Application Support/app.obelus.desktop/projects/<projectId>/` — never inside the user's paper folder. The desktop spawns Claude Code with `OBELUS_WORKSPACE_DIR=<absolute path to that subdir>`; the plugin's skills consult that env var (falling back to `.obelus/` in the user's repo when running standalone outside Obelus). Both `factory_reset` and `repo.projects.forget(id)` cascade into this directory: forget calls `workspace_delete(projectId)` after the SQL delete, and factory_reset removes the entire `projects/` subtree. The Tauri commands that read/write inside the workspace live in `apps/desktop/src-tauri/src/commands/workspace.rs`.
+
 If you change `ProjectKind`, the bundle schema's `kind` enum, the `annotations` shape, or any persisted row, *both* tracks apply: ship a proper SQLite migration **and** flag the reset for in-flight local state.
 
 ## Git hygiene

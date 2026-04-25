@@ -14,15 +14,24 @@ Two paths:
    The plugin ships in `packages/claude-plugin/` of that monorepo.
 2. **Copy.** Drop this folder at `.claude/plugins/obelus/` inside your paper repo. Restart Claude Code so it picks up the new plugin.
 
+## Where outputs land
+
+Each skill writes its artifacts under a **workspace prefix** resolved at run time:
+
+- When the env var `$OBELUS_WORKSPACE_DIR` is set (the Obelus desktop app sets it to an absolute path under its app-data folder when it spawns Claude Code), all artifacts go there. The user's paper repo stays clean.
+- When the env var is unset (you run `claude` standalone in your paper repo), the prefix is `.obelus/` relative to the current working directory — the original behavior.
+
+References below use the shorthand `${OBELUS_WORKSPACE_DIR:-.obelus}/` to mean "wherever the prefix resolves to in your run."
+
 ## Flow
 
 1. Review a PDF in the Obelus web app. Export the bundle.
 2. Save the bundle somewhere your paper repo can see it (default: `~/Downloads/obelus-review-YYYY-MM-DD.json` or `obelus-revise-YYYY-MM-DD.json`).
 3. In Claude Code, inside the paper repo, run **one of**:
    - `/apply-revision <bundle>` — turn the marks into minimal-diff source edits.
-   - `/write-review <bundle>` — turn the marks into a Markdown reviewer's letter, rendered inline in your conversation. Add `--out` (optionally with a path) to write it to `.obelus/writeup-<paper-id>-<iso>.md` instead; the Obelus desktop app's review pane uses this.
-4. For `apply-revision`: the plugin validates the bundle, detects your source format, and plans the edits in a forked context, writing the plan to `.obelus/plan-<timestamp>.md`.
-5. Read the plan. If it looks right, run `/apply-fix .obelus/plan-<timestamp>.md`. Edits are applied one block at a time. Any annotation the planner couldn't locate with high confidence is skipped and surfaced in the summary.
+   - `/write-review <bundle>` — turn the marks into a Markdown reviewer's letter, rendered inline in your conversation. Add `--out` (optionally with a path) to write it to `${OBELUS_WORKSPACE_DIR:-.obelus}/writeup-<paper-id>-<iso>.md` instead; the Obelus desktop app's review pane uses this.
+4. For `apply-revision`: the plugin validates the bundle, detects your source format, and plans the edits in a forked context, writing the plan to `${OBELUS_WORKSPACE_DIR:-.obelus}/plan-<timestamp>.md`.
+5. Read the plan. If it looks right, run `/apply-fix <plan-path>`. Edits are applied one block at a time. Any annotation the planner couldn't locate with high confidence is skipped and surfaced in the summary.
 
 If format detection can't find a single confident entrypoint, run `/apply-revision <bundle> --entrypoint <path>` to pin it explicitly.
 
@@ -56,9 +65,11 @@ The skills are prompted, not coded — so a working plugin today can regress sil
 | --- | --- | --- | --- |
 | 1.1 | V1 bundle alone, `--out` passed | `write-review` | Markdown letter at `.obelus/writeup-*.md` with `# Review ·` heading, annotation traces, and the `OBELUS_WROTE:` marker on stdout. |
 | 1.2 | V1 bundle + `.tex`/`.md`/`.typ` alongside, `--out` passed | `write-review` | Same letter — co-located sources are ignored. |
-| 1.3 | V1 bundle alone, no flag (inline default) | `write-review` | Markdown letter in stdout (final assistant message); no `.obelus/` directory created, no `OBELUS_WROTE:` marker. |
+| 1.3 | V1 bundle alone, no flag (inline default) | `write-review` | Markdown letter in stdout (final assistant message); no workspace directory created, no `OBELUS_WROTE:` marker. |
 | 2.1 | V1 bundle, no sources in cwd | `apply-revision` | Graceful refusal; `/obelus:write-review` suggested; no plan written. |
 | 2.2 | V1 bundle + `.tex` source | `apply-revision` | `.obelus/plan-*.md` and `plan-*.json` written. |
+
+The harness exercises the standalone fallback: it does **not** set `$OBELUS_WORKSPACE_DIR`, so artifacts land at the `.obelus/` paths above. Under the Obelus desktop, those same artifacts would land at the absolute path Obelus passes via the env var.
 
 Auth is auto-detected: `ANTHROPIC_API_KEY` → metered mode with `--bare`; otherwise the harness reads the keychain OAuth from `claude /login` (no per-call cost). Temp dirs default to `$TMPDIR/obelus-plugin-e2e/` so subscription mode doesn't pull the repo's `CLAUDE.md` into the test sessions. The same suite runs weekly on GitHub Actions (`.github/workflows/plugin-e2e.yml`) and opens a rolling issue on regression.
 

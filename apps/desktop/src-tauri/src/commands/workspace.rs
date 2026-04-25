@@ -1,0 +1,180 @@
+// Per-project workspace under the app-data directory. Holds artifacts that the
+// app produces about a paper but that are not paper source: review bundles,
+// plans, writeups, rubrics, apply backups, project metadata. Keying by
+// projectId mirrors how `app-state.json::trustedPapers` is keyed by paperId —
+// a stable UUID, not a filesystem path.
+//
+// This is the second sandbox in the desktop. `fs_scoped` is rooted at the
+// user's project folder and writes paper source. `workspace` is rooted at
+// `<app_data>/projects/<projectId>/` and writes only Obelus artifacts. Code
+// outside this module should never join paths into `<app_data>` directly.
+//
+// `..` in `rel_path` is rejected outright before any filesystem call — it
+// would let a malformed frontend message escape the workspace dir into the
+// rest of `<app_data>` (e.g. `obelus.db`).
+
+use crate::commands::fs_scoped::atomic_write;
+use crate::error::{AppError, AppResult};
+use serde::Serialize;
+use std::path::PathBuf;
+use tauri::ipc::Response;
+use tauri::{AppHandle, Manager};
+use uuid::Uuid;
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDirEntryDto {
+    pub name: String,
+    pub kind: WorkspaceEntryKind,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum WorkspaceEntryKind {
+    File,
+    Dir,
+    Other,
+}
+
+fn validate_project_id(project_id: &str) -> AppResult<()> {
+    Uuid::parse_str(project_id).map_err(|_| AppError::UnknownRootId)?;
+    Ok(())
+}
+
+fn reject_traversal(rel: &str) -> AppResult<()> {
+    for comp in rel.split(|c| c == '/' || c == '\\') {
+        if comp == ".." {
+            return Err(AppError::OutOfScope);
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn workspace_dir_for(app: &AppHandle, project_id: &str) -> AppResult<PathBuf> {
+    validate_project_id(project_id)?;
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(format!("app_data_dir: {e}")))?;
+    Ok(app_data.join("projects").join(project_id))
+}
+
+async fn ensure_workspace_dir(app: &AppHandle, project_id: &str) -> AppResult<PathBuf> {
+    let dir = workspace_dir_for(app, project_id)?;
+    tokio::fs::create_dir_all(&dir).await.map_err(AppError::from)?;
+    Ok(dir)
+}
+
+async fn resolve_for_workspace_write(
+    app: &AppHandle,
+    project_id: &str,
+    rel: &str,
+) -> AppResult<PathBuf> {
+    reject_traversal(rel)?;
+    let dir = ensure_workspace_dir(app, project_id).await?;
+    let joined = dir.join(rel);
+    let parent = joined.parent().ok_or(AppError::OutOfScope)?;
+    tokio::fs::create_dir_all(parent).await.map_err(AppError::from)?;
+    let parent_canon = parent.canonicalize().map_err(AppError::from)?;
+    let dir_canon = dir.canonicalize().map_err(AppError::from)?;
+    if !parent_canon.starts_with(&dir_canon) {
+        return Err(AppError::OutOfScope);
+    }
+    let name = joined.file_name().ok_or(AppError::OutOfScope)?.to_os_string();
+    Ok(parent_canon.join(name))
+}
+
+fn resolve_for_workspace_read(
+    app: &AppHandle,
+    project_id: &str,
+    rel: &str,
+) -> AppResult<PathBuf> {
+    reject_traversal(rel)?;
+    let dir = workspace_dir_for(app, project_id)?;
+    Ok(dir.join(rel))
+}
+
+#[tauri::command]
+pub async fn workspace_path(
+    app: AppHandle,
+    project_id: String,
+    rel_path: String,
+) -> AppResult<String> {
+    reject_traversal(&rel_path)?;
+    let dir = ensure_workspace_dir(&app, &project_id).await?;
+    let abs = if rel_path.is_empty() {
+        dir
+    } else {
+        dir.join(&rel_path)
+    };
+    Ok(abs.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub async fn workspace_write_text(
+    app: AppHandle,
+    project_id: String,
+    rel_path: String,
+    body: String,
+) -> AppResult<()> {
+    let abs = resolve_for_workspace_write(&app, &project_id, &rel_path).await?;
+    atomic_write(&abs, body.as_bytes()).await
+}
+
+#[tauri::command]
+pub async fn workspace_write_bytes(
+    app: AppHandle,
+    project_id: String,
+    rel_path: String,
+    bytes: Vec<u8>,
+) -> AppResult<()> {
+    let abs = resolve_for_workspace_write(&app, &project_id, &rel_path).await?;
+    atomic_write(&abs, &bytes).await
+}
+
+#[tauri::command]
+pub async fn workspace_read_file(
+    app: AppHandle,
+    project_id: String,
+    rel_path: String,
+) -> AppResult<Response> {
+    let abs = resolve_for_workspace_read(&app, &project_id, &rel_path)?;
+    let bytes = tokio::fs::read(&abs).await.map_err(AppError::from)?;
+    Ok(Response::new(bytes))
+}
+
+#[tauri::command]
+pub async fn workspace_read_dir(
+    app: AppHandle,
+    project_id: String,
+    rel_path: String,
+) -> AppResult<Vec<WorkspaceDirEntryDto>> {
+    let abs = resolve_for_workspace_read(&app, &project_id, &rel_path)?;
+    let mut entries: Vec<WorkspaceDirEntryDto> = Vec::new();
+    let mut rd = match tokio::fs::read_dir(&abs).await {
+        Ok(rd) => rd,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(entries),
+        Err(err) => return Err(AppError::from(err)),
+    };
+    while let Some(entry) = rd.next_entry().await.map_err(AppError::from)? {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let kind = match entry.file_type().await {
+            Ok(ft) if ft.is_dir() => WorkspaceEntryKind::Dir,
+            Ok(ft) if ft.is_file() => WorkspaceEntryKind::File,
+            _ => WorkspaceEntryKind::Other,
+        };
+        entries.push(WorkspaceDirEntryDto { name, kind });
+    }
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(entries)
+}
+
+#[tauri::command]
+pub async fn workspace_delete(app: AppHandle, project_id: String) -> AppResult<()> {
+    let dir = workspace_dir_for(&app, &project_id)?;
+    match tokio::fs::remove_dir_all(&dir).await {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(AppError::from(err)),
+    }
+}

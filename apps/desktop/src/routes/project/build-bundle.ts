@@ -225,7 +225,7 @@ export async function exportBundleForPaper(input: ExportBundleInput): Promise<Ex
     annotations,
   });
 
-  const filename = `.obelus/bundle-${isoStampForFilename()}.json`;
+  const filename = `bundle-${isoStampForFilename()}.json`;
   const json = `${JSON.stringify(bundle, null, 2)}\n`;
   return {
     filename,
@@ -328,7 +328,7 @@ export async function exportHtmlBundleForPaper(
     annotations,
   });
 
-  const filename = `.obelus/bundle-${isoStampForFilename()}.json`;
+  const filename = `bundle-${isoStampForFilename()}.json`;
   const json = `${JSON.stringify(bundle, null, 2)}\n`;
   console.info("[export-bundle-html]", {
     paperId: paper.id,
@@ -428,7 +428,7 @@ export async function exportMdBundleForPaper(input: ExportMdBundleInput): Promis
     annotations,
   });
 
-  const filename = `.obelus/bundle-${isoStampForFilename()}.json`;
+  const filename = `bundle-${isoStampForFilename()}.json`;
   const json = `${JSON.stringify(bundle, null, 2)}\n`;
   console.info("[export-bundle-md]", {
     paperId: paper.id,

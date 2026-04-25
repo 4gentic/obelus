@@ -16,7 +16,7 @@ import { useProject } from "./context";
 // add the drafter plugin to `bundle.resources` and use `claudeSpawn` with
 // `--plugin-dir` so the command resolves out of the box.
 export default function DrafterTab(): JSX.Element {
-  const { rootId } = useProject();
+  const { rootId, project } = useProject();
   const [status, setStatus] = useState<
     | { kind: "idle" }
     | { kind: "starting" }
@@ -35,6 +35,7 @@ export default function DrafterTab(): JSX.Element {
       });
       const sessionId = await claudeAsk({
         rootId,
+        projectId: project.id,
         promptBody,
         model: overrides.model,
         effort: overrides.effort,
