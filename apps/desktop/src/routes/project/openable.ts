@@ -5,6 +5,7 @@ export const SOURCE_EXTS: ReadonlySet<string> = new Set([
   "bib",
   "txt",
   "html",
+  "htm",
   "json",
   "jsonl",
   "ndjson",

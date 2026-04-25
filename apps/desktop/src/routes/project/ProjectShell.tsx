@@ -129,21 +129,24 @@ export default function ProjectShell(): JSX.Element {
     return () => window.removeEventListener("keydown", onKey);
   }, [reviewStore, findStore, quickOpenStore, pdfOpen]);
 
-  // Writer-mode MD papers don't get a `papers` row until their first mark.
+  // Writer-mode MD/HTML papers don't get a `papers` row until their first mark.
   // `ReviewDraft` (mounted in `ReviewColumn`, a sibling subtree of `CenterPane`)
   // needs this callback via context so the first save materializes paper +
   // revision on demand. The provider has to live here — up-tree of both
   // subtrees — so the context actually reaches the consumer.
-  const mdEnsureRevision = useMemo(() => {
-    if (openPaper.kind !== "ready-md" || openPaper.paper !== null) return null;
+  const lazyEnsureRevision = useMemo(() => {
+    const isLazyMd = openPaper.kind === "ready-md" && openPaper.paper === null;
+    const isLazyHtml = openPaper.kind === "ready-html" && openPaper.paper === null;
+    if (!isLazyMd && !isLazyHtml) return null;
     const relPath = openPaper.path;
+    const format = isLazyMd ? "md" : "html";
     return async (): Promise<string> => {
       const { revision } = await findOrCreatePaper({
         repo,
         projectId: project.id,
         rootId,
         relPath,
-        format: "md",
+        format,
         pageCount: 0,
       });
       refreshOpenPaper();
@@ -208,7 +211,7 @@ export default function ProjectShell(): JSX.Element {
       {divergence.dirty && divergence.report !== null && (
         <DivergenceBanner report={divergence.report} currentOrdinal={divergence.currentOrdinal} />
       )}
-      <EnsureRevisionProvider value={mdEnsureRevision}>
+      <EnsureRevisionProvider value={lazyEnsureRevision}>
         <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
           {project.kind === "writer" ? (
             <div className="project-shell__files">

@@ -164,7 +164,7 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
             .then((rows) => rows.map((r) => r.relPath))
             .catch(() => []);
           const classification = classifyHtml({
-            html: sanitized.html,
+            html: sanitized.bodyHtml,
             siblingPaths,
             file: path,
           });
@@ -190,14 +190,21 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
             sha256: stat.sha256,
             mode: classification.mode,
             sourceFile: classification.mode === "source" ? classification.sourceFile : null,
-            droppedScripts: sanitized.droppedScripts,
+            scriptCount: sanitized.scriptCount,
+            linkCount: sanitized.linkCount,
+            droppedTagCount: sanitized.droppedTagCount,
+            droppedDangerousLinks: sanitized.droppedDangerousLinks,
             paperId: lookup?.paper.id ?? null,
           });
           if (!cancelled) {
             setState({
               kind: "ready-html",
               path,
-              html: sanitized.html,
+              // Store the raw document. HtmlView re-sanitizes on mount and
+              // builds the iframe srcdoc from both head and body — passing
+              // only the sanitized body would lose author <link> and
+              // <script> tags that live in <head>.
+              html: raw,
               classification,
               paper: lookup?.paper ?? null,
               revision: lookup?.revision ?? null,

@@ -1114,9 +1114,9 @@ button.files__row {
 .source-pane__preview {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
   background: var(--paper);
-  padding: var(--space-4) var(--space-5);
 }
 
 .source-pane__editor .cm-editor {
@@ -1180,10 +1180,12 @@ button.files__row {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   padding: var(--space-3);
   gap: var(--space-3);
   background: var(--paper);
+  overflow-x: clip;
 }
 
 .review-column__tabs {
@@ -1715,6 +1717,7 @@ button.files__row {
 
 .review-column__indications {
   width: 100%;
+  min-width: 0;
   min-height: 4.5em;
   padding: var(--space-2);
   background: var(--paper);
@@ -1743,7 +1746,6 @@ button.files__row {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  overflow-y: auto;
 }
 
 .review-list__item {
@@ -1810,6 +1812,7 @@ button.files__row {
 
 .review-list__note--editable {
   width: 100%;
+  min-width: 0;
   border: 1px solid transparent;
   padding: var(--space-1);
   font-family: var(--font-body);
@@ -1900,6 +1903,7 @@ button.files__row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 .category-picker[data-invalid="true"] {
@@ -1921,6 +1925,7 @@ button.files__row {
   font-size: var(--step--1);
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
   --chip-accent: var(--ink-soft);
 }
 

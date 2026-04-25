@@ -94,7 +94,7 @@ export default function FolioProject({
         >
           <span className="folio__card-title">I'm a reviewer.</span>
           <span className="folio__card-legend">
-            For critics and reviewers. Open a single PDF or Markdown file, mark what needs
+            For critics and reviewers. Open a single PDF, Markdown, or HTML file, mark what needs
             attention, and draft a reviewer's letter.
           </span>
           <span className="folio__card-sub">Pick paper →</span>

@@ -1,4 +1,6 @@
+import type { ClassifyResult } from "@obelus/html-view";
 import type { JSX } from "react";
+import { usePaperTrust } from "../../store/use-paper-trust";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
 import HtmlReviewSurface from "./HtmlReviewSurface";
@@ -9,6 +11,7 @@ import PdfPane from "./PdfPane";
 import SourcePane from "./SourcePane";
 import TypstPane from "./TypstPane";
 import UnsupportedPane from "./UnsupportedPane";
+import { useAssetResolver } from "./use-asset-resolver";
 
 // True for files that route through `SourcePane`, which hydrates a buffer
 // and exposes an editable dirty/save cycle. MD under a reviewer project
@@ -35,6 +38,53 @@ function PathHeaderSave({ relPath }: { relPath: string }): JSX.Element {
     >
       Save (⌘S)
     </button>
+  );
+}
+
+function ReviewerHtmlMount({
+  rootId,
+  path,
+  html,
+  classification,
+  paperId,
+}: {
+  rootId: string;
+  path: string;
+  html: string;
+  classification: ClassifyResult;
+  paperId: string | null;
+}): JSX.Element {
+  const assets = useAssetResolver(rootId, path);
+  const { trusted, trust } = usePaperTrust(paperId);
+  return (
+    <HtmlReviewSurface
+      path={path}
+      html={html}
+      classification={classification}
+      assets={assets}
+      trusted={trusted}
+      {...(paperId ? { onTrust: trust } : {})}
+    />
+  );
+}
+
+function ReviewerMdMount({
+  path,
+  text,
+  paperId,
+}: {
+  path: string;
+  text: string;
+  paperId: string | null;
+}): JSX.Element {
+  const { trusted, trust } = usePaperTrust(paperId);
+  return (
+    <MdReviewSurface
+      path={path}
+      text={text}
+      trusted={trusted}
+      {...(paperId ? { onTrust: trust } : {})}
+    />
   );
 }
 
@@ -73,7 +123,13 @@ export default function CenterPane(): JSX.Element {
     // mark the same file from two tabs of one pane.
     if (ext === "md" && project.kind === "reviewer") {
       if (openPaper.kind === "ready-md") {
-        return <MdReviewSurface path={openPaper.path} text={openPaper.text} />;
+        return (
+          <ReviewerMdMount
+            path={openPaper.path}
+            text={openPaper.text}
+            paperId={openPaper.paper?.id ?? null}
+          />
+        );
       }
       if (openPaper.kind === "loading") return <div className="pane pane--empty">Loading…</div>;
       if (openPaper.kind === "error") {
@@ -88,16 +144,18 @@ export default function CenterPane(): JSX.Element {
         );
       }
     }
-    // Reviewer-mode HTML: same shape as the MD path. Writer-mode HTML
-    // continues to fall through to SourcePane (CodeMirror) — adding a
-    // preview/source toggle for writer HTML is a follow-up.
+    // Reviewer-mode HTML: skip the editor and mount the review surface
+    // directly. Writer-mode HTML falls through to SourcePane, whose Preview
+    // tab mounts the same review surface against the editor's buffer.
     if ((ext === "html" || ext === "htm") && project.kind === "reviewer") {
       if (openPaper.kind === "ready-html") {
         return (
-          <HtmlReviewSurface
+          <ReviewerHtmlMount
+            rootId={rootId}
             path={openPaper.path}
             html={openPaper.html}
             classification={openPaper.classification}
+            paperId={openPaper.paper?.id ?? null}
           />
         );
       }

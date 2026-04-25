@@ -63,7 +63,7 @@ pub async fn open_paper_picker(app: AppHandle) -> Option<PickedPaper> {
     let (tx, rx) = oneshot::channel();
     app.dialog()
         .file()
-        .add_filter("Paper", &["pdf", "md"])
+        .add_filter("Paper", &["pdf", "md", "markdown", "html", "htm"])
         .pick_file(move |picked| {
             let path = picked.and_then(|p| p.as_path().map(PathBuf::from));
             let _ = tx.send(path);

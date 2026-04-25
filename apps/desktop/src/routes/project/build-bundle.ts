@@ -1,5 +1,5 @@
 import type { AnnotationV2Input, PaperRefV2Input, ProjectV2Input } from "@obelus/bundle-builder";
-import { buildBundleV2 } from "@obelus/bundle-builder";
+import { buildBundleV2, mapHtmlAnnotations } from "@obelus/bundle-builder";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
 import { isPdfAnchored, type ProjectFileRow, type Repository } from "@obelus/repo";
 import { fsReadFile } from "../../ipc/commands";
@@ -265,50 +265,20 @@ export async function exportHtmlBundleV2ForPaper(
   const rows = await repo.annotations.listForRevision(latest.id);
   if (rows.length === 0) throw new Error("no annotations to review");
 
-  const droppedForPdfAnchor: string[] = [];
-  const annotations: AnnotationV2Input[] = [];
-  let observedKind: "source" | "html" | null = null;
-  let firstSourceFile: string | null = null;
-  for (const row of rows) {
-    if (row.anchor.kind === "pdf") {
-      droppedForPdfAnchor.push(row.id);
-      continue;
-    }
-    if (observedKind === null) {
-      observedKind = row.anchor.kind;
-    } else if (observedKind !== row.anchor.kind) {
-      throw new Error(
-        `paper ${paper.id} has mixed anchor kinds (${observedKind} + ${row.anchor.kind}); classification commits one mode per paper`,
-      );
-    }
-    if (row.anchor.kind === "source" && firstSourceFile === null) {
-      firstSourceFile = row.anchor.file;
-    }
-    const anchor: AnnotationV2Input["anchor"] =
-      row.anchor.kind === "html"
-        ? {
-            kind: "html",
-            file: row.anchor.file,
-            xpath: row.anchor.xpath,
-            charOffsetStart: row.anchor.charOffsetStart,
-            charOffsetEnd: row.anchor.charOffsetEnd,
-            ...(row.anchor.sourceHint !== undefined ? { sourceHint: row.anchor.sourceHint } : {}),
-          }
-        : row.anchor;
-    annotations.push({
-      id: row.id,
-      paperId: paper.id,
-      category: row.category,
-      quote: row.quote,
-      contextBefore: row.contextBefore,
-      contextAfter: row.contextAfter,
-      anchor,
-      note: row.note,
-      thread: row.thread,
-      createdAt: row.createdAt,
-      ...(row.groupId !== undefined ? { groupId: row.groupId } : {}),
-    });
+  const { annotations, droppedForPdfAnchor, seenKinds, firstSourceFile } = mapHtmlAnnotations(
+    rows,
+    paper.id,
+  );
+  // Desktop policy: classification commits one anchor mode per paper. Mixing
+  // is a classification error; we throw rather than emit a half-anchored
+  // bundle. Web's exporter is lenient by design.
+  if (seenKinds.size > 1) {
+    const kinds = [...seenKinds].join(" + ");
+    throw new Error(
+      `paper ${paper.id} has mixed anchor kinds (${kinds}); classification commits one mode per paper`,
+    );
   }
+  const observedKind: "source" | "html" | null = seenKinds.values().next().value ?? null;
 
   // Mirror the web exporter: paired-source HTML points the bundle entrypoint
   // at the source file (.md/.tex/.typ) so the plugin patches source, not the

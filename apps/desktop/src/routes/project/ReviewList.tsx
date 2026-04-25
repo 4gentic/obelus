@@ -139,7 +139,7 @@ export default function ReviewList(): JSX.Element {
   }, [focusedId]);
 
   if (annotations.length === 0) {
-    return <p className="review-column__hint">No marks yet. Select text in the PDF to begin.</p>;
+    return <p className="review-column__hint">No marks yet. Select text to begin.</p>;
   }
 
   return (
