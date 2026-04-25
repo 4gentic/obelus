@@ -9,9 +9,11 @@
 // `<app_data>/projects/<projectId>/` and writes only Obelus artifacts. Code
 // outside this module should never join paths into `<app_data>` directly.
 //
-// `..` in `rel_path` is rejected outright before any filesystem call — it
-// would let a malformed frontend message escape the workspace dir into the
-// rest of `<app_data>` (e.g. `obelus.db`).
+// `rel_path` is rejected outright if it contains `..` segments OR is absolute
+// (or rooted with a leading `/` / `\`) before any filesystem call. Without the
+// absolute check, `Path::join` discards the workspace base when given an
+// absolute right-hand side, letting a malformed frontend message read or
+// overwrite anything in `<app_data>` (e.g. `obelus.db`) or beyond.
 
 use crate::commands::fs_scoped::atomic_write;
 use crate::error::{AppError, AppResult};
@@ -42,6 +44,12 @@ fn validate_project_id(project_id: &str) -> AppResult<()> {
 }
 
 fn reject_traversal(rel: &str) -> AppResult<()> {
+    if std::path::Path::new(rel).is_absolute()
+        || rel.starts_with('/')
+        || rel.starts_with('\\')
+    {
+        return Err(AppError::OutOfScope);
+    }
     for comp in rel.split(|c| c == '/' || c == '\\') {
         if comp == ".." {
             return Err(AppError::OutOfScope);
@@ -176,5 +184,43 @@ pub async fn workspace_delete(app: AppHandle, project_id: String) -> AppResult<(
         Ok(()) => Ok(()),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(err) => Err(AppError::from(err)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reject_traversal_blocks_parent_segments() {
+        assert!(matches!(reject_traversal(".."), Err(AppError::OutOfScope)));
+        assert!(matches!(
+            reject_traversal("foo/../bar"),
+            Err(AppError::OutOfScope)
+        ));
+        assert!(matches!(
+            reject_traversal("foo\\..\\bar"),
+            Err(AppError::OutOfScope)
+        ));
+    }
+
+    #[test]
+    fn reject_traversal_blocks_absolute_paths() {
+        assert!(matches!(
+            reject_traversal("/etc/passwd"),
+            Err(AppError::OutOfScope)
+        ));
+        assert!(matches!(reject_traversal("/"), Err(AppError::OutOfScope)));
+        assert!(matches!(
+            reject_traversal("\\windows\\system32"),
+            Err(AppError::OutOfScope)
+        ));
+    }
+
+    #[test]
+    fn reject_traversal_accepts_safe_rel_paths() {
+        assert!(reject_traversal("plan.json").is_ok());
+        assert!(reject_traversal("sessions/abc/plan.json").is_ok());
+        assert!(reject_traversal("").is_ok());
     }
 }
