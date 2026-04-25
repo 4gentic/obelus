@@ -2,6 +2,17 @@
 
 All notable changes to the Obelus Claude Code plugin are documented here. This file is generated from Conventional Commits touching `packages/claude-plugin/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7](https://github.com/4gentic/obelus/compare/plugin-v0.1.6...plugin-v0.1.7) (2026-04-25)
+
+
+### Features
+
+* **compile-fix:** ask Claude to fix a broken compile ([#63](https://github.com/4gentic/obelus/issues/63)) ([264f228](https://github.com/4gentic/obelus/commit/264f2288db1b23322e8ecb21080c867a8b88348e))
+* **desktop,plugin:** per-project workspace under app-data ([#71](https://github.com/4gentic/obelus/issues/71)) ([0f9cd5f](https://github.com/4gentic/obelus/commit/0f9cd5fa3e3e22ce31e2199d39fb345797552b28))
+* **plugin:** write-review renders inline by default, file via --out ([#64](https://github.com/4gentic/obelus/issues/64)) ([acde821](https://github.com/4gentic/obelus/commit/acde821653ed21cde3f656af9ffbb776503ae308))
+* review HTML & Markdown papers, with per-paper trust and draft-nav cleanup ([#69](https://github.com/4gentic/obelus/issues/69)) ([73f619a](https://github.com/4gentic/obelus/commit/73f619a42053aad666be5d547ad6b353a7e2a9b5))
+* review Markdown papers end-to-end (Phase 1) ([#68](https://github.com/4gentic/obelus/issues/68)) ([44d0c20](https://github.com/4gentic/obelus/commit/44d0c2001257e1cc277d51c3c6003b03bee53f18))
+
 ## [0.1.6](https://github.com/4gentic/obelus/compare/plugin-v0.1.5...plugin-v0.1.6) (2026-04-23)
 
 
