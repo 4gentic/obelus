@@ -1,58 +1,77 @@
 import { pickLatestWriteupName } from "@obelus/claude-sidecar";
-import { fsReadDir, fsReadFile } from "../../ipc/commands";
+import { workspacePath, workspaceReadDir, workspaceReadFile } from "../../ipc/commands";
 
 export interface IngestWriteupInput {
-  rootId: string;
+  projectId: string;
   paperId: string;
-  // Optional path the plugin printed in its `OBELUS_WROTE: <path>` marker.
-  // When present, this is tried before the directory scan — it lets us pick up
-  // a writeup the plugin wrote to a non-canonical path (e.g. a smaller model
-  // dropped the timestamp segment, or wrote to the project root by mistake).
+  // Optional absolute path the plugin printed in its `OBELUS_WROTE: <path>`
+  // marker. Tried before the workspace scan — it lets us pick up a writeup
+  // the plugin wrote to a non-canonical filename (e.g. a smaller model
+  // dropped the timestamp segment). Anything outside the workspace is
+  // refused; the plugin must write under `$OBELUS_WORKSPACE_DIR`.
   hintPath?: string;
 }
 
 export interface IngestWriteupResult {
+  // Workspace-relative path of the writeup (e.g. `writeup-paper-1-…md`).
   path: string;
   body: string;
 }
 
-async function readBody(rootId: string, relPath: string): Promise<string | null> {
+async function readBody(projectId: string, workspaceRelPath: string): Promise<string | null> {
   try {
-    const buffer = await fsReadFile(rootId, relPath);
+    const buffer = await workspaceReadFile(projectId, workspaceRelPath);
     return new TextDecoder().decode(new Uint8Array(buffer));
   } catch {
     return null;
   }
 }
 
+function toWorkspaceRel(workspaceAbs: string, hintPath: string): string | null {
+  const normalisedAbs = workspaceAbs.endsWith("/") ? workspaceAbs : `${workspaceAbs}/`;
+  if (!hintPath.startsWith(normalisedAbs)) return null;
+  return hintPath.slice(normalisedAbs.length);
+}
+
 export async function ingestWriteupFile(
   input: IngestWriteupInput,
 ): Promise<IngestWriteupResult | null> {
-  const { rootId, paperId, hintPath } = input;
+  const { projectId, paperId, hintPath } = input;
+  const workspaceAbs = await workspacePath(projectId, "");
 
   if (hintPath?.endsWith(".md")) {
-    const body = await readBody(rootId, hintPath);
-    if (body !== null) {
-      console.info("[ingest-writeup]", { matchedVia: "marker", path: hintPath });
-      return { path: hintPath, body };
+    const rel = toWorkspaceRel(workspaceAbs, hintPath);
+    if (rel === null) {
+      console.warn("[ingest-writeup]", {
+        matchedVia: "marker-out-of-workspace",
+        path: hintPath,
+        workspaceAbs,
+        reason: "marker path is outside the project workspace; falling back to scan",
+      });
+    } else {
+      const body = await readBody(projectId, rel);
+      if (body !== null) {
+        console.info("[ingest-writeup]", { matchedVia: "marker", path: rel });
+        return { path: rel, body };
+      }
+      console.warn("[ingest-writeup]", {
+        matchedVia: "marker-miss",
+        path: rel,
+        reason: "marker path not readable, falling back to scan",
+      });
     }
-    console.warn("[ingest-writeup]", {
-      matchedVia: "marker-miss",
-      path: hintPath,
-      reason: "marker path not readable, falling back to directory scan",
-    });
   }
 
-  const entries = await fsReadDir(rootId, ".obelus").catch(() => []);
+  const entries = await workspaceReadDir(projectId, ".").catch(() => []);
   const names = entries.map((e) => e.name);
   const picked = pickLatestWriteupName(names, paperId);
   if (!picked) return null;
-  const body = await readBody(rootId, `.obelus/${picked}`);
+  const body = await readBody(projectId, picked);
   if (body === null) return null;
   console.info("[ingest-writeup]", {
     matchedVia: "directory-scan",
-    path: `.obelus/${picked}`,
+    path: picked,
     scanned: names.length,
   });
-  return { path: `.obelus/${picked}`, body };
+  return { path: picked, body };
 }

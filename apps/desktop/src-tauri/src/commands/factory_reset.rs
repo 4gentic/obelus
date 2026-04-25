@@ -56,6 +56,7 @@ pub async fn factory_reset(
     tx.commit().await.map_err(|e| e.to_string())?;
 
     wipe_managed_engines(&app).await?;
+    wipe_project_workspaces(&app).await?;
 
     Ok(())
 }
@@ -69,5 +70,17 @@ async fn wipe_managed_engines(app: &AppHandle) -> Result<(), String> {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(err) => Err(format!("failed to remove {}: {err}", bin.display())),
+    }
+}
+
+async fn wipe_project_workspaces(app: &AppHandle) -> Result<(), String> {
+    let projects = match app.path().app_data_dir() {
+        Ok(root) => root.join("projects"),
+        Err(_) => return Ok(()),
+    };
+    match tokio::fs::remove_dir_all(&projects).await {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(format!("failed to remove {}: {err}", projects.display())),
     }
 }

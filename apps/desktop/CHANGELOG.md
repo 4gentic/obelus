@@ -2,6 +2,25 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5](https://github.com/4gentic/obelus/compare/desktop-v0.1.4...desktop-v0.1.5) (2026-04-25)
+
+
+### Features
+
+* **compile-fix:** ask Claude to fix a broken compile ([#63](https://github.com/4gentic/obelus/issues/63)) ([264f228](https://github.com/4gentic/obelus/commit/264f2288db1b23322e8ecb21080c867a8b88348e))
+* **desktop,plugin:** per-project workspace under app-data ([#71](https://github.com/4gentic/obelus/issues/71)) ([0f9cd5f](https://github.com/4gentic/obelus/commit/0f9cd5fa3e3e22ce31e2199d39fb345797552b28))
+* **desktop:** auto-ignore .obelus/ when project root is a git repo ([#60](https://github.com/4gentic/obelus/issues/60)) ([dbe4fc1](https://github.com/4gentic/obelus/commit/dbe4fc196b2446a49950fcc5166e43335b743002))
+* **desktop:** draggable vertical dividers for review panes ([#62](https://github.com/4gentic/obelus/issues/62)) ([79ed5e9](https://github.com/4gentic/obelus/commit/79ed5e95764f385722c666ddecca6dd743ab350d))
+* **plugin:** write-review renders inline by default, file via --out ([#64](https://github.com/4gentic/obelus/issues/64)) ([acde821](https://github.com/4gentic/obelus/commit/acde821653ed21cde3f656af9ffbb776503ae308))
+* review HTML & Markdown papers, with per-paper trust and draft-nav cleanup ([#69](https://github.com/4gentic/obelus/issues/69)) ([73f619a](https://github.com/4gentic/obelus/commit/73f619a42053aad666be5d547ad6b353a7e2a9b5))
+* review Markdown papers end-to-end (Phase 1) ([#68](https://github.com/4gentic/obelus/issues/68)) ([44d0c20](https://github.com/4gentic/obelus/commit/44d0c2001257e1cc277d51c3c6003b03bee53f18))
+
+
+### Bug Fixes
+
+* **desktop:** find bar state leaks on close, switch; CMD+F refocuses ([#59](https://github.com/4gentic/obelus/issues/59)) ([3508d38](https://github.com/4gentic/obelus/commit/3508d3877c97b89558591adecb6391890d7423c9))
+* **desktop:** keep source editor mounted; reveal open file in tree ([#66](https://github.com/4gentic/obelus/issues/66)) ([231e93f](https://github.com/4gentic/obelus/commit/231e93f23cd1571ac29e75b1b5c4bb66fc1d3bdf))
+
 ## [0.1.4](https://github.com/4gentic/obelus/compare/desktop-v0.1.3...desktop-v0.1.4) (2026-04-23)
 
 

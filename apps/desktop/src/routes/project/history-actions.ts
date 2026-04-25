@@ -14,7 +14,7 @@ export async function ensureBaselineEdit(
 ): Promise<PaperEditRow> {
   const existing = await repo.paperEdits.baseline(paperId);
   if (existing) return existing;
-  const snap = await historySnapshot({ rootId });
+  const snap = await historySnapshot({ rootId, projectId });
   return repo.paperEdits.create({
     projectId,
     paperId,
@@ -40,7 +40,7 @@ export async function snapshotAfterApply(args: {
   landedHunks: ReadonlyArray<DiffHunkRow>;
 }): Promise<PaperEditRow> {
   const { repo, project, paperId, rootId, sessionId, parentEdit, landedHunks } = args;
-  const snap = await historySnapshot({ rootId });
+  const snap = await historySnapshot({ rootId, projectId: project.id });
   const summary = autoNoteFromSession(landedHunks);
   const draft = await repo.paperEdits.create({
     projectId: project.id,

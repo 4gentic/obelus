@@ -228,7 +228,7 @@ async function handleExit(
           }
         }
       }
-      const message = await ingestReview(job.rootId, job.reviewSessionId, job.obelusWrotePath);
+      const message = await ingestReview(job.projectId, job.reviewSessionId, job.obelusWrotePath);
       store.markDone(sessionId, message);
     } else if (job.kind === "compile-fix") {
       // The skill edits source directly. Refresh any open buffers so the
@@ -245,13 +245,12 @@ async function handleExit(
     } else {
       const ingested = await ingestWriteup(
         sessionId,
-        job.rootId,
         job.paperId,
         job.projectId,
         job.obelusWrotePath,
       );
       const bytes = new TextEncoder().encode(ingested.body).byteLength;
-      const fileName = ingested.path.replace(/^\.obelus\//, "");
+      const fileName = ingested.path;
       store.markDone(
         sessionId,
         `Write-up ready. ${bytes.toLocaleString()} bytes from ${fileName}.`,
@@ -323,7 +322,7 @@ function emitReviewTiming(
 }
 
 async function ingestReview(
-  rootId: string,
+  projectId: string,
   reviewSessionId: string | undefined,
   hintPath: string | undefined,
 ): Promise<string> {
@@ -331,7 +330,7 @@ async function ingestReview(
   const repo = await getRepository();
   const result = await ingestPlanFile({
     repo,
-    rootId,
+    projectId,
     sessionId: reviewSessionId,
     ...(hintPath !== undefined ? { hintPath } : {}),
   });
@@ -466,14 +465,13 @@ async function refreshOpenBuffers(): Promise<void> {
 
 async function ingestWriteup(
   sessionId: string,
-  rootId: string,
   paperId: string | undefined,
   projectId: string,
   hintPath: string | undefined,
 ): Promise<{ path: string; body: string }> {
   if (!paperId) throw new Error("writeup job is missing paperId");
   const ingested = await ingestWriteupFile({
-    rootId,
+    projectId,
     paperId,
     ...(hintPath !== undefined ? { hintPath } : {}),
   });
@@ -482,7 +480,7 @@ async function ingestWriteup(
       ? ` Marker pointed at \`${hintPath}\` but the file was not readable.`
       : " No `OBELUS_WROTE:` marker was emitted by the plugin.";
     throw new Error(
-      `Claude finished but no writeup was found for paper ${paperId}.${hintNote} Expected \`.obelus/writeup-${paperId}-<timestamp>.md\`.`,
+      `Claude finished but no writeup was found for paper ${paperId}.${hintNote} Expected \`writeup-${paperId}-<timestamp>.md\` in the project workspace.`,
     );
   }
   const repo = await getRepository();

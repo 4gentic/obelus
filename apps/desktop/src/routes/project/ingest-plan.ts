@@ -1,15 +1,16 @@
 import { PlanFileSchema } from "@obelus/claude-sidecar";
 import type { DiffHunkRow, Repository } from "@obelus/repo";
-import { fsReadDir, fsReadFile } from "../../ipc/commands";
+import { workspacePath, workspaceReadDir, workspaceReadFile } from "../../ipc/commands";
 import { paperHasSources } from "../../lib/paper-has-sources";
 
 export interface IngestPlanInput {
   repo: Repository;
-  rootId: string;
+  projectId: string;
   sessionId: string;
-  // Optional path the plugin printed in its `OBELUS_WROTE: <path>` marker. We
-  // try it first; if it parses as a PlanFile and its bundleId matches the
-  // session, we skip the directory scan entirely.
+  // Optional absolute path the plugin printed in its `OBELUS_WROTE: <path>`
+  // marker. Tried first; if it parses as a PlanFile and its bundleId matches
+  // the session, the workspace scan is skipped. Anything outside the
+  // project workspace is refused.
   hintPath?: string;
 }
 
@@ -79,8 +80,15 @@ function basename(p: string): string {
   return slash < 0 ? p : p.slice(slash + 1);
 }
 
+function toWorkspaceRel(workspaceAbs: string, hintPath: string): string | null {
+  const normalisedAbs = workspaceAbs.endsWith("/") ? workspaceAbs : `${workspaceAbs}/`;
+  if (!hintPath.startsWith(normalisedAbs)) return null;
+  return hintPath.slice(normalisedAbs.length);
+}
+
 export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlanResult> {
-  const { repo, rootId, sessionId, hintPath } = input;
+  const { repo, projectId, sessionId, hintPath } = input;
+  const workspaceAbs = await workspacePath(projectId, "");
 
   const session = await repo.reviewSessions.get(sessionId);
   if (!session) throw new Error(`review session ${sessionId} not found`);
@@ -101,25 +109,30 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   const scannedPlans: string[] = [];
 
   if (hintPath?.endsWith(".json")) {
-    try {
-      const buffer = await fsReadFile(rootId, hintPath);
-      const text = new TextDecoder().decode(new Uint8Array(buffer));
-      const plan = PlanFileSchema.parse(JSON.parse(text));
-      const planBundle = basename(plan.bundleId);
-      scannedPlans.push(`${hintPath} (marker) -> ${planBundle}`);
-      if (planBundle === sessionBundleBasename) {
-        picked = { name: basename(hintPath), plan };
+    const rel = toWorkspaceRel(workspaceAbs, hintPath);
+    if (rel === null) {
+      scannedPlans.push(`${hintPath} (marker) -> rejected: outside workspace`);
+    } else {
+      try {
+        const buffer = await workspaceReadFile(projectId, rel);
+        const text = new TextDecoder().decode(new Uint8Array(buffer));
+        const plan = PlanFileSchema.parse(JSON.parse(text));
+        const planBundle = basename(plan.bundleId);
+        scannedPlans.push(`${rel} (marker) -> ${planBundle}`);
+        if (planBundle === sessionBundleBasename) {
+          picked = { name: basename(rel), plan };
+        }
+      } catch (err) {
+        scannedPlans.push(
+          `${rel} (marker) -> unreadable (${err instanceof Error ? err.message : "?"})`,
+        );
       }
-    } catch (err) {
-      scannedPlans.push(
-        `${hintPath} (marker) -> unreadable (${err instanceof Error ? err.message : "?"})`,
-      );
     }
   }
 
   let directoryNames: string[] = [];
   if (!picked) {
-    const entries = await fsReadDir(rootId, ".obelus").catch(() => []);
+    const entries = await workspaceReadDir(projectId, ".").catch(() => []);
     directoryNames = entries.map((e) => e.name);
     // Timestamped plans first (newest → oldest), then the bare fallback. A
     // plain lex sort would put `plan.json` ahead of `plan-<iso>.json` after
@@ -134,8 +147,10 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
       : timestamped;
 
     if (planNames.length === 0 && scannedPlans.length === 0) {
-      const details = `Usually this means the spawn prompt reached Claude without the "Run apply-revision" trigger — check the job log. Directory contents: ${directoryNames.join(", ") || "(empty)"}`;
-      throw new Error(`Claude finished without writing a plan file under .obelus/.\n\n${details}`);
+      const details = `Usually this means the spawn prompt reached Claude without the "Run apply-revision" trigger — check the job log. Workspace contents: ${directoryNames.join(", ") || "(empty)"}`;
+      throw new Error(
+        `Claude finished without writing a plan file under the project workspace.\n\n${details}`,
+      );
     }
 
     // Walk plans newest-first; stop at the first one whose bundleId basename
@@ -143,7 +158,7 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     // can't mask a valid later match.
     for (const name of planNames) {
       try {
-        const buffer = await fsReadFile(rootId, `.obelus/${name}`);
+        const buffer = await workspaceReadFile(projectId, name);
         const text = new TextDecoder().decode(new Uint8Array(buffer));
         const plan = PlanFileSchema.parse(JSON.parse(text));
         const planBundle = basename(plan.bundleId);
@@ -160,7 +175,7 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
 
   if (!picked) {
     const dirSummary =
-      directoryNames.length > 0 ? `; .obelus/ contains: ${directoryNames.join(", ")}` : "";
+      directoryNames.length > 0 ? `; workspace contains: ${directoryNames.join(", ")}` : "";
     const scannedSummary = scannedPlans.join("; ") || "(none)";
     const wroteAnyPlan = scannedPlans.length > 0;
     const headline = wroteAnyPlan
@@ -199,7 +214,7 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   const ambiguousCount = keptBlocks.reduce((n, b) => n + (b.ambiguous ? 1 : 0), 0);
 
   return {
-    planPath: `.obelus/${picked.name}`,
+    planPath: picked.name,
     planBundleId: picked.plan.bundleId,
     sessionBundleId: session.bundleId,
     blockCount: picked.plan.blocks.length,

@@ -1,7 +1,7 @@
 {
   "name": "@obelus/claude-sidecar",
   "version": "0.1.0",
-  "description": "Thin TS wrapper around the Tauri Rust claude_session commands. Spawns claude --print against a bundle, streams stdout/stderr, parses .obelus/plan-<ts>.json.",
+  "description": "Thin TS wrapper around the Tauri Rust claude_session commands. Spawns claude --print against a bundle, streams stdout/stderr, parses $OBELUS_WORKSPACE_DIR/plan-<ts>.json.",
   "license": "MIT",
   "type": "module",
   "main": "./src/index.ts",
