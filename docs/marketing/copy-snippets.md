@@ -10,8 +10,8 @@ An offline review surface for AI-assisted papers. Mark passages in PDF, Markdown
 
 Headline (two lines):
 
-> Writing AI papers is cheap.
-> Reviewing them is the work.
+> Writing a paper with AI is cheap.
+> Reviewing it is the work.
 
 Subhead (one line):
 
@@ -31,4 +31,4 @@ Obelus is an offline review surface for AI-assisted papers. You highlight passag
 
 ## 4gentic imprint
 
-A project by [4gentic](https://4gentic.ai) — a small studio building offline tools for people who write.
+A project by [4gentic](https://4gentic.ai).

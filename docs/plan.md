@@ -326,7 +326,7 @@ refinement; "Save to folder" and "Copy to clipboard" — no cloud.
 ### Voice
 
 Observational, declarative, slightly archaic. No exclamations. Verbs over adjectives. Register
-matches existing landing hero "Writing AI papers is cheap. / Reviewing them is the work."
+matches existing landing hero "Writing a paper with AI is cheap. / Reviewing it is the work."
 
 Examples:
 - Wizard heading: "First, the machinist."

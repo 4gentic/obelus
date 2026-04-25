@@ -6,9 +6,9 @@ export default function Landing() {
     <article className="landing">
       <section className="hero">
         <h1 className="hero__headline">
-          <em>Writing AI papers is cheap.</em>
+          <em>Writing a paper with AI is cheap.</em>
           <br />
-          <em>Reviewing them is the work.</em>
+          <em>Reviewing it is the work.</em>
         </h1>
         <p className="hero__sub">
           An offline review surface for AI-assisted papers. Mark what you doubt; any coding agent
@@ -535,7 +535,7 @@ export default function Landing() {
               <a href="https://4gentic.ai" rel="noreferrer noopener">
                 4gentic
               </a>
-              . A studio for offline writing tools.
+              .
             </dd>
           </div>
           <div className="colophon__row">
