@@ -66,21 +66,22 @@ This skill delegates the actual planning to `plan-fix`, which writes the plan fi
 
 5. **Locate the paper source.** Do this inline using only `Glob` / `Read` / `Grep`. Do **not** emit any JSON block — the result of this step is a short narration in prose, then you proceed to step 6 in the same turn.
 
-   - If `--entrypoint <path>` was supplied, use it directly. Infer the format from the extension (`.tex` → latex, `.md` → markdown, `.typ` → typst). If the extension isn't one of those, stop and say so. Otherwise skip the classification below and jump to the success narration.
+   - If `--entrypoint <path>` was supplied, use it directly. Infer the format from the extension (`.tex` → latex, `.md` → markdown, `.typ` → typst, `.html` / `.htm` → html). If the extension isn't one of those, stop and say so. Otherwise skip the classification below and jump to the success narration.
 
    - Otherwise classify the source format:
 
      a. **LaTeX.** Glob `**/*.tex`. For each, read the first ~200 lines and look for `\documentclass`. The entrypoint is the file that has it (not `\input`'d from elsewhere). If multiple candidates exist, prefer `main.tex`, `paper.tex`, then the shortest path.
      b. **Typst.** Glob `**/*.typ`. Entrypoint heuristic: presence of `#set document(` or `#show:` at top level. Prefer `main.typ`, `paper.typ`, `report.typ`.
      c. **Markdown.** Glob `**/*.md` excluding `README.md`, `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, and anything under `node_modules/`, `.git/`, `dist/`, `build/`. A Markdown paper usually has a YAML frontmatter block (`---` at line 1) with `title:` or `author:`. Prefer `paper.md`, `manuscript.md`, then the longest remaining `.md` by word count.
-     d. **Conflict resolution.** If two formats both present candidates, pick the one whose entrypoint was modified most recently; the displaced one goes into a disambiguation note.
-     e. **Nothing matched.** Take the unknown branch below.
+     d. **HTML.** Hand-authored HTML papers are the only case this branch fires — paired-source HTML bundles already arrive with a `.md` / `.tex` / `.typ` entrypoint and are handled by (a)–(c). Glob `**/*.{html,htm}` excluding `node_modules/`, `.git/`, `dist/`, `build/`, anything under `.obelus/`, and rendered preview files (basename starts with `preview` or ends in `.preview.html`). A hand-authored HTML paper usually has `<article>`, `<main>`, or a `<title>` / `<h1>` carrying the paper title. Prefer `paper.html`, `manuscript.html`, `index.html`, then the longest remaining `.html` by word count.
+     e. **Conflict resolution.** If two formats both present candidates, pick the one whose entrypoint was modified most recently; the displaced one goes into a disambiguation note.
+     f. **Nothing matched.** Take the unknown branch below.
 
-   - **On success** (you found a latex, markdown, or typst entrypoint), narrate one short sentence: `Detected <format> source at <entrypoint>.` If step 5d's disambiguation fired, append a second sentence — e.g. `Two <format> entrypoints found — picked <chosen> (most recently modified).` No JSON, no code fences, no bullet list of source files. Then **continue to step 6 in the same turn** — this is a mid-flow narration, not the final answer.
+   - **On success** (you found a latex, markdown, typst, or html entrypoint), narrate one short sentence: `Detected <format> source at <entrypoint>.` If step 5e's disambiguation fired, append a second sentence — e.g. `Two <format> entrypoints found — picked <chosen> (most recently modified).` No JSON, no code fences, no bullet list of source files. Then **continue to step 6 in the same turn** — this is a mid-flow narration, not the final answer.
 
    - **On nothing matched**, stop with the structured refusal below (substitute `<bundle-path>` with the path the user passed in). Pick the branch that fits, but keep the three-branch shape so the user can see all options at once:
 
-     > **Cannot apply this revision — no `.tex`, `.md`, or `.typ` paper source found in this repo.**
+     > **Cannot apply this revision — no `.tex`, `.md`, `.typ`, or `.html` paper source found in this repo.**
      >
      > Pick whichever applies:
      >
@@ -111,9 +112,9 @@ This skill delegates the actual planning to `plan-fix`, which writes the plan fi
 
    b. **Locate the paper source.** Precedence:
       - If `--entrypoint <path>` was supplied (single-paper case only), use it. For multi-paper bundles, refuse `--entrypoint` and tell the user to omit it.
-      - Else if `paper.entrypoint` is present in the bundle, use it and infer `format` from the extension.
-      - Else if `bundle.project.main` is present, use it as the project-wide entrypoint when the paper has no per-paper override; infer `format` from the extension. The desktop app populates `project.main` from the `project_build` cache, and mirrors the same data to `.obelus/project.json` (readable via `Read` if `bundle.project.main` is absent but the repo was opened in the desktop app).
-      - Else run the classification procedure inline using only `Glob` / `Read` / `Grep` — same sub-steps as the v1 flow's step 5 (a–e). If `bundle.project.files` is present, use it as the pre-filtered candidate set instead of a fresh glob (the desktop already walked the tree for you; entries with `role: "main"` are preferred). Do **not** emit a JSON block; narrate one sentence per paper (`Detected <format> source at <entrypoint> for <paper title>.`) and continue in the same turn. On the nothing-matched branch, stop with the v1 refusal, scoped to the specific paper — name the paper title in the first sentence (e.g. `I can't apply this revision for "<paper title>" — there is no …`) and keep both fallback options (use `write-review` when the source isn't available; pass `--entrypoint` when it is).
+      - Else if `paper.entrypoint` is present in the bundle, use it and infer `format` from the extension (`.tex` → latex, `.md` → markdown, `.typ` → typst, `.html` / `.htm` → html).
+      - Else if `bundle.project.main` is present, use it as the project-wide entrypoint when the paper has no per-paper override; infer `format` from the extension as above. The desktop app populates `project.main` from the `project_build` cache, and mirrors the same data to `.obelus/project.json` (readable via `Read` if `bundle.project.main` is absent but the repo was opened in the desktop app).
+      - Else run the classification procedure inline using only `Glob` / `Read` / `Grep` — same sub-steps as the v1 flow's step 5 (a–f). If `bundle.project.files` is present, use it as the pre-filtered candidate set instead of a fresh glob (the desktop already walked the tree for you; entries with `role: "main"` are preferred). Do **not** emit a JSON block; narrate one sentence per paper (`Detected <format> source at <entrypoint> for <paper title>.`) and continue in the same turn. On the nothing-matched branch, stop with the v1 refusal, scoped to the specific paper — name the paper title in the first sentence (e.g. `I can't apply this revision for "<paper title>" — there is no …`) and keep both fallback options (use `write-review` when the source isn't available; pass `--entrypoint` when it is).
 
 5v2. **Plan.** Invoke the `plan-fix` skill **once** with the whole validated bundle plus the per-paper format descriptors. `plan-fix` writes `.obelus/plan-<timestamp>.md` and a companion `.obelus/plan-<timestamp>.json`. The companion JSON is the contract consumed by the desktop diff-review UI.
 
