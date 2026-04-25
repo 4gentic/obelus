@@ -174,8 +174,14 @@ export function HtmlView({
     }
 
     let cancelled = false;
+    // Some browsers fire a `load` for the empty document of a freshly-attached
+    // iframe before our async `setSrcdoc()` lands. Ignoring those phantom
+    // loads avoids a redundant `onMountReady` (which otherwise fires twice on
+    // initial mount and re-runs every adapter effect once for nothing).
+    let srcdocAssigned = false;
     const onLoad = (): void => {
       if (cancelled) return;
+      if (!srcdocAssigned) return;
       const innerDoc = frame?.contentDocument;
       const body = innerDoc?.body;
       if (!innerDoc || !body) {
@@ -234,6 +240,7 @@ export function HtmlView({
       }
       if (cancelled || !frame) return;
       frame.srcdoc = buildSrcdoc(headHtml, bodyHtml, sanitized.authorStyles, trusted);
+      srcdocAssigned = true;
     };
 
     void setSrcdoc();

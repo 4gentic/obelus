@@ -46,15 +46,21 @@ export function MarkdownView({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onExternalBlockedRef = useRef(onExternalBlocked);
   onExternalBlockedRef.current = onExternalBlocked;
+  // Read `onRender` through a ref so an inline `onRender={…}` from the parent
+  // doesn't drag the notification effect into a render loop. The effect should
+  // fire only when the render result itself changes.
+  const onRenderRef = useRef(onRender);
+  onRenderRef.current = onRender;
 
   useImperativeHandle(ref, () => ({ getContainer: () => containerRef.current }), []);
 
   const render = useMemo(() => renderMarkdown({ file, text }), [file, text]);
 
   useEffect(() => {
-    if (!onRender) return;
-    onRender(render.ok ? { kind: "ok" } : { kind: "parse-failed", error: render.error });
-  }, [render, onRender]);
+    onRenderRef.current?.(
+      render.ok ? { kind: "ok" } : { kind: "parse-failed", error: render.error },
+    );
+  }, [render]);
 
   // After each render, rewrite relative asset paths to resolver-supplied URLs.
   // Without this hook, `<img src="figs/x.png">` falls back to the document's
