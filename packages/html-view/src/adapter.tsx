@@ -4,7 +4,7 @@ import type { DraftInput, HtmlDraftSlice, SourceDraftSlice } from "@obelus/revie
 import type { AssetResolver } from "@obelus/source-render/browser";
 import type { JSX, ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { HtmlView, type HtmlViewHandle } from "./HtmlView";
+import { type HtmlExternalBlocked, HtmlView, type HtmlViewHandle } from "./HtmlView";
 import { type HtmlMountAnchor, resolveAnchorToRects } from "./highlights";
 import { type HtmlSelectionAnchor, useHtmlSelection } from "./use-html-selection";
 
@@ -21,6 +21,13 @@ type Params = {
   mode: "source" | "html";
   sourceFile?: string;
   assets?: AssetResolver;
+  // When true, the iframe loads without a CSP and external resources
+  // (images, fonts, scripts hosted on remote servers) are permitted.
+  // The host surface decides this from per-paper trust state.
+  trusted?: boolean;
+  // Forwarded from `HtmlView`. Fires for each CSP violation in the
+  // iframe; the surface accumulates them to drive the trust banner.
+  onExternalBlocked?: (event: HtmlExternalBlocked) => void;
   annotations: ReadonlyArray<HtmlAnnotationRow>;
   selectedAnchor: DraftInput | null;
   draftCategory: string | null;
@@ -53,6 +60,19 @@ function findScrollAncestor(el: HTMLElement): HTMLElement {
     el.ownerDocument?.documentElement ??
     el
   );
+}
+
+// When the mount lives inside an iframe document (the production path),
+// the iframe itself owns scrolling for paper content; the parent's scroll
+// ancestor only matters when the parent re-positions the iframe in its
+// viewport (column resize, sidebar collapse). Both layers feed the same
+// `layoutTick` so the highlight overlay tracks both axes.
+function iframeOf(mount: HTMLElement | null, host: HTMLElement | null): HTMLIFrameElement | null {
+  if (!mount || !host) return null;
+  const mountDoc = mount.ownerDocument;
+  if (!mountDoc || mountDoc === host.ownerDocument) return null;
+  const win = mountDoc.defaultView;
+  return win?.frameElement instanceof HTMLIFrameElement ? win.frameElement : null;
 }
 
 function isSupportedAnchor(anchor: unknown): anchor is HtmlMountAnchor {
@@ -121,6 +141,8 @@ export function useHtmlDocumentView(params: Params): DocumentView {
     mode,
     sourceFile,
     assets,
+    trusted = false,
+    onExternalBlocked,
     annotations,
     selectedAnchor,
     draftCategory,
@@ -133,27 +155,32 @@ export function useHtmlDocumentView(params: Params): DocumentView {
   const [renderVersion, setRenderVersion] = useState(0);
   const [layoutTick, setLayoutTick] = useState(0);
 
-  // After each render, re-snapshot the host + mount handles. The handles
-  // change identity on remount but stay stable across re-paints, so a single
-  // `renderVersion` bump per html change is enough to keep refs current.
-  useEffect(() => {
+  const refreshRefs = useCallback(() => {
     hostRef.current = viewRef.current?.getHost() ?? null;
     mountRef.current = viewRef.current?.getShadowMount() ?? null;
     setRenderVersion((v) => v + 1);
   }, []);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: html/file are intentional re-triggers — when either changes the inner shadow mount swaps and the cached refs need to be re-snapshotted.
+  // After each render, re-snapshot the host + mount handles. On the initial
+  // render the iframe hasn't loaded yet — `getShadowMount()` returns null —
+  // so the production refresh comes from `onMountReady`. This still seeds
+  // hostRef so the selection hook can attach to the parent doc until the
+  // iframe is ready.
   useEffect(() => {
-    hostRef.current = viewRef.current?.getHost() ?? null;
-    mountRef.current = viewRef.current?.getShadowMount() ?? null;
-    setRenderVersion((v) => v + 1);
-  }, [html, file]);
+    refreshRefs();
+  }, [refreshRefs]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: html/file are intentional re-triggers — when either changes the iframe srcdoc swaps and the cached refs need to be re-snapshotted.
+  useEffect(() => {
+    refreshRefs();
+  }, [html, file, refreshRefs]);
 
   useHtmlSelection({
     hostRef,
     mountRef,
     file,
     mode,
+    mountVersion: renderVersion,
     ...(sourceFile !== undefined ? { sourceFile } : {}),
     onSelection: (sel) => {
       if (sel === null) return;
@@ -186,21 +213,38 @@ export function useHtmlDocumentView(params: Params): DocumentView {
     return () => ro.disconnect();
   }, [renderVersion]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: hostRef is a ref; renderVersion drives re-lookup of the scroll ancestor.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hostRef/mountRef are refs; renderVersion drives re-lookup of the scroll ancestors.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const scroll = findScrollAncestor(host);
     const onScroll = (): void => setLayoutTick((t) => t + 1);
-    scroll.addEventListener("scroll", onScroll, { passive: true });
-    return () => scroll.removeEventListener("scroll", onScroll);
+    const parentScroll = findScrollAncestor(host);
+    parentScroll.addEventListener("scroll", onScroll, { passive: true });
+    // When the mount lives in an iframe, the iframe's own window owns
+    // scrolling for paper content. Without listening there, overlays drift
+    // when the user scrolls inside a long diagram.
+    const mount = mountRef.current;
+    const innerWin =
+      mount && mount.ownerDocument !== host.ownerDocument ? mount.ownerDocument?.defaultView : null;
+    innerWin?.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      parentScroll.removeEventListener("scroll", onScroll);
+      innerWin?.removeEventListener("scroll", onScroll);
+    };
   }, [renderVersion]);
 
   const rectsForAnchor = useCallback((anchor: HtmlMountAnchor): DOMRect[] => {
     const mount = mountRef.current;
     const host = hostRef.current;
     if (!mount || !host) return [];
-    return resolveAnchorToRects(mount, anchor, findScrollAncestor(host));
+    const frame = iframeOf(mount, host);
+    const offset = frame
+      ? (() => {
+          const r = frame.getBoundingClientRect();
+          return { left: r.left, top: r.top };
+        })()
+      : { left: 0, top: 0 };
+    return resolveAnchorToRects(mount, anchor, findScrollAncestor(host), offset);
   }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: renderVersion + layoutTick are intentional re-triggers.
@@ -295,8 +339,11 @@ export function useHtmlDocumentView(params: Params): DocumentView {
         file={file}
         html={html}
         mode={mode}
+        trusted={trusted}
+        onMountReady={refreshRefs}
         {...(sourceFile !== undefined ? { sourceFile } : {})}
         {...(assets !== undefined ? { assets } : {})}
+        {...(onExternalBlocked !== undefined ? { onExternalBlocked } : {})}
       />
       <HighlightLayer rects={overlayRects} />
     </div>

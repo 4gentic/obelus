@@ -1,7 +1,7 @@
 {
   "name": "@obelus/html-view",
   "version": "0.1.0",
-  "description": "React component that renders an HTML paper into Obelus's review surface. Sanitizes via DOMPurify, mounts inside a Shadow DOM, and dispatches selections to either a SourceAnchor (paired-source HTML carrying data-src-* markers) or an HtmlAnchor (hand-authored HTML).",
+  "description": "React component that renders an HTML paper into Obelus's review surface. Sanitizes via DOMPurify, mounts inside a sandboxed iframe so author CSS is preserved without leaking into Obelus chrome, and dispatches selections to either a SourceAnchor (paired-source HTML carrying data-src-* markers) or an HtmlAnchor (hand-authored HTML).",
   "license": "MIT",
   "type": "module",
   "main": "./src/index.ts",
@@ -11,7 +11,7 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
-    "./shadow-shim.css": "./src/shadow-shim.css"
+    "./host-frame.css": "./src/host-frame.css"
   },
   "files": [
     "src"

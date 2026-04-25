@@ -19,23 +19,37 @@ export type HtmlSelectionAnchor =
     };
 
 export interface UseHtmlSelectionOptions {
-  // Light-DOM host element. The hook listens on the host's owner document
-  // for `selectionchange` and uses `mountRef` to resolve the shadow-root
-  // mount when computing the actual anchor.
+  // Wrapper element rendered by the parent. The hook reads its
+  // `ownerDocument` as a fallback when `mountRef` is not yet available
+  // (the iframe hasn't loaded).
   hostRef: { current: HTMLElement | null };
-  // The element inside the shadow root that contains the rendered paper.
-  // Closed shadow roots aren't reachable from `host.shadowRoot`, so the
-  // adapter threads this through via the `HtmlViewHandle`.
+  // The body of the iframe document that contains the rendered paper.
+  // The hook listens for `selectionchange` on the mount's owner document
+  // (the iframe doc) once it appears, and computes anchors against it.
   mountRef: { current: HTMLElement | null };
   file: string;
   mode: "source" | "html";
   sourceFile?: string;
+  // Bumped by the adapter when the iframe loads (so the mount document
+  // becomes reachable). Without it, the listener-attaching effect runs
+  // only on the initial mount — before the iframe is ready — and the
+  // listener is bound to the wrong document.
+  mountVersion: number;
   onSelection: (selection: HtmlSelectionAnchor | null) => void;
 }
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
 const CONTEXT_CHARS = 200;
+
+// Tags whose text content is part of the document's bytes but not its
+// rendered prose. Must agree with the sets in `@obelus/anchor` and
+// `highlights.ts` — anchor offsets shift if the walks disagree.
+const SKIP_TAGS = new Set(["style", "script", "template", "noscript"]);
+
+function isSkippableElement(node: Node): boolean {
+  return node.nodeType === ELEMENT_NODE && SKIP_TAGS.has((node as Element).tagName.toLowerCase());
+}
 
 function hasDataSrcAncestor(node: Node | null): boolean {
   let cur: Node | null = node;
@@ -56,6 +70,7 @@ function collectText(node: Node): string {
       return;
     }
     if (n.nodeType === ELEMENT_NODE) {
+      if (isSkippableElement(n)) return;
       const el = n as HTMLElement;
       for (let i = 0; i < el.childNodes.length; i += 1) {
         const child = el.childNodes[i];
@@ -67,41 +82,68 @@ function collectText(node: Node): string {
   return parts.join("");
 }
 
+// Symmetric with `collectText` and `charOffsetInRoot` in `@obelus/anchor`:
+// counts UTF-16 code units in the same skip-aware walk up to `targetNode`'s
+// `targetOffset`. We can't use `Range.toString().length` here because native
+// ranges include `<style>`/`<script>` text content, which would shift the
+// offsets relative to anchor creation.
+function charOffsetUpTo(root: HTMLElement, targetNode: Node, targetOffset: number): number {
+  let count = 0;
+  let done = false;
+  const walk = (n: Node): void => {
+    if (done) return;
+    if (n === targetNode) {
+      if (n.nodeType === TEXT_NODE) {
+        count += targetOffset;
+      } else if (n.nodeType === ELEMENT_NODE) {
+        const el = n as HTMLElement;
+        for (let i = 0; i < targetOffset && i < el.childNodes.length; i += 1) {
+          const child = el.childNodes[i];
+          if (child) walk(child);
+        }
+      }
+      done = true;
+      return;
+    }
+    if (n.nodeType === TEXT_NODE) {
+      count += n.nodeValue?.length ?? 0;
+      return;
+    }
+    if (n.nodeType === ELEMENT_NODE) {
+      if (isSkippableElement(n)) return;
+      const el = n as HTMLElement;
+      for (let i = 0; i < el.childNodes.length && !done; i += 1) {
+        const child = el.childNodes[i];
+        if (child) walk(child);
+      }
+    }
+  };
+  walk(root);
+  return count;
+}
+
 function rangeContextFromRoot(
   root: HTMLElement,
   range: Range,
 ): { contextBefore: string; contextAfter: string } {
   const text = collectText(root);
-  const before = root.ownerDocument?.createRange();
-  const after = root.ownerDocument?.createRange();
-  if (!before || !after) return { contextBefore: "", contextAfter: "" };
-  before.setStart(root, 0);
-  before.setEnd(range.startContainer, range.startOffset);
-  after.setStart(range.endContainer, range.endOffset);
-  after.setEnd(root, root.childNodes.length);
-  const beforeLen = before.toString().length;
-  const afterStart = beforeLen + range.toString().length;
+  const beforeLen = charOffsetUpTo(root, range.startContainer, range.startOffset);
+  const afterStart = charOffsetUpTo(root, range.endContainer, range.endOffset);
   return {
     contextBefore: text.slice(Math.max(0, beforeLen - CONTEXT_CHARS), beforeLen),
     contextAfter: text.slice(afterStart, Math.min(text.length, afterStart + CONTEXT_CHARS)),
   };
 }
 
-// Some browsers expose `getSelection()` on closed ShadowRoots; others only
-// expose it on Document. We probe the shadow root first so the more accurate
-// (in-shadow) selection wins when available.
-type ShadowGetSelection = ShadowRoot & {
-  getSelection?: () => Selection | null;
-};
-
+// When the mount lives in an iframe document (the production path), call
+// `getSelection()` on the iframe's window — that's where the user's
+// selection actually is. The parent document's selection is a separate,
+// usually-empty Selection object. Falls back to the host's owner document
+// for legacy / test environments where the mount lives in the parent doc.
 function pickSelection(host: HTMLElement, mount: HTMLElement): Selection | null {
-  const root = mount.getRootNode();
-  if (root && root !== host.ownerDocument) {
-    const sgs = root as ShadowGetSelection;
-    if (typeof sgs.getSelection === "function") {
-      const sel = sgs.getSelection();
-      if (sel && sel.rangeCount > 0) return sel;
-    }
+  const mountDoc = mount.ownerDocument;
+  if (mountDoc && mountDoc !== host.ownerDocument) {
+    return mountDoc.defaultView?.getSelection() ?? null;
   }
   return host.ownerDocument?.getSelection() ?? null;
 }
@@ -148,24 +190,71 @@ export function computeHtmlSelectionAnchor(
 }
 
 export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
-  const { hostRef, mountRef, mode, sourceFile, onSelection } = options;
+  const { hostRef, mountRef, mode, sourceFile, mountVersion, onSelection } = options;
   const onSelectionRef = useRef(onSelection);
   onSelectionRef.current = onSelection;
   const lastQuoteRef = useRef<string>("");
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mountVersion is the intentional re-trigger — the iframe loads asynchronously, so the listener must re-attach to the iframe document once mountRef.current points there.
   useEffect(() => {
     const host = hostRef.current;
-    if (!host) return;
-    const doc = host.ownerDocument;
-    if (!doc) return;
+    if (!host) {
+      console.info("[html-select] effect ran but hostRef.current is null");
+      return;
+    }
+    const mount = mountRef.current;
+    // Attach to both the host's document and (when distinct) the mount's
+    // document. Browsers vary on whether `selectionchange` fires inside a
+    // same-origin iframe, on the parent, or both — listening on both
+    // means we always hear the user's selection regardless of which side
+    // the UA fires on. `pickSelection` then resolves to the right
+    // Selection object based on where the mount lives.
+    const docs: Document[] = [];
+    if (host.ownerDocument) docs.push(host.ownerDocument);
+    if (mount?.ownerDocument && mount.ownerDocument !== host.ownerDocument) {
+      docs.push(mount.ownerDocument);
+    }
+    if (docs.length === 0) {
+      console.info("[html-select] no ownerDocument");
+      return;
+    }
+    const inIframe = docs.length === 2;
+    console.info("[html-select] listener attached", { mode, sourceFile, inIframe });
+    // WebKit (Tauri on macOS) does not reliably fire `selectionchange`
+    // *during* drag inside a same-origin iframe — only at focus
+    // transitions. Without a `mouseup`/`pointerup` fallback, a drag-
+    // release inside the iframe leaves the captured anchor stale until
+    // the user clicks somewhere outside the panel. Both events are
+    // pointer-release signals; either alone would close the gap, but
+    // attaching both keeps us robust across UA differences (touch vs
+    // mouse, older WebKit, etc.).
+    const REFRESH_EVENTS = ["selectionchange", "mouseup", "pointerup"] as const;
     function onSelectionChange(): void {
       const liveHost = hostRef.current;
       const liveMount = mountRef.current;
-      if (!liveHost || !liveMount) return;
+      if (!liveHost || !liveMount) {
+        console.info("[html-select] change but refs missing", {
+          hostNull: liveHost === null,
+          mountNull: liveMount === null,
+        });
+        return;
+      }
       const sel = pickSelection(liveHost, liveMount);
-      if (!sel) return;
+      if (!sel) {
+        console.info("[html-select] no selection returned by pickSelection");
+        return;
+      }
+      const inMount = sel.anchorNode !== null && liveMount.contains(sel.anchorNode);
+      console.info("[html-select] selection picked", {
+        rangeCount: sel.rangeCount,
+        isCollapsed: sel.isCollapsed,
+        anchorNodeName: sel.anchorNode?.nodeName,
+        focusNodeName: sel.focusNode?.nodeName,
+        anchorInsideMount: inMount,
+      });
       const result = computeHtmlSelectionAnchor(liveMount, sel, mode, sourceFile);
       if (result === null) {
+        console.info("[html-select] computeHtmlSelectionAnchor returned null");
         if (lastQuoteRef.current !== "") {
           lastQuoteRef.current = "";
           onSelectionRef.current(null);
@@ -174,9 +263,23 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
       }
       if (result.quote === lastQuoteRef.current) return;
       lastQuoteRef.current = result.quote;
+      console.info("[html-select] emitting anchor", {
+        kind: result.kind,
+        quoteLen: result.quote.length,
+      });
       onSelectionRef.current(result);
     }
-    doc.addEventListener("selectionchange", onSelectionChange);
-    return () => doc.removeEventListener("selectionchange", onSelectionChange);
-  }, [hostRef, mountRef, mode, sourceFile]);
+    for (const d of docs) {
+      for (const evt of REFRESH_EVENTS) {
+        d.addEventListener(evt, onSelectionChange);
+      }
+    }
+    return () => {
+      for (const d of docs) {
+        for (const evt of REFRESH_EVENTS) {
+          d.removeEventListener(evt, onSelectionChange);
+        }
+      }
+    };
+  }, [hostRef, mountRef, mode, sourceFile, mountVersion]);
 }

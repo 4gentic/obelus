@@ -1,7 +1,13 @@
+export type { AssetResolver } from "@obelus/source-render/browser";
 export { useHtmlDocumentView } from "./adapter";
 export type { ClassifyInput, ClassifyResult } from "./classify";
 export { classifyHtml } from "./classify";
-export type { HtmlMode, HtmlViewHandle, HtmlViewProps } from "./HtmlView";
+export type {
+  HtmlExternalBlocked,
+  HtmlMode,
+  HtmlViewHandle,
+  HtmlViewProps,
+} from "./HtmlView";
 export { HtmlView } from "./HtmlView";
 export type { HtmlMountAnchor } from "./highlights";
 export {

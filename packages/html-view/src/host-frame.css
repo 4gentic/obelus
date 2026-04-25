@@ -1,0 +1,25 @@
+/*
+ * Host-frame styles loaded by the parent document. These size the wrapper
+ * around the HTML paper's iframe; they do not bleed into the iframe's
+ * cascade. Author styles inside the iframe document own everything
+ * visible inside the paper — Obelus does not inject baseline typography,
+ * so the rendered paper matches what a browser would show.
+ */
+
+.html-view {
+  display: block;
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+}
+
+.html-view__iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  border: 0;
+  margin: 0;
+  background: transparent;
+  color-scheme: light;
+}

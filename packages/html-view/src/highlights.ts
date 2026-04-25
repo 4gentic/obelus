@@ -3,6 +3,16 @@ import type { HtmlAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
 
+// Tags whose text content is part of the document's bytes but not its
+// rendered prose. The anchor walks in `@obelus/anchor` skip the same set
+// — both walks must agree, or character offsets shift between creation
+// and resolution.
+const SKIP_TAGS = new Set(["style", "script", "template", "noscript"]);
+
+function isSkippableElement(node: Node): boolean {
+  return node.nodeType === ELEMENT_NODE && SKIP_TAGS.has((node as Element).tagName.toLowerCase());
+}
+
 // Geometry-only view of either anchor variant. The adapter passes the saved
 // anchor as-is regardless of which discriminant the persisted row carries.
 export type HtmlMountAnchor = SourceAnchor2 | HtmlAnchor2;
@@ -40,7 +50,16 @@ function textNodeAtOffset(
   if (target < 0) return null;
   let remaining = target;
   let last: Text | null = null;
-  const walker = root.ownerDocument?.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const walker = root.ownerDocument?.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => {
+      let parent: Node | null = node.parentNode;
+      while (parent && parent !== root) {
+        if (isSkippableElement(parent)) return NodeFilter.FILTER_REJECT;
+        parent = parent.parentNode;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
   if (!walker) return null;
   let n: Node | null = walker.nextNode();
   while (n) {
@@ -108,6 +127,7 @@ function findTextOffset(
       return null;
     }
     if (node.nodeType === ELEMENT_NODE) {
+      if (isSkippableElement(node)) return null;
       const el = node as HTMLElement;
       for (let i = 0; i < el.childNodes.length; i += 1) {
         const child = el.childNodes[i];
@@ -150,10 +170,15 @@ export function resolveAnchorToRange(mount: HTMLElement, anchor: HtmlMountAnchor
   return null;
 }
 
+// `containerOffset` translates iframe-viewport-relative rects into the
+// parent document's coordinate space. When the mount lives in the same
+// document as the scroll container (legacy light-DOM path, or md/pdf
+// papers), pass `{ left: 0, top: 0 }` or omit the argument.
 export function resolveAnchorToRects(
   mount: HTMLElement,
   anchor: HtmlMountAnchor,
   scrollContainer: HTMLElement,
+  containerOffset: { left: number; top: number } = { left: 0, top: 0 },
 ): DOMRect[] {
   const range = resolveAnchorToRange(mount, anchor);
   if (!range) return [];
@@ -162,8 +187,8 @@ export function resolveAnchorToRects(
   for (const r of range.getClientRects()) {
     out.push(
       new DOMRect(
-        r.left - scrollRect.left + scrollContainer.scrollLeft,
-        r.top - scrollRect.top + scrollContainer.scrollTop,
+        r.left + containerOffset.left - scrollRect.left + scrollContainer.scrollLeft,
+        r.top + containerOffset.top - scrollRect.top + scrollContainer.scrollTop,
         r.width,
         r.height,
       ),
