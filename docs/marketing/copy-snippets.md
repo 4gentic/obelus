@@ -4,14 +4,14 @@ Short, composable strings. Keep them dry; reach for them whenever launch-day cop
 
 ## GitHub description
 
-A browser-based review surface for AI-assisted papers. Exports a bundle a Claude Code plugin applies to source.
+An offline review surface for AI-assisted papers. Mark passages in PDF, Markdown (Beta), or HTML (Beta); export a bundle a Claude Code plugin applies to your `.tex` / `.md` / `.typ` / `.html` source.
 
 ## Landing hero
 
 Headline (two lines):
 
-> Writing is cheap.
-> Review is the work.
+> Writing AI papers is cheap.
+> Reviewing them is the work.
 
 Subhead (one line):
 
@@ -23,8 +23,12 @@ Open obelus.4gentic.ai in a browser, or install the plugin in your paper's repos
 
 ## Privacy one-liner
 
-PDFs stay in the browser; one opt-in counter is the entire runtime network surface.
+Papers stay on the device — PDFs in OPFS, annotations in IndexedDB, external assets stripped before they reach the DOM. Zero runtime network.
 
 ## README opening
 
-Obelus is an offline review surface for AI-assisted papers. You highlight the passages you doubt; it exports a bundle that a Claude Code plugin applies to your LaTeX, Markdown, or Typst source.
+Obelus is an offline review surface for AI-assisted papers. You highlight passages in any PDF, Markdown (Beta), or HTML (Beta) paper; it exports a bundle that a Claude Code plugin applies to your LaTeX, Markdown, Typst, or HTML source.
+
+## 4gentic imprint
+
+A project by [4gentic](https://4gentic.ai) — a small studio building offline tools for people who write.

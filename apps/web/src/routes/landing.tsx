@@ -24,8 +24,9 @@ export default function Landing() {
               <em>Review a paper.</em>
             </h2>
             <p className="doors__body">
-              Works in the browser. Mark passages in any PDF, Markdown, or HTML paper, write margin
-              notes, and export a bundle your coding agent can apply. No install, nothing uploaded.
+              Works in the browser. Mark passages in any PDF, Markdown <em>(Beta)</em>, or HTML{" "}
+              <em>(Beta)</em> paper, write margin notes, and export a bundle your coding agent can
+              apply. No install, nothing uploaded.
             </p>
             <p className="doors__for">
               <strong>Best for reviewers.</strong> Also for writers doing a final self-review pass.
@@ -300,7 +301,7 @@ export default function Landing() {
             </div>
             <p className="how__label">
               <span className="how__title">Your source</span>
-              <span className="how__sub">.tex · .md · .typ</span>
+              <span className="how__sub">.tex · .md · .typ · .html</span>
             </p>
           </li>
         </ol>
@@ -309,6 +310,106 @@ export default function Landing() {
           directly. The optional Claude Code plugin adds a forked-context planner, ambiguity flags,
           and hunk-by-hunk apply — see <em>Install</em> below.
         </p>
+      </section>
+
+      <section className="who" aria-label="Who it's for">
+        <h2 className="section__title">Who it's for.</h2>
+        <ol className="who__grid">
+          <li className="who__row">
+            <h3 className="who__title">
+              <em>The advisor.</em>
+            </h3>
+            <p className="who__body">
+              Marks weak arguments and unclear paragraphs in a student's AI-drafted Markdown
+              chapter.
+            </p>
+            <p className="who__outcome">
+              <em>Outcome:</em> a bundle the student applies in one command.
+            </p>
+          </li>
+          <li className="who__row">
+            <h3 className="who__title">
+              <em>The peer reviewer, offline.</em>
+            </h3>
+            <p className="who__body">
+              Drops a conference PDF on a plane and reads through it without a connection.
+            </p>
+            <p className="who__outcome">
+              <em>Outcome:</em> a Major/Minor reviewer's letter from <code>/write-review</code>.
+            </p>
+          </li>
+          <li className="who__row">
+            <h3 className="who__title">
+              <em>The co-author team.</em>
+            </h3>
+            <p className="who__body">
+              Writer renders LaTeX to an HTML preview; reviewer marks the HTML.
+            </p>
+            <p className="who__outcome">
+              <em>Outcome:</em> writer accepts diffs hunk by hunk in the desktop app.
+            </p>
+          </li>
+          <li className="who__row">
+            <h3 className="who__title">
+              <em>The triage stack.</em>
+            </h3>
+            <p className="who__body">
+              A reading list of arXiv PDFs lands on a desktop desk; quick passes per paper.
+            </p>
+            <p className="who__outcome">
+              <em>Outcome:</em> one consolidated bundle, per-paper write-ups out the other side.
+            </p>
+          </li>
+        </ol>
+      </section>
+
+      <section className="features" aria-label="What's in the box">
+        <h2 className="section__title">What's in the box.</h2>
+        <dl className="principles__list">
+          <div className="principles__row">
+            <dt className="principles__term">Format coverage.</dt>
+            <dd className="principles__def">
+              PDF on the review side. Markdown <em>(Beta)</em> and HTML <em>(Beta)</em> as well —
+              paired-source or hand-authored. Source destinations: <code>.tex</code>,{" "}
+              <code>.md</code>, <code>.typ</code>, <code>.html</code>.
+            </dd>
+          </div>
+          <div className="principles__row">
+            <dt className="principles__term">Source-anchored marks.</dt>
+            <dd className="principles__def">
+              Selections carry their origin: PDF bbox + text-item range, Markdown line/col, HTML
+              XPath + character offset. Not screenshots, not page numbers.
+            </dd>
+          </div>
+          <div className="principles__row">
+            <dt className="principles__term">Offline by construction.</dt>
+            <dd className="principles__def">
+              PDFs in OPFS, annotations in IndexedDB. <code>navigator.storage.persist()</code> on
+              first write. Self-hosted fonts, no CDN, no telemetry.
+            </dd>
+          </div>
+          <div className="principles__row">
+            <dt className="principles__term">Open bundle, optional plugin.</dt>
+            <dd className="principles__def">
+              The bundle is plain JSON. The exported Markdown is self-describing. Bring any coding
+              agent; the Claude Code plugin is a convenience.
+            </dd>
+          </div>
+          <div className="principles__row">
+            <dt className="principles__term">Desktop extras.</dt>
+            <dd className="principles__def">
+              CodeMirror source editor, git-style diff review (hunk by hunk), project desks, managed
+              Typst/Tectonic engines, Claude Code in-app.
+            </dd>
+          </div>
+          <div className="principles__row">
+            <dt className="principles__term">Three-column editorial layout.</dt>
+            <dd className="principles__def">
+              Paper · 220px margin gutter · review pane. Margin notes align vertically to their
+              source line. No modals.
+            </dd>
+          </div>
+        </dl>
       </section>
 
       <section className="principles" aria-label="Principles">
@@ -331,7 +432,8 @@ export default function Landing() {
           <div className="principles__row">
             <dt className="principles__term">Format-agnostic.</dt>
             <dd className="principles__def">
-              One review workflow for LaTeX, Markdown, and Typst. No cloud.
+              One review workflow for PDF, Markdown <em>(Beta)</em>, HTML <em>(Beta)</em>, and
+              source in <code>.tex</code> · <code>.md</code> · <code>.typ</code>. No cloud.
             </dd>
           </div>
         </dl>
@@ -343,6 +445,9 @@ export default function Landing() {
           <li>Your papers live on your device.</li>
           <li>Annotations live on your device.</li>
           <li>No network calls. No analytics. No telemetry.</li>
+          <li>
+            External assets in HTML and Markdown papers are stripped before the DOM loads them.
+          </li>
         </ul>
       </section>
 
@@ -358,6 +463,12 @@ export default function Landing() {
           topic, or collaborator — NeurIPS submissions on one, a survey-in-progress on another, a
           reading stack on a third. Projects live inside desks; archive a desk when the deadline
           passes without losing its history.
+        </p>
+        <p className="desktop__lead">
+          <strong>Four extras the browser can't carry.</strong> A CodeMirror source editor next to
+          the rendered paper. A git-style diff review pane that walks Claude's edits hunk by hunk.
+          Managed Typst and Tectonic engines you install on demand, never in the background. And
+          Claude Code itself, running in-app — the loop closes without leaving the desk.
         </p>
         <ul className="desktop__downloads" aria-label="Download options">
           <li>
@@ -401,10 +512,11 @@ export default function Landing() {
       <section className="install" aria-label="Claude Code plugin">
         <h2 className="section__title">Claude Code plugin (optional).</h2>
         <p className="install__lead">
-          Only useful when you're applying the bundle via Claude Code. Adds{" "}
-          <code>/apply-revision</code>, <code>/apply-fix</code>, and <code>/write-review</code> — a
-          forked-context planner, single-hunk apply, and reviewer write-up. Using a different agent?
-          Skip this: the exported Markdown is self-describing.
+          Only useful when you're applying the bundle via Claude Code. Ships{" "}
+          <code>/apply-revision</code>, <code>/apply-fix</code>, <code>/write-review</code>, and{" "}
+          <code>/fix-compile</code> — a forked-context planner, single-hunk apply, a reviewer's
+          letter, and LaTeX/Typst error recovery. Using a different agent? Skip this: the exported
+          Markdown is self-describing.
         </p>
         <div className="tabs">
           <input
@@ -442,6 +554,16 @@ export default function Landing() {
         </h2>
         <dl className="colophon__list">
           <div className="colophon__row">
+            <dt>Maker</dt>
+            <dd>
+              By{" "}
+              <a href="https://4gentic.ai" rel="noreferrer noopener">
+                4gentic
+              </a>
+              . A studio for offline writing tools.
+            </dd>
+          </div>
+          <div className="colophon__row">
             <dt>Type</dt>
             <dd>Newsreader, Source Serif 4, JetBrains Mono — all OFL, self-hosted.</dd>
           </div>
@@ -451,10 +573,22 @@ export default function Landing() {
               <a href="https://github.com/4gentic/obelus" rel="noreferrer noopener">
                 github.com/4gentic/obelus
               </a>{" "}
-              · MIT
+              · MIT ·{" "}
+              <a href="https://github.com/4gentic/obelus" rel="noreferrer noopener">
+                star the repo
+              </a>
             </dd>
           </div>
         </dl>
+        <p className="colophon__imprint">
+          <em>
+            Obelus is a{" "}
+            <a href="https://4gentic.ai" rel="noreferrer noopener">
+              4gentic
+            </a>{" "}
+            project.
+          </em>
+        </p>
       </footer>
     </article>
   );
