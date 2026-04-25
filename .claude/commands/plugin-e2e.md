@@ -11,11 +11,11 @@ End-to-end check of the plugin's user-facing skills, executed as real `claude -p
 
 | # | Scenario | Skill | Must observe |
 |---|----------|-------|--------------|
-| 1.1 | `review-single` | `write-review` | Valid letter from a V1 bundle alone. |
+| 1.1 | `review-single` | `write-review` | Valid letter from a bundle alone. |
 | 1.2 | `review-with-sources` | `write-review` | Same letter when `.tex`/`.md`/`.typ` are co-located — sources must be ignored. |
 | 2.1 | `revise-no-sources` | `apply-revision` | Graceful refusal ("I can't apply this revision") with `/obelus:write-review` fallback; no plan file written. |
 | 2.2 | `revise-with-sources` | `apply-revision` | `.obelus/plan-*.md` and `.obelus/plan-*.json` written; no refusal. |
-| 2.3 | `revise-markdown-source` | `apply-revision` + `apply-fix` | BundleV2 with `source` anchors on `sample.md`; plan carries `format: "markdown"` and the patch lands at the annotation's line range, and `apply-fix` actually edits the `.md` file on disk. |
+| 2.3 | `revise-markdown-source` | `apply-revision` + `apply-fix` | Bundle with `source` anchors on `sample.md`; plan carries `format: "markdown"` and the patch lands at the annotation's line range, and `apply-fix` actually edits the `.md` file on disk. |
 
 ## Prerequisites
 
