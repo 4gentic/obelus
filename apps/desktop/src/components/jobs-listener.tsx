@@ -15,7 +15,7 @@ import { type JSX, useEffect } from "react";
 import { compileLatex, compileTypst, type LatexCompiler } from "../ipc/commands";
 import { sourcesDiffSincePresnap, takeSnapshotForSession } from "../lib/bundle-sources";
 import { extractPhaseMarker, phaseFromEvent, SEMANTIC_PHASE_PREFIX } from "../lib/claude-phase";
-import { useJobsStore } from "../lib/jobs-store";
+import { type PhaseKind, useJobsStore } from "../lib/jobs-store";
 import { getRepository } from "../lib/repo";
 import { getActiveBuffersStore } from "../routes/project/active-buffers-store";
 import { ingestPlanFile } from "../routes/project/ingest-plan";
@@ -91,25 +91,35 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
       // would overwrite the semantic label and skew the per-phase stopwatch.
       const marker = extractPhaseMarker(parsed);
       let nextPhase: string | null = null;
+      let nextKind: PhaseKind = "tool";
       if (marker !== null) {
         semanticSessions.add(ev.sessionId);
         nextPhase = `${SEMANTIC_PHASE_PREFIX}${marker}`;
+        nextKind = "semantic";
         if (!sessionFirstObelusPhaseAt.has(ev.sessionId)) {
           sessionFirstObelusPhaseAt.set(ev.sessionId, Date.now());
         }
       } else if (!semanticSessions.has(ev.sessionId)) {
         nextPhase = phaseFromEvent(parsed);
+        nextKind = "tool";
       }
       if (nextPhase !== null) {
         const store = useJobsStore.getState();
         const before = store.get(ev.sessionId);
         if (before && before.phase !== nextPhase) {
-          store.updatePhase(ev.sessionId, nextPhase);
+          store.updatePhase(ev.sessionId, nextPhase, nextKind);
           const hist = store.get(ev.sessionId)?.phaseHistory ?? [];
           const last = hist[hist.length - 1];
           const prev = hist.length >= 2 ? hist[hist.length - 2] : undefined;
           if (last && prev) {
-            console.info("[phase]", {
+            // `[obelus:phase]` is the skill's own self-reported lifecycle —
+            // an authoritative phase commitment. `[tool]` is raw tool-use
+            // narration: useful while a run is in flight, but it oscillates
+            // (Read → Read → Grep → Read) and is not a phase change. Keep
+            // the two log streams distinct so timing tools and humans can
+            // tell which signals to trust.
+            const tag = last.kind === "semantic" ? "[obelus:phase]" : "[tool]";
+            console.info(tag, {
               sessionId: ev.sessionId,
               from: prev.phase,
               to: last.phase,
@@ -117,7 +127,7 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
             });
           }
         } else if (!before) {
-          store.updatePhase(ev.sessionId, nextPhase);
+          store.updatePhase(ev.sessionId, nextPhase, nextKind);
         }
       }
 
@@ -173,7 +183,12 @@ async function handleExit(
     code,
     wasCancelled,
     obelusWrotePath: job.obelusWrotePath ?? null,
-    phaseHistory: job.phaseHistory.map((p) => p.phase),
+    // `semanticPhases` are the plugin's self-reported lifecycle markers.
+    // `toolHistory` is raw tool-use narration kept around for debugging
+    // when the skill never emitted any markers (which is itself a signal
+    // that something went wrong with the invocation).
+    semanticPhases: job.phaseHistory.filter((p) => p.kind === "semantic").map((p) => p.phase),
+    toolHistory: job.phaseHistory.filter((p) => p.kind === "tool").map((p) => p.phase),
   });
 
   // `review` and `compile-fix` both carry a review_session row whose status
@@ -309,18 +324,18 @@ async function markReviewStatus(
 function emitReviewTiming(
   sessionId: string,
   startedAt: number,
-  history: ReadonlyArray<{ phase: string; at: number }>,
+  history: ReadonlyArray<{ phase: string; kind: PhaseKind; at: number }>,
   code: number | null,
   wasCancelled: boolean,
 ): void {
   const finishedAt = Date.now();
-  const phases: Array<{ phase: string; elapsedMs: number }> = [];
+  const phases: Array<{ phase: string; kind: PhaseKind; elapsedMs: number }> = [];
   for (let i = 0; i < history.length; i++) {
     const cur = history[i];
     if (!cur) continue;
     const nextEntry = history[i + 1];
     const endAt = nextEntry ? nextEntry.at : finishedAt;
-    phases.push({ phase: cur.phase, elapsedMs: endAt - cur.at });
+    phases.push({ phase: cur.phase, kind: cur.kind, elapsedMs: endAt - cur.at });
   }
   const usage = sessionUsage.get(sessionId);
   const firstStdoutAt = sessionStreamStart.get(sessionId);

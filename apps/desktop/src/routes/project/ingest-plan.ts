@@ -206,10 +206,22 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
       : timestamped;
 
     if (planNames.length === 0 && scannedPlans.length === 0) {
-      const details = `Usually this means the spawn prompt reached Claude without an "apply-revision" or "plan-writer-fast" trigger — check the job log. Workspace contents: ${directoryNames.join(", ") || "(empty)"}`;
-      throw new Error(
-        `Claude finished without writing a plan file under the project workspace.\n\n${details}`,
-      );
+      // .md plans without a .json companion are a partial-run signal: the
+      // skill wrote the human-readable artifact but skipped the
+      // machine-readable one the desktop ingests. Surfacing this is more
+      // useful than blaming the spawn prompt, which usually did reach the
+      // model — the trouble is downstream of invocation.
+      const orphanedMd = directoryNames.filter((n) => /^plan-.+\.md$/.test(n));
+      const dirSummary = directoryNames.join(", ") || "(empty)";
+      const headline =
+        orphanedMd.length > 0
+          ? `Claude wrote a plan markdown but no .json companion the desktop can ingest.`
+          : `Claude finished without writing a plan file under the project workspace.`;
+      const details =
+        orphanedMd.length > 0
+          ? `Found .md plan(s) with no .json sibling: ${orphanedMd.join(", ")}. The skill needs to write both files with matching timestamps; check the job log for an OBELUS_WROTE: marker (absent if the skill exited before the json Write call).`
+          : `The session ended cleanly but emitted no \`OBELUS_WROTE:\` marker and left no plan-*.json behind. Possible causes: the model didn't dispatch the skill (look for tool calls hunting for "plan-writer-fast" or "apply-revision" by name in the job log), or the skill aborted before writing. Workspace contents: ${dirSummary}.`;
+      throw new Error(`${headline}\n\n${details}`);
     }
 
     // Walk plans newest-first; stop at the first one whose bundleId basename
@@ -248,7 +260,7 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
       : `Claude finished but wrote no plan file matching bundle ${sessionBundleBasename}.`;
     const detailsLeadIn = wroteAnyPlan
       ? `Session bundle: ${sessionBundleBasename}. The plans on disk reference older bundles.`
-      : 'Usually this means the spawn prompt reached Claude without the "Run apply-revision" trigger — check the job log.';
+      : `The session ended cleanly but no .json plan was written. Check the job log for an OBELUS_WROTE: marker — its absence means the skill never reached its Write call.`;
     const details = `${detailsLeadIn} Scanned ${scannedPlans.length} plan file(s): ${scannedSummary}${dirSummary}`;
     throw new Error(`${headline}\n\n${details}`);
   }

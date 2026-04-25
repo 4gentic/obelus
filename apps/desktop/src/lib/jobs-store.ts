@@ -13,8 +13,18 @@ export interface JobCounts {
   files: number;
 }
 
+// `semantic` entries come from the plugin's explicit `[obelus:phase] X`
+// markers (the skill's own self-reported lifecycle). `tool` entries are
+// derived from raw `tool_use` events in the model stream — useful narration
+// while a run is in flight, but they are not phases the skill committed to,
+// and they oscillate as the model jumps between Read / Grep / Bash calls.
+// Logs and UI surfaces should distinguish the two so users don't read
+// tool-call noise as authoritative skill state.
+export type PhaseKind = "semantic" | "tool";
+
 export interface PhaseEntry {
   phase: string;
+  kind: PhaseKind;
   at: number;
 }
 
@@ -66,7 +76,7 @@ export interface RegisterInput {
 export interface JobsState {
   jobs: Record<string, JobRecord>;
   register(input: RegisterInput): void;
-  updatePhase(claudeSessionId: string, phase: string): void;
+  updatePhase(claudeSessionId: string, phase: string, kind: PhaseKind): void;
   recordObelusWrotePath(claudeSessionId: string, path: string): void;
   markIngesting(claudeSessionId: string): void;
   markDone(claudeSessionId: string, message: string): void;
@@ -102,11 +112,11 @@ export const useJobsStore: JobsStore = create<JobsState>()((set, get) => ({
     set((s) => ({ jobs: { ...s.jobs, [input.claudeSessionId]: record } }));
   },
 
-  updatePhase(id, phase) {
+  updatePhase(id, phase, kind) {
     set((s) => {
       const existing = s.jobs[id];
       if (!existing || existing.phase === phase) return s;
-      const history = [...existing.phaseHistory, { phase, at: Date.now() }];
+      const history = [...existing.phaseHistory, { phase, kind, at: Date.now() }];
       if (history.length > PHASE_HISTORY_CAP) history.splice(0, history.length - PHASE_HISTORY_CAP);
       return { jobs: { ...s.jobs, [id]: { ...existing, phase, phaseHistory: history } } };
     });
