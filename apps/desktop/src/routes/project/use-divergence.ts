@@ -14,6 +14,7 @@ export interface DivergenceState {
 // a manifest miss or an IPC error just leaves the banner hidden.
 export function useWorkingTreeDivergence(
   rootId: string,
+  projectId: string,
   currentDraft: PaperEditRow | undefined,
 ): DivergenceState {
   const [report, setReport] = useState<HistoryDivergenceReport | null>(null);
@@ -28,7 +29,7 @@ export function useWorkingTreeDivergence(
     let cancelled = false;
     void (async () => {
       try {
-        const r = await historyDetectDivergence(rootId, manifestSha);
+        const r = await historyDetectDivergence(rootId, projectId, manifestSha);
         if (!cancelled) setReport(r);
       } catch {
         if (!cancelled) setReport(null);
@@ -37,7 +38,7 @@ export function useWorkingTreeDivergence(
     return () => {
       cancelled = true;
     };
-  }, [rootId, manifestSha]);
+  }, [rootId, projectId, manifestSha]);
 
   const dirty =
     report !== null &&
