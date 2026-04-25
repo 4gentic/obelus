@@ -1,0 +1,64 @@
+/*
+ * Banner shown above an html/md review surface when the paper requested
+ * external resources that were blocked. Editorial palette only — no
+ * gradients, no cyan/purple. Treats trust as a reading decision, not a
+ * security alert, so it sits as a margin note rather than a modal.
+ */
+
+.trust-banner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  margin: 0 0 var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--panel, #ede5d3);
+  color: var(--ink, #2b2a26);
+  border-left: 2px solid var(--rubric, #b84a2e);
+  border-radius: 0;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  line-height: 1.5;
+}
+
+.trust-banner__body {
+  margin: 0;
+}
+
+.trust-banner__actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.trust-banner__primary {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  background: var(--ink, #2b2a26);
+  color: var(--paper, #f6f1e7);
+  border: 1px solid var(--ink, #2b2a26);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.trust-banner__primary:hover {
+  background: var(--rubric, #b84a2e);
+  border-color: var(--rubric, #b84a2e);
+}
+
+.trust-banner__dismiss {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ink-soft, #6b655a);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+}
+
+.trust-banner__dismiss:hover {
+  color: var(--ink, #2b2a26);
+}
