@@ -1,9 +1,4 @@
-import {
-  type AnnotationV2Input,
-  type AnnotationV2InputAnchor,
-  buildBundleV2,
-  suggestBundleFilename,
-} from "@obelus/bundle-builder";
+import { buildBundleV2, mapHtmlAnnotations, suggestBundleFilename } from "@obelus/bundle-builder";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
 import type { PaperRow, RevisionRow } from "@obelus/repo";
 import { annotations } from "@obelus/repo/web";
@@ -29,40 +24,8 @@ export async function buildHtmlBundleJson(
   input: BuildInput,
 ): Promise<{ filename: string; json: string }> {
   const rows = await annotations.listForRevision(input.revision.id);
-  const droppedForUnsupportedAnchor: string[] = [];
-  const v2Annotations: AnnotationV2Input[] = rows.flatMap((r) => {
-    let anchor: AnnotationV2InputAnchor;
-    if (r.anchor.kind === "source") {
-      anchor = r.anchor;
-    } else if (r.anchor.kind === "html") {
-      anchor = {
-        kind: "html",
-        file: r.anchor.file,
-        xpath: r.anchor.xpath,
-        charOffsetStart: r.anchor.charOffsetStart,
-        charOffsetEnd: r.anchor.charOffsetEnd,
-        ...(r.anchor.sourceHint !== undefined ? { sourceHint: r.anchor.sourceHint } : {}),
-      };
-    } else {
-      droppedForUnsupportedAnchor.push(r.id);
-      return [];
-    }
-    return [
-      {
-        id: r.id,
-        paperId: input.paper.id,
-        category: r.category,
-        quote: r.quote,
-        contextBefore: r.contextBefore,
-        contextAfter: r.contextAfter,
-        anchor,
-        note: r.note,
-        thread: r.thread,
-        createdAt: r.createdAt,
-        ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
-      },
-    ];
-  });
+  const { annotations: v2Annotations, droppedForPdfAnchor: droppedForUnsupportedAnchor } =
+    mapHtmlAnnotations(rows, input.paper.id);
   const entrypoint = input.sourceFile ?? input.htmlFile;
   const bundle = buildBundleV2({
     project: {

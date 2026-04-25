@@ -288,12 +288,15 @@ export default function Library(): JSX.Element {
         <section className="library__empty" aria-label="Empty library">
           <p className="library__empty-msg">No papers yet. Begin with a mark.</p>
           <button type="button" className="library__cta" onClick={pickFile}>
-            Open a PDF <span aria-hidden="true">&rarr;</span>
+            Open a paper <span aria-hidden="true">&rarr;</span>
           </button>
+          <p className="library__empty-formats">PDF · Markdown · HTML</p>
         </section>
       )}
 
-      {status === "working" ? <output className="library__status">Reading the PDF.</output> : null}
+      {status === "working" ? (
+        <output className="library__status">Reading the paper.</output>
+      ) : null}
       {status === "error" && error ? (
         <p className="library__status library__status--error" role="alert">
           {error}

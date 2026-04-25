@@ -4,11 +4,11 @@ import "@obelus/md-view/md.css";
 import { loadDocument, usePdfDocumentView } from "@obelus/pdf-view";
 import type { AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
 import { getHtml, getMdText, getPdf, papers, revisions } from "@obelus/repo/web";
-import { type DocumentView, ReviewPane, ReviewShell } from "@obelus/review-shell";
+import { type DocumentView, ReviewPane, ReviewShell, TrustBanner } from "@obelus/review-shell";
 import type { DraftInput, ReviewState } from "@obelus/review-store";
 import "@obelus/review-shell/review-shell.css";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { buildBundle } from "../bundle/build";
 import { copyClipboardPrompt, copyReviewClipboardPrompt } from "../bundle/clipboard";
@@ -20,9 +20,11 @@ import {
 import { downloadHtmlBundle } from "../bundle/html-bundle";
 import { downloadMdBundle } from "../bundle/md-bundle";
 import { useReviewStore } from "../store/review-store";
+import { usePaperTrust } from "../store/use-paper-trust";
 import "./review.css";
 
 import type { JSX } from "react";
+import { useOpfsAssetResolver } from "./use-opfs-asset-resolver";
 
 type Status = "idle" | "working" | "done" | "error";
 
@@ -498,9 +500,63 @@ function usePdfSurface(
   });
 }
 
+interface SurfaceTrustState {
+  trusted: boolean;
+  trust: () => void;
+  blockedUris: ReadonlyArray<string>;
+  onBlocked: (uri: string) => void;
+  dismissed: boolean;
+  dismiss: () => void;
+}
+
+function useSurfaceTrust(paperId: string | null): SurfaceTrustState {
+  const { trusted, trust } = usePaperTrust(paperId);
+  const [blockedUris, setBlockedUris] = useState<ReadonlyArray<string>>([]);
+  const [dismissed, setDismissed] = useState(false);
+  const onBlocked = useCallback((uri: string) => {
+    setBlockedUris((prev) => (prev.includes(uri) ? prev : [...prev, uri]));
+  }, []);
+  return {
+    trusted,
+    trust,
+    blockedUris,
+    onBlocked,
+    dismissed,
+    dismiss: useCallback(() => setDismissed(true), []),
+  };
+}
+
+function bannerFor(t: SurfaceTrustState): JSX.Element | null {
+  if (t.trusted) return null;
+  if (t.dismissed) return null;
+  if (t.blockedUris.length === 0) return null;
+  const hosts = uniqueHosts(t.blockedUris);
+  return (
+    <TrustBanner
+      hosts={hosts}
+      blockedCount={t.blockedUris.length}
+      onTrust={t.trust}
+      onDismiss={t.dismiss}
+    />
+  );
+}
+
+function uniqueHosts(uris: ReadonlyArray<string>): string[] {
+  const out = new Set<string>();
+  for (const uri of uris) {
+    try {
+      out.add(new URL(uri).host);
+    } catch {
+      // Non-URL violations (rare) are dropped — they aren't network egress.
+    }
+  }
+  return Array.from(out);
+}
+
 function useMdSurface(
   props: ReviewContentProps,
   state: Extract<ReviewContentProps["state"], { kind: "ready-md" }>,
+  trust: SurfaceTrustState,
 ): DocumentView {
   return useMdDocumentView({
     file: state.file,
@@ -511,23 +567,30 @@ function useMdSurface(
     focusedId: props.focusedAnnotationId,
     onAnchor: props.onAnchor,
     onRenderError: props.onRenderError,
+    trusted: trust.trusted,
+    onExternalBlocked: ({ uri }) => trust.onBlocked(uri),
   });
 }
 
 function useHtmlSurface(
   props: ReviewContentProps,
   state: Extract<ReviewContentProps["state"], { kind: "ready-html" }>,
+  trust: SurfaceTrustState,
 ): DocumentView {
+  const assets = useOpfsAssetResolver();
   return useHtmlDocumentView({
     file: state.file,
     html: state.html,
     mode: state.mode,
     ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+    assets,
     annotations: props.annotations,
     selectedAnchor: props.selectedAnchor,
     draftCategory: props.draftCategory,
     focusedId: props.focusedAnnotationId,
     onAnchor: props.onAnchor,
+    trusted: trust.trusted,
+    onExternalBlocked: (event) => trust.onBlocked(event.uri),
   });
 }
 
@@ -545,8 +608,25 @@ function MdReviewContent(
     state: Extract<ReviewContentProps["state"], { kind: "ready-md" }>;
   },
 ): JSX.Element {
-  const documentView = useMdSurface(props, props.state);
-  return <ReviewBody {...props} documentView={documentView} />;
+  const trust = useSurfaceTrust(props.state.paper.id);
+  const documentView = useMdSurface(props, props.state, trust);
+  const banner = bannerFor(trust);
+  const wrapped = useMemo<DocumentView>(
+    () =>
+      banner === null
+        ? documentView
+        : {
+            ...documentView,
+            content: (
+              <>
+                {banner}
+                {documentView.content}
+              </>
+            ),
+          },
+    [banner, documentView],
+  );
+  return <ReviewBody {...props} documentView={wrapped} />;
 }
 
 function HtmlReviewContent(
@@ -554,8 +634,25 @@ function HtmlReviewContent(
     state: Extract<ReviewContentProps["state"], { kind: "ready-html" }>;
   },
 ): JSX.Element {
-  const documentView = useHtmlSurface(props, props.state);
-  return <ReviewBody {...props} documentView={documentView} />;
+  const trust = useSurfaceTrust(props.state.paper.id);
+  const documentView = useHtmlSurface(props, props.state, trust);
+  const banner = bannerFor(trust);
+  const wrapped = useMemo<DocumentView>(
+    () =>
+      banner === null
+        ? documentView
+        : {
+            ...documentView,
+            content: (
+              <>
+                {banner}
+                {documentView.content}
+              </>
+            ),
+          },
+    [banner, documentView],
+  );
+  return <ReviewBody {...props} documentView={wrapped} />;
 }
 
 function ReviewContent(props: ReviewContentProps): JSX.Element {
