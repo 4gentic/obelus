@@ -1,3 +1,4 @@
+import { type ClassifyResult, classifyHtml, sanitizeHtml } from "@obelus/html-view";
 import { loadDocument, MAX_PDF_BYTES, MAX_PDF_BYTES_LABEL } from "@obelus/pdf-view";
 import type { PaperRow, RevisionRow } from "@obelus/repo";
 import type { PDFDocumentProxy } from "pdfjs-dist";
@@ -8,10 +9,12 @@ import { useProject } from "./context";
 import { findOrCreatePaper, findPaper } from "./find-or-create-paper";
 import { extensionOf } from "./openable";
 
-// MD papers are plain text; anything beyond this is almost certainly not a
-// paper source the reviewer meant to open.
+// MD/HTML papers are plain text; anything beyond this is almost certainly not
+// a paper source the reviewer meant to open.
 const MAX_MD_BYTES = 5 * 1024 * 1024;
 const MAX_MD_BYTES_LABEL = "5 MB";
+const MAX_HTML_BYTES = 5 * 1024 * 1024;
+const MAX_HTML_BYTES_LABEL = "5 MB";
 
 export type OpenPaperState =
   | { kind: "none" }
@@ -32,6 +35,17 @@ export type OpenPaperState =
       kind: "ready-md";
       path: string;
       text: string;
+      paper: PaperRow | null;
+      revision: RevisionRow | null;
+    }
+  | {
+      // HTML review surface. Same nullable-paper convention as `ready-md`.
+      // `html` is the sanitized text — raw bytes are dropped at the ingest
+      // boundary and never persisted in this state.
+      kind: "ready-html";
+      path: string;
+      html: string;
+      classification: ClassifyResult;
       paper: PaperRow | null;
       revision: RevisionRow | null;
     };
@@ -64,7 +78,8 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
     const ext = extensionOf(openFilePath);
     const isPdf = ext === "pdf";
     const isMd = ext === "md";
-    if (!isPdf && !isMd) {
+    const isHtml = ext === "html" || ext === "htm";
+    if (!isPdf && !isMd && !isHtml) {
       setState({ kind: "none" });
       return;
     }
@@ -90,6 +105,16 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
               kind: "error",
               path,
               message: `That Markdown source is larger than ${MAX_MD_BYTES_LABEL}; a paper source that big is almost certainly a mistake.`,
+            });
+          }
+          return;
+        }
+        if (isHtml && stat.size > MAX_HTML_BYTES) {
+          if (!cancelled) {
+            setState({
+              kind: "error",
+              path,
+              message: `That HTML source is larger than ${MAX_HTML_BYTES_LABEL}; a paper source that big is almost certainly a mistake.`,
             });
           }
           return;
@@ -128,6 +153,58 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
           }
           return;
         }
+        if (isHtml) {
+          const raw = new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(buffer));
+          const sanitized = sanitizeHtml(raw);
+          // Sibling enumeration scoped to the project's scanned file index.
+          // Falls back to []; classifyHtml then leans on `data-src-*` markers
+          // embedded in the html for paired-source detection.
+          const siblingPaths = await repo.projectFiles
+            .listForProject(project.id)
+            .then((rows) => rows.map((r) => r.relPath))
+            .catch(() => []);
+          const classification = classifyHtml({
+            html: sanitized.html,
+            siblingPaths,
+            file: path,
+          });
+          const lookup =
+            project.kind === "reviewer"
+              ? await findOrCreatePaper({
+                  repo,
+                  projectId: project.id,
+                  rootId,
+                  relPath: path,
+                  format: "html",
+                  pageCount: 0,
+                })
+              : await findPaper({
+                  repo,
+                  projectId: project.id,
+                  relPath: path,
+                  format: "html",
+                });
+          console.info("[ingest-paper]", {
+            format: "html",
+            path,
+            sha256: stat.sha256,
+            mode: classification.mode,
+            sourceFile: classification.mode === "source" ? classification.sourceFile : null,
+            droppedScripts: sanitized.droppedScripts,
+            paperId: lookup?.paper.id ?? null,
+          });
+          if (!cancelled) {
+            setState({
+              kind: "ready-html",
+              path,
+              html: sanitized.html,
+              classification,
+              paper: lookup?.paper ?? null,
+              revision: lookup?.revision ?? null,
+            });
+          }
+          return;
+        }
         const doc = await loadDocument(buffer);
         const { paper, revision } = await findOrCreatePaper({
           repo,
@@ -148,7 +225,9 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
                 ? err
                 : isPdf
                   ? "This PDF cannot be opened."
-                  : "This Markdown source cannot be opened.";
+                  : isHtml
+                    ? "This HTML source cannot be opened."
+                    : "This Markdown source cannot be opened.";
           setState({ kind: "error", path, message });
         }
       }
@@ -175,5 +254,6 @@ export function usePaperId(): string | null {
   const op = useContext(OpenPaperContext).state;
   if (op.kind === "ready") return op.paper.id;
   if (op.kind === "ready-md") return op.paper?.id ?? null;
+  if (op.kind === "ready-html") return op.paper?.id ?? null;
   return null;
 }

@@ -1,0 +1,14 @@
+.html-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--page, #f6f1e7);
+  color: var(--ink, #2b2a26);
+  overflow: auto;
+  /* Scroll container must be the positioning context for the adapter's
+     absolute-positioned `.review-shell__hl-layer`; otherwise the layer
+     escapes to the viewport and highlight rects don't scroll with the
+     document content. */
+  position: relative;
+}

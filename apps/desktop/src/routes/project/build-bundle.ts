@@ -235,6 +235,136 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
   };
 }
 
+export interface ExportHtmlBundleInput {
+  repo: Repository;
+  paperId: string;
+}
+
+// HTML reviewer papers: the paper's `entrypoint` is the .html path. Anchors
+// follow whichever mode classification committed at ingest — `kind: "source"`
+// for paired-source HTML (where the html carried `data-src-*` markers or had
+// a sibling `.md`/`.tex`/`.typ`), `kind: "html"` for hand-authored HTML.
+// Mixing the two on a single paper is a classification error; we throw rather
+// than emit a half-anchored bundle.
+export async function exportHtmlBundleV2ForPaper(
+  input: ExportHtmlBundleInput,
+): Promise<ExportedBundle> {
+  const { repo, paperId } = input;
+  const paper = await repo.papers.get(paperId);
+  if (!paper) throw new Error("paper not found");
+  if (paper.format !== "html") throw new Error("paper is not an html source");
+  if (paper.projectId === undefined) throw new Error("paper has no project");
+  if (paper.pdfRelPath === undefined) throw new Error("paper has no entrypoint path");
+  const project = await repo.projects.get(paper.projectId);
+  if (!project) throw new Error("project not found");
+
+  const revisions = await repo.revisions.listForPaper(paper.id);
+  const latest = revisions[revisions.length - 1];
+  if (!latest) throw new Error("paper has no revision");
+
+  const rows = await repo.annotations.listForRevision(latest.id);
+  if (rows.length === 0) throw new Error("no annotations to review");
+
+  const droppedForPdfAnchor: string[] = [];
+  const annotations: AnnotationV2Input[] = [];
+  let observedKind: "source" | "html" | null = null;
+  let firstSourceFile: string | null = null;
+  for (const row of rows) {
+    if (row.anchor.kind === "pdf") {
+      droppedForPdfAnchor.push(row.id);
+      continue;
+    }
+    if (observedKind === null) {
+      observedKind = row.anchor.kind;
+    } else if (observedKind !== row.anchor.kind) {
+      throw new Error(
+        `paper ${paper.id} has mixed anchor kinds (${observedKind} + ${row.anchor.kind}); classification commits one mode per paper`,
+      );
+    }
+    if (row.anchor.kind === "source" && firstSourceFile === null) {
+      firstSourceFile = row.anchor.file;
+    }
+    const anchor: AnnotationV2Input["anchor"] =
+      row.anchor.kind === "html"
+        ? {
+            kind: "html",
+            file: row.anchor.file,
+            xpath: row.anchor.xpath,
+            charOffsetStart: row.anchor.charOffsetStart,
+            charOffsetEnd: row.anchor.charOffsetEnd,
+            ...(row.anchor.sourceHint !== undefined ? { sourceHint: row.anchor.sourceHint } : {}),
+          }
+        : row.anchor;
+    annotations.push({
+      id: row.id,
+      paperId: paper.id,
+      category: row.category,
+      quote: row.quote,
+      contextBefore: row.contextBefore,
+      contextAfter: row.contextAfter,
+      anchor,
+      note: row.note,
+      thread: row.thread,
+      createdAt: row.createdAt,
+      ...(row.groupId !== undefined ? { groupId: row.groupId } : {}),
+    });
+  }
+
+  // Mirror the web exporter: paired-source HTML points the bundle entrypoint
+  // at the source file (.md/.tex/.typ) so the plugin patches source, not the
+  // rendered HTML. Hand-authored HTML keeps the .html as entrypoint.
+  const entrypoint = firstSourceFile ?? paper.pdfRelPath;
+  const papers: PaperRefV2Input[] = [
+    {
+      id: paper.id,
+      title: paper.title,
+      revisionNumber: latest.revisionNumber,
+      createdAt: latest.createdAt,
+      entrypoint,
+      ...(paper.rubric !== undefined
+        ? {
+            rubric: {
+              body: paper.rubric.body,
+              label: paper.rubric.label,
+              source: paper.rubric.source,
+            },
+          }
+        : {}),
+    },
+  ];
+
+  const projectInput: ProjectV2Input = {
+    id: project.id,
+    label: project.label,
+    kind: project.kind,
+    categories: DEFAULT_CATEGORIES.map((c) => ({ slug: c.id, label: c.label })),
+    main: entrypoint,
+  };
+
+  const bundle = buildBundleV2({
+    project: projectInput,
+    papers,
+    annotations,
+  });
+
+  const filename = `.obelus/bundle-${isoStampForFilename()}.json`;
+  const json = `${JSON.stringify(bundle, null, 2)}\n`;
+  console.info("[export-bundle-html]", {
+    paperId: paper.id,
+    annotationCount: annotations.length,
+    anchorMode: observedKind,
+    entrypoint,
+    droppedForPdfAnchor,
+    filename,
+  });
+  return {
+    filename,
+    json,
+    annotationCount: annotations.length,
+    fileCount: papers.length,
+  };
+}
+
 export interface ExportMdBundleInput {
   repo: Repository;
   paperId: string;

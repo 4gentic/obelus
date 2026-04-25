@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
+import HtmlReviewSurface from "./HtmlReviewSurface";
 import MdReviewSurface from "./MdReviewSurface";
 import { useOpenPaper } from "./OpenPaper";
 import { extensionOf, SOURCE_EXTS } from "./openable";
@@ -17,6 +18,7 @@ function isEditablePath(relPath: string, projectKind: "reviewer" | "writer"): bo
   const ext = extensionOf(relPath);
   if (!SOURCE_EXTS.has(ext)) return false;
   if (ext === "md" && projectKind === "reviewer") return false;
+  if ((ext === "html" || ext === "htm") && projectKind === "reviewer") return false;
   return true;
 }
 
@@ -78,6 +80,32 @@ export default function CenterPane(): JSX.Element {
         return (
           <div className="pane pane--empty">
             <p>This Markdown source cannot be opened.</p>
+            <p className="pane__sub">
+              <code>{openPaper.path}</code>
+            </p>
+            <p className="pane__sub">{openPaper.message}</p>
+          </div>
+        );
+      }
+    }
+    // Reviewer-mode HTML: same shape as the MD path. Writer-mode HTML
+    // continues to fall through to SourcePane (CodeMirror) — adding a
+    // preview/source toggle for writer HTML is a follow-up.
+    if ((ext === "html" || ext === "htm") && project.kind === "reviewer") {
+      if (openPaper.kind === "ready-html") {
+        return (
+          <HtmlReviewSurface
+            path={openPaper.path}
+            html={openPaper.html}
+            classification={openPaper.classification}
+          />
+        );
+      }
+      if (openPaper.kind === "loading") return <div className="pane pane--empty">Loading…</div>;
+      if (openPaper.kind === "error") {
+        return (
+          <div className="pane pane--empty">
+            <p>This HTML source cannot be opened.</p>
             <p className="pane__sub">
               <code>{openPaper.path}</code>
             </p>
