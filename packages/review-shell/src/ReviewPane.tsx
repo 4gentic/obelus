@@ -578,10 +578,12 @@ export default function ReviewPane({
           id="review-pane-panel-revise"
           aria-labelledby="review-pane-tab-revise"
         >
+          <RubricPanel rubric={rubric} onChange={onRubricChange} />
           <p className="review-pane__tabpanel-hint">
             Hand the paper folder to a coding agent and have it apply your marks as minimal-diff
-            source edits. The bundle is format-agnostic — the plugin detects <code>.tex</code> /{" "}
-            <code>.md</code> / <code>.typ</code> at run time.
+            source edits{rubric ? ", honoring the criteria your rubric names" : ""}. The bundle is
+            format-agnostic — the plugin detects <code>.tex</code> / <code>.md</code> /{" "}
+            <code>.typ</code> at run time.
           </p>
           <fieldset className="review-pane__actions" aria-label="Revise output">
             <div className="review-pane__actions-group">

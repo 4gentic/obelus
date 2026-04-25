@@ -42,6 +42,15 @@ export async function buildHtmlBundleJson(
         revisionNumber: input.revision.revisionNumber,
         createdAt: input.revision.createdAt,
         entrypoint,
+        ...(input.paper.rubric !== undefined
+          ? {
+              rubric: {
+                body: input.paper.rubric.body,
+                label: input.paper.rubric.label,
+                source: input.paper.rubric.source,
+              },
+            }
+          : {}),
       },
     ],
     annotations: v2Annotations,

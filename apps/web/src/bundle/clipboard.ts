@@ -30,12 +30,12 @@ function bundleToPromptInput(bundle: Bundle, rubric?: PromptRubric): PromptInput
   };
 }
 
-export function formatClipboardPrompt(bundle: Bundle): string {
-  return formatFixPrompt(bundleToPromptInput(bundle));
+export function formatClipboardPrompt(bundle: Bundle, rubric?: PromptRubric): string {
+  return formatFixPrompt(bundleToPromptInput(bundle, rubric));
 }
 
-export async function copyClipboardPrompt(bundle: Bundle): Promise<void> {
-  const text = formatClipboardPrompt(bundle);
+export async function copyClipboardPrompt(bundle: Bundle, rubric?: PromptRubric): Promise<void> {
+  const text = formatClipboardPrompt(bundle, rubric);
   await navigator.clipboard.writeText(text);
 }
 

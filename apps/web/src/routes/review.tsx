@@ -269,7 +269,10 @@ export default function Review(): JSX.Element {
           pdfFilename: "paper.pdf",
           pageCount: pageCount || 1,
         });
-        await exportBundleMarkdown(bundle);
+        const rubric = paper.rubric
+          ? { label: paper.rubric.label, body: paper.rubric.body }
+          : undefined;
+        await exportBundleMarkdown(bundle, rubric);
       } else if (state.kind === "ready-md") {
         await downloadMdBundle({ paper, revision, file: state.file }, "revise");
       } else {
@@ -302,9 +305,12 @@ export default function Review(): JSX.Element {
           pdfFilename: "paper.pdf",
           pageCount: pageCount || 1,
         });
-        await copyClipboardPrompt(bundle);
+        const rubric = paper.rubric
+          ? { label: paper.rubric.label, body: paper.rubric.body }
+          : undefined;
+        await copyClipboardPrompt(bundle, rubric);
         setStatus("done");
-        setMessage("Prompt copied to clipboard.");
+        setMessage(rubric ? "Prompt copied with rubric." : "Prompt copied to clipboard.");
       } else if (state.kind === "ready-md") {
         await downloadMdBundle({ paper, revision, file: state.file }, "revise");
         setStatus("done");

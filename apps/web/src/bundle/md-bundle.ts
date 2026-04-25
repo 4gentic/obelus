@@ -56,6 +56,15 @@ export async function buildMdBundleJson(
         revisionNumber: input.revision.revisionNumber,
         createdAt: input.revision.createdAt,
         entrypoint: input.file,
+        ...(input.paper.rubric !== undefined
+          ? {
+              rubric: {
+                body: input.paper.rubric.body,
+                label: input.paper.rubric.label,
+                source: input.paper.rubric.source,
+              },
+            }
+          : {}),
       },
     ],
     annotations: v2Annotations,
