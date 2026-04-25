@@ -1,18 +1,47 @@
 import type { JSX } from "react";
+import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
+import MdReviewSurface from "./MdReviewSurface";
 import { useOpenPaper } from "./OpenPaper";
 import { extensionOf, SOURCE_EXTS } from "./openable";
 import PdfPane from "./PdfPane";
 import SourcePane from "./SourcePane";
 import TypstPane from "./TypstPane";
 import UnsupportedPane from "./UnsupportedPane";
-import { useSelectionHandler } from "./use-selection";
+
+// True for files that route through `SourcePane`, which hydrates a buffer
+// and exposes an editable dirty/save cycle. MD under a reviewer project
+// bypasses the editor entirely (mounts `MdReviewSurface` directly), so the
+// Save affordance has no buffer to reach and stays hidden.
+function isEditablePath(relPath: string, projectKind: "reviewer" | "writer"): boolean {
+  const ext = extensionOf(relPath);
+  if (!SOURCE_EXTS.has(ext)) return false;
+  if (ext === "md" && projectKind === "reviewer") return false;
+  return true;
+}
+
+function PathHeaderSave({ relPath }: { relPath: string }): JSX.Element {
+  const buffers = useBuffersStore();
+  const dirty = buffers((s) => s.isDirty(relPath));
+  const hasEntry = buffers((s) => s.buffers.has(relPath));
+  return (
+    <button
+      type="button"
+      className="btn btn--subtle pane__path-save"
+      disabled={!dirty || !hasEntry}
+      onClick={() => void buffers.getState().save(relPath)}
+    >
+      Save (⌘S)
+    </button>
+  );
+}
+
 export default function CenterPane(): JSX.Element {
   const { project, openFilePath, rootId } = useProject();
   const openPaper = useOpenPaper();
-  const onAnchor = useSelectionHandler(openPaper.kind === "ready" ? openPaper.doc : null);
 
   const absolutePath = openFilePath ? `${project.root}/${openFilePath}` : null;
+  const showSave = openFilePath !== null && isEditablePath(openFilePath, project.kind);
 
   const body = ((): JSX.Element => {
     if (!openFilePath) return <UnsupportedPane path={null} />;
@@ -31,11 +60,32 @@ export default function CenterPane(): JSX.Element {
         );
       }
       if (openPaper.kind === "ready") {
-        return <PdfPane doc={openPaper.doc} onAnchor={onAnchor} />;
+        return <PdfPane doc={openPaper.doc} />;
       }
       return <UnsupportedPane path={openFilePath} />;
     }
     if (ext === "typ") return <TypstPane rootId={rootId} relPath={openFilePath} />;
+    // Reviewer-mode MD: skip the Source editor entirely and mount the
+    // review surface directly. Writer-mode MD falls through to SourcePane,
+    // whose Preview tab mounts the same review surface — writers edit and
+    // mark the same file from two tabs of one pane.
+    if (ext === "md" && project.kind === "reviewer") {
+      if (openPaper.kind === "ready-md") {
+        return <MdReviewSurface path={openPaper.path} text={openPaper.text} />;
+      }
+      if (openPaper.kind === "loading") return <div className="pane pane--empty">Loading…</div>;
+      if (openPaper.kind === "error") {
+        return (
+          <div className="pane pane--empty">
+            <p>This Markdown source cannot be opened.</p>
+            <p className="pane__sub">
+              <code>{openPaper.path}</code>
+            </p>
+            <p className="pane__sub">{openPaper.message}</p>
+          </div>
+        );
+      }
+    }
     if (SOURCE_EXTS.has(ext)) return <SourcePane rootId={rootId} relPath={openFilePath} />;
     return <UnsupportedPane path={openFilePath} />;
   })();
@@ -44,7 +94,8 @@ export default function CenterPane(): JSX.Element {
     <>
       {absolutePath && (
         <header className="pane__path" title={absolutePath}>
-          <code>{absolutePath}</code>
+          <code className="pane__path-code">{absolutePath}</code>
+          {showSave && openFilePath !== null && <PathHeaderSave relPath={openFilePath} />}
         </header>
       )}
       {body}

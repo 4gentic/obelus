@@ -38,7 +38,7 @@ export default function NoteEditor({
       ref={ref}
       className="note-editor__ta"
       value={value}
-      placeholder={placeholder ?? "Write a note\u2026"}
+      placeholder={placeholder ?? "Write a note…"}
       onChange={(e) => onChange(e.target.value)}
       onBlur={(e) => onCommit(e.target.value)}
       disabled={disabled}

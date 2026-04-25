@@ -223,9 +223,13 @@ pub async fn claude_spawn(
     // no command to act on and exits without writing a plan. Mirrors
     // `formatSpawnInvocation({ kind: "apply-revision", … })` in
     // `packages/prompts/src/formatters/format-spawn-invocation.ts`; keep the
-    // two in lockstep when either changes.
+    // two in lockstep when either changes. The tool-policy clause exists
+    // because Claude, when the paper source happens to be in the working tree
+    // (e.g. a writer-mode MD paper), will otherwise short-circuit the skill
+    // and use `Edit` on the source directly — bypassing the plan-fix step the
+    // desktop needs a file from.
     let base = format!(
-        "Run apply-revision with bundle path {}.\n",
+        "Run apply-revision with bundle path {}.\nTool policy for this run: write .obelus/plan-<iso>.json and .obelus/plan-<iso>.md only. Do NOT use Edit, Write, or any tool that mutates a source file — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with `OBELUS_WROTE: .obelus/plan-<iso>.json`.\n",
         bundle_abs.display()
     );
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());

@@ -1,5 +1,7 @@
-import type { AnnotationsRepo } from "../interface";
-import type { AnnotationRow } from "../types";
+import { PdfAnchor, SourceAnchor } from "@obelus/bundle-schema";
+import { z } from "zod";
+import type { AnnotationStalenessPatch, AnnotationsRepo } from "../interface";
+import type { AnchorFields, AnnotationRow, AnnotationStaleness } from "../types";
 import type { Database } from "./db";
 import { dbTxBatch, type TxStmt } from "./transaction";
 
@@ -16,19 +18,25 @@ interface AnnotationSqlRow {
   group_id: string | null;
   created_at: string;
   resolved_in_edit_id: string | null;
+  staleness: string | null;
 }
 
-interface PdfAnchorJson {
-  kind: "pdf";
-  page: number;
-  bbox: [number, number, number, number];
-  rects?: Array<[number, number, number, number]>;
-  textItemRange: { start: [number, number]; end: [number, number] };
+function isStaleness(value: string): value is AnnotationStaleness {
+  return value === "ok" || value === "line-out-of-range" || value === "quote-mismatch";
 }
+
+// Row-shape Zod that extends bundle-schema's PdfAnchor with the optional `rects`
+// cache — a UI-only field the canonical wire schema deliberately omits.
+const Bbox4 = z.tuple([z.number(), z.number(), z.number(), z.number()]);
+const PdfAnchorRow = PdfAnchor.extend({
+  rects: z.array(Bbox4).optional(),
+});
+const RowAnchor = z.discriminatedUnion("kind", [PdfAnchorRow, SourceAnchor]);
+const ThreadEntries = z.array(z.object({ at: z.string(), body: z.string() }));
 
 function toAnnotationRow(r: AnnotationSqlRow): AnnotationRow {
-  const anchor = JSON.parse(r.anchor_json) as PdfAnchorJson;
-  const thread = JSON.parse(r.thread_json) as AnnotationRow["thread"];
+  const anchor = RowAnchor.parse(JSON.parse(r.anchor_json)) as AnchorFields;
+  const thread = ThreadEntries.parse(JSON.parse(r.thread_json));
   const base: AnnotationRow = {
     id: r.id,
     revisionId: r.revision_id,
@@ -36,35 +44,29 @@ function toAnnotationRow(r: AnnotationSqlRow): AnnotationRow {
     quote: r.quote,
     contextBefore: r.context_before,
     contextAfter: r.context_after,
-    page: anchor.page,
-    bbox: anchor.bbox,
-    textItemRange: anchor.textItemRange,
+    anchor,
     note: r.note,
     thread,
     createdAt: r.created_at,
   };
-  const withRects = anchor.rects !== undefined ? { ...base, rects: anchor.rects } : base;
-  const withGroup = r.group_id !== null ? { ...withRects, groupId: r.group_id } : withRects;
-  return r.resolved_in_edit_id !== null
-    ? { ...withGroup, resolvedInEditId: r.resolved_in_edit_id }
-    : withGroup;
+  const withGroup = r.group_id !== null ? { ...base, groupId: r.group_id } : base;
+  const withResolved =
+    r.resolved_in_edit_id !== null
+      ? { ...withGroup, resolvedInEditId: r.resolved_in_edit_id }
+      : withGroup;
+  return r.staleness !== null && isStaleness(r.staleness)
+    ? { ...withResolved, staleness: r.staleness }
+    : withResolved;
 }
 
 function toAnchorJson(row: AnnotationRow): string {
-  const anchor: PdfAnchorJson = {
-    kind: "pdf",
-    page: row.page,
-    bbox: row.bbox,
-    textItemRange: row.textItemRange,
-    ...(row.rects !== undefined ? { rects: row.rects } : {}),
-  };
-  return JSON.stringify(anchor);
+  return JSON.stringify(row.anchor);
 }
 
 export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
   const SELECT_COLS = `id, revision_id, category, quote, context_before, context_after,
                        anchor_json, note, thread_json, group_id, created_at,
-                       resolved_in_edit_id`;
+                       resolved_in_edit_id, staleness`;
   return {
     async listForRevision(
       revisionId: string,
@@ -115,8 +117,9 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
         sql: `INSERT INTO annotations (id, revision_id, category, quote,
                                        context_before, context_after,
                                        anchor_json,
-                                       note, thread_json, group_id, created_at)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                                       note, thread_json, group_id, created_at,
+                                       staleness)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
               ON CONFLICT(id) DO UPDATE SET
                 category = excluded.category,
                 quote = excluded.quote,
@@ -125,7 +128,8 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
                 anchor_json = excluded.anchor_json,
                 note = excluded.note,
                 thread_json = excluded.thread_json,
-                group_id = excluded.group_id`,
+                group_id = excluded.group_id,
+                staleness = excluded.staleness`,
         params: [
           row.id,
           revisionId,
@@ -138,9 +142,28 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
           JSON.stringify(row.thread),
           row.groupId ?? null,
           row.createdAt,
+          row.staleness ?? null,
         ],
       }));
-      await dbTxBatch(stmts);
+      try {
+        await dbTxBatch(stmts);
+      } catch (err) {
+        console.warn("[persist-mark]", {
+          outcome: "bulkput-threw",
+          revisionId,
+          rowCount: rows.length,
+          ids: rows.map((r) => r.id),
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+      console.info("[persist-mark]", {
+        outcome: "committed",
+        revisionId,
+        rowCount: rows.length,
+        ids: rows.map((r) => r.id),
+        kind: rows[0]?.anchor.kind,
+      });
     },
 
     async remove(id: string): Promise<void> {
@@ -152,6 +175,15 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
       const stmts: TxStmt[] = ids.map((id) => ({
         sql: `UPDATE annotations SET resolved_in_edit_id = $1 WHERE id = $2`,
         params: [editId, id],
+      }));
+      await dbTxBatch(stmts);
+    },
+
+    async setStaleness(patches: ReadonlyArray<AnnotationStalenessPatch>): Promise<void> {
+      if (patches.length === 0) return;
+      const stmts: TxStmt[] = patches.map((p) => ({
+        sql: `UPDATE annotations SET staleness = $1 WHERE id = $2`,
+        params: [p.staleness, p.id],
       }));
       await dbTxBatch(stmts);
     },

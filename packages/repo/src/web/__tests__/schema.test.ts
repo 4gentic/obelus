@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { annotations, papers, revisions, settings } from "../repositories";
 import { type AnnotationRow, ObelusDb, setDbForTests } from "../schema";
 
@@ -19,6 +20,7 @@ describe.skipIf(!hasIdb)("schema round-trip", () => {
       id: crypto.randomUUID(),
       title: "On Citations",
       createdAt: new Date().toISOString(),
+      format: "pdf" as const,
       pdfSha256: pdfSha,
     };
     await db.papers.add(paper);
@@ -37,9 +39,12 @@ describe.skipIf(!hasIdb)("schema round-trip", () => {
       quote: "foo",
       contextBefore: "a",
       contextAfter: "b",
-      page: 1,
-      bbox: [0, 0, 1, 1],
-      textItemRange: { start: [0, 0], end: [0, 3] },
+      anchor: {
+        kind: "pdf",
+        page: 1,
+        bbox: [0, 0, 1, 1],
+        textItemRange: { start: [0, 0], end: [0, 3] },
+      },
       note: "why?",
       thread: [],
       createdAt: paper.createdAt,
@@ -60,7 +65,16 @@ describe.skipIf(!hasIdb)("schema round-trip", () => {
 
   it("reads and writes settings", async () => {
     await settings.set("flag", true);
-    const got = await settings.get<boolean>("flag");
+    const got = await settings.get("flag", z.boolean());
     expect(got).toBe(true);
+  });
+
+  it("returns undefined and warns when stored value fails the schema", async () => {
+    await settings.set("flag", "not-a-boolean");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const got = await settings.get("flag", z.boolean());
+    expect(got).toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 });

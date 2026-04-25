@@ -20,14 +20,15 @@ import {
   lineNumbers,
   rectangularSelection,
 } from "@codemirror/view";
+import "@obelus/md-view/md.css";
 import { type JSX, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
 import { setActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
-import CompileMainButton from "./CompileMainButton";
 import { useProject } from "./context";
 import DraftsRail from "./DraftsRail";
 import { editorTheme } from "./editor-theme";
+import MdReviewSurface from "./MdReviewSurface";
 import { extensionOf } from "./openable";
 import SwitchResolveBanner from "./SwitchResolveBanner";
 import { useSourceLocked } from "./use-source-lock";
@@ -110,13 +111,26 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   const hasEntry = buffers((s) => s.buffers.has(relPath));
   const dirty = buffers((s) => s.isDirty(relPath));
   const externalVersion = buffers((s) => s.buffers.get(relPath)?.externalVersion ?? 0);
+  // Subscribed only for the MD preview path below. Source-mode renders skip
+  // the dependent branch so re-renders here are cheap; CodeMirror owns its
+  // own DOM and isn't rebuilt because `hasEntry` / `externalVersion` drive
+  // the view-mount effect, not `bufferText`.
+  const bufferText = buffers((s) => s.buffers.get(relPath)?.text ?? "");
   const pendingSwitch = buffers((s) => s.pendingSwitch);
+  const pendingExternalReload = buffers((s) =>
+    s.pendingExternalReload?.relPath === relPath ? s.pendingExternalReload : null,
+  );
   const locked = useSourceLocked();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   // Bumped by the "retry" button so a transient read failure can be re-tried
   // on demand without remounting the pane.
   const [retryTick, setRetryTick] = useState(0);
   const [hadInvalidBytes, setHadInvalidBytes] = useState(false);
+  const [viewMode, setViewMode] = useState<"source" | "preview">("preview");
+  const isMd = extensionOf(relPath) === "md";
+  useEffect(() => {
+    setViewMode(isMd ? "preview" : "source");
+  }, [isMd]);
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   // One compartment per mount; holds the editable/readOnly extensions so we
@@ -320,27 +334,67 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
           onCancel={() => buffers.getState().clearPendingSwitch()}
         />
       )}
-      <div className="source-pane__editor" ref={hostRef} />
+      {pendingExternalReload !== null && (
+        <div className="source-pane__switch-banner" role="alertdialog" aria-live="assertive">
+          <p className="source-pane__switch-text">
+            This file changed on disk while you were editing. Reload loses your in-editor changes;
+            keeping yours will overwrite the disk version on next Save.
+          </p>
+          <div className="source-pane__switch-actions">
+            <button
+              type="button"
+              className="btn btn--subtle"
+              onClick={() => buffers.getState().setPendingExternalReload(null)}
+            >
+              Keep mine
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => {
+                buffers.getState().discard(relPath);
+                void buffers
+                  .getState()
+                  .refreshFromDisk([relPath])
+                  .then(() => {
+                    buffers.getState().setPendingExternalReload(null);
+                  });
+              }}
+            >
+              Reload from disk
+            </button>
+          </div>
+        </div>
+      )}
+      {isMd && (
+        <div className="source-pane__viewmode" role="tablist" aria-label="View mode">
+          <button
+            type="button"
+            role="tab"
+            className={`source-pane__viewmode-opt${viewMode === "preview" ? " is-active" : ""}`}
+            aria-selected={viewMode === "preview"}
+            onClick={() => setViewMode("preview")}
+          >
+            Preview
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={`source-pane__viewmode-opt${viewMode === "source" ? " is-active" : ""}`}
+            aria-selected={viewMode === "source"}
+            onClick={() => setViewMode("source")}
+          >
+            Source
+          </button>
+        </div>
+      )}
+      <div className="source-pane__editor" ref={hostRef} hidden={isMd && viewMode === "preview"} />
+      {isMd && viewMode === "preview" && (
+        <div className="source-pane__preview">
+          <MdReviewSurface path={relPath} text={bufferText} />
+        </div>
+      )}
       <DraftsRail />
-      <footer className="source-pane__foot">
-        <span className="source-pane__foot-path">
-          {dirty && (
-            <span className="source-pane__foot-dot" aria-hidden="true">
-              •
-            </span>
-          )}
-          {relPath}
-        </span>
-        <CompileMainButton />
-        <button
-          type="button"
-          className="btn btn--subtle"
-          disabled={!dirty}
-          onClick={() => void buffers.getState().save(relPath)}
-        >
-          Save (⌘S)
-        </button>
-      </footer>
     </div>
   );
 }

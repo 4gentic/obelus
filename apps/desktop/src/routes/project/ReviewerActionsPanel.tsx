@@ -1,12 +1,12 @@
 import { formatReviewPrompt, type PromptAnnotation } from "@obelus/bundle-builder";
 import type { PaperRow } from "@obelus/repo";
 import { save } from "@tauri-apps/plugin-dialog";
-import type { JSX, MutableRefObject } from "react";
+import type { JSX, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { readClaudeStatus } from "../../boot/detect";
 import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
 import { useClaudeConfig } from "../../lib/use-claude-defaults";
-import { exportBundleV2ForPaper } from "./build-bundle";
+import { exportBundleV2ForPaper, exportMdBundleV2ForPaper } from "./build-bundle";
 import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
@@ -67,10 +67,17 @@ export default function ReviewerActionsPanel(): JSX.Element {
     };
   }, []);
 
-  const paperReady = openPaper.kind === "ready";
-  const paperId = paperReady ? openPaper.paper.id : null;
-  const paperTitle = paperReady ? openPaper.paper.title : "";
-  const paperRowForRubric = paperReady ? openPaper.paper : null;
+  const pdfReady = openPaper.kind === "ready";
+  const mdReady = openPaper.kind === "ready-md" && openPaper.paper !== null;
+  const paperReady = pdfReady || mdReady;
+  const activePaper = pdfReady
+    ? openPaper.paper
+    : openPaper.kind === "ready-md"
+      ? openPaper.paper
+      : null;
+  const paperId = activePaper?.id ?? null;
+  const paperTitle = activePaper?.title ?? "";
+  const paperRowForRubric = activePaper;
 
   useEffect(() => {
     if (!paperId) return;
@@ -99,16 +106,24 @@ export default function ReviewerActionsPanel(): JSX.Element {
     if (!latest) return null;
     const rows = await repo.annotations.listForRevision(latest.id);
     if (rows.length === 0) return null;
-    const annotations: PromptAnnotation[] = rows.map((r) => ({
-      id: r.id,
-      category: r.category,
-      page: r.page,
-      quote: r.quote,
-      contextBefore: r.contextBefore,
-      contextAfter: r.contextAfter,
-      note: r.note,
-      ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
-    }));
+    // The reviewer clipboard prompt is PDF-paper-specific — page numbers
+    // anchor the review report. MD-anchored rows have no page and are
+    // skipped (their export flow uses v2 source anchors elsewhere).
+    const annotations: PromptAnnotation[] = rows.flatMap((r) => {
+      if (r.anchor.kind !== "pdf") return [];
+      return [
+        {
+          id: r.id,
+          category: r.category,
+          page: r.anchor.page,
+          quote: r.quote,
+          contextBefore: r.contextBefore,
+          contextAfter: r.contextAfter,
+          note: r.note,
+          ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
+        },
+      ];
+    });
     const pdfFilename = openPaper.path.split("/").pop() ?? "";
     return { paperRow: paper, annotations, revisionNumber: latest.revisionNumber, pdfFilename };
   }
@@ -117,7 +132,9 @@ export default function ReviewerActionsPanel(): JSX.Element {
     if (!paperReady || !paperId) return;
     setExportState({ kind: "idle" });
     try {
-      const { filename, json } = await exportBundleV2ForPaper({ repo, paperId, rootId });
+      const { filename, json } = mdReady
+        ? await exportMdBundleV2ForPaper({ repo, paperId })
+        : await exportBundleV2ForPaper({ repo, paperId, rootId });
       const bytes = new TextEncoder().encode(json);
       await fsWriteBytes(rootId, filename, bytes);
       setExportState({ kind: "json", relPath: filename });
@@ -243,7 +260,29 @@ export default function ReviewerActionsPanel(): JSX.Element {
   if (!paperReady) {
     return (
       <section className="reviewer-actions" aria-label="Review">
-        <p className="reviewer-actions__empty">Open the PDF to begin.</p>
+        <p className="reviewer-actions__empty">Open a paper to begin.</p>
+      </section>
+    );
+  }
+
+  // MD papers only support the JSON bundle export today. The reviewer-letter
+  // Claude flow and Markdown prompt export are PDF-specific (they rely on
+  // page-number-anchored prompts).
+  if (mdReady) {
+    return (
+      <section className="reviewer-actions" aria-label="Review">
+        <RubricPanel paper={paperRowForRubric} />
+        <p className="reviewer-actions__hint">
+          Hand your marks to a coding agent as source patches. The bundle is format-agnostic — the
+          plugin detects <code>.md</code> at run time.
+        </p>
+        <ExportChips
+          onExportJSON={() => void onExportJSON()}
+          onExportMarkdown={() => void onExportMarkdown()}
+          onCopyPrompt={() => void onCopyPrompt()}
+          state={exportState}
+          mdOnly
+        />
       </section>
     );
   }
@@ -296,6 +335,7 @@ interface ChipsProps {
   onExportMarkdown: () => void;
   onCopyPrompt: () => void;
   state: ExportState;
+  mdOnly?: boolean;
 }
 
 function ExportChips({
@@ -303,6 +343,7 @@ function ExportChips({
   onExportMarkdown,
   onCopyPrompt,
   state,
+  mdOnly = false,
 }: ChipsProps): JSX.Element {
   return (
     <fieldset className="reviewer-actions__chips" aria-label="Review output">
@@ -312,19 +353,25 @@ function ExportChips({
           {state.kind === "json" ? state.relPath : "bundle-<ts>.json"}
         </span>
       </button>
-      <button type="button" className="reviewer-actions__chip" onClick={onExportMarkdown}>
-        <span className="reviewer-actions__chip-label">Markdown</span>
-        <span className="reviewer-actions__chip-hint">
-          {state.kind === "markdown" ? state.path : "choose where to save…"}
-        </span>
-      </button>
-      <button type="button" className="reviewer-actions__chip" onClick={onCopyPrompt}>
-        <span className="reviewer-actions__chip-label">Copy to clipboard</span>
-        <span className="reviewer-actions__chip-hint">
-          {state.kind === "copied" ? "Copied" : "paste into any agent"}
-        </span>
-      </button>
-      {state.kind === "json" ? <NextStep command={`/write-review ${state.relPath}`} /> : null}
+      {!mdOnly ? (
+        <>
+          <button type="button" className="reviewer-actions__chip" onClick={onExportMarkdown}>
+            <span className="reviewer-actions__chip-label">Markdown</span>
+            <span className="reviewer-actions__chip-hint">
+              {state.kind === "markdown" ? state.path : "choose where to save…"}
+            </span>
+          </button>
+          <button type="button" className="reviewer-actions__chip" onClick={onCopyPrompt}>
+            <span className="reviewer-actions__chip-label">Copy to clipboard</span>
+            <span className="reviewer-actions__chip-hint">
+              {state.kind === "copied" ? "Copied" : "paste into any agent"}
+            </span>
+          </button>
+        </>
+      ) : null}
+      {state.kind === "json" ? (
+        <NextStep command={`${mdOnly ? "/apply-revision" : "/write-review"} ${state.relPath}`} />
+      ) : null}
       {state.kind === "error" ? (
         <p className="reviewer-actions__status" data-status="error">
           {state.message}
@@ -338,7 +385,7 @@ interface ClaudeProps {
   streaming: boolean;
   hasBody: boolean;
   body: string;
-  outputRef: MutableRefObject<HTMLDivElement | null>;
+  outputRef: RefObject<HTMLDivElement | null>;
   onDraft: () => void;
   onCancel: () => void;
   onSaveDraft: () => void;
@@ -378,15 +425,13 @@ function ClaudeAction({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const transcriptRef = useRef<HTMLPreElement | null>(null);
 
-  const transcriptLen = transcript.length;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: transcript.length is the re-fire trigger so the effect follows content growth; the body reads el.scrollHeight live and doesn't need the numeric length.
   useEffect(() => {
     if (!transcriptOpen || !streaming) return;
     const el = transcriptRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-    // transcriptLen is the scroll trigger.
-    void transcriptLen;
-  }, [transcriptLen, transcriptOpen, streaming]);
+  }, [transcript.length, transcriptOpen, streaming]);
 
   const phaseLabel = streaming
     ? phase || (assistantChars > 0 ? "Drafting…" : "Reading your marks…")

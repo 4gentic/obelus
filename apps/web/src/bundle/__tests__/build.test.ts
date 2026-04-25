@@ -22,7 +22,13 @@ describe.skipIf(!hasIdb)("buildBundle", () => {
     const paperId = crypto.randomUUID();
     const revisionId = crypto.randomUUID();
     const createdAt = new Date().toISOString();
-    await db.papers.add({ id: paperId, title: "Test paper", createdAt, pdfSha256: pdfSha });
+    await db.papers.add({
+      id: paperId,
+      title: "Test paper",
+      createdAt,
+      format: "pdf",
+      pdfSha256: pdfSha,
+    });
     await db.revisions.add({
       id: revisionId,
       paperId,
@@ -37,9 +43,12 @@ describe.skipIf(!hasIdb)("buildBundle", () => {
       quote: "The results were good.",
       contextBefore: "prior text ",
       contextAfter: " next text",
-      page: 3,
-      bbox: [10, 20, 30, 40],
-      textItemRange: { start: [4, 0], end: [4, 22] },
+      anchor: {
+        kind: "pdf",
+        page: 3,
+        bbox: [10, 20, 30, 40],
+        textItemRange: { start: [4, 0], end: [4, 22] },
+      },
       note: "How good?",
       thread: [],
       createdAt,

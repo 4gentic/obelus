@@ -10,6 +10,7 @@ describe("formatSpawnInvocation", () => {
       }),
     ).toMatchInlineSnapshot(`
       "Run apply-revision with bundle path /repo/bundle-2026-04-23.json.
+      Tool policy for this run: write .obelus/plan-<iso>.json and .obelus/plan-<iso>.md only. Do NOT use Edit, Write, or any tool that mutates a source file — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with \`OBELUS_WROTE: .obelus/plan-<iso>.json\`.
       "
     `);
   });
@@ -23,6 +24,7 @@ describe("formatSpawnInvocation", () => {
       }),
     ).toMatchInlineSnapshot(`
       "Run apply-revision with bundle path /repo/bundle-2026-04-23.json.
+      Tool policy for this run: write .obelus/plan-<iso>.json and .obelus/plan-<iso>.md only. Do NOT use Edit, Write, or any tool that mutates a source file — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with \`OBELUS_WROTE: .obelus/plan-<iso>.json\`.
 
       ## Indications for this pass
 

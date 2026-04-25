@@ -13,6 +13,7 @@ import {
 import type { ReactNode } from "react";
 import { type JSX, useEffect } from "react";
 import { compileLatex, compileTypst, type LatexCompiler } from "../ipc/commands";
+import { sourcesDiffSincePresnap, takeSnapshotForSession } from "../lib/bundle-sources";
 import { extractPhaseMarker, phaseFromEvent, SEMANTIC_PHASE_PREFIX } from "../lib/claude-phase";
 import { useJobsStore } from "../lib/jobs-store";
 import { getRepository } from "../lib/repo";
@@ -200,6 +201,33 @@ async function handleExit(
 
   try {
     if (job.kind === "review") {
+      // Before ingest: check whether Claude edited any bundle-referenced
+      // source file directly. The plugin's apply-revision SKILL forbids
+      // that; when it happens (observed on writer-mode MD papers), the
+      // desktop has no plan to ingest but the working tree has been
+      // mutated — users deserve a specific diagnostic, not the generic
+      // "no plan matched this run's bundle" wall of text.
+      if (reviewSessionId) {
+        const snap = takeSnapshotForSession(reviewSessionId);
+        if (snap && !job.obelusWrotePath) {
+          const changed = await sourcesDiffSincePresnap(job.rootId, snap);
+          if (changed.length > 0) {
+            const list = changed.slice(0, 5).join(", ");
+            const more = changed.length > 5 ? ` (+${changed.length - 5} more)` : "";
+            const headline = `Claude edited paper source directly — the plugin's apply-revision skill forbids that. The edits are still in your working tree.`;
+            const details = `Files changed while the review was running: ${list}${more}.\nRun \`git diff\` to inspect, \`git checkout -- <file>\` to revert, then try Start review again.`;
+            const detail = `${headline}\n\n${details}`;
+            console.warn("[tool-policy-violation]", {
+              sessionId,
+              reviewSessionId,
+              changed,
+            });
+            store.markError(sessionId, detail);
+            await markReviewStatus(reviewSessionId, "failed", detail);
+            return;
+          }
+        }
+      }
       const message = await ingestReview(job.rootId, job.reviewSessionId, job.obelusWrotePath);
       store.markDone(sessionId, message);
     } else if (job.kind === "compile-fix") {
@@ -309,6 +337,23 @@ async function ingestReview(
   });
   await repo.reviewSessions.complete(reviewSessionId);
 
+  // A completed session with zero hunks has nothing to offer the Diff tab —
+  // leaving it 'completed' makes findLatestVisibleReviewForPaper resurface it
+  // as a zombie "Plan loaded but no hunks were produced" card that the user
+  // has to dismiss manually. Transition straight to 'discarded' so the Diff
+  // tab stays clean. Annotations (marks) are persisted separately and are
+  // unaffected by this status change.
+  const autoDiscarded = result.hunkCount === 0;
+  if (autoDiscarded) {
+    await repo.reviewSessions.setStatus(
+      reviewSessionId,
+      "discarded",
+      result.blockCount === 0
+        ? "Reviewer proposed no changes."
+        : "Plan produced no hunks for this session.",
+    );
+  }
+
   console.info("[ingest-plan]", {
     sessionId: reviewSessionId,
     planPath: result.planPath,
@@ -320,6 +365,7 @@ async function ingestReview(
     droppedForUnknownAnnotation: result.droppedForUnknownAnnotation,
     scannedPlans: result.scannedPlans,
     hasSources: result.hasSources,
+    autoDiscarded,
   });
 
   if (result.droppedForUnknownAnnotation.length > 0 && result.hunkCount === 0) {

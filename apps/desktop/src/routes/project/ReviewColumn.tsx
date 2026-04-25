@@ -1,5 +1,7 @@
 import type { JSX } from "react";
 import { type ComponentType, lazy, Suspense, useEffect, useRef, useState } from "react";
+import { fsWriteBytes } from "../../ipc/commands";
+import { exportMdBundleV2ForPaper } from "./build-bundle";
 import { useProject } from "./context";
 import DiffReview from "./DiffReview";
 import DraftsPanel from "./DraftsPanel";
@@ -76,7 +78,7 @@ function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): 
     }
   }, [sessionId, runnerKind]);
 
-  const paperOpen = openPaper.kind === "ready";
+  const paperOpen = openPaper.kind === "ready" || openPaper.kind === "ready-md";
   const runnerBusy =
     runnerKind === "working" || runnerKind === "running" || runnerKind === "ingesting";
   const diffAvailable = sessionId !== null || runnerBusy;
@@ -134,6 +136,7 @@ function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): 
       {effectiveView === "marks" ? (
         <>
           <StartReviewButton />
+          <MdExportChip />
           {selected ? <ReviewDraft /> : <ReviewList />}
         </>
       ) : effectiveView === "drafts" ? (
@@ -174,7 +177,7 @@ function ReviewerColumn(): JSX.Element {
     prevFocusedRef.current = focusedAnnotationId;
   }, [focusedAnnotationId]);
 
-  const paperOpen = openPaper.kind === "ready";
+  const paperOpen = openPaper.kind === "ready" || openPaper.kind === "ready-md";
   const effectiveView: ReviewerView = paperOpen ? view : "review";
 
   return (
@@ -222,5 +225,57 @@ function ReviewerColumn(): JSX.Element {
         <ReviewerActionsPanel />
       )}
     </aside>
+  );
+}
+
+// Writer-mode Export bundle affordance for MD papers. PDF writer projects
+// export through the Diff/Drafts flow; MD doesn't yet have that plumbing, so
+// an explicit bundle export is the hand-off to `/apply-revision`.
+function MdExportChip(): JSX.Element | null {
+  const openPaper = useOpenPaper();
+  const { repo, rootId } = useProject();
+  const store = useReviewStore();
+  const annotations = store((s) => s.annotations);
+  const [status, setStatus] = useState<
+    { kind: "idle" } | { kind: "saved"; relPath: string } | { kind: "error"; message: string }
+  >({ kind: "idle" });
+
+  const mdPaper = openPaper.kind === "ready-md" ? openPaper.paper : null;
+  if (!mdPaper) return null;
+
+  async function onExport(): Promise<void> {
+    if (!mdPaper) return;
+    setStatus({ kind: "idle" });
+    try {
+      const { filename, json } = await exportMdBundleV2ForPaper({ repo, paperId: mdPaper.id });
+      const bytes = new TextEncoder().encode(json);
+      await fsWriteBytes(rootId, filename, bytes);
+      setStatus({ kind: "saved", relPath: filename });
+    } catch (err) {
+      setStatus({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Could not export bundle.",
+      });
+    }
+  }
+
+  return (
+    <div className="review-column__md-export">
+      <button
+        type="button"
+        className="btn btn--subtle"
+        onClick={() => void onExport()}
+        disabled={annotations.length === 0}
+      >
+        Export bundle ({annotations.length})
+      </button>
+      {status.kind === "saved" ? (
+        <p className="review-column__hint">Saved to {status.relPath}</p>
+      ) : status.kind === "error" ? (
+        <p className="review-column__hint" role="alert">
+          {status.message}
+        </p>
+      ) : null}
+    </div>
   );
 }

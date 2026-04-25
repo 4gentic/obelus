@@ -1,5 +1,6 @@
 import { type JSX, useEffect, useState } from "react";
 import CategoryPicker from "./CategoryPicker";
+import { useEnsureRevision } from "./ensure-revision-context";
 import { useReviewStore } from "./store-context";
 import { trimQuoteMiddle } from "./trim-quote";
 
@@ -12,6 +13,7 @@ export default function ReviewDraft(): JSX.Element | null {
   const setNote = store((s) => s.setDraftNote);
   const save = store((s) => s.saveAnnotation);
   const discard = store((s) => s.setSelectedAnchor);
+  const ensureRevision = useEnsureRevision();
   const [saveError, setSaveError] = useState(false);
 
   useEffect(() => {
@@ -26,7 +28,12 @@ export default function ReviewDraft(): JSX.Element | null {
       setSaveError(true);
       return;
     }
-    void save({ draft, category, note });
+    void save({
+      draft,
+      category,
+      note,
+      ...(ensureRevision ? { ensureRevision } : {}),
+    });
   }
 
   return (

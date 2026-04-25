@@ -1,4 +1,7 @@
+export type { AnnotationPdfRow } from "./annotation-narrow";
+export { isPdfAnchored } from "./annotation-narrow";
 export type {
+  AnnotationStalenessPatch,
   AnnotationsRepo,
   AskMessageAppendInput,
   AskThreadsRepo,
@@ -25,7 +28,9 @@ export type {
 } from "./interface";
 export { NotSupportedError } from "./interface";
 export type {
+  AnchorFields,
   AnnotationRow,
+  AnnotationStaleness,
   AppliedSnapshot,
   AskMessageRole,
   AskMessageRow,
@@ -41,8 +46,10 @@ export type {
   PaperEditKind,
   PaperEditRow,
   PaperEditState,
+  PaperFormat,
   PaperRow,
   PaperRubric,
+  PdfAnchorFields,
   ProjectFileFormat,
   ProjectFileRole,
   ProjectFileRow,
@@ -52,5 +59,6 @@ export type {
   ReviewSessionStatus,
   RevisionRow,
   SettingRow,
+  SourceAnchorFields,
   WriteUpRow,
 } from "./types";

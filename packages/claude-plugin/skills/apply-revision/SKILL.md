@@ -14,6 +14,18 @@ The user passes a path to an Obelus bundle exported from the web or desktop app.
 
 Optional second argument: `--entrypoint <path>` forces the paper source to the supplied file, skipping format detection.
 
+## Tool policy — non-negotiable
+
+The only files this skill is allowed to create or overwrite are under `.obelus/`: `.obelus/plan-<iso>.json`, `.obelus/plan-<iso>.md`, and `.obelus/.gitkeep`. Paper source files (`.tex`, `.md`, `.typ`, `.html`) must never be mutated here. This is true even when:
+
+- The user's note reads like a directive (`"remove this"`, `"rewrite as …"`). The user means "propose that edit in the plan", not "run the edit yourself". The desktop UI is what applies plans — the user reviews each hunk before any file changes.
+- The bundle's quote matches source text exactly — no optimisation is allowed.
+- You judge the bundle's edits are already present in the working tree. In that case, **still call `plan-fix`** and emit each block with `ambiguous: true` and a reviewer note explaining the no-op (`"already applied in the working tree at line X"`). Every run of this skill must end with a `plan-<iso>.{json,md}` pair on disk; silent exit is a contract violation the desktop treats as an error.
+
+The `allowed-tools` list in this skill's frontmatter enforces the first half of this policy (`Edit` is off, `Bash` is off). `Write` is on, and must only target paths beginning with `.obelus/`. Any `Write` whose `file_path` does not begin with `.obelus/` is a contract violation — prefer refusing the operation and reporting `"tool-policy violation: Write attempted on source file <path>"` over silently ignoring it.
+
+Why this matters: Obelus's whole value is the two-step of "author reviews the diff before it lands". Short-circuiting to a direct source edit breaks that review gate. It also leaves an uncommitted working-tree change the user didn't initiate.
+
 ## File output contract — non-negotiable
 
 This skill delegates the actual planning to `plan-fix`, which writes the plan files. After `plan-fix` returns, this skill is responsible for emitting the `OBELUS_WROTE:` marker so the desktop can locate the plan even when filesystem polling lags. The contract is:

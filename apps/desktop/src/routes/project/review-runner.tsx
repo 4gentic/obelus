@@ -8,10 +8,15 @@ import {
 } from "@obelus/claude-sidecar";
 import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { fsWriteBytes } from "../../ipc/commands";
+import {
+  collectBundleSourcePaths,
+  snapshotBundleSources,
+  stashSnapshotForSession,
+} from "../../lib/bundle-sources";
 import { useJobsStore } from "../../lib/jobs-store";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { useBuffersStore } from "./buffers-store-context";
-import { exportBundleV2ForPaper } from "./build-bundle";
+import { exportBundleV2ForPaper, exportMdBundleV2ForPaper } from "./build-bundle";
 import { buildPriorDraftsPrompt } from "./build-prior-drafts-prompt";
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
@@ -230,11 +235,12 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
       });
       let createdSessionId: string | null = null;
       try {
-        const { filename, json, annotationCount, fileCount } = await exportBundleV2ForPaper({
-          repo,
-          paperId,
-          rootId,
-        });
+        const paper = await repo.papers.get(paperId);
+        if (!paper) throw new Error(`paper ${paperId} not found`);
+        const { filename, json, annotationCount, fileCount } =
+          paper.format === "md"
+            ? await exportMdBundleV2ForPaper({ repo, paperId })
+            : await exportBundleV2ForPaper({ repo, paperId, rootId });
         const counts: RunCounts = { marks: annotationCount, files: fileCount, startedAt };
         const bytes = new TextEncoder().encode(json);
         await fsWriteBytes(rootId, filename, bytes);
@@ -249,15 +255,31 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           effort: overrides.effort,
         });
         createdSessionId = session.id;
+        // Snapshot the paper's source files now, so on exit we can tell
+        // whether Claude bypassed plan-fix and mutated source directly. If
+        // any of these files' sha256 changes and no plan file is produced,
+        // the jobs-listener surfaces a tool-policy-violation error.
+        try {
+          const bundleShape = JSON.parse(json) as Parameters<typeof collectBundleSourcePaths>[0];
+          const paths = collectBundleSourcePaths(bundleShape);
+          const snap = await snapshotBundleSources(rootId, paths);
+          stashSnapshotForSession(session.id, snap);
+        } catch (err) {
+          console.warn("[source-snapshot]", {
+            sessionId: session.id,
+            outcome: "pre-spawn-snapshot-failed",
+            detail: err instanceof Error ? err.message : String(err),
+          });
+        }
         console.info("[review-session]", {
           sessionId: session.id,
           paperId,
+          format: paper.format,
           status: "running",
           bundleId: filename,
         });
 
         setLocal({ kind: "working", paperId, step: "Spawning Claude…", counts });
-        const paper = await repo.papers.get(paperId);
         const priorContext = await buildPriorDraftsPrompt(repo, paperId);
         const indicationsBlock =
           opts.indications && opts.indications.trim().length > 0

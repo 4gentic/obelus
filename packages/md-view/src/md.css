@@ -1,0 +1,139 @@
+/*
+ * Paper-faithful markdown review styles.
+ *
+ * Typography follows the Typesetter charter: Newsreader (display), Source
+ * Serif 4 (body), JetBrains Mono (code). Warm paper palette. Margins mirror
+ * the PDF review's editorial feel so the two surfaces read as one product.
+ */
+
+.md-view {
+  font-family: "Source Serif 4", Georgia, serif;
+  color: var(--ink, #2b2a26);
+  background: var(--page, #f6f1e7);
+  line-height: 1.55;
+  max-width: 68ch;
+  margin: 0 auto;
+  padding: 3rem 2.5rem 4rem;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.md-view,
+.md-view * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* WebKit snaps the native Selection's anchor to the block's start the moment
+   the drag crosses an inline/block boundary. Our draft-rect overlay paints
+   the *correct* span (from the mousedown click point to the drag endpoint),
+   so let that be the sole drag feedback instead of the browser's misleading
+   block-start-to-cursor highlight. */
+.md-view ::selection {
+  background: transparent;
+  color: inherit;
+}
+.md-view ::-moz-selection {
+  background: transparent;
+  color: inherit;
+}
+
+.md-view h1,
+.md-view h2,
+.md-view h3,
+.md-view h4,
+.md-view h5,
+.md-view h6 {
+  font-family: "Newsreader", "Source Serif 4", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: 0.002em;
+  line-height: 1.2;
+  margin: 2em 0 0.6em;
+}
+
+.md-view h1 {
+  font-size: 2rem;
+}
+
+.md-view h2 {
+  font-size: 1.5rem;
+}
+
+.md-view h3 {
+  font-size: 1.2rem;
+}
+
+.md-view p,
+.md-view ul,
+.md-view ol,
+.md-view blockquote {
+  margin: 0.9em 0;
+}
+
+.md-view blockquote {
+  border-left: 2px solid var(--rubric, #b84a2e);
+  padding-left: 0.9em;
+  color: var(--secondary, #6b655a);
+  font-style: italic;
+}
+
+.md-view code {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--panel, #ede5d3);
+  padding: 0.1em 0.3em;
+  border-radius: 2px;
+}
+
+.md-view pre {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--panel, #ede5d3);
+  padding: 0.9em 1em;
+  border-radius: 3px;
+  overflow-x: auto;
+  line-height: 1.45;
+}
+
+.md-view pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.md-view hr {
+  border: none;
+  border-top: 1px solid var(--panel, #ede5d3);
+  margin: 2.5em 0;
+}
+
+.md-view table {
+  border-collapse: collapse;
+  margin: 1.2em 0;
+  font-size: 0.95em;
+}
+
+.md-view th,
+.md-view td {
+  border: 1px solid var(--panel, #ede5d3);
+  padding: 0.4em 0.7em;
+  text-align: left;
+}
+
+.md-view th {
+  background: var(--panel, #ede5d3);
+  font-weight: 600;
+}
+
+.md-view img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1.2em auto;
+}
+
+.md-view--error {
+  color: var(--rubric, #b84a2e);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  padding: 1.5rem;
+}

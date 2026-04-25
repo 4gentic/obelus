@@ -96,9 +96,12 @@ export interface PaperRefV2Input {
   title: string;
   revisionNumber: number;
   createdAt: string;
-  pdfRelPath: string;
-  pdfSha256: string;
-  pageCount: number;
+  // PDF fields are present for writer-project reviews built around a compiled
+  // PDF; reviewer-side markdown papers (no compile) leave them unset and rely
+  // on `entrypoint` plus source-anchored annotations.
+  pdfRelPath?: string;
+  pdfSha256?: string;
+  pageCount?: number;
   entrypoint?: string;
   rubric?: { body: string; label: string; source: "file" | "paste" | "inline" };
 }
@@ -131,6 +134,29 @@ export interface ProjectV2Input {
   files?: ReadonlyArray<ProjectV2FileSummaryInput>;
 }
 
+// Discriminated input anchor mirroring the bundle's wire shape. Callers pass
+// either arm — the builder forwards it through `BundleV2.parse` for canonical
+// validation. The builder takes no responsibility for impossible cases; the
+// row-side discriminant is the contract.
+export type AnnotationV2InputAnchor =
+  | {
+      kind: "pdf";
+      page: number;
+      bbox: readonly [number, number, number, number];
+      textItemRange: {
+        start: readonly [number, number];
+        end: readonly [number, number];
+      };
+    }
+  | {
+      kind: "source";
+      file: string;
+      lineStart: number;
+      colStart: number;
+      lineEnd: number;
+      colEnd: number;
+    };
+
 export interface AnnotationV2Input {
   id: string;
   paperId: string;
@@ -138,22 +164,7 @@ export interface AnnotationV2Input {
   quote: string;
   contextBefore: string;
   contextAfter: string;
-  page: number;
-  bbox: readonly [number, number, number, number];
-  textItemRange: {
-    start: readonly [number, number];
-    end: readonly [number, number];
-  };
-  // Desktop-resolved source-file span. When present, the emitted annotation
-  // carries a `source` anchor and the plugin skips its fuzzy PDF→source hunt.
-  // Omit to fall through to the default PDF anchor.
-  sourceAnchor?: {
-    file: string;
-    lineStart: number;
-    colStart: number;
-    lineEnd: number;
-    colEnd: number;
-  };
+  anchor: AnnotationV2InputAnchor;
   note: string;
   thread: ReadonlyArray<{ at: string; body: string }>;
   createdAt: string;
@@ -196,11 +207,15 @@ export function buildBundleV2(input: BuildBundleV2Input): Bundle2 {
       title: p.title,
       revision: p.revisionNumber,
       createdAt: p.createdAt,
-      pdf: {
-        relPath: p.pdfRelPath,
-        sha256: p.pdfSha256,
-        pageCount: p.pageCount,
-      },
+      ...(p.pdfRelPath !== undefined && p.pdfSha256 !== undefined && p.pageCount !== undefined
+        ? {
+            pdf: {
+              relPath: p.pdfRelPath,
+              sha256: p.pdfSha256,
+              pageCount: p.pageCount,
+            },
+          }
+        : {}),
       ...(p.entrypoint !== undefined ? { entrypoint: p.entrypoint } : {}),
       ...(p.rubric !== undefined ? { rubric: p.rubric } : {}),
     })),
@@ -211,22 +226,7 @@ export function buildBundleV2(input: BuildBundleV2Input): Bundle2 {
       quote: a.quote,
       contextBefore: a.contextBefore,
       contextAfter: a.contextAfter,
-      anchor:
-        a.sourceAnchor !== undefined
-          ? {
-              kind: "source" as const,
-              file: a.sourceAnchor.file,
-              lineStart: a.sourceAnchor.lineStart,
-              colStart: a.sourceAnchor.colStart,
-              lineEnd: a.sourceAnchor.lineEnd,
-              colEnd: a.sourceAnchor.colEnd,
-            }
-          : {
-              kind: "pdf" as const,
-              page: a.page,
-              bbox: a.bbox,
-              textItemRange: a.textItemRange,
-            },
+      anchor: a.anchor,
       note: a.note,
       thread: a.thread,
       createdAt: a.createdAt,

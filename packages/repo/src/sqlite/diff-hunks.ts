@@ -1,7 +1,13 @@
+import { z } from "zod";
 import type { DiffHunksRepo } from "../interface";
 import type { DiffHunkApplyFailure, DiffHunkRow, DiffHunkState } from "../types";
 import type { Database } from "./db";
 import { dbTxBatch, type TxStmt } from "./transaction";
+
+const DiffHunkApplyFailureSchema = z.object({
+  reason: z.string(),
+  attemptedAt: z.string(),
+});
 
 interface DiffHunkSqlRow {
   id: string;
@@ -21,16 +27,9 @@ interface DiffHunkSqlRow {
 function parseApplyFailure(raw: string | null): DiffHunkApplyFailure | null {
   if (raw === null || raw === "") return null;
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      typeof (parsed as { reason?: unknown }).reason === "string" &&
-      typeof (parsed as { attemptedAt?: unknown }).attemptedAt === "string"
-    ) {
-      return parsed as DiffHunkApplyFailure;
-    }
-    return null;
+    const parsed: unknown = JSON.parse(raw);
+    const result = DiffHunkApplyFailureSchema.safeParse(parsed);
+    return result.success ? result.data : null;
   } catch {
     return null;
   }

@@ -67,12 +67,21 @@ export function useDiffStore(): DiffStore {
 // Drafts tab. Without this second filter, the post-apply jobs-store tick
 // re-loads the just-applied session and the Diff tab reappears with the
 // hunks and the "keep these changes" button, as if nothing had been applied.
+// Finally, we skip sessions that persisted with zero hunks — new sessions
+// are auto-discarded at ingest, but historical rows written before that fix
+// would otherwise keep surfacing as "Plan loaded but no hunks were produced"
+// until the user manually dismisses each one.
 async function findLatestVisibleReviewForPaper(
   repo: Repository,
   paperId: string,
 ): Promise<ReviewSessionRow | undefined> {
   const rows = await repo.reviewSessions.listForPaper(paperId);
-  return rows.find(
-    (r) => (r.status === "completed" || r.status === "failed") && r.appliedAt === null,
-  );
+  for (const r of rows) {
+    if (r.status !== "completed" && r.status !== "failed") continue;
+    if (r.appliedAt !== null) continue;
+    const hunks = await repo.diffHunks.listForSession(r.id);
+    if (hunks.length === 0) continue;
+    return r;
+  }
+  return undefined;
 }

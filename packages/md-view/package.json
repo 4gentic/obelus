@@ -1,0 +1,45 @@
+{
+  "name": "@obelus/md-view",
+  "version": "0.1.0",
+  "description": "React component that renders a markdown paper into Obelus's review surface. Calls renderMarkdown (pure JS, browser-safe) and paints the HTML with data-src-* attributes intact so selection → SourceAnchor works.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./md.css": "./src/md.css"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@obelus/anchor": "workspace:*",
+    "@obelus/bundle-schema": "workspace:*",
+    "@obelus/repo": "workspace:*",
+    "@obelus/review-shell": "workspace:*",
+    "@obelus/review-store": "workspace:*",
+    "@obelus/source-render": "workspace:*",
+    "mdast-util-from-markdown": "2.0.3",
+    "mdast-util-gfm": "3.1.0",
+    "micromark-extension-gfm": "3.0.0",
+    "unist-util-visit": "5.1.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/mdast": "4.0.4",
+    "@types/react": "19.2.14",
+    "happy-dom": "20.9.0",
+    "react": "19.2.5",
+    "vitest": "4.1.4"
+  }
+}

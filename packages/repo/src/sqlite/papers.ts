@@ -1,5 +1,5 @@
 import type { PaperCreateInput, PaperPathsPatch, PapersRepo } from "../interface";
-import type { PaperRow, PaperRubric, RevisionRow } from "../types";
+import type { PaperFormat, PaperRow, PaperRubric, RevisionRow } from "../types";
 import type { Database } from "./db";
 import { dbTxBatch } from "./transaction";
 
@@ -7,6 +7,7 @@ interface PaperSqlRow {
   id: string;
   project_id: string | null;
   title: string;
+  format: string;
   entrypoint_rel_path: string | null;
   pdf_rel_path: string | null;
   pdf_sha256: string | null;
@@ -19,7 +20,12 @@ interface PaperSqlRow {
 }
 
 const SELECT_COLUMNS =
-  "id, project_id, title, entrypoint_rel_path, pdf_rel_path, pdf_sha256, page_count, created_at, rubric_body, rubric_source, rubric_label, rubric_updated_at";
+  "id, project_id, title, format, entrypoint_rel_path, pdf_rel_path, pdf_sha256, page_count, created_at, rubric_body, rubric_source, rubric_label, rubric_updated_at";
+
+function paperFormat(raw: string): PaperFormat {
+  if (raw === "md") return "md";
+  return "pdf";
+}
 
 function rubricFromRow(r: PaperSqlRow): PaperRubric | undefined {
   if (
@@ -45,6 +51,7 @@ function toPaperRow(r: PaperSqlRow): PaperRow {
     id: r.id,
     title: r.title,
     createdAt: r.created_at,
+    format: paperFormat(r.format),
     pdfSha256: r.pdf_sha256 ?? "",
   };
   const projectAdded = r.project_id !== null ? { ...base, projectId: r.project_id } : base;
@@ -98,10 +105,12 @@ export function buildPapersRepo(db: Database): PapersRepo {
       const createdAt = nowIso();
       const paperId = uuid();
       const revisionId = uuid();
+      const format: PaperFormat = input.format ?? "pdf";
       const paper: PaperRow = {
         id: paperId,
         title: input.title,
         createdAt,
+        format,
         pdfSha256: input.pdfSha256,
         projectId: input.projectId,
         pdfRelPath: input.pdfRelPath,
@@ -116,12 +125,13 @@ export function buildPapersRepo(db: Database): PapersRepo {
       };
       await dbTxBatch([
         {
-          sql: `INSERT INTO papers (id, project_id, title, pdf_rel_path, pdf_sha256, page_count, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          sql: `INSERT INTO papers (id, project_id, title, format, pdf_rel_path, pdf_sha256, page_count, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           params: [
             paperId,
             input.projectId,
             input.title,
+            format,
             input.pdfRelPath,
             input.pdfSha256,
             input.pageCount,

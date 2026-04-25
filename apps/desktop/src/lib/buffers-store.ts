@@ -17,11 +17,20 @@ export interface BufferEntry {
 // blocked. `null` means "no opinion" — the save proceeds.
 export type WriteGuardReason = string | null;
 
+// External-change conflict: the file on disk changed but the buffer has
+// unsaved edits. The SourcePane surfaces a keep-yours-or-reload banner
+// until the user resolves it.
+export interface ExternalChangeConflict {
+  relPath: string;
+  newSha256: string;
+}
+
 export interface BuffersState {
   rootId: string;
   buffers: Map<string, BufferEntry>;
   currentPath: string | null;
   pendingSwitch: string | null;
+  pendingExternalReload: ExternalChangeConflict | null;
   // Defense-in-depth against writes while a review is pending. The source
   // pane's CodeMirror is already set to read-only in that state, so most
   // paths never reach here — but the save command and any future "save all"
@@ -39,6 +48,7 @@ export interface BuffersState {
   isDirty(path: string): boolean;
   requestSwitch(path: string): boolean;
   clearPendingSwitch(): void;
+  setPendingExternalReload(conflict: ExternalChangeConflict | null): void;
   refreshFromDisk(paths: ReadonlyArray<string>): Promise<void>;
   // Rewrites buffer keys after a file/folder move. Exact matches on
   // `fromPrefix` are replaced with `toPrefix`; matches on `fromPrefix + "/"`
@@ -54,6 +64,7 @@ export function createBuffersStore(rootId: string): BuffersStore {
     buffers: new Map(),
     currentPath: null,
     pendingSwitch: null,
+    pendingExternalReload: null,
     writeGuard: null,
 
     setCurrentPath(path: string | null): void {
@@ -150,6 +161,10 @@ export function createBuffersStore(rootId: string): BuffersStore {
 
     clearPendingSwitch(): void {
       set({ pendingSwitch: null });
+    },
+
+    setPendingExternalReload(conflict: ExternalChangeConflict | null): void {
+      set({ pendingExternalReload: conflict });
     },
 
     // Re-read `paths` from disk. For any that already have a clean open

@@ -11,10 +11,13 @@ export interface PaperRubric {
   updatedAt: string;
 }
 
+export type PaperFormat = "pdf" | "md";
+
 export interface PaperRow {
   id: string;
   title: string;
   createdAt: string;
+  format: PaperFormat;
   pdfSha256: string;
   projectId?: string;
   pdfRelPath?: string;
@@ -32,6 +35,25 @@ export interface RevisionRow {
   note?: string;
 }
 
+// Anchor fields mirror the bundle-schema's discriminated `Anchor` Zod, plus
+// `rects` on the PDF arm — a UI cache for the per-line highlight overlay that
+// the canonical `bbox` doesn't carry. The wire format (bundle JSON) intentionally
+// omits `rects`; only the row carries it because only the renderer needs it.
+export type PdfAnchorFields = {
+  kind: "pdf";
+  page: number;
+  bbox: [number, number, number, number];
+  textItemRange: {
+    start: [number, number];
+    end: [number, number];
+  };
+  rects?: Array<[number, number, number, number]>;
+};
+
+export type SourceAnchorFields = z.infer<typeof BundleSchema.SourceAnchor>;
+
+export type AnchorFields = PdfAnchorFields | SourceAnchorFields;
+
 export interface AnnotationRow {
   id: string;
   revisionId: string;
@@ -39,13 +61,7 @@ export interface AnnotationRow {
   quote: string;
   contextBefore: string;
   contextAfter: string;
-  page: number;
-  bbox: [number, number, number, number];
-  rects?: Array<[number, number, number, number]>;
-  textItemRange: {
-    start: [number, number];
-    end: [number, number];
-  };
+  anchor: AnchorFields;
   note: string;
   thread: Array<{ at: string; body: string }>;
   createdAt: string;
@@ -54,7 +70,14 @@ export interface AnnotationRow {
   // Set when a draft has landed the hunk this mark spawned; archives it from
   // the active Marks tab but keeps it addressable.
   resolvedInEditId?: string;
+  // Last verification outcome of this mark's anchor against the current
+  // source bytes. Unset means "never verified" (treated as `ok` by the UI
+  // until proven otherwise). Set by the writer-mode re-verify-on-save path
+  // and by the external-change watcher.
+  staleness?: AnnotationStaleness;
 }
+
+export type AnnotationStaleness = "ok" | "line-out-of-range" | "quote-mismatch";
 
 export interface SettingRow {
   key: string;

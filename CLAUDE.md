@@ -81,6 +81,12 @@ scripts/            guard-network.mjs and other CI helpers.
 docs/marketing/     Twitter / LinkedIn / HN copy, all tracked in-repo.
 ```
 
+## Web/desktop parity
+
+Obelus's web and desktop apps target the same reviewer use cases; the only intentional divergence is that the desktop shell can invoke Claude Code locally and the web cannot. Whenever a feature, ingest flow, or UI affordance is shared between both surfaces, it must be implemented against a shared `packages/*` module consumed by both apps — not cloned into `apps/web/src/` and `apps/desktop/src/`. When adding a new surface, ask: can this be shared? If it can, it must be.
+
+The canonical example is the review surface: PDF and Markdown papers render through adapters (`packages/pdf-view`, `packages/md-view`) that return a shared `DocumentView` contract (`packages/review-shell`). Both apps mount the same highlight overlay, selection capture, and (on web) margin-note stacker — not duplicated code paths. Desktop-only affordances (CodeMirror editor, diff review, ReviewerActionsPanel) stay out of the shared package; the line is "does web have a reason to need this?" — if not, keep it desktop-local.
+
 ## Commands
 
 - `pnpm dev` — run the web app.

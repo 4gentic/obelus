@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@obelus/anchor": "workspace:*",
+    "@obelus/bundle-schema": "workspace:*",
     "@obelus/repo": "workspace:*",
     "zustand": "5.0.12"
   },

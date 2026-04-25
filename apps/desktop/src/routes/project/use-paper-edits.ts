@@ -1,6 +1,9 @@
 import type { PaperEditRow, Repository } from "@obelus/repo";
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { z } from "zod";
 import { create, type StoreApi, type UseBoundStore } from "zustand";
+
+const CurrentDraftIdSchema = z.string();
 
 export interface PaperEditsData {
   live: PaperEditRow[];
@@ -61,7 +64,7 @@ function getStore(repo: Repository, paperId: string): PaperEditsStore {
   const load = async (): Promise<void> => {
     const [edits, persisted] = await Promise.all([
       repo.paperEdits.listForPaper(paperId, { includeTombstoned: true }),
-      repo.settings.get<string>(CURRENT_KEY(paperId)),
+      repo.settings.get(CURRENT_KEY(paperId), CurrentDraftIdSchema),
     ]);
     const live = edits.filter((e) => e.state === "live");
     const head = computeHead(live);

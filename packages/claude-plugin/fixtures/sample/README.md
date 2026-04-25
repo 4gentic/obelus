@@ -7,7 +7,8 @@ Three source variants of the same short paper on transformer-attention scalabili
 - `sample.tex` — LaTeX source (article class).
 - `sample.md` — Markdown with pandoc frontmatter.
 - `sample.typ` — Typst source.
-- `bundle.json` — a valid bundle with three annotations (one `unclear`, one `citation-needed`, one `praise`).
+- `bundle.json` — a valid v1 bundle with three annotations (one `unclear`, one `citation-needed`, one `praise`) anchored to the rendered PDF.
+- `bundle-md.json` — a valid v2 bundle with two `source`-anchored annotations pointing at specific lines of `sample.md`; used by the plugin-e2e `revise-markdown-source` scenario to prove the markdown round-trip.
 
 The `.pdf` is deliberately not committed: binaries in a source repo age poorly and this fixture is meant to be regenerated on demand.
 

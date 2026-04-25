@@ -43,7 +43,12 @@ function appendExtra(base: string, extra: string | undefined): string {
 export function formatSpawnInvocation(input: SpawnInvocationInput): string {
   switch (input.kind) {
     case "apply-revision": {
-      const base = `Run apply-revision with bundle path ${input.bundleAbsPath}.\n`;
+      // Tool-policy clause. Kept in lockstep with the Rust spawn in
+      // apps/desktop/src-tauri/src/commands/claude_session.rs::claude_spawn
+      // — if either side changes, update both so the snapshot stays true.
+      const base =
+        `Run apply-revision with bundle path ${input.bundleAbsPath}.\n` +
+        "Tool policy for this run: write .obelus/plan-<iso>.json and .obelus/plan-<iso>.md only. Do NOT use Edit, Write, or any tool that mutates a source file — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with `OBELUS_WROTE: .obelus/plan-<iso>.json`.\n";
       return appendExtra(base, input.extraBody);
     }
     case "write-review": {

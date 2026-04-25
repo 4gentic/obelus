@@ -32,9 +32,11 @@
     "@obelus/categories": "workspace:*",
     "@obelus/claude-sidecar": "workspace:*",
     "@obelus/design-tokens": "workspace:*",
+    "@obelus/md-view": "workspace:*",
     "@obelus/pdf-view": "workspace:*",
     "@obelus/prompts": "workspace:*",
     "@obelus/repo": "workspace:*",
+    "@obelus/review-shell": "workspace:*",
     "@obelus/review-store": "workspace:*",
     "@tauri-apps/api": "2.10.1",
     "@tauri-apps/plugin-deep-link": "2.4.8",
@@ -50,6 +52,7 @@
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "react-router-dom": "7.14.1",
+    "zod": "4.3.6",
     "zustand": "5.0.12"
   },
   "devDependencies": {

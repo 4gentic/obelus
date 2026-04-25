@@ -1,6 +1,12 @@
-import type { PaperCreateInput, PaperPathsPatch, RevisionCreateInput } from "../interface";
+import type { ZodType } from "zod";
+import type {
+  AnnotationStalenessPatch,
+  PaperCreateInput,
+  PaperPathsPatch,
+  RevisionCreateInput,
+} from "../interface";
 import type { PaperRubric } from "../types";
-import { deletePdf, putPdf } from "./opfs";
+import { deleteMd, deletePdf, putMd, putPdf } from "./opfs";
 import { requestPersistOnce } from "./persist";
 import { type AnnotationRow, getDb, type PaperRow, type RevisionRow } from "./schema";
 
@@ -27,18 +33,28 @@ export const papers = {
   },
 
   async create(input: PaperCreateInput): Promise<{ paper: PaperRow; revision: RevisionRow }> {
-    if (input.source !== "bytes") {
-      throw new Error("web PapersRepo.create requires source: 'bytes'");
+    if (input.source === "ondisk") {
+      throw new Error("web PapersRepo.create does not support source: 'ondisk'");
     }
     await requestPersistOnce();
-    const pdfSha256 = await putPdf(input.pdfBytes);
     const createdAt = nowIso();
-    const paper: PaperRow = { id: uuid(), title: input.title, createdAt, pdfSha256 };
+    const contentSha256 =
+      input.source === "md" ? await putMd(input.mdText) : await putPdf(input.pdfBytes);
+    const entrypointRelPath = input.source === "md" ? input.file : undefined;
+    const format = input.source === "md" ? "md" : (input.format ?? "pdf");
+    const paper: PaperRow = {
+      id: uuid(),
+      title: input.title,
+      createdAt,
+      format,
+      pdfSha256: contentSha256,
+      ...(entrypointRelPath !== undefined ? { entrypointRelPath } : {}),
+    };
     const revision: RevisionRow = {
       id: uuid(),
       paperId: paper.id,
       revisionNumber: 1,
-      pdfSha256,
+      pdfSha256: contentSha256,
       createdAt,
     };
     const db = getDb();
@@ -80,6 +96,8 @@ export const papers = {
 
   async remove(id: string): Promise<void> {
     const db = getDb();
+    const paper = await db.papers.get(id);
+    const format = paper?.format ?? "pdf";
     const revs = await db.revisions.where("paperId").equals(id).toArray();
     const sha256s = Array.from(new Set(revs.map((r) => r.pdfSha256)));
     const revIds = revs.map((r) => r.id);
@@ -91,9 +109,13 @@ export const papers = {
       await db.papers.delete(id);
     });
     // Drop OPFS blobs only if no surviving revision still references them.
+    // Revisions of different papers can share a sha (same bytes); we probe
+    // before deleting. The blob lives in either the PDF or MD OPFS dir
+    // depending on the paper's format.
+    const deleteBlob = format === "md" ? deleteMd : deletePdf;
     for (const sha256 of sha256s) {
       const stillReferenced = await db.revisions.where("pdfSha256").equals(sha256).first();
-      if (!stillReferenced) await deletePdf(sha256);
+      if (!stillReferenced) await deleteBlob(sha256);
     }
   },
 };
@@ -160,12 +182,28 @@ export const annotations = {
       }
     });
   },
+
+  async setStaleness(patches: ReadonlyArray<AnnotationStalenessPatch>): Promise<void> {
+    if (patches.length === 0) return;
+    const db = getDb();
+    await db.transaction("rw", db.annotations, async () => {
+      for (const { id, staleness } of patches) {
+        await db.annotations.update(id, { staleness });
+      }
+    });
+  },
 };
 
 export const settings = {
-  async get<T>(key: string): Promise<T | undefined> {
+  async get<T>(key: string, schema: ZodType<T>): Promise<T | undefined> {
     const row = await getDb().settings.get(key);
-    return row ? (row.value as T) : undefined;
+    if (!row) return undefined;
+    const result = schema.safeParse(row.value);
+    if (!result.success) {
+      console.warn("[settings.get] schema mismatch", { key, error: result.error.message });
+      return undefined;
+    }
+    return result.data;
   },
 
   async set<T>(key: string, value: T): Promise<void> {

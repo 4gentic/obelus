@@ -1,0 +1,67 @@
+{
+  "bundleVersion": "2.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.1.0"
+  },
+  "project": {
+    "id": "6f0d0d60-0000-4000-8000-000000000010",
+    "label": "attention-survey-md",
+    "kind": "reviewer",
+    "categories": [
+      { "slug": "unclear", "label": "unclear" },
+      { "slug": "citation-needed", "label": "citation needed", "color": "#B84A2E" },
+      { "slug": "praise", "label": "praise" }
+    ],
+    "main": "sample.md"
+  },
+  "papers": [
+    {
+      "id": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5e80",
+      "title": "On the Scalability of Transformer Attention",
+      "revision": 1,
+      "createdAt": "2026-04-15T10:00:00.000Z",
+      "entrypoint": "sample.md"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "paperId": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5e80",
+      "category": "unclear",
+      "quote": "most production systems still truncate or chunk their inputs",
+      "contextBefore": "This cost dominates training budgets for context windows beyond about sixteen thousand tokens, and is the reason ",
+      "contextAfter": ".",
+      "anchor": {
+        "kind": "source",
+        "file": "sample.md",
+        "lineStart": 15,
+        "colStart": 241,
+        "lineEnd": 15,
+        "colEnd": 301
+      },
+      "note": "Which production systems? Name two or three, or soften the scope.",
+      "thread": [],
+      "createdAt": "2026-04-17T10:12:03.000Z"
+    },
+    {
+      "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "paperId": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5e80",
+      "category": "citation-needed",
+      "quote": "A more balanced evaluation would weight retrieval-heavy tasks more heavily than is currently standard.",
+      "contextBefore": "benchmarks that do not stress long-range retrieval. ",
+      "contextAfter": "",
+      "anchor": {
+        "kind": "source",
+        "file": "sample.md",
+        "lineStart": 29,
+        "colStart": 143,
+        "lineEnd": 29,
+        "colEnd": 246
+      },
+      "note": "This claim would benefit from a citation to the benchmark-design literature.",
+      "thread": [],
+      "createdAt": "2026-04-17T10:14:21.000Z"
+    }
+  ]
+}

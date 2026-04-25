@@ -12,7 +12,7 @@ use commands::{
     },
     claude_user_settings::read_claude_user_settings,
     db_tx::db_tx_batch,
-    dialog::{open_folder_picker, open_pdf_picker, open_rubric_picker},
+    dialog::{open_folder_picker, open_paper_picker, open_rubric_picker},
     engines::{engine_install, engine_list, engine_status, engine_uninstall},
     factory_reset::factory_reset,
     fs_scoped::{
@@ -48,7 +48,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             detect_claude,
             open_folder_picker,
-            open_pdf_picker,
+            open_paper_picker,
             open_rubric_picker,
             authorize_project_root,
             fs_read_file,

@@ -1,5 +1,7 @@
+import type { ZodType } from "zod";
 import type {
   AnnotationRow,
+  AnnotationStaleness,
   AppliedSnapshot,
   AskMessageRow,
   AskThreadRow,
@@ -13,6 +15,7 @@ import type {
   PaperBuildRow,
   PaperEditKind,
   PaperEditRow,
+  PaperFormat,
   PaperRow,
   PaperRubric,
   ProjectFileFormat,
@@ -30,7 +33,8 @@ import type {
 // the desktop impl references on-disk paths.
 
 export type PaperCreateInput =
-  | { source: "bytes"; title: string; pdfBytes: ArrayBuffer }
+  | { source: "bytes"; title: string; pdfBytes: ArrayBuffer; format?: PaperFormat }
+  | { source: "md"; title: string; mdText: string; file: string }
   | {
       source: "ondisk";
       title: string;
@@ -38,6 +42,7 @@ export type PaperCreateInput =
       pdfRelPath: string;
       pdfSha256: string;
       pageCount: number;
+      format?: PaperFormat;
     };
 
 export type RevisionCreateInput =
@@ -67,6 +72,11 @@ export interface RevisionsRepo {
   createFromPaper(paperId: string, input: RevisionCreateInput): Promise<RevisionRow>;
 }
 
+export interface AnnotationStalenessPatch {
+  id: string;
+  staleness: AnnotationStaleness;
+}
+
 export interface AnnotationsRepo {
   // `visibleFromEditId` makes "resolved" relative to the currently-viewed
   // draft: an annotation whose `resolved_in_edit_id` is NOT an ancestor of
@@ -80,10 +90,18 @@ export interface AnnotationsRepo {
   bulkPut(revisionId: string, rows: AnnotationRow[]): Promise<void>;
   remove(id: string): Promise<void>;
   markResolvedInEdit(ids: ReadonlyArray<string>, editId: string): Promise<void>;
+  // Used by the writer-mode save-verify path and the external-change watcher
+  // to record each mark's last verification outcome. Only updates the
+  // `staleness` column; the rest of the row is untouched.
+  setStaleness(patches: ReadonlyArray<AnnotationStalenessPatch>): Promise<void>;
 }
 
 export interface SettingsRepo {
-  get<T>(key: string): Promise<T | undefined>;
+  // Read-side validation is the boundary's job. Callers pass a Zod schema for
+  // the shape they expect; bytes that fail to parse return `undefined` and are
+  // logged once. `set` keeps an internal-trust signature: the value is already
+  // typed at the call site and runtime validation only matters on read.
+  get<T>(key: string, schema: ZodType<T>): Promise<T | undefined>;
   set<T>(key: string, value: T): Promise<void>;
 }
 
