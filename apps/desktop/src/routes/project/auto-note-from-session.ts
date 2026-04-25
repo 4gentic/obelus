@@ -1,8 +1,9 @@
 import type { DiffHunkRow } from "@obelus/repo";
 
 // A pass that landed N accepted hunks across F files becomes a one-phrase
-// summary the Drafts tab renders as the auto-seeded note. The user can
-// rename it later; this exists so no draft is ever labelled "untitled".
+// summary used as the auto-seeded note for the resulting paper edit. The
+// user can rename it later; this exists so no draft is ever labelled
+// "untitled".
 export function autoNoteFromSession(hunks: ReadonlyArray<DiffHunkRow>): string {
   const landed = hunks.filter((h) => h.state === "accepted" || h.state === "modified");
   if (landed.length === 0) return "no changes";
