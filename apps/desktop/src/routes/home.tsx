@@ -61,6 +61,7 @@ function RowItem({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(project.label);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [removeArmed, setRemoveArmed] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -170,6 +171,29 @@ function RowItem({
               aria-label={`Rename ${project.label}`}
             >
               Rename
+            </button>
+            <button
+              type="button"
+              className={
+                removeArmed ? "home__row-action home__row-action--armed" : "home__row-action"
+              }
+              onClick={() => {
+                if (!removeArmed) {
+                  setRemoveArmed(true);
+                  return;
+                }
+                setRemoveArmed(false);
+                onForget(project.id);
+              }}
+              onBlur={() => setRemoveArmed(false)}
+              aria-label={
+                removeArmed
+                  ? `Confirm remove ${project.label} from Obelus`
+                  : `Remove ${project.label} from Obelus`
+              }
+              title="Remove from Obelus. Files on disk are kept."
+            >
+              {removeArmed ? "Click to confirm" : "Remove"}
             </button>
           </>
         )}
