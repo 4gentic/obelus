@@ -8,11 +8,14 @@
 }
 
 .wizard__book {
-  width: min(640px, 100%);
+  width: 100%;
+  display: flex;
+  justify-content: center;
   perspective: 1600px;
 }
 
 .folio {
+  width: min(640px, 100%);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
@@ -22,6 +25,25 @@
   border-radius: var(--radius-2);
   animation: folio-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1);
   transform-origin: left center;
+}
+
+.folio--wide {
+  width: min(960px, 100%);
+}
+
+.folio__split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  column-gap: var(--space-7);
+  align-items: start;
+}
+
+.folio__split-text,
+.folio__split-aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
 }
 
 @keyframes folio-in {
