@@ -43,6 +43,16 @@ describe("PlanFile schema", () => {
     ).toThrow();
   });
 
+  it("accepts html format", () => {
+    const parsed = PlanFile.parse({
+      bundleId: "sha256:abc",
+      format: "html",
+      entrypoint: "index.html",
+      blocks: [],
+    });
+    expect(parsed.format).toBe("html");
+  });
+
   it("rejects a format value outside the enum", () => {
     expect(() =>
       PlanFile.parse({
