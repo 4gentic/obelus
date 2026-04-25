@@ -17,6 +17,7 @@ export {
   type CategoryDestination,
 } from "./fragments/category-map.js";
 export { EDIT_SHAPE_MARKDOWN } from "./fragments/edit-shape.js";
+export { HTML_FORMAT_MARKDOWN } from "./fragments/html-format.js";
 export { REVIEW_REFUSALS_MARKDOWN } from "./fragments/refusals.js";
 export {
   assertNoSentinel,

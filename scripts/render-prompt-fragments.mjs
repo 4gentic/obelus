@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import {
   CATEGORY_MAP_MARKDOWN,
   EDIT_SHAPE_MARKDOWN,
+  HTML_FORMAT_MARKDOWN,
   REVIEW_REFUSALS_MARKDOWN,
   VOICE_MARKDOWN,
 } from "../packages/prompts/src/index.ts";
@@ -29,6 +30,7 @@ const pluginRoots = [
 const FRAGMENT_TABLE = {
   "category-map": CATEGORY_MAP_MARKDOWN,
   "edit-shape": EDIT_SHAPE_MARKDOWN,
+  "html-format": HTML_FORMAT_MARKDOWN,
   voice: VOICE_MARKDOWN,
   refusals: REVIEW_REFUSALS_MARKDOWN,
 };
