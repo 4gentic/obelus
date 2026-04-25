@@ -279,14 +279,29 @@ pub async fn claude_spawn(
         "apply-revision"
     };
     let mut base = if writer_fast {
+        // SKILL.md uses `$OBELUS_WORKSPACE_DIR` literally as the output prefix;
+        // the model can't read env vars, so the caller has to surface the
+        // absolute path in the prompt — the same pattern apply-revision uses.
+        // The `/obelus:<skill>` form is the canonical Claude Code invocation
+        // shape; the imperative "Run <skill>" works on Sonnet but Haiku treats
+        // it as free-form prose and goes hunting for a binary by that name.
+        //
+        // The tool-policy clause mirrors plan-writer-fast's frontmatter
+        // (`allowed-tools: Read Glob Write`) into the prompt because Sonnet
+        // otherwise reaches for Bash to "verify" or "compute" things the
+        // skill never asks for, blowing the one-turn budget. Saying it in
+        // the prompt is defense-in-depth: if `--allowedTools` doesn't actually
+        // gate Bash (the flag's parsing is uncertain), the model sees the
+        // policy here and respects it.
         format!(
-            "Run {} with bundle path {}.\n",
+            "/obelus:{} {}\nTool policy: Read, Glob, Write only — no Bash, no Grep, no Edit. One turn: read the source windows the prelude lists, Write the .md and .json plans, end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json` (workspace = {}).\n",
             skill_name,
             bundle_abs.display(),
+            workspace.display(),
         )
     } else {
         format!(
-            "Run {} with bundle path {}.\nTool policy for this run: write only inside $OBELUS_WORKSPACE_DIR ({}). Do NOT use Edit, Write, or any tool that mutates a source file under the project working tree — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json`.\n",
+            "/obelus:{} {}\nTool policy for this run: write only inside $OBELUS_WORKSPACE_DIR ({}). Do NOT use Edit, Write, or any tool that mutates a source file under the project working tree — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json`.\n",
             skill_name,
             bundle_abs.display(),
             workspace.display(),
@@ -313,15 +328,16 @@ pub async fn claude_spawn(
 
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 
-    // apply-revision + plan-fix are dispatch, location, and minimal-diff
-    // composition — not reasoning. Sonnet matches Opus quality at ~2×
-    // throughput; falling back to Claude Code's global default (typically
-    // Opus) was the single biggest contributor to 10-minute review runs on
-    // paper-sized context. plan-writer-fast is a single-turn drafter — Haiku
-    // matches the quality envelope at a fraction of the wall-clock, and the
-    // human reviews every diff in the Obelus UI before applying. Explicit
-    // user picks still win.
-    let mode_default = if writer_fast { "haiku" } else { "sonnet" };
+    // Sonnet for both modes. apply-revision + plan-fix are dispatch, location,
+    // and minimal-diff composition — not reasoning; Sonnet matches Opus quality
+    // at ~2× throughput. plan-writer-fast is a single-turn drafter, so Haiku
+    // looked like the right tool — but in practice it intermittently writes
+    // only the plan `.md` and skips the `.json` companion the desktop UI
+    // consumes, leaving the run unrecoverable from the user's POV. Reliability
+    // wins over per-turn speed here; the writer-fast path is still much
+    // faster than rigorous on the same model (no subagent, no sweeps).
+    // Explicit user picks still win.
+    let mode_default = "sonnet";
     let effective_model = model.as_deref().or(Some(mode_default));
     let mut cmd = claude_command(&claude, &root, &workspace, effective_model, effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
@@ -362,7 +378,7 @@ pub async fn claude_draft_writeup(
     // `formatSpawnInvocation({ kind: "write-review", … })` in
     // `packages/prompts/src/formatters/format-spawn-invocation.ts`.
     let mut base = format!(
-        "Run write-review with bundle path {} --out.\npaperId: {}\npaperTitle: {}\n",
+        "/obelus:write-review {} --out\npaperId: {}\npaperTitle: {}\n",
         bundle_abs.display(),
         paper_id,
         paper_title,
@@ -412,7 +428,7 @@ pub async fn claude_fix_compile(
     // `packages/prompts/src/formatters/format-spawn-invocation.ts`; keep the
     // two in lockstep when either changes.
     let prompt = format!(
-        "Run fix-compile with bundle path {}.\npaperId: {}\n",
+        "/obelus:fix-compile {}\npaperId: {}\n",
         bundle_abs.display(),
         paper_id,
     );
