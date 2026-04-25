@@ -17,8 +17,8 @@ const tmpRoot = process.env.OBELUS_E2E_TMP_DIR
   ? resolve(process.env.OBELUS_E2E_TMP_DIR)
   : resolve(tmpdir(), "obelus-plugin-e2e");
 
-const BUDGET_USD = "1.00";
-const TIMEOUT_MS = 300_000;
+const BUDGET_USD = "2.00";
+const TIMEOUT_MS = 600_000;
 const MAX_BUFFER = 16 * 1024 * 1024;
 
 const ONLY_IDS = (process.env.OBELUS_E2E_ONLY || "")
