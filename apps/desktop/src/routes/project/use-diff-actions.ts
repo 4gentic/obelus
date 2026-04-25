@@ -276,8 +276,7 @@ export function useDiffActions(): DiffActions {
       stage = "post-apply";
 
       // Working tree now matches the new draft. Keep the stored cursor in sync
-      // so DraftsRail highlights the right chip and future divergence checks
-      // compare against the right manifest.
+      // so future divergence checks compare against the right manifest.
       await edits.setCurrentDraftId(draft.id);
       await edits.refresh();
 

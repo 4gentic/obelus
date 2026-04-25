@@ -28,7 +28,6 @@ import { fsReadFile } from "../../ipc/commands";
 import { setActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
-import DraftsRail from "./DraftsRail";
 import { editorTheme } from "./editor-theme";
 import HtmlReviewSurface from "./HtmlReviewSurface";
 import MdReviewSurface from "./MdReviewSurface";
@@ -441,7 +440,6 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
           />
         </div>
       )}
-      <DraftsRail />
     </div>
   );
 }
