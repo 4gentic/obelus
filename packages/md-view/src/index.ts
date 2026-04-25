@@ -1,3 +1,4 @@
+export type { AssetResolver } from "@obelus/source-render/browser";
 export { useMdDocumentView } from "./adapter";
 export {
   resolveSourceAnchorToRange,
