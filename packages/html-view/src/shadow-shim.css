@@ -1,0 +1,45 @@
+/*
+ * Editorial typography defaults for HTML papers mounted inside the shadow
+ * root. Pure defaults, not a reset — authored styles override on cascade.
+ * Newsreader (display) + Source Serif 4 (body) + JetBrains Mono (chrome)
+ * are the Typesetter charter's required typefaces.
+ */
+
+:host {
+  display: block;
+  color: #2b2a26;
+  background: #f6f1e7;
+  font-family: "Source Serif 4 Variable", "Source Serif 4", Georgia, serif;
+  line-height: 1.55;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Newsreader Variable", "Newsreader", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: 0.002em;
+  line-height: 1.2;
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+a {
+  color: #b84a2e;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}

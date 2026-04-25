@@ -1,5 +1,5 @@
 import type { Anchor, Bbox } from "@obelus/anchor";
-import type { SourceAnchor2 } from "@obelus/bundle-schema";
+import type { HtmlAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
 import type {
   AnnotationRow,
   AnnotationStaleness,
@@ -32,7 +32,15 @@ export type SourceDraftSlice = {
   contextAfter: string;
 };
 
-export type DraftSlice = PdfDraftSlice | SourceDraftSlice;
+export type HtmlDraftSlice = {
+  kind: "html";
+  anchor: HtmlAnchor2;
+  quote: string;
+  contextBefore: string;
+  contextAfter: string;
+};
+
+export type DraftSlice = PdfDraftSlice | SourceDraftSlice | HtmlDraftSlice;
 
 export type DraftInput = {
   slices: DraftSlice[];
@@ -173,6 +181,30 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
               colStart: slice.anchor.colStart,
               lineEnd: slice.anchor.lineEnd,
               colEnd: slice.anchor.colEnd,
+            },
+            note,
+            thread: [],
+            createdAt,
+            ...(groupId ? { groupId } : {}),
+          };
+        }
+        if (slice.kind === "html") {
+          return {
+            id: uuid(),
+            revisionId,
+            category,
+            quote: slice.quote,
+            contextBefore: slice.contextBefore,
+            contextAfter: slice.contextAfter,
+            anchor: {
+              kind: "html",
+              file: slice.anchor.file,
+              xpath: slice.anchor.xpath,
+              charOffsetStart: slice.anchor.charOffsetStart,
+              charOffsetEnd: slice.anchor.charOffsetEnd,
+              ...(slice.anchor.sourceHint !== undefined
+                ? { sourceHint: slice.anchor.sourceHint }
+                : {}),
             },
             note,
             thread: [],
