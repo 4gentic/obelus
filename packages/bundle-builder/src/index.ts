@@ -118,7 +118,67 @@ export interface BuildBundleInput {
   toolVersion?: string;
 }
 
+// `<obelus:*>` literals are reserved as plugin-level markers (subagent fence
+// delimiters and skill phase markers). Reviewer-supplied free text and rubric
+// bodies must not carry them — a hit here is either a producer bug or an
+// injection attempt, and the consuming skill would otherwise have to refuse at
+// runtime. Failing fast at export keeps producer and consumer honest.
+const OBELUS_DELIMITERS = [
+  "<obelus:quote>",
+  "<obelus:note>",
+  "<obelus:context-before>",
+  "<obelus:context-after>",
+  "<obelus:rubric>",
+  "<obelus:phase>",
+] as const;
+
+function findDelimiter(value: string): string | null {
+  for (const lit of OBELUS_DELIMITERS) {
+    if (value.includes(lit)) return lit;
+  }
+  return null;
+}
+
+function assertNoDelimiterCollisions(input: BuildBundleInput): void {
+  for (const ann of input.annotations) {
+    const fields = [
+      ["quote", ann.quote],
+      ["note", ann.note],
+      ["contextBefore", ann.contextBefore],
+      ["contextAfter", ann.contextAfter],
+    ] as const;
+    for (const [name, value] of fields) {
+      const hit = findDelimiter(value);
+      if (hit) {
+        throw new Error(
+          `bundle export refused: annotation ${ann.id} field "${name}" contains the reserved delimiter ${hit}`,
+        );
+      }
+    }
+    for (let i = 0; i < ann.thread.length; i++) {
+      const entry = ann.thread[i];
+      if (!entry) continue;
+      const hit = findDelimiter(entry.body);
+      if (hit) {
+        throw new Error(
+          `bundle export refused: annotation ${ann.id} thread[${i}].body contains the reserved delimiter ${hit}`,
+        );
+      }
+    }
+  }
+  for (const paper of input.papers) {
+    if (paper.rubric === undefined) continue;
+    const hit = findDelimiter(paper.rubric.body);
+    if (hit) {
+      throw new Error(
+        `bundle export refused: paper ${paper.id} rubric.body contains the reserved delimiter ${hit}`,
+      );
+    }
+  }
+}
+
 export function buildBundle(input: BuildBundleInput): BundleType {
+  assertNoDelimiterCollisions(input);
   const candidate = {
     bundleVersion: BUNDLE_VERSION,
     tool: { name: "obelus", version: input.toolVersion ?? DEFAULT_TOOL_VERSION },
