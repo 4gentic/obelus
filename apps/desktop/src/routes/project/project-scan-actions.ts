@@ -2,7 +2,7 @@ import type { ProjectFileRow, ProjectKind, Repository } from "@obelus/repo";
 import { type ProjectScanReport, projectScan } from "../../ipc/commands";
 
 // Centralised entrypoint for walking the project, mirroring results into
-// SQLite (project_files) and `.obelus/project.json`. Callers are: project
+// SQLite (project_files) and `$OBELUS_WORKSPACE_DIR/project.json`. Callers are: project
 // open, post-checkout, post-apply, and the manual Rescan action.
 //
 // Build-config state is now keyed per paper (see `paper_build`). The scanner
