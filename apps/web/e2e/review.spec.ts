@@ -62,7 +62,7 @@ test.describe("review", () => {
     await expect(firstItem).toBeVisible();
     await expect(firstItem).toHaveAttribute("data-category", "unclear");
     await expect(firstItem).toContainText(MINIMAL_PDF_QUOTE);
-    await expect(page.locator(".review__hl").first()).toBeVisible();
+    await expect(page.locator(".review-shell__hl").first()).toBeVisible();
 
     const tabCount = await page
       .locator("#review-pane-tab-marks .review-pane__tab-count")
@@ -115,7 +115,7 @@ test.describe("review", () => {
 
     const item = page.locator(".review-pane__item").first();
     await expect(item).toHaveAttribute("data-category", "unclear");
-    const highlight = page.locator(".review__hl").first();
+    const highlight = page.locator(".review-shell__hl").first();
     await expect(highlight).toHaveAttribute("data-category", "unclear");
 
     await item
@@ -144,7 +144,7 @@ test.describe("review", () => {
       .getByRole("button", { name: "Remove" })
       .click();
     await expect(page.locator(".review-pane__item")).toHaveCount(0);
-    await expect(page.locator(".review__hl")).toHaveCount(0);
+    await expect(page.locator(".review-shell__hl")).toHaveCount(0);
   });
 
   test("export review bundle: JSON download + clipboard copy", async ({ page }) => {
