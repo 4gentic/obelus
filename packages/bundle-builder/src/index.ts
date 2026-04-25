@@ -155,6 +155,21 @@ export type AnnotationV2InputAnchor =
       colStart: number;
       lineEnd: number;
       colEnd: number;
+    }
+  | {
+      kind: "html";
+      file: string;
+      xpath: string;
+      charOffsetStart: number;
+      charOffsetEnd: number;
+      sourceHint?: {
+        kind: "source";
+        file: string;
+        lineStart: number;
+        colStart: number;
+        lineEnd: number;
+        colEnd: number;
+      };
     };
 
 export interface AnnotationV2Input {
