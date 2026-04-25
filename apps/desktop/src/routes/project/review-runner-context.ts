@@ -1,3 +1,4 @@
+import type { ClaudeSpawnMode } from "@obelus/claude-sidecar";
 import { createContext, useContext } from "react";
 import type { ReviewProgressStore } from "./review-progress-store";
 
@@ -20,10 +21,15 @@ export type RunStatus =
   | { kind: "done"; message: string }
   | { kind: "error"; message: string };
 
+export type ReviewRunnerMode = ClaudeSpawnMode;
+
 export interface RunOptions {
   paperId: string;
   indications?: string;
   extraPromptBody?: string;
+  // When omitted, the runner picks based on project.kind: writer→writer-fast,
+  // reviewer→rigorous. UI affordances (Fast / Rigorous selector) override.
+  mode?: ReviewRunnerMode;
 }
 
 export interface ReviewRunnerContextValue {

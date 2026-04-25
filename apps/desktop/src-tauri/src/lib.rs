@@ -8,7 +8,7 @@ use commands::{
     claude::detect_claude,
     claude_session::{
         claude_ask, claude_cancel, claude_draft_writeup, claude_fix_compile, claude_is_alive,
-        claude_spawn,
+        claude_spawn, perf_log,
     },
     claude_user_settings::read_claude_user_settings,
     db_tx::db_tx_batch,
@@ -71,6 +71,7 @@ pub fn run() {
             claude_fix_compile,
             claude_cancel,
             claude_is_alive,
+            perf_log,
             read_claude_user_settings,
             apply_hunks,
             compile_typst,

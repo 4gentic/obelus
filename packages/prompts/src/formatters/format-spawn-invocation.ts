@@ -14,6 +14,11 @@ export type SpawnInvocationInput =
       extraBody?: string;
     }
   | {
+      kind: "plan-writer-fast";
+      bundleAbsPath: string;
+      extraBody?: string;
+    }
+  | {
       kind: "write-review";
       bundleAbsPath: string;
       paperId: string;
@@ -50,6 +55,10 @@ export function formatSpawnInvocation(input: SpawnInvocationInput): string {
       const base =
         `Run apply-revision with bundle path ${input.bundleAbsPath}.\n` +
         `Tool policy for this run: write only inside $OBELUS_WORKSPACE_DIR (${input.workspaceAbsPath}). Do NOT use Edit, Write, or any tool that mutates a source file under the project working tree — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with \`OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json\`.\n`;
+      return appendExtra(base, input.extraBody);
+    }
+    case "plan-writer-fast": {
+      const base = `Run plan-writer-fast with bundle path ${input.bundleAbsPath}.\n`;
       return appendExtra(base, input.extraBody);
     }
     case "write-review": {

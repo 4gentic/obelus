@@ -1674,6 +1674,83 @@ button.files__row {
   font-style: italic;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.review-column__mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--paper);
+  margin: 0;
+  padding: 0;
+}
+
+.review-column__mode-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-2);
+  background: transparent;
+  border-right: 1px solid var(--rule-soft);
+  color: var(--ink-soft);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body);
+  transition:
+    background 120ms linear,
+    color 120ms linear;
+}
+
+.review-column__mode-option:last-child {
+  border-right: none;
+}
+
+.review-column__mode:not([disabled]) .review-column__mode-option:hover {
+  color: var(--ink);
+  background: color-mix(in oklab, var(--ink) 3%, transparent);
+}
+
+.review-column__mode-option--on {
+  color: var(--ink);
+  background: color-mix(in oklab, var(--rubric) 8%, transparent);
+}
+
+.review-column__mode[disabled] .review-column__mode-option {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.review-column__mode-label {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-0);
+  line-height: 1.1;
+}
+
+.review-column__mode-sub {
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  line-height: 1.25;
+}
+
+.review-column__mode-option:focus-within {
+  outline: 2px solid var(--rubric);
+  outline-offset: -2px;
+}
+
 .review-list {
   list-style: none;
   margin: 0;

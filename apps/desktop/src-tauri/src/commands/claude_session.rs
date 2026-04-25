@@ -87,9 +87,19 @@ async fn spawn_streaming(
     if let Some(stdout) = child.stdout.take() {
         let app_clone = app.clone();
         let sid = session_str.clone();
+        let started_at_for_stdout = started_at;
         tokio::spawn(async move {
             let mut reader = BufReader::new(stdout).lines();
+            let mut first_seen = false;
             while let Ok(Some(line)) = reader.next_line().await {
+                if !first_seen {
+                    first_seen = true;
+                    eprintln!(
+                        "[claude-session] sessionId={} firstStdoutMs={}",
+                        sid,
+                        started_at_for_stdout.elapsed().as_millis(),
+                    );
+                }
                 let _ = app_clone.emit(
                     "claude:stdout",
                     StreamEvent {
@@ -215,6 +225,7 @@ pub async fn claude_spawn(
     extra_prompt_body: Option<String>,
     model: Option<String>,
     effort: Option<String>,
+    mode: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> AppResult<String> {
@@ -232,30 +243,66 @@ pub async fn claude_spawn(
         .resolve("plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
 
+    // `mode` switches the orchestrator: writer-fast routes to the one-turn
+    // plan-writer-fast skill on Haiku (no subagent, no impact / coherence
+    // sweeps); any other value (including `None` and the explicit `rigorous`)
+    // falls through to apply-revision → plan-fix on Sonnet — the existing
+    // structural-review path. The skill name picked here is the routing
+    // decision; both skills emit the same OBELUS_WROTE marker so the desktop's
+    // ingest path is identical for both.
+    let writer_fast = matches!(mode.as_deref(), Some("writer-fast"));
+    if let Some(other) = mode.as_deref() {
+        if other != "writer-fast" && other != "rigorous" {
+            eprintln!(
+                "[claude-session] unknown mode {other:?}; falling through to apply-revision",
+            );
+        }
+    }
+
     // `extra_prompt_body` is supplementary context (prior drafts, indications,
     // per-pass notes) appended after the skill invocation — never the whole
     // prompt. The invocation itself must always reach Claude, or the model has
     // no command to act on and exits without writing a plan. Mirrors
-    // `formatSpawnInvocation({ kind: "apply-revision", … })` in
+    // `formatSpawnInvocation` in
     // `packages/prompts/src/formatters/format-spawn-invocation.ts`; keep the
-    // two in lockstep when either changes. The tool-policy clause exists
-    // because Claude, when the paper source happens to be in the working tree
-    // (e.g. a writer-mode MD paper), will otherwise short-circuit the skill
-    // and use `Edit` on the source directly — bypassing the plan-fix step the
-    // desktop needs a file from.
-    let base = format!(
-        "Run apply-revision with bundle path {}.\nTool policy for this run: write only inside $OBELUS_WORKSPACE_DIR ({}). Do NOT use Edit, Write, or any tool that mutates a source file under the project working tree — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json`.\n",
-        bundle_abs.display(),
-        workspace.display(),
-    );
+    // two in lockstep when either changes. The tool-policy clause exists for
+    // apply-revision because Claude, when the paper source happens to be in
+    // the working tree (e.g. a writer-mode MD paper), will otherwise
+    // short-circuit the skill and use `Edit` on the source directly —
+    // bypassing the plan-fix step the desktop needs a file from. plan-writer-fast
+    // is a one-turn drafter that writes its plan via its own Write call inside
+    // $OBELUS_WORKSPACE_DIR; it doesn't need the tool-policy hammer.
+    let skill_name = if writer_fast {
+        "plan-writer-fast"
+    } else {
+        "apply-revision"
+    };
+    let base = if writer_fast {
+        format!(
+            "Run {} with bundle path {}.\n",
+            skill_name,
+            bundle_abs.display(),
+        )
+    } else {
+        format!(
+            "Run {} with bundle path {}.\nTool policy for this run: write only inside $OBELUS_WORKSPACE_DIR ({}). Do NOT use Edit, Write, or any tool that mutates a source file under the project working tree — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json`.\n",
+            skill_name,
+            bundle_abs.display(),
+            workspace.display(),
+        )
+    };
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 
     // apply-revision + plan-fix are dispatch, location, and minimal-diff
     // composition — not reasoning. Sonnet matches Opus quality at ~2×
     // throughput; falling back to Claude Code's global default (typically
     // Opus) was the single biggest contributor to 10-minute review runs on
-    // paper-sized context. Explicit user picks still win.
-    let effective_model = model.as_deref().or(Some("sonnet"));
+    // paper-sized context. plan-writer-fast is a single-turn drafter — Haiku
+    // matches the quality envelope at a fraction of the wall-clock, and the
+    // human reviews every diff in the Obelus UI before applying. Explicit
+    // user picks still win.
+    let mode_default = if writer_fast { "haiku" } else { "sonnet" };
+    let effective_model = model.as_deref().or(Some(mode_default));
     let mut cmd = claude_command(&claude, &root, &workspace, effective_model, effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
@@ -399,6 +446,19 @@ pub async fn claude_cancel(
         let _ = tx.send(());
     }
     Ok(())
+}
+
+// Mirror a frontend-tagged log line to Rust stderr. The desktop's `[write-perf]`,
+// `[review-timing]`, `[phase]`, and similar bracketed `console.info` calls live
+// in the WebView's devtools and are invisible to a `pnpm dev:desktop 2>&1 | tee
+// …` capture. This command lets the WebView forward those lines so a single
+// stderr capture has both the Rust subprocess wall-clock (`[claude-session]`)
+// and the JS-side phase / ingest / spawn timings together. Fire-and-forget on
+// the WebView side; failures here must not block UI work, so we accept the
+// line and `eprintln!` it directly.
+#[tauri::command]
+pub fn perf_log(line: String) {
+    eprintln!("{}", line);
 }
 
 // Whether a previously spawned Claude subprocess is still running. The Rust

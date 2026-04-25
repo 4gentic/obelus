@@ -4,12 +4,13 @@ import { z } from "zod";
 import { splitHeadline } from "../../lib/split-headline";
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
-import { useReviewRunner } from "./review-runner-context";
+import { type ReviewRunnerMode, useReviewRunner } from "./review-runner-context";
 import { useReviewStore } from "./store-context";
 import { useInlineConfirm } from "./use-inline-confirm";
 import { descendantsOf, usePaperEdits } from "./use-paper-edits";
 
 const IndicationsSchema = z.string();
+const ModeSchema = z.enum(["writer-fast", "rigorous"]);
 
 export default function StartReviewButton(): JSX.Element {
   const { project, repo } = useProject();
@@ -40,12 +41,17 @@ interface WriterStartReviewProps {
   annotationCount: number;
   statusKind: "idle" | "working" | "running" | "ingesting" | "done" | "error";
   statusMessage: string | null;
-  onStart: (opts: { paperId: string; indications?: string }) => Promise<void>;
+  onStart: (opts: {
+    paperId: string;
+    indications?: string;
+    mode?: ReviewRunnerMode;
+  }) => Promise<void>;
   onCancel: () => Promise<void>;
   repo: import("@obelus/repo").Repository;
 }
 
 const INDICATIONS_KEY = (paperId: string): string => `paper.${paperId}.lastIndications`;
+const MODE_KEY = (paperId: string): string => `paper.${paperId}.lastWriterMode`;
 
 function WriterStartReview({
   paperId,
@@ -59,19 +65,26 @@ function WriterStartReview({
   const edits = usePaperEdits(repo, paperId);
   const confirm = useInlineConfirm();
   const [indications, setIndications] = useState("");
+  const [mode, setMode] = useState<ReviewRunnerMode>("writer-fast");
 
-  // Hydrate the textarea with the last-used indications for this paper so the
-  // user's running guidance survives navigation. A change to paperId (user
-  // switched variants) reloads independently.
+  // Hydrate the textarea + mode selector with the last-used values for this
+  // paper so the user's running guidance survives navigation. A change to
+  // paperId (user switched variants) reloads independently.
   useEffect(() => {
     let cancelled = false;
     if (!paperId) {
       setIndications("");
+      setMode("writer-fast");
       return;
     }
     void (async () => {
-      const persisted = await repo.settings.get(INDICATIONS_KEY(paperId), IndicationsSchema);
-      if (!cancelled) setIndications(persisted ?? "");
+      const [persistedIndications, persistedMode] = await Promise.all([
+        repo.settings.get(INDICATIONS_KEY(paperId), IndicationsSchema),
+        repo.settings.get(MODE_KEY(paperId), ModeSchema),
+      ]);
+      if (cancelled) return;
+      setIndications(persistedIndications ?? "");
+      setMode(persistedMode ?? "writer-fast");
     })();
     return () => {
       cancelled = true;
@@ -100,8 +113,15 @@ function WriterStartReview({
       await edits.refresh();
     }
     const trimmed = indications.trim();
-    await repo.settings.set(INDICATIONS_KEY(paperId), trimmed);
-    await onStart({ paperId, ...(trimmed !== "" ? { indications: trimmed } : {}) });
+    await Promise.all([
+      repo.settings.set(INDICATIONS_KEY(paperId), trimmed),
+      repo.settings.set(MODE_KEY(paperId), mode),
+    ]);
+    await onStart({
+      paperId,
+      mode,
+      ...(trimmed !== "" ? { indications: trimmed } : {}),
+    });
   }, [
     canStart,
     paperId,
@@ -112,6 +132,7 @@ function WriterStartReview({
     onStart,
     edits.refresh,
     indications,
+    mode,
   ]);
 
   const label = (() => {
@@ -124,6 +145,10 @@ function WriterStartReview({
     return "Start review →";
   })();
 
+  const modeDisabled =
+    !canStart && statusKind !== "idle" && statusKind !== "done" && statusKind !== "error";
+  const modeName = paperId ? `mode-${paperId}` : "mode";
+
   return (
     <div className="review-column__actions">
       {paperId !== null && statusKind !== "running" && (
@@ -133,10 +158,43 @@ function WriterStartReview({
           onChange={(event) => setIndications(event.target.value)}
           placeholder="Optional notes for this pass — specific directions, constraints, paragraphs to leave alone."
           rows={3}
-          disabled={
-            !canStart && statusKind !== "idle" && statusKind !== "done" && statusKind !== "error"
-          }
+          disabled={modeDisabled}
         />
+      )}
+      {paperId !== null && statusKind !== "running" && (
+        <fieldset className="review-column__mode" disabled={modeDisabled}>
+          <legend className="visually-hidden">Review thoroughness</legend>
+          <label
+            className={`review-column__mode-option${mode === "writer-fast" ? " review-column__mode-option--on" : ""}`}
+          >
+            <input
+              type="radio"
+              name={modeName}
+              value="writer-fast"
+              checked={mode === "writer-fast"}
+              onChange={() => setMode("writer-fast")}
+              className="visually-hidden"
+            />
+            <span className="review-column__mode-label">Fast</span>
+            <span className="review-column__mode-sub">draft now, review in the panel</span>
+          </label>
+          <label
+            className={`review-column__mode-option${mode === "rigorous" ? " review-column__mode-option--on" : ""}`}
+          >
+            <input
+              type="radio"
+              name={modeName}
+              value="rigorous"
+              checked={mode === "rigorous"}
+              onChange={() => setMode("rigorous")}
+              className="visually-hidden"
+            />
+            <span className="review-column__mode-label">Rigorous</span>
+            <span className="review-column__mode-sub">
+              second-pair-of-eyes review of every edit
+            </span>
+          </label>
+        </fieldset>
       )}
       {statusKind !== "running" ? (
         <button

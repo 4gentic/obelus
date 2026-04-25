@@ -34,12 +34,14 @@ const semanticSessions = new Set<string>();
 const sessionUsage = new Map<string, StreamUsage>();
 const sessionModel = new Map<string, string>();
 const sessionStreamStart = new Map<string, number>();
+const sessionFirstObelusPhaseAt = new Map<string, number>();
 
 function clearSession(sessionId: string): void {
   semanticSessions.delete(sessionId);
   sessionUsage.delete(sessionId);
   sessionModel.delete(sessionId);
   sessionStreamStart.delete(sessionId);
+  sessionFirstObelusPhaseAt.delete(sessionId);
 }
 
 // Owns the single, app-lifetime subscription to the Claude stdout/exit event
@@ -92,6 +94,9 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
       if (marker !== null) {
         semanticSessions.add(ev.sessionId);
         nextPhase = `${SEMANTIC_PHASE_PREFIX}${marker}`;
+        if (!sessionFirstObelusPhaseAt.has(ev.sessionId)) {
+          sessionFirstObelusPhaseAt.set(ev.sessionId, Date.now());
+        }
       } else if (!semanticSessions.has(ev.sessionId)) {
         nextPhase = phaseFromEvent(parsed);
       }
@@ -199,6 +204,7 @@ async function handleExit(
     await markReviewStatus(reviewSessionId, "ingesting", null);
   }
 
+  const tIngestStart = performance.now();
   try {
     if (job.kind === "review") {
       // Before ingest: check whether Claude edited any bundle-referenced
@@ -229,6 +235,11 @@ async function handleExit(
         }
       }
       const message = await ingestReview(job.projectId, job.reviewSessionId, job.obelusWrotePath);
+      console.info("[write-perf]", {
+        step: "ingest",
+        kind: "review",
+        ms: Math.round(performance.now() - tIngestStart),
+      });
       store.markDone(sessionId, message);
     } else if (job.kind === "compile-fix") {
       // The skill edits source directly. Refresh any open buffers so the
@@ -249,6 +260,11 @@ async function handleExit(
         job.projectId,
         job.obelusWrotePath,
       );
+      console.info("[write-perf]", {
+        step: "ingest",
+        kind: "writeup",
+        ms: Math.round(performance.now() - tIngestStart),
+      });
       const bytes = new TextEncoder().encode(ingested.body).byteLength;
       const fileName = ingested.path;
       store.markDone(
@@ -307,9 +323,14 @@ function emitReviewTiming(
     phases.push({ phase: cur.phase, elapsedMs: endAt - cur.at });
   }
   const usage = sessionUsage.get(sessionId);
+  const firstStdoutAt = sessionStreamStart.get(sessionId);
+  const firstObelusPhaseAt = sessionFirstObelusPhaseAt.get(sessionId);
   console.info("[review-timing]", {
     sessionId,
     totalMs: finishedAt - startedAt,
+    clickToFirstStdoutMs: firstStdoutAt !== undefined ? firstStdoutAt - startedAt : null,
+    clickToFirstObelusPhaseMs:
+      firstObelusPhaseAt !== undefined ? firstObelusPhaseAt - startedAt : null,
     exitCode: code,
     cancelled: wasCancelled,
     model: sessionModel.get(sessionId) ?? null,

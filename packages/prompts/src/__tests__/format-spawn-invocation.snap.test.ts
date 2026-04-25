@@ -35,6 +35,33 @@ describe("formatSpawnInvocation", () => {
     `);
   });
 
+  it("renders plan-writer-fast", () => {
+    expect(
+      formatSpawnInvocation({
+        kind: "plan-writer-fast",
+        bundleAbsPath: "/repo/bundle-2026-04-23.json",
+      }),
+    ).toMatchInlineSnapshot(`
+      "Run plan-writer-fast with bundle path /repo/bundle-2026-04-23.json.
+      "
+    `);
+  });
+
+  it("renders plan-writer-fast with extra body", () => {
+    expect(
+      formatSpawnInvocation({
+        kind: "plan-writer-fast",
+        bundleAbsPath: "/repo/bundle-2026-04-23.json",
+        extraBody: "Focus on tone, leave numerical claims alone.",
+      }),
+    ).toMatchInlineSnapshot(`
+      "Run plan-writer-fast with bundle path /repo/bundle-2026-04-23.json.
+
+      Focus on tone, leave numerical claims alone.
+      "
+    `);
+  });
+
   it("renders write-review without rubric", () => {
     expect(
       formatSpawnInvocation({
