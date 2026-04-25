@@ -1,4 +1,5 @@
 use crate::commands::claude::resolve_claude_path;
+use crate::commands::preflight;
 use crate::commands::workspace::workspace_dir_for;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -277,7 +278,7 @@ pub async fn claude_spawn(
     } else {
         "apply-revision"
     };
-    let base = if writer_fast {
+    let mut base = if writer_fast {
         format!(
             "Run {} with bundle path {}.\n",
             skill_name,
@@ -291,6 +292,25 @@ pub async fn claude_spawn(
             workspace.display(),
         )
     };
+
+    // The prelude carries pre-computed metadata the skill would otherwise
+    // re-derive turn by turn (format, entrypoint, anchor histogram, source
+    // windows, rubric presence). Both SKILL.md files trust it as ground
+    // truth; missing prelude (corrupt bundle, etc.) falls back to the skill's
+    // host-less validation path.
+    let mode_kind = if writer_fast {
+        preflight::Mode::WriterFast
+    } else {
+        preflight::Mode::Rigorous
+    };
+    if let Some(prelude) = preflight::build_prelude(&bundle_abs, &root, mode_kind) {
+        base.push('\n');
+        base.push_str(&prelude);
+        if !base.ends_with('\n') {
+            base.push('\n');
+        }
+    }
+
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 
     // apply-revision + plan-fix are dispatch, location, and minimal-diff
