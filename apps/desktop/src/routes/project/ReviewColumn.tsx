@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { type ComponentType, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { fsWriteBytes } from "../../ipc/commands";
-import { exportMdBundleV2ForPaper } from "./build-bundle";
+import { exportMdBundleForPaper } from "./build-bundle";
 import { useProject } from "./context";
 import DiffReview from "./DiffReview";
 import { useDiffStore } from "./diff-store-context";
@@ -235,7 +235,7 @@ function MdExportChip(): JSX.Element | null {
     if (!mdPaper) return;
     setStatus({ kind: "idle" });
     try {
-      const { filename, json } = await exportMdBundleV2ForPaper({ repo, paperId: mdPaper.id });
+      const { filename, json } = await exportMdBundleForPaper({ repo, paperId: mdPaper.id });
       const bytes = new TextEncoder().encode(json);
       await fsWriteBytes(rootId, filename, bytes);
       setStatus({ kind: "saved", relPath: filename });

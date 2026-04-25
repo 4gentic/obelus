@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { readClaudeStatus } from "../../boot/detect";
 import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
 import { useClaudeConfig } from "../../lib/use-claude-defaults";
-import { exportBundleV2ForPaper, exportMdBundleV2ForPaper } from "./build-bundle";
+import { exportBundleForPaper, exportMdBundleForPaper } from "./build-bundle";
 import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
@@ -106,25 +106,24 @@ export default function ReviewerActionsPanel(): JSX.Element {
     if (!latest) return null;
     const rows = await repo.annotations.listForRevision(latest.id);
     if (rows.length === 0) return null;
-    // The reviewer clipboard prompt is PDF-paper-specific — page numbers
-    // anchor the review report. MD-anchored rows have no page and are
-    // skipped (their export flow uses v2 source anchors elsewhere).
+    // The reviewer clipboard prompt for PDF papers anchors marks by page
+    // number. MD-anchored rows have no page and ride a separate export flow.
+    const pdfFilename = openPaper.path.split("/").pop() ?? "";
     const annotations: PromptAnnotation[] = rows.flatMap((r) => {
       if (r.anchor.kind !== "pdf") return [];
       return [
         {
           id: r.id,
           category: r.category,
-          page: r.anchor.page,
           quote: r.quote,
           contextBefore: r.contextBefore,
           contextAfter: r.contextAfter,
           note: r.note,
+          locator: { kind: "pdf", file: pdfFilename, page: r.anchor.page },
           ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
         },
       ];
     });
-    const pdfFilename = openPaper.path.split("/").pop() ?? "";
     return { paperRow: paper, annotations, revisionNumber: latest.revisionNumber, pdfFilename };
   }
 
@@ -133,8 +132,8 @@ export default function ReviewerActionsPanel(): JSX.Element {
     setExportState({ kind: "idle" });
     try {
       const { filename, json } = mdReady
-        ? await exportMdBundleV2ForPaper({ repo, paperId })
-        : await exportBundleV2ForPaper({ repo, paperId, rootId });
+        ? await exportMdBundleForPaper({ repo, paperId })
+        : await exportBundleForPaper({ repo, paperId, rootId });
       const bytes = new TextEncoder().encode(json);
       await fsWriteBytes(rootId, filename, bytes);
       setExportState({ kind: "json", relPath: filename });
@@ -164,8 +163,8 @@ export default function ReviewerActionsPanel(): JSX.Element {
         paper: {
           title: paperTitle || "Paper",
           revisionNumber: ctx.revisionNumber,
-          pdfFilename: ctx.pdfFilename,
-          pdfSha256: paper.pdfSha256,
+          entrypoint: ctx.pdfFilename,
+          sha256: paper.pdfSha256,
         },
         annotations: ctx.annotations,
         ...(paper.rubric ? { rubric: { label: paper.rubric.label, body: paper.rubric.body } } : {}),
@@ -204,8 +203,8 @@ export default function ReviewerActionsPanel(): JSX.Element {
         paper: {
           title: paperTitle || "Paper",
           revisionNumber: ctx.revisionNumber,
-          pdfFilename: ctx.pdfFilename,
-          pdfSha256: paper.pdfSha256,
+          entrypoint: ctx.pdfFilename,
+          sha256: paper.pdfSha256,
         },
         annotations: ctx.annotations,
         ...(paper.rubric ? { rubric: { label: paper.rubric.label, body: paper.rubric.body } } : {}),

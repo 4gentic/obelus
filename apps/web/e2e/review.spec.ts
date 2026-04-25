@@ -174,15 +174,17 @@ test.describe("review", () => {
     for await (const chunk of stream) chunks.push(chunk as Buffer);
     const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     expect(parsed).toMatchObject({
-      bundleVersion: expect.any(String),
-      paper: expect.objectContaining({ title: "minimal" }),
+      bundleVersion: "1.0",
       tool: expect.objectContaining({ name: "obelus" }),
     });
+    expect(Array.isArray(parsed.papers)).toBe(true);
+    expect(parsed.papers[0]).toMatchObject({ title: "minimal" });
     expect(Array.isArray(parsed.annotations)).toBe(true);
     expect(parsed.annotations.length).toBeGreaterThanOrEqual(1);
     expect(parsed.annotations[0]).toMatchObject({
       category: "unclear",
       quote: MINIMAL_PDF_QUOTE,
+      anchor: expect.objectContaining({ kind: "pdf" }),
     });
 
     await page.getByRole("button", { name: /copy to clipboard/i }).click();

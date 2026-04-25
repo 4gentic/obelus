@@ -4,7 +4,7 @@ import {
   quoteForImage,
   selectionToSourceAnchor,
 } from "@obelus/anchor";
-import type { SourceAnchor2 } from "@obelus/bundle-schema";
+import type { SourceAnchor } from "@obelus/bundle-schema";
 import { useEffect, useRef } from "react";
 import {
   buildDocumentSourceMap,
@@ -20,7 +20,7 @@ import {
 // `**`, backticks, etc. and confuses downstream quote matching.
 function sliceSourceSpan(
   text: string,
-  anchor: SourceAnchor2,
+  anchor: SourceAnchor,
 ): { quote: string; contextBefore: string; contextAfter: string } | null {
   const lines = text.split("\n");
   if (anchor.lineStart < 1 || anchor.lineEnd > lines.length) return null;
@@ -111,9 +111,9 @@ function findRenderedInSource(
 // NFKC + whitespace-collapse `.includes()`.
 function refineAnchorWithRenderedQuote(
   text: string,
-  initialAnchor: SourceAnchor2,
+  initialAnchor: SourceAnchor,
   renderedQuote: string,
-): { anchor: SourceAnchor2; quote: string; contextBefore: string; contextAfter: string } | null {
+): { anchor: SourceAnchor; quote: string; contextBefore: string; contextAfter: string } | null {
   const built = buildDocumentSourceMap(text);
   if (!built) return null;
   const match = findRenderedInSource(built.rendered, renderedQuote);
@@ -131,7 +131,7 @@ function refineAnchorWithRenderedQuote(
     return null;
   }
 
-  const anchor: SourceAnchor2 = {
+  const anchor: SourceAnchor = {
     kind: "source",
     file: initialAnchor.file,
     lineStart: startPos.line,
@@ -147,7 +147,7 @@ function refineAnchorWithRenderedQuote(
 }
 
 export interface MarkdownSelection {
-  anchor: SourceAnchor2;
+  anchor: SourceAnchor;
   quote: string;
   contextBefore: string;
   contextAfter: string;

@@ -6,27 +6,27 @@ import {
   selectionToHtmlAnchor,
   selectionToSourceAnchor,
 } from "@obelus/anchor";
-import type { HtmlAnchor2, HtmlElementAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
+import type { HtmlAnchor, HtmlElementAnchor, SourceAnchor } from "@obelus/bundle-schema";
 import { useEffect, useRef } from "react";
 
 export type HtmlSelectionAnchor =
   | {
       kind: "source";
-      anchor: SourceAnchor2;
+      anchor: SourceAnchor;
       quote: string;
       contextBefore: string;
       contextAfter: string;
     }
   | {
       kind: "html";
-      anchor: HtmlAnchor2;
+      anchor: HtmlAnchor;
       quote: string;
       contextBefore: string;
       contextAfter: string;
     }
   | {
       kind: "html-element";
-      anchor: HtmlElementAnchor2;
+      anchor: HtmlElementAnchor;
       quote: string;
       contextBefore: string;
       contextAfter: string;

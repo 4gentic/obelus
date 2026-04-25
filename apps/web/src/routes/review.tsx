@@ -17,8 +17,8 @@ import {
   exportBundleMarkdown,
   exportReviewBundleMarkdown,
 } from "../bundle/download";
-import { downloadHtmlBundle } from "../bundle/html-bundle";
-import { downloadMdBundle } from "../bundle/md-bundle";
+import { buildHtmlBundleJson, downloadHtmlBundle } from "../bundle/html-bundle";
+import { buildMdBundleJson, downloadMdBundle } from "../bundle/md-bundle";
 import { useReviewStore } from "../store/review-store";
 import { usePaperTrust } from "../store/use-paper-trust";
 import "./review.css";
@@ -214,10 +214,6 @@ export default function Review(): JSX.Element {
     setSelectedAnchor(draft);
   };
 
-  // Export handlers dispatch on paper.format. PDF papers ride the existing
-  // v1 Bundle flow; MD papers build a V2 bundle with sourceAnchor-carrying
-  // annotations and download JSON (clipboard/markdown paths reuse the JSON
-  // for now — V2 prompt formatting lands in a follow-up).
   const exportBundleForKind = async (kind: "review" | "revise"): Promise<string | null> => {
     setStatus("working");
     setMessage(null);
@@ -258,6 +254,10 @@ export default function Review(): JSX.Element {
     }
   };
 
+  const rubricForExport = paper?.rubric
+    ? { label: paper.rubric.label, body: paper.rubric.body }
+    : undefined;
+
   const onExportMarkdown = async (): Promise<void> => {
     setStatus("working");
     setMessage(null);
@@ -269,22 +269,18 @@ export default function Review(): JSX.Element {
           pdfFilename: "paper.pdf",
           pageCount: pageCount || 1,
         });
-        const rubric = paper.rubric
-          ? { label: paper.rubric.label, body: paper.rubric.body }
-          : undefined;
-        await exportBundleMarkdown(bundle, rubric);
+        await exportBundleMarkdown(bundle, rubricForExport);
       } else if (state.kind === "ready-md") {
-        await downloadMdBundle({ paper, revision, file: state.file }, "revise");
+        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        await exportBundleMarkdown(bundle, rubricForExport);
       } else {
-        await downloadHtmlBundle(
-          {
-            paper,
-            revision,
-            htmlFile: state.file,
-            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
-          },
-          "revise",
-        );
+        const { bundle } = await buildHtmlBundleJson({
+          paper,
+          revision,
+          htmlFile: state.file,
+          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+        });
+        await exportBundleMarkdown(bundle, rubricForExport);
       }
       setStatus("done");
       setMessage("Markdown exported.");
@@ -305,29 +301,21 @@ export default function Review(): JSX.Element {
           pdfFilename: "paper.pdf",
           pageCount: pageCount || 1,
         });
-        const rubric = paper.rubric
-          ? { label: paper.rubric.label, body: paper.rubric.body }
-          : undefined;
-        await copyClipboardPrompt(bundle, rubric);
-        setStatus("done");
-        setMessage(rubric ? "Prompt copied with rubric." : "Prompt copied to clipboard.");
+        await copyClipboardPrompt(bundle, rubricForExport);
       } else if (state.kind === "ready-md") {
-        await downloadMdBundle({ paper, revision, file: state.file }, "revise");
-        setStatus("done");
-        setMessage("Bundle exported (MD prompt formatter coming soon).");
+        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        await copyClipboardPrompt(bundle, rubricForExport);
       } else {
-        await downloadHtmlBundle(
-          {
-            paper,
-            revision,
-            htmlFile: state.file,
-            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
-          },
-          "revise",
-        );
-        setStatus("done");
-        setMessage("Bundle exported (HTML prompt formatter coming soon).");
+        const { bundle } = await buildHtmlBundleJson({
+          paper,
+          revision,
+          htmlFile: state.file,
+          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+        });
+        await copyClipboardPrompt(bundle, rubricForExport);
       }
+      setStatus("done");
+      setMessage(rubricForExport ? "Prompt copied with rubric." : "Prompt copied to clipboard.");
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Copy failed");
@@ -345,29 +333,21 @@ export default function Review(): JSX.Element {
           pdfFilename: "paper.pdf",
           pageCount: pageCount || 1,
         });
-        const rubric = paper.rubric
-          ? { label: paper.rubric.label, body: paper.rubric.body }
-          : undefined;
-        await copyReviewClipboardPrompt(bundle, rubric);
-        setStatus("done");
-        setMessage(rubric ? "Review prompt copied with rubric." : "Review prompt copied.");
+        await copyReviewClipboardPrompt(bundle, rubricForExport);
       } else if (state.kind === "ready-md") {
-        await downloadMdBundle({ paper, revision, file: state.file }, "review");
-        setStatus("done");
-        setMessage("Bundle exported (MD prompt formatter coming soon).");
+        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        await copyReviewClipboardPrompt(bundle, rubricForExport);
       } else {
-        await downloadHtmlBundle(
-          {
-            paper,
-            revision,
-            htmlFile: state.file,
-            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
-          },
-          "review",
-        );
-        setStatus("done");
-        setMessage("Bundle exported (HTML prompt formatter coming soon).");
+        const { bundle } = await buildHtmlBundleJson({
+          paper,
+          revision,
+          htmlFile: state.file,
+          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+        });
+        await copyReviewClipboardPrompt(bundle, rubricForExport);
       }
+      setStatus("done");
+      setMessage(rubricForExport ? "Review prompt copied with rubric." : "Review prompt copied.");
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Copy failed");
@@ -385,22 +365,18 @@ export default function Review(): JSX.Element {
           pdfFilename: "paper.pdf",
           pageCount: pageCount || 1,
         });
-        const rubric = paper.rubric
-          ? { label: paper.rubric.label, body: paper.rubric.body }
-          : undefined;
-        await exportReviewBundleMarkdown(bundle, rubric);
+        await exportReviewBundleMarkdown(bundle, rubricForExport);
       } else if (state.kind === "ready-md") {
-        await downloadMdBundle({ paper, revision, file: state.file }, "review");
+        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        await exportReviewBundleMarkdown(bundle, rubricForExport);
       } else {
-        await downloadHtmlBundle(
-          {
-            paper,
-            revision,
-            htmlFile: state.file,
-            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
-          },
-          "review",
-        );
+        const { bundle } = await buildHtmlBundleJson({
+          paper,
+          revision,
+          htmlFile: state.file,
+          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+        });
+        await exportReviewBundleMarkdown(bundle, rubricForExport);
       }
       setStatus("done");
       setMessage("Review Markdown exported.");

@@ -1,4 +1,4 @@
-import type { HtmlAnchor2, HtmlElementAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
+import type { HtmlAnchor, HtmlElementAnchor, SourceAnchor } from "@obelus/bundle-schema";
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
@@ -15,7 +15,7 @@ function isSkippableElement(node: Node): boolean {
 
 // Geometry-only view of either anchor variant. The adapter passes the saved
 // anchor as-is regardless of which discriminant the persisted row carries.
-export type HtmlMountAnchor = SourceAnchor2 | HtmlAnchor2 | HtmlElementAnchor2;
+export type HtmlMountAnchor = SourceAnchor | HtmlAnchor | HtmlElementAnchor;
 
 function readIntAttr(el: HTMLElement, name: string): number | null {
   const raw = el.getAttribute(name);
@@ -76,10 +76,7 @@ function textNodeAtOffset(
   return null;
 }
 
-export function resolveSourceAnchorToRange(
-  mount: HTMLElement,
-  anchor: SourceAnchor2,
-): Range | null {
+export function resolveSourceAnchorToRange(mount: HTMLElement, anchor: SourceAnchor): Range | null {
   const blocks = Array.from(mount.querySelectorAll<HTMLElement>("[data-src-file]"));
   const startBlock = blockForLine(blocks, anchor.file, anchor.lineStart);
   const endBlock = blockForLine(blocks, anchor.file, anchor.lineEnd);
@@ -147,7 +144,7 @@ function findTextOffset(
   return null;
 }
 
-export function resolveHtmlAnchorToRange(mount: HTMLElement, anchor: HtmlAnchor2): Range | null {
+export function resolveHtmlAnchorToRange(mount: HTMLElement, anchor: HtmlAnchor): Range | null {
   if (anchor.charOffsetStart > anchor.charOffsetEnd) return null;
   const start = findTextOffset(mount, anchor.charOffsetStart);
   const end = findTextOffset(mount, anchor.charOffsetEnd);
@@ -169,7 +166,7 @@ export function resolveHtmlAnchorToRange(mount: HTMLElement, anchor: HtmlAnchor2
 // loading) so the adapter can skip drawing a stale highlight.
 export function resolveElementAnchorToElement(
   mount: HTMLElement,
-  anchor: HtmlElementAnchor2,
+  anchor: HtmlElementAnchor,
 ): HTMLElement | null {
   const doc = mount.ownerDocument;
   if (!doc) return null;

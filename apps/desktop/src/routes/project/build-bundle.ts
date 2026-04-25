@@ -1,5 +1,5 @@
-import type { AnnotationV2Input, PaperRefV2Input, ProjectV2Input } from "@obelus/bundle-builder";
-import { buildBundleV2, mapHtmlAnnotations } from "@obelus/bundle-builder";
+import type { AnnotationInput, PaperRefInput, ProjectInput } from "@obelus/bundle-builder";
+import { buildBundle, mapHtmlAnnotations } from "@obelus/bundle-builder";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
 import { isPdfAnchored, type ProjectFileRow, type Repository } from "@obelus/repo";
 import { fsReadFile } from "../../ipc/commands";
@@ -80,7 +80,7 @@ function isoStampForFilename(now: Date = new Date()): string {
   );
 }
 
-export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<ExportedBundle> {
+export async function exportBundleForPaper(input: ExportBundleInput): Promise<ExportedBundle> {
   const { repo, paperId, rootId } = input;
   const paper = await repo.papers.get(paperId);
   if (!paper) throw new Error("paper not found");
@@ -100,7 +100,7 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
     throw new Error("no annotations to review");
   }
 
-  const papers: PaperRefV2Input[] = [
+  const papers: PaperRefInput[] = [
     {
       id: paper.id,
       title: paper.title,
@@ -149,10 +149,10 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
   const resolutionsByFile = new Map<string, number>();
   let resolvedCount = 0;
   // This flow is PDF-paper-driven (writer project reviewing their compiled
-  // PDF). MD-anchored annotations ride a separate v2 export in the web app.
+  // PDF). MD-anchored annotations ride a separate export in the web app.
   const pdfRows = rows.filter(isPdfAnchored);
-  const annotations: AnnotationV2Input[] = pdfRows.map((row) => {
-    const base: AnnotationV2Input = {
+  const annotations: AnnotationInput[] = pdfRows.map((row) => {
+    const base: AnnotationInput = {
       id: row.id,
       paperId: paper.id,
       category: row.category,
@@ -197,7 +197,7 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
     resolutionsByFile: Object.fromEntries(resolutionsByFile),
   });
 
-  const projectInput: ProjectV2Input = {
+  const projectInput: ProjectInput = {
     id: project.id,
     label: project.label,
     kind: project.kind,
@@ -219,7 +219,7 @@ export async function exportBundleV2ForPaper(input: ExportBundleInput): Promise<
       : {}),
   };
 
-  const bundle = buildBundleV2({
+  const bundle = buildBundle({
     project: projectInput,
     papers,
     annotations,
@@ -250,7 +250,7 @@ export interface ExportHtmlBundleInput {
 // image clicks produce `html-element`. Source-mode mixed with html-mode is
 // the real classification error; we throw rather than emit a half-anchored
 // bundle.
-export async function exportHtmlBundleV2ForPaper(
+export async function exportHtmlBundleForPaper(
   input: ExportHtmlBundleInput,
 ): Promise<ExportedBundle> {
   const { repo, paperId } = input;
@@ -295,7 +295,7 @@ export async function exportHtmlBundleV2ForPaper(
   // at the source file (.md/.tex/.typ) so the plugin patches source, not the
   // rendered HTML. Hand-authored HTML keeps the .html as entrypoint.
   const entrypoint = firstSourceFile ?? paper.pdfRelPath;
-  const papers: PaperRefV2Input[] = [
+  const papers: PaperRefInput[] = [
     {
       id: paper.id,
       title: paper.title,
@@ -314,7 +314,7 @@ export async function exportHtmlBundleV2ForPaper(
     },
   ];
 
-  const projectInput: ProjectV2Input = {
+  const projectInput: ProjectInput = {
     id: project.id,
     label: project.label,
     kind: project.kind,
@@ -322,7 +322,7 @@ export async function exportHtmlBundleV2ForPaper(
     main: entrypoint,
   };
 
-  const bundle = buildBundleV2({
+  const bundle = buildBundle({
     project: projectInput,
     papers,
     annotations,
@@ -353,11 +353,9 @@ export interface ExportMdBundleInput {
 
 // MD reviewer papers carry source anchors directly from the reviewer's
 // selection; there is no PDF to resolve across, so the candidate-files hunt
-// from `exportBundleV2ForPaper` is skipped. The emitted paper has
+// from `exportBundleForPaper` is skipped. The emitted paper has
 // `entrypoint` set and no `pdf` block.
-export async function exportMdBundleV2ForPaper(
-  input: ExportMdBundleInput,
-): Promise<ExportedBundle> {
+export async function exportMdBundleForPaper(input: ExportMdBundleInput): Promise<ExportedBundle> {
   const { repo, paperId } = input;
   const paper = await repo.papers.get(paperId);
   if (!paper) throw new Error("paper not found");
@@ -375,7 +373,7 @@ export async function exportMdBundleV2ForPaper(
   if (rows.length === 0) throw new Error("no annotations to review");
 
   const droppedForMissingAnchor: string[] = [];
-  const annotations: AnnotationV2Input[] = [];
+  const annotations: AnnotationInput[] = [];
   for (const row of rows) {
     if (row.anchor.kind !== "source") {
       droppedForMissingAnchor.push(row.id);
@@ -397,7 +395,7 @@ export async function exportMdBundleV2ForPaper(
   }
 
   const entrypoint = paper.pdfRelPath;
-  const papers: PaperRefV2Input[] = [
+  const papers: PaperRefInput[] = [
     {
       id: paper.id,
       title: paper.title,
@@ -416,7 +414,7 @@ export async function exportMdBundleV2ForPaper(
     },
   ];
 
-  const projectInput: ProjectV2Input = {
+  const projectInput: ProjectInput = {
     id: project.id,
     label: project.label,
     kind: project.kind,
@@ -424,7 +422,7 @@ export async function exportMdBundleV2ForPaper(
     main: entrypoint,
   };
 
-  const bundle = buildBundleV2({
+  const bundle = buildBundle({
     project: projectInput,
     papers,
     annotations,

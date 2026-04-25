@@ -1,8 +1,5 @@
-import {
-  type AnnotationV2Input,
-  buildBundleV2,
-  suggestBundleFilename,
-} from "@obelus/bundle-builder";
+import { type AnnotationInput, buildBundle, suggestBundleFilename } from "@obelus/bundle-builder";
+import type { Bundle } from "@obelus/bundle-schema";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
 import type { PaperRow, RevisionRow } from "@obelus/repo";
 import { annotations } from "@obelus/repo/web";
@@ -15,10 +12,10 @@ type BuildInput = {
 
 export async function buildMdBundleJson(
   input: BuildInput,
-): Promise<{ filename: string; json: string }> {
+): Promise<{ filename: string; json: string; bundle: Bundle }> {
   const rows = await annotations.listForRevision(input.revision.id);
   const droppedForMissingAnchor: string[] = [];
-  const v2Annotations: AnnotationV2Input[] = rows.flatMap((r) => {
+  const bundleAnnotations: AnnotationInput[] = rows.flatMap((r) => {
     if (r.anchor.kind !== "source") {
       droppedForMissingAnchor.push(r.id);
       return [];
@@ -39,10 +36,10 @@ export async function buildMdBundleJson(
       },
     ];
   });
-  const bundle = buildBundleV2({
+  const bundle = buildBundle({
     project: {
-      // Web has no multi-paper project; fold the single paper into a
-      // synthetic project so the bundle validates against BundleV2.
+      // Web has no multi-paper project; fold the single paper into a synthetic
+      // project so the bundle validates.
       id: input.paper.id,
       label: input.paper.title,
       kind: "reviewer",
@@ -67,17 +64,17 @@ export async function buildMdBundleJson(
           : {}),
       },
     ],
-    annotations: v2Annotations,
+    annotations: bundleAnnotations,
   });
   const json = JSON.stringify(bundle, null, 2);
   const filename = suggestBundleFilename("revise");
   console.info("[export-bundle-md]", {
     paperId: input.paper.id,
-    annotationCount: v2Annotations.length,
+    annotationCount: bundleAnnotations.length,
     droppedForMissingAnchor,
     filename,
   });
-  return { filename, json };
+  return { filename, json, bundle };
 }
 
 export async function downloadMdBundle(

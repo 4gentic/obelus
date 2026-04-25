@@ -11,18 +11,18 @@ function plainInput(overrides: { note?: string; quote?: string } = {}): PromptIn
     paper: {
       title: "Paper",
       revisionNumber: 1,
-      pdfFilename: "paper.pdf",
-      pdfSha256: "a".repeat(64),
+      entrypoint: "paper.pdf",
+      sha256: "a".repeat(64),
     },
     annotations: [
       {
         id: "550e8400-e29b-41d4-a716-446655440001",
         category: "unclear",
-        page: 3,
         quote: overrides.quote ?? "The results were good.",
         contextBefore: "prior ",
         contextAfter: " next",
         note: overrides.note ?? "How good?",
+        locator: { kind: "pdf", file: "paper.pdf", page: 3 },
       },
     ],
   };

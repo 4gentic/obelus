@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { ProjectFileFormat, ProjectFileRole, ProjectKind } from "./schema-v2.js";
+import { ProjectFileFormat, ProjectFileRole, ProjectKind } from "./schema.js";
 
 // The on-disk mirror of project metadata, written to `.obelus/project.json` by
 // the desktop app and consumed by the Claude Code plugin. Keeping the schema
-// here (next to bundle-v2) guarantees a single source of truth across the
-// desktop export, the plugin, and any external tooling.
+// here (next to the bundle schema) guarantees a single source of truth across
+// the desktop export, the plugin, and any external tooling.
 
 export const PROJECT_META_VERSION = 1 as const;
 

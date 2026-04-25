@@ -1,4 +1,5 @@
-import { buildBundleV2, mapHtmlAnnotations, suggestBundleFilename } from "@obelus/bundle-builder";
+import { buildBundle, mapHtmlAnnotations, suggestBundleFilename } from "@obelus/bundle-builder";
+import type { Bundle } from "@obelus/bundle-schema";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
 import type { PaperRow, RevisionRow } from "@obelus/repo";
 import { annotations } from "@obelus/repo/web";
@@ -22,12 +23,12 @@ type BuildInput = {
 // `anchor.file` — the bundle's `entrypoint` is a hint, not a constraint.
 export async function buildHtmlBundleJson(
   input: BuildInput,
-): Promise<{ filename: string; json: string }> {
+): Promise<{ filename: string; json: string; bundle: Bundle }> {
   const rows = await annotations.listForRevision(input.revision.id);
-  const { annotations: v2Annotations, droppedForPdfAnchor: droppedForUnsupportedAnchor } =
+  const { annotations: bundleAnnotations, droppedForPdfAnchor: droppedForUnsupportedAnchor } =
     mapHtmlAnnotations(rows, input.paper.id);
   const entrypoint = input.sourceFile ?? input.htmlFile;
-  const bundle = buildBundleV2({
+  const bundle = buildBundle({
     project: {
       id: input.paper.id,
       label: input.paper.title,
@@ -53,19 +54,19 @@ export async function buildHtmlBundleJson(
           : {}),
       },
     ],
-    annotations: v2Annotations,
+    annotations: bundleAnnotations,
   });
   const json = JSON.stringify(bundle, null, 2);
   const filename = suggestBundleFilename("revise");
   console.info("[export-bundle-html]", {
     paperId: input.paper.id,
-    annotationCount: v2Annotations.length,
+    annotationCount: bundleAnnotations.length,
     droppedForUnsupportedAnchor,
     entrypoint,
     mode: input.sourceFile !== undefined ? "source" : "html",
     filename,
   });
-  return { filename, json };
+  return { filename, json, bundle };
 }
 
 export async function downloadHtmlBundle(

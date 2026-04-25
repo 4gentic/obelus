@@ -4,7 +4,7 @@
   "properties": {
     "bundleVersion": {
       "type": "string",
-      "const": "2.0"
+      "const": "1.0"
     },
     "tool": {
       "type": "object",

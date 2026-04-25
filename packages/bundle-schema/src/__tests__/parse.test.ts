@@ -1,21 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseBundle } from "../parse.js";
 
-const v1Bundle = {
+const validBundle = {
   bundleVersion: "1.0",
-  tool: { name: "obelus", version: "0.1.0" },
-  pdf: { sha256: "b".repeat(64), filename: "paper.pdf", pageCount: 4 },
-  paper: {
-    id: "550e8400-e29b-41d4-a716-446655440000",
-    title: "Paper",
-    revision: 1,
-    createdAt: "2026-04-17T09:00:00.000Z",
-  },
-  annotations: [],
-};
-
-const v2Bundle = {
-  bundleVersion: "2.0",
   tool: { name: "obelus", version: "0.2.0" },
   project: {
     id: "00000000-0000-4000-8000-000000000001",
@@ -36,20 +23,14 @@ const v2Bundle = {
 };
 
 describe("parseBundle dispatch", () => {
-  it("dispatches a v1 bundle to version '1.0'", () => {
-    const result = parseBundle(v1Bundle);
+  it("dispatches a well-formed bundle to version '1.0'", () => {
+    const result = parseBundle(validBundle);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.version).toBe("1.0");
   });
 
-  it("dispatches a v2 bundle to version '2.0'", () => {
-    const result = parseBundle(v2Bundle);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.version).toBe("2.0");
-  });
-
   it("rejects an unsupported bundleVersion with a readable error", () => {
-    const result = parseBundle({ ...v1Bundle, bundleVersion: "9.9" });
+    const result = parseBundle({ ...validBundle, bundleVersion: "9.9" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("unsupported");
   });

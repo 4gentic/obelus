@@ -1,9 +1,12 @@
 export {
   formatFixPrompt,
+  locatorIntro,
   type PromptAnnotation,
   type PromptInput,
+  type PromptLocator,
   type PromptPaper,
   type PromptRubric,
+  renderAnnotations,
 } from "./formatters/format-fix-prompt.js";
 export { formatReviewPrompt } from "./formatters/format-review-prompt.js";
 export {

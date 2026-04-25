@@ -1,4 +1,4 @@
-import type { SourceAnchor2 } from "@obelus/bundle-schema";
+import type { SourceAnchor } from "@obelus/bundle-schema";
 import { normalizeQuote } from "./anchor";
 
 // Node.ELEMENT_NODE / Node.TEXT_NODE are DOM globals that don't exist in
@@ -102,7 +102,7 @@ function endpointToCoord(
 // (e.g. the user's cursor landed in the gutter or chrome).
 export function selectionToSourceAnchor(
   selection: Pick<Selection, "anchorNode" | "anchorOffset" | "focusNode" | "focusOffset">,
-): SourceAnchor2 | null {
+): SourceAnchor | null {
   const { anchorNode, focusNode } = selection;
   if (!anchorNode || !focusNode) return null;
 
@@ -132,7 +132,7 @@ export function selectionToSourceAnchor(
 // the click-to-mark path for images, where the user has no text selection
 // to drive `selectionToSourceAnchor`. Returns null when the element is in
 // hand-authored HTML (no source pairing).
-export function imageElementToSourceAnchor(img: HTMLElement): SourceAnchor2 | null {
+export function imageElementToSourceAnchor(img: HTMLElement): SourceAnchor | null {
   const block = findSourceBlock(img);
   if (!block) return null;
   const file = block.getAttribute("data-src-file");
@@ -180,7 +180,7 @@ function readLineRange(text: string, lineStart: number, lineEnd: number): string
 // of throwing — Phase 5's column mapping is best-effort by design, and
 // downstream Claude can still try to apply edits via the quote alone.
 export function verifySourceAnchor(
-  anchor: SourceAnchor2,
+  anchor: SourceAnchor,
   fileText: string,
   expectedQuote: string,
 ): { ok: true } | { ok: false; reason: "line-out-of-range" | "quote-mismatch" } {

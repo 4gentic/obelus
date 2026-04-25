@@ -1,5 +1,4 @@
-import type { Category } from "@obelus/bundle-schema";
-import { descriptionFor } from "@obelus/categories";
+import { type Category, descriptionFor } from "@obelus/categories";
 import type { AnnotationRow } from "@obelus/repo";
 import "./MarginNote.css";
 

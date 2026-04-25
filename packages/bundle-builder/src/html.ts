@@ -1,4 +1,4 @@
-import type { AnnotationV2Input, AnnotationV2InputAnchor } from "./index";
+import type { AnnotationAnchor, AnnotationInput } from "./index";
 
 // Structural row shape — both apps' Repo layers (`@obelus/repo` web and
 // SQLite implementations) produce this set of fields. Typed structurally so
@@ -61,16 +61,16 @@ export interface HtmlMapRow {
 }
 
 export interface HtmlMapResult {
-  annotations: AnnotationV2Input[];
+  annotations: AnnotationInput[];
   droppedForPdfAnchor: string[];
   seenKinds: Set<"source" | "html" | "html-element">;
   firstSourceFile: string | null;
 }
 
-// Pure mapping from repo annotation rows to BundleV2 annotations for HTML
+// Pure mapping from repo annotation rows to bundle annotations for HTML
 // papers. PDF anchors are dropped (HTML papers don't carry compiled PDFs);
 // `source` and `html` anchors pass through with the html arm reshaped to the
-// V2 wire fields. Callers apply their own logging, mixed-kind validation, and
+// wire fields. Callers apply their own logging, mixed-kind validation, and
 // entrypoint policy on top of this result — desktop wants strict
 // one-mode-per-paper enforcement, web takes a classification-derived
 // entrypoint and accepts mixed silently.
@@ -78,7 +78,7 @@ export function mapHtmlAnnotations(
   rows: ReadonlyArray<HtmlMapRow>,
   paperId: string,
 ): HtmlMapResult {
-  const annotations: AnnotationV2Input[] = [];
+  const annotations: AnnotationInput[] = [];
   const droppedForPdfAnchor: string[] = [];
   const seenKinds = new Set<"source" | "html" | "html-element">();
   let firstSourceFile: string | null = null;
@@ -91,7 +91,7 @@ export function mapHtmlAnnotations(
     if (row.anchor.kind === "source" && firstSourceFile === null) {
       firstSourceFile = row.anchor.file;
     }
-    let anchor: AnnotationV2InputAnchor;
+    let anchor: AnnotationAnchor;
     if (row.anchor.kind === "html") {
       anchor = {
         kind: "html",

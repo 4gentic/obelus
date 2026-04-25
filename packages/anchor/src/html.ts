@@ -1,4 +1,4 @@
-import type { HtmlAnchor2, HtmlElementAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
+import type { HtmlAnchor, HtmlElementAnchor, SourceAnchor } from "@obelus/bundle-schema";
 import { normalizeQuote } from "./anchor";
 
 // See source.ts: hard-coded so these helpers run outside DOM environments.
@@ -119,8 +119,8 @@ function charOffsetInRoot(root: HTMLElement, targetNode: Node, targetOffset: num
 
 export function selectionToHtmlAnchor(
   selection: Pick<Selection, "anchorNode" | "anchorOffset" | "focusNode" | "focusOffset">,
-  sourceHint?: SourceAnchor2,
-): HtmlAnchor2 | null {
+  sourceHint?: SourceAnchor,
+): HtmlAnchor | null {
   const { anchorNode, focusNode } = selection;
   if (!anchorNode || !focusNode) return null;
 
@@ -136,7 +136,7 @@ export function selectionToHtmlAnchor(
   const endOffset = charOffsetInRoot(endInfo.root, focusNode, selection.focusOffset);
   const [lo, hi] = startOffset <= endOffset ? [startOffset, endOffset] : [endOffset, startOffset];
 
-  const anchor: HtmlAnchor2 = {
+  const anchor: HtmlAnchor = {
     kind: "html",
     file: startInfo.file,
     xpath,
@@ -154,13 +154,13 @@ export function selectionToHtmlAnchor(
 // rather than dragging a text range — the text walk has nothing to anchor to.
 export function imageElementToHtmlAnchor(
   img: HTMLElement,
-  sourceHint?: SourceAnchor2,
-): HtmlElementAnchor2 | null {
+  sourceHint?: SourceAnchor,
+): HtmlElementAnchor | null {
   const info = findHtmlRoot(img);
   if (!info) return null;
   const xpath = xpathFromRoot(info.root, img);
   if (xpath === null) return null;
-  const anchor: HtmlElementAnchor2 = { kind: "html-element", file: info.file, xpath };
+  const anchor: HtmlElementAnchor = { kind: "html-element", file: info.file, xpath };
   if (sourceHint) {
     return { ...anchor, sourceHint };
   }
@@ -172,7 +172,7 @@ export function imageElementToHtmlAnchor(
 // (e.g. the writer-mode preview pane); the verifier walks to the resolved
 // node by re-evaluating the XPath, then compares the substring.
 export function verifyHtmlAnchor(
-  anchor: HtmlAnchor2,
+  anchor: HtmlAnchor,
   root: HTMLElement,
   expectedQuote: string,
 ): { ok: true } | { ok: false; reason: "xpath-miss" | "quote-mismatch" | "out-of-range" } {

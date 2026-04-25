@@ -35,7 +35,7 @@ If format detection can't find a single confident entrypoint, run `/apply-revisi
 | `apply-fix`     | Executes an approved plan with the Edit tool. Skips ambiguous blocks.             | Yes            |
 | `plan-fix`      | Forks context, locates each annotation in source, writes the plan file.           | No (internal)  |
 
-Both `apply-revision` and `write-review` dispatch internally on `bundleVersion` (1.0 / 2.0).
+Both `apply-revision` and `write-review` validate the bundle against the canonical JSON Schema at `${CLAUDE_PLUGIN_ROOT}/schemas/bundle.schema.json` before doing anything else.
 
 ## Safety
 
@@ -46,7 +46,7 @@ Both `apply-revision` and `write-review` dispatch internally on `bundleVersion` 
 
 ## Bundle contract
 
-See `@obelus/bundle-schema` in the monorepo. The plugin ships copies of the canonical JSON Schemas at `schemas/bundle-v1.schema.json` and `schemas/bundle-v2.schema.json` inside this directory — the skills resolve them via `${CLAUDE_PLUGIN_ROOT}/schemas/…` so validation works out of the box when the plugin is installed from the marketplace.
+See `@obelus/bundle-schema` in the monorepo. The plugin ships a copy of the canonical JSON Schema at `schemas/bundle.schema.json` inside this directory — the skills resolve it via `${CLAUDE_PLUGIN_ROOT}/schemas/…` so validation works out of the box when the plugin is installed from the marketplace.
 
 ## End-to-end tests
 

@@ -8,8 +8,8 @@ import type {
 } from "@obelus/repo";
 import { describe, expect, it } from "vitest";
 import {
-  exportHtmlBundleV2ForPaper,
-  exportMdBundleV2ForPaper,
+  exportHtmlBundleForPaper,
+  exportMdBundleForPaper,
   selectSiblingSourceCandidates,
 } from "../build-bundle";
 
@@ -95,7 +95,7 @@ describe("selectSiblingSourceCandidates", () => {
   });
 });
 
-describe("exportMdBundleV2ForPaper", () => {
+describe("exportMdBundleForPaper", () => {
   function makeRepo(fixture: {
     paper: PaperRow;
     project: ProjectRow;
@@ -175,7 +175,7 @@ describe("exportMdBundleV2ForPaper", () => {
     };
     const repo = makeRepo({ paper, project, revisions: [revision], annotations: [ann] });
 
-    const { json, annotationCount } = await exportMdBundleV2ForPaper({
+    const { json, annotationCount } = await exportMdBundleForPaper({
       repo,
       paperId: paper.id,
     });
@@ -268,12 +268,12 @@ describe("exportMdBundleV2ForPaper", () => {
       annotations: [anchored, dangling],
     });
 
-    const { annotationCount } = await exportMdBundleV2ForPaper({ repo, paperId: paper.id });
+    const { annotationCount } = await exportMdBundleForPaper({ repo, paperId: paper.id });
     expect(annotationCount).toBe(1);
   });
 });
 
-describe("exportHtmlBundleV2ForPaper", () => {
+describe("exportHtmlBundleForPaper", () => {
   function makeRepo(fixture: {
     paper: PaperRow;
     project: ProjectRow;
@@ -388,7 +388,7 @@ describe("exportHtmlBundleV2ForPaper", () => {
       ],
     });
 
-    const { json, annotationCount } = await exportHtmlBundleV2ForPaper({
+    const { json, annotationCount } = await exportHtmlBundleForPaper({
       repo,
       paperId: paper.id,
     });
@@ -433,7 +433,7 @@ describe("exportHtmlBundleV2ForPaper", () => {
       annotations: [sourceAnn, htmlTextAnn(revision.id, paper.createdAt)],
     });
 
-    await expect(exportHtmlBundleV2ForPaper({ repo, paperId: paper.id })).rejects.toThrow(
+    await expect(exportHtmlBundleForPaper({ repo, paperId: paper.id })).rejects.toThrow(
       /mixes source-mode and html-mode anchors/,
     );
   });
@@ -447,7 +447,7 @@ describe("exportHtmlBundleV2ForPaper", () => {
       annotations: [htmlElementAnn(revision.id, paper.createdAt)],
     });
 
-    const { json, annotationCount } = await exportHtmlBundleV2ForPaper({
+    const { json, annotationCount } = await exportHtmlBundleForPaper({
       repo,
       paperId: paper.id,
     });

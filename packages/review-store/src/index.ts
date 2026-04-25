@@ -1,5 +1,5 @@
 import type { Anchor, Bbox } from "@obelus/anchor";
-import type { HtmlAnchor2, HtmlElementAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
+import type { HtmlAnchor, HtmlElementAnchor, SourceAnchor } from "@obelus/bundle-schema";
 import type {
   AnnotationRow,
   AnnotationStaleness,
@@ -26,7 +26,7 @@ export type PdfDraftSlice = {
 
 export type SourceDraftSlice = {
   kind: "source";
-  anchor: SourceAnchor2;
+  anchor: SourceAnchor;
   quote: string;
   contextBefore: string;
   contextAfter: string;
@@ -34,7 +34,7 @@ export type SourceDraftSlice = {
 
 export type HtmlDraftSlice = {
   kind: "html";
-  anchor: HtmlAnchor2;
+  anchor: HtmlAnchor;
   quote: string;
   contextBefore: string;
   contextAfter: string;
@@ -45,7 +45,7 @@ export type HtmlDraftSlice = {
 // resolver draws from `getBoundingClientRect()`.
 export type HtmlElementDraftSlice = {
   kind: "html-element";
-  anchor: HtmlElementAnchor2;
+  anchor: HtmlElementAnchor;
   quote: string;
   contextBefore: string;
   contextAfter: string;

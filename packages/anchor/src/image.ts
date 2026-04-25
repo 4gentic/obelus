@@ -2,7 +2,7 @@
 // element's `alt` text — it survives the bundle round-trip when the source is
 // markdown (the alt is part of `![alt](path)`). Falls back to a
 // `[image: filename]` placeholder so callers always have a non-empty quote
-// (`AnnotationV2.quote` is `min(1)`) even for empty-alt images.
+// (`Annotation.quote` is `min(1)`) even for empty-alt images.
 //
 // `data-blocked-src` carries the original `src` for external images that the
 // trust gate replaced with a `data:,` placeholder; we prefer it over the
