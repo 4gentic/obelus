@@ -5,7 +5,7 @@ import {
 import { claudeFixCompile } from "@obelus/claude-sidecar";
 import type { Repository } from "@obelus/repo";
 import { getVersion } from "@tauri-apps/api/app";
-import { fsWriteBytes } from "../../ipc/commands";
+import { workspaceWriteText } from "../../ipc/commands";
 import { useJobsStore } from "../../lib/jobs-store";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 
@@ -117,9 +117,12 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
 
   const stamp = isoStampForFilename();
   const nonce = crypto.randomUUID().slice(0, 8);
-  const bundleRelPath = `.obelus-compile-error-${stamp}-${nonce}.json`;
-  const encoded = new TextEncoder().encode(`${JSON.stringify(bundle, null, 2)}\n`);
-  await fsWriteBytes(rootId, bundleRelPath, encoded);
+  const bundleWorkspaceRelPath = `compile-error-${stamp}-${nonce}.json`;
+  await workspaceWriteText(
+    projectId,
+    bundleWorkspaceRelPath,
+    `${JSON.stringify(bundle, null, 2)}\n`,
+  );
 
   const overrides = await loadClaudeOverrides();
 
@@ -131,14 +134,15 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
   const fixSession = await repo.reviewSessions.create({
     projectId,
     paperId,
-    bundleId: bundleRelPath,
+    bundleId: bundleWorkspaceRelPath,
     model: overrides.model,
     effort: overrides.effort,
   });
 
   const claudeSessionId = await claudeFixCompile({
     rootId,
-    bundleRelPath,
+    projectId,
+    bundleWorkspaceRelPath,
     paperId,
     model: overrides.model,
     effort: overrides.effort,
@@ -166,7 +170,7 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     paperId,
     compiler: bundleCompiler,
     mainRelPath,
-    bundleRelPath,
+    bundleWorkspaceRelPath,
     trigger,
     stderrBytes: stderr.length,
   });

@@ -37,7 +37,6 @@ export const NOISE_DIRS: ReadonlySet<string> = new Set([
   "dist",
   "build",
   ".git",
-  ".obelus",
   ".venv",
   ".next",
   ".turbo",

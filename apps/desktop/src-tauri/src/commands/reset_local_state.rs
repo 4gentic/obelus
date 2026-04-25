@@ -35,6 +35,13 @@ pub fn reset_local_state(app: AppHandle) -> AppResult<()> {
         }
     }
 
+    let projects = dir.join("projects");
+    match fs::remove_dir_all(&projects) {
+        Ok(()) => {}
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+        Err(err) => failures.push(format!("{}: {err}", projects.display())),
+    }
+
     if failures.is_empty() {
         Ok(())
     } else {

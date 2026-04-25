@@ -9,14 +9,18 @@ disable-model-invocation: true
 
 Locate each bundle annotation in the paper source and emit a paired markdown + JSON plan describing one minimal-diff edit per annotation. Do not write to any source file in this skill.
 
+## Workspace resolution — read this first
+
+Every output path below uses the **workspace prefix** `$OBELUS_WORKSPACE_DIR` — an absolute path the caller hands you, which the Obelus desktop sets to a per-project subdirectory under app-data and includes in the spawn invocation. There is no `.obelus/` fallback — the plugin must never write into the user's paper repo. If the spawn invocation does not give you a value for `$OBELUS_WORKSPACE_DIR`, return that error to the caller (`apply-revision`); it owns the user-facing refusal.
+
 ## File output contract — non-negotiable
 
-Emit **two** artefacts per run, both under `.obelus/`, both stamped with the **same** compact UTC timestamp generated once at the start of the run (`YYYYMMDD-HHmmss`, e.g. `20260423-143012` — no colons, no `T`, no `Z`):
+Emit **two** artefacts per run, both under `$OBELUS_WORKSPACE_DIR`, both stamped with the **same** compact UTC timestamp generated once at the start of the run (`YYYYMMDD-HHmmss`, e.g. `20260423-143012` — no colons, no `T`, no `Z`):
 
-- `.obelus/plan-<iso-timestamp>.md` — human-readable.
-- `.obelus/plan-<iso-timestamp>.json` — machine-readable companion. Consumed by the desktop diff-review UI (the `.md` is still what `apply-fix` reads).
+- `$OBELUS_WORKSPACE_DIR/plan-<iso-timestamp>.md` — human-readable.
+- `$OBELUS_WORKSPACE_DIR/plan-<iso-timestamp>.json` — machine-readable companion. Consumed by the desktop diff-review UI (the `.md` is still what `apply-fix` reads).
 
-**Pre-flight.** Before composing, ensure `.obelus/` exists. If it does not, create `.obelus/.gitkeep` (empty body) via `Write`. **Do not use `Bash`** to probe the directory — it is not in this session's allow-list and a denied call forces a re-plan round-trip that users see as a stuck phase label. `Write` creates the parent directory idempotently; just call it. The caller (`apply-revision`) has already emitted `[obelus:phase] preflight`; this skill inherits that label until it emits `[obelus:phase] locating-spans`.
+**Pre-flight.** The desktop creates `$OBELUS_WORKSPACE_DIR` before spawning you, so the directory already exists. **Do not use `Bash`** to probe it — `Bash` is not in this session's allow-list and a denied call forces a re-plan round-trip that users see as a stuck phase label. Just call `Write` for the two output paths; `Write` creates the parent directory if needed. The caller (`apply-revision`) has already emitted `[obelus:phase] preflight`; this skill inherits that label until it emits `[obelus:phase] locating-spans`.
 
 **Use `Write`.** Both files must reach disk via the `Write` tool. If `Write` fails, **stop and report the failure** — do not paste the contents into stdout as a fallback.
 
@@ -243,7 +247,7 @@ When `format === "html"`, the edit lives directly in markup. Almost every HTML p
 
 `apply-fix` does not run a compile-verify pass for HTML (the format has no analogue of `typst compile`). Self-check before emitting: tags balance, attribute quoting is consistent with the surrounding file, and the diff would parse as HTML on its own (paste-the-`+`-side test).
 
-## Output — markdown (`.obelus/plan-<iso>.md`)
+## Output — markdown (`$OBELUS_WORKSPACE_DIR/plan-<iso>.md`)
 
 One block per annotation:
 
@@ -271,7 +275,7 @@ End the file with a `## Summary` section: counts by category, counts for synthes
 
 `quality-*` blocks follow the same block template above: `**Where**`, `**Quote**` (lifted from the current `- before` side of the proposal), `**Note**: Quality pass: <issue>.`, the diff, a one-sentence `**Why**`, `**Reviewer notes**: Quality pass: <issue>.` — no new template.
 
-## Output — JSON (`.obelus/plan-<iso>.json`)
+## Output — JSON (`$OBELUS_WORKSPACE_DIR/plan-<iso>.json`)
 
 Same annotations in the same order, as structured data. Write:
 
@@ -306,7 +310,7 @@ Rules:
 
 No optional fields. Empty-string-over-absence keeps the shape stable for downstream consumers.
 
-## Worked example
+## Worked example — LaTeX
 
 One annotation, end to end. Input (a single mark in the bundle):
 
@@ -318,7 +322,7 @@ note: "needs full citation"
 anchor: { file: "main.tex", lineStart: 142, lineEnd: 142 }   # pre-resolved by the desktop
 ```
 
-The corresponding block in `.obelus/plan-20260423-143012.md`:
+The corresponding block in `<workspace>/plan-20260423-143012.md`:
 
 ```md
 ## 1. citation-needed — 550e8400-e29b-41d4-a716-446655440001
@@ -340,7 +344,7 @@ The corresponding block in `.obelus/plan-20260423-143012.md`:
 **Ambiguous**: false
 ```
 
-The matching `.obelus/plan-20260423-143012.json` (top-level envelope plus the one block):
+The matching `<workspace>/plan-20260423-143012.json` (top-level envelope plus the one block):
 
 ```json
 {
@@ -374,7 +378,7 @@ note: "needs full citation"
 anchor: { file: "main.typ", lineStart: 42, lineEnd: 42 }
 ```
 
-Block in `.obelus/plan-20260423-143012.md`:
+Block in `<workspace>/plan-20260423-143012.md`:
 
 ```md
 ## 1. citation-needed — 550e8400-e29b-41d4-a716-446655440042
@@ -418,7 +422,7 @@ Matching JSON (top-level envelope plus the one block) — note `format: "typst"`
 
 ## Before returning, verify
 
-- Both `.obelus/plan-<iso>.md` and `.obelus/plan-<iso>.json` reached disk via `Write` (no fallback to stdout) and share the same timestamp.
+- Both `$OBELUS_WORKSPACE_DIR/plan-<iso>.md` and `$OBELUS_WORKSPACE_DIR/plan-<iso>.json` reached disk via `Write` (no fallback to stdout) and share the same timestamp.
 - Block order is identical between the two files; counts match.
 - For each substantive source-anchored block, a bounded-window `Read` (`[lineStart - 50, lineEnd + 50]`) was issued rather than a full-file read of the entrypoint.
 - Every non-`praise`, non-`ambiguous`, non-synthesised block carries a `reviewerNotes` value taken verbatim from the single batched `paper-reviewer` call.

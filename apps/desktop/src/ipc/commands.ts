@@ -135,10 +135,51 @@ export interface ApplyReport {
 
 export async function applyHunks(args: {
   rootId: string;
+  projectId: string;
   sessionId: string;
   hunks: Array<{ file: string; patch: string }>;
 }): Promise<ApplyReport> {
   return invoke<ApplyReport>("apply_hunks", args);
+}
+
+// Workspace = `<app_data>/projects/<projectId>/`. Holds Obelus-owned
+// artifacts (bundles, plans, writeups, rubrics, apply backups, project.json,
+// rendered previews). The user's paper folder is never written to except
+// when applying patches to source files.
+export function workspacePath(projectId: string, relPath: string): Promise<string> {
+  return invoke<string>("workspace_path", { projectId, relPath });
+}
+
+export function workspaceReadFile(projectId: string, relPath: string): Promise<ArrayBuffer> {
+  return invoke<ArrayBuffer>("workspace_read_file", { projectId, relPath });
+}
+
+export function workspaceReadDir(projectId: string, relPath: string): Promise<DirEntry[]> {
+  return invoke<DirEntry[]>("workspace_read_dir", { projectId, relPath });
+}
+
+export function workspaceWriteText(
+  projectId: string,
+  relPath: string,
+  body: string,
+): Promise<void> {
+  return invoke<void>("workspace_write_text", { projectId, relPath, body });
+}
+
+export function workspaceWriteBytes(
+  projectId: string,
+  relPath: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  return invoke<void>("workspace_write_bytes", {
+    projectId,
+    relPath,
+    bytes: Array.from(bytes),
+  });
+}
+
+export function workspaceDelete(projectId: string): Promise<void> {
+  return invoke<void>("workspace_delete", { projectId });
 }
 
 export interface TypstCompileReport {
@@ -214,11 +255,13 @@ export interface HistorySnapshotReport {
 
 export function historySnapshot(args: {
   rootId: string;
+  projectId: string;
   explicitRelPaths?: ReadonlyArray<string>;
   tombstonedRelPaths?: ReadonlyArray<string>;
 }): Promise<HistorySnapshotReport> {
   return invoke<HistorySnapshotReport>("history_snapshot", {
     rootId: args.rootId,
+    projectId: args.projectId,
     explicitRelPaths: args.explicitRelPaths ?? [],
     tombstonedRelPaths: args.tombstonedRelPaths ?? [],
   });
@@ -232,10 +275,12 @@ export interface HistoryDivergenceReport {
 
 export function historyDetectDivergence(
   rootId: string,
+  projectId: string,
   targetManifestSha: string,
 ): Promise<HistoryDivergenceReport> {
   return invoke<HistoryDivergenceReport>("history_detect_divergence", {
     rootId,
+    projectId,
     targetManifestSha,
   });
 }
@@ -247,11 +292,13 @@ export interface HistoryCheckoutReport {
 
 export function historyCheckout(args: {
   rootId: string;
+  projectId: string;
   targetManifestSha: string;
   expectedParentManifestSha?: string | null;
 }): Promise<HistoryCheckoutReport> {
   return invoke<HistoryCheckoutReport>("history_checkout", {
     rootId: args.rootId,
+    projectId: args.projectId,
     targetManifestSha: args.targetManifestSha,
     expectedParentManifestSha: args.expectedParentManifestSha ?? null,
   });
@@ -265,16 +312,22 @@ export interface HistoryGcReport {
 
 export function historyGc(
   rootId: string,
+  projectId: string,
   liveManifestShas: ReadonlyArray<string>,
 ): Promise<HistoryGcReport> {
   return invoke<HistoryGcReport>("history_gc", {
     rootId,
+    projectId,
     liveManifestShas: Array.from(liveManifestShas),
   });
 }
 
-export function historyReadBlob(rootId: string, sha256: string): Promise<ArrayBuffer> {
-  return invoke<ArrayBuffer>("history_read_blob", { rootId, sha256 });
+export function historyReadBlob(
+  rootId: string,
+  projectId: string,
+  sha256: string,
+): Promise<ArrayBuffer> {
+  return invoke<ArrayBuffer>("history_read_blob", { rootId, projectId, sha256 });
 }
 
 export type FileDiffStatus = "added" | "removed" | "modified" | "binary";
@@ -291,11 +344,13 @@ export interface DiffManifestsReport {
 
 export function historyDiffManifests(args: {
   rootId: string;
+  projectId: string;
   fromManifestSha: string;
   toManifestSha: string;
 }): Promise<DiffManifestsReport> {
   return invoke<DiffManifestsReport>("history_diff_manifests", {
     rootId: args.rootId,
+    projectId: args.projectId,
     fromManifestSha: args.fromManifestSha,
     toManifestSha: args.toManifestSha,
   });

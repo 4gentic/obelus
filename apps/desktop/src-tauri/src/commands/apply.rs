@@ -4,6 +4,7 @@
 // from backup in-order before returning the error.
 
 use crate::commands::fs_scoped::{atomic_write, resolve_for_write};
+use crate::commands::workspace::workspace_dir_for;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -11,7 +12,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::State;
+use tauri::{AppHandle, State};
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -62,13 +63,18 @@ struct Manifest {
 
 #[tauri::command]
 pub async fn apply_hunks(
+    app: AppHandle,
     root_id: String,
+    project_id: String,
     session_id: String,
     hunks: Vec<HunkInput>,
     state: State<'_, AppState>,
 ) -> AppResult<ApplyReport> {
     let lock = state.root_lock(&root_id);
     let _guard = lock.lock().await;
+    let backup_root = workspace_dir_for(&app, &project_id)?
+        .join("backup")
+        .join(&session_id);
 
     let mut grouped: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for h in hunks {
@@ -116,14 +122,13 @@ pub async fn apply_hunks(
     let mut manifest_files: Vec<ManifestFile> = Vec::with_capacity(staged.len());
 
     for sf in &staged {
-        let backup_rel = format!(".obelus/backup/{}/{}", session_id, sf.rel_path);
-        let backup_abs = match resolve_for_write(&root_id, &backup_rel, &state).await {
-            Ok(p) => p,
-            Err(e) => {
+        let backup_abs = backup_root.join(&sf.rel_path);
+        if let Some(parent) = backup_abs.parent() {
+            if let Err(e) = tokio::fs::create_dir_all(parent).await {
                 rollback(&written).await;
-                return Err(e);
+                return Err(AppError::from(e));
             }
-        };
+        }
         if let Err(e) = atomic_write(&backup_abs, &sf.orig_bytes).await {
             rollback(&written).await;
             return Err(e);
@@ -150,14 +155,7 @@ pub async fn apply_hunks(
     };
     let manifest_bytes = serde_json::to_vec_pretty(&manifest)
         .map_err(|e| AppError::Apply(format!("manifest: {e}")))?;
-    let manifest_rel = format!(".obelus/backup/{}/.manifest.json", session_id);
-    let manifest_abs = match resolve_for_write(&root_id, &manifest_rel, &state).await {
-        Ok(p) => p,
-        Err(e) => {
-            rollback(&written).await;
-            return Err(e);
-        }
-    };
+    let manifest_abs = backup_root.join(".manifest.json");
     if let Err(e) = atomic_write(&manifest_abs, &manifest_bytes).await {
         rollback(&written).await;
         return Err(e);

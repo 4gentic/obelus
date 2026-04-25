@@ -10,7 +10,8 @@ export {
 
 export interface ClaudeSpawnInput {
   rootId: string;
-  bundleRelPath: string;
+  projectId: string;
+  bundleWorkspaceRelPath: string;
   extraPromptBody?: string;
   model?: string | null;
   effort?: string | null;
@@ -31,7 +32,8 @@ export interface ClaudeExitEvent {
 export function claudeSpawn(input: ClaudeSpawnInput): Promise<string> {
   return invoke<string>("claude_spawn", {
     rootId: input.rootId,
-    bundleRelPath: input.bundleRelPath,
+    projectId: input.projectId,
+    bundleWorkspaceRelPath: input.bundleWorkspaceRelPath,
     extraPromptBody: input.extraPromptBody ?? null,
     model: input.model ?? null,
     effort: input.effort ?? null,
@@ -40,6 +42,7 @@ export function claudeSpawn(input: ClaudeSpawnInput): Promise<string> {
 
 export interface ClaudeAskInput {
   rootId: string;
+  projectId: string;
   promptBody: string;
   model?: string | null;
   effort?: string | null;
@@ -48,6 +51,7 @@ export interface ClaudeAskInput {
 export function claudeAsk(input: ClaudeAskInput): Promise<string> {
   return invoke<string>("claude_ask", {
     rootId: input.rootId,
+    projectId: input.projectId,
     promptBody: input.promptBody,
     model: input.model ?? null,
     effort: input.effort ?? null,
@@ -56,10 +60,11 @@ export function claudeAsk(input: ClaudeAskInput): Promise<string> {
 
 export interface ClaudeDraftWriteupInput {
   rootId: string;
-  bundleRelPath: string;
+  projectId: string;
+  bundleWorkspaceRelPath: string;
   paperId: string;
   paperTitle: string;
-  rubricRelPath?: string;
+  rubricWorkspaceRelPath?: string;
   extraPromptBody?: string | null;
   model?: string | null;
   effort?: string | null;
@@ -68,10 +73,11 @@ export interface ClaudeDraftWriteupInput {
 export function claudeDraftWriteup(input: ClaudeDraftWriteupInput): Promise<string> {
   return invoke<string>("claude_draft_writeup", {
     rootId: input.rootId,
-    bundleRelPath: input.bundleRelPath,
+    projectId: input.projectId,
+    bundleWorkspaceRelPath: input.bundleWorkspaceRelPath,
     paperId: input.paperId,
     paperTitle: input.paperTitle,
-    rubricRelPath: input.rubricRelPath ?? null,
+    rubricWorkspaceRelPath: input.rubricWorkspaceRelPath ?? null,
     extraPromptBody: input.extraPromptBody ?? null,
     model: input.model ?? null,
     effort: input.effort ?? null,
@@ -80,7 +86,8 @@ export function claudeDraftWriteup(input: ClaudeDraftWriteupInput): Promise<stri
 
 export interface ClaudeFixCompileInput {
   rootId: string;
-  bundleRelPath: string;
+  projectId: string;
+  bundleWorkspaceRelPath: string;
   paperId: string;
   model?: string | null;
   effort?: string | null;
@@ -89,7 +96,8 @@ export interface ClaudeFixCompileInput {
 export function claudeFixCompile(input: ClaudeFixCompileInput): Promise<string> {
   return invoke<string>("claude_fix_compile", {
     rootId: input.rootId,
-    bundleRelPath: input.bundleRelPath,
+    projectId: input.projectId,
+    bundleWorkspaceRelPath: input.bundleWorkspaceRelPath,
     paperId: input.paperId,
     model: input.model ?? null,
     effort: input.effort ?? null,

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ProjectFileFormat, ProjectFileRole, ProjectKind } from "./schema.js";
 
-// The on-disk mirror of project metadata, written to `.obelus/project.json` by
+// The on-disk mirror of project metadata, written to `$OBELUS_WORKSPACE_DIR/project.json` by
 // the desktop app and consumed by the Claude Code plugin. Keeping the schema
 // here (next to the bundle schema) guarantees a single source of truth across
 // the desktop export, the plugin, and any external tooling.

@@ -42,6 +42,7 @@ const MANUAL_COMMANDS: ReadonlyArray<{ os: string; command: string }> = [
     command: [
       "rm -f ~/Library/Application\\ Support/app.obelus.desktop/obelus.db*",
       "rm -f ~/Library/Application\\ Support/app.obelus.desktop/app-state.json",
+      "rm -rf ~/Library/Application\\ Support/app.obelus.desktop/projects",
     ].join("\n"),
   },
   {
@@ -49,6 +50,7 @@ const MANUAL_COMMANDS: ReadonlyArray<{ os: string; command: string }> = [
     command: [
       "rm -f ~/.local/share/app.obelus.desktop/obelus.db*",
       "rm -f ~/.local/share/app.obelus.desktop/app-state.json",
+      "rm -rf ~/.local/share/app.obelus.desktop/projects",
     ].join("\n"),
   },
   {
@@ -56,6 +58,7 @@ const MANUAL_COMMANDS: ReadonlyArray<{ os: string; command: string }> = [
     command: [
       'Remove-Item "$env:APPDATA\\app.obelus.desktop\\obelus.db*" -ErrorAction SilentlyContinue',
       'Remove-Item "$env:APPDATA\\app.obelus.desktop\\app-state.json" -ErrorAction SilentlyContinue',
+      'Remove-Item "$env:APPDATA\\app.obelus.desktop\\projects" -Recurse -ErrorAction SilentlyContinue',
     ].join("\n"),
   },
 ];
