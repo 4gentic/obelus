@@ -54,7 +54,13 @@ export type SourceAnchorFields = z.infer<typeof BundleSchema.SourceAnchor>;
 
 export type HtmlAnchorFields = z.infer<typeof BundleSchema.HtmlAnchor>;
 
-export type AnchorFields = PdfAnchorFields | SourceAnchorFields | HtmlAnchorFields;
+export type HtmlElementAnchorFields = z.infer<typeof BundleSchema.HtmlElementAnchor>;
+
+export type AnchorFields =
+  | PdfAnchorFields
+  | SourceAnchorFields
+  | HtmlAnchorFields
+  | HtmlElementAnchorFields;
 
 export interface AnnotationRow {
   id: string;

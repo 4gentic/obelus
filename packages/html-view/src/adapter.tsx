@@ -1,6 +1,11 @@
 import type { AnnotationRow, AnnotationStaleness } from "@obelus/repo";
 import type { DocumentView } from "@obelus/review-shell";
-import type { DraftInput, HtmlDraftSlice, SourceDraftSlice } from "@obelus/review-store";
+import type {
+  DraftInput,
+  HtmlDraftSlice,
+  HtmlElementDraftSlice,
+  SourceDraftSlice,
+} from "@obelus/review-store";
 import type { AssetResolver } from "@obelus/source-render/browser";
 import type { JSX, ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -78,7 +83,7 @@ function iframeOf(mount: HTMLElement | null, host: HTMLElement | null): HTMLIFra
 function isSupportedAnchor(anchor: unknown): anchor is HtmlMountAnchor {
   if (typeof anchor !== "object" || anchor === null) return false;
   const kind = (anchor as { kind?: unknown }).kind;
-  return kind === "source" || kind === "html";
+  return kind === "source" || kind === "html" || kind === "html-element";
 }
 
 function sourceSliceFromSource(sel: HtmlSelectionAnchor & { kind: "source" }): SourceDraftSlice {
@@ -110,6 +115,28 @@ function htmlSliceFor(
   }
   return {
     kind: "html",
+    anchor: sel.anchor,
+    quote: sel.quote,
+    contextBefore: sel.contextBefore,
+    contextAfter: sel.contextAfter,
+  };
+}
+
+function htmlElementSliceFor(
+  sel: HtmlSelectionAnchor & { kind: "html-element" },
+): SourceDraftSlice | HtmlElementDraftSlice {
+  const hint = sel.anchor.sourceHint;
+  if (hint) {
+    return {
+      kind: "source",
+      anchor: hint,
+      quote: sel.quote,
+      contextBefore: sel.contextBefore,
+      contextAfter: sel.contextAfter,
+    };
+  }
+  return {
+    kind: "html-element",
     anchor: sel.anchor,
     quote: sel.quote,
     contextBefore: sel.contextBefore,
@@ -186,6 +213,16 @@ export function useHtmlDocumentView(params: Params): DocumentView {
       if (sel === null) return;
       if (sel.kind === "source") {
         const slice = sourceSliceFromSource(sel);
+        onAnchor({
+          slices: [slice],
+          quote: sel.quote,
+          contextBefore: sel.contextBefore,
+          contextAfter: sel.contextAfter,
+        });
+        return;
+      }
+      if (sel.kind === "html-element") {
+        const slice = htmlElementSliceFor(sel);
         onAnchor({
           slices: [slice],
           quote: sel.quote,
@@ -305,7 +342,9 @@ export function useHtmlDocumentView(params: Params): DocumentView {
     }
     if (selectedAnchor) {
       for (const slice of selectedAnchor.slices) {
-        if (slice.kind !== "source" && slice.kind !== "html") continue;
+        if (slice.kind !== "source" && slice.kind !== "html" && slice.kind !== "html-element") {
+          continue;
+        }
         for (const r of rectsForAnchor(slice.anchor)) {
           out.push({
             key: `draft-${rectIndex++}`,

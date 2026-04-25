@@ -50,7 +50,23 @@ export const HtmlAnchor = z.object({
   sourceHint: SourceAnchor.optional(),
 });
 
-export const Anchor = z.discriminatedUnion("kind", [PdfAnchor, SourceAnchor, HtmlAnchor]);
+// Reference to a discrete HTML element rather than a text range — the case the
+// `HtmlAnchor` text walk can't represent (e.g. `<img>`, which has no text
+// content). The XPath resolves to the element itself; resolvers draw the
+// highlight from the element's own bounding rect.
+export const HtmlElementAnchor = z.object({
+  kind: z.literal("html-element"),
+  file: relPosixPath,
+  xpath: z.string().min(1),
+  sourceHint: SourceAnchor.optional(),
+});
+
+export const Anchor = z.discriminatedUnion("kind", [
+  PdfAnchor,
+  SourceAnchor,
+  HtmlAnchor,
+  HtmlElementAnchor,
+]);
 
 const ThreadEntry = z.object({
   at: z.string().datetime({ offset: false }),

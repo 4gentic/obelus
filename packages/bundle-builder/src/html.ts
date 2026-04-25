@@ -34,7 +34,18 @@ export interface HtmlMapAnchorHtml {
   sourceHint?: HtmlMapAnchorSource | undefined;
 }
 
-export type HtmlMapAnchor = HtmlMapAnchorPdf | HtmlMapAnchorSource | HtmlMapAnchorHtml;
+export interface HtmlMapAnchorHtmlElement {
+  kind: "html-element";
+  file: string;
+  xpath: string;
+  sourceHint?: HtmlMapAnchorSource | undefined;
+}
+
+export type HtmlMapAnchor =
+  | HtmlMapAnchorPdf
+  | HtmlMapAnchorSource
+  | HtmlMapAnchorHtml
+  | HtmlMapAnchorHtmlElement;
 
 export interface HtmlMapRow {
   id: string;
@@ -52,7 +63,7 @@ export interface HtmlMapRow {
 export interface HtmlMapResult {
   annotations: AnnotationV2Input[];
   droppedForPdfAnchor: string[];
-  seenKinds: Set<"source" | "html">;
+  seenKinds: Set<"source" | "html" | "html-element">;
   firstSourceFile: string | null;
 }
 
@@ -69,7 +80,7 @@ export function mapHtmlAnnotations(
 ): HtmlMapResult {
   const annotations: AnnotationV2Input[] = [];
   const droppedForPdfAnchor: string[] = [];
-  const seenKinds = new Set<"source" | "html">();
+  const seenKinds = new Set<"source" | "html" | "html-element">();
   let firstSourceFile: string | null = null;
   for (const row of rows) {
     if (row.anchor.kind === "pdf") {
@@ -80,17 +91,26 @@ export function mapHtmlAnnotations(
     if (row.anchor.kind === "source" && firstSourceFile === null) {
       firstSourceFile = row.anchor.file;
     }
-    const anchor: AnnotationV2InputAnchor =
-      row.anchor.kind === "html"
-        ? {
-            kind: "html",
-            file: row.anchor.file,
-            xpath: row.anchor.xpath,
-            charOffsetStart: row.anchor.charOffsetStart,
-            charOffsetEnd: row.anchor.charOffsetEnd,
-            ...(row.anchor.sourceHint !== undefined ? { sourceHint: row.anchor.sourceHint } : {}),
-          }
-        : row.anchor;
+    let anchor: AnnotationV2InputAnchor;
+    if (row.anchor.kind === "html") {
+      anchor = {
+        kind: "html",
+        file: row.anchor.file,
+        xpath: row.anchor.xpath,
+        charOffsetStart: row.anchor.charOffsetStart,
+        charOffsetEnd: row.anchor.charOffsetEnd,
+        ...(row.anchor.sourceHint !== undefined ? { sourceHint: row.anchor.sourceHint } : {}),
+      };
+    } else if (row.anchor.kind === "html-element") {
+      anchor = {
+        kind: "html-element",
+        file: row.anchor.file,
+        xpath: row.anchor.xpath,
+        ...(row.anchor.sourceHint !== undefined ? { sourceHint: row.anchor.sourceHint } : {}),
+      };
+    } else {
+      anchor = row.anchor;
+    }
     annotations.push({
       id: row.id,
       paperId,

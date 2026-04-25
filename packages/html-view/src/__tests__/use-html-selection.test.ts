@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { computeHtmlSelectionAnchor } from "../use-html-selection";
+import { computeHtmlSelectionAnchor, computeImageClickAnchor } from "../use-html-selection";
 
 function mountTagged(file: string, ...children: HTMLElement[]): HTMLElement {
   const root = document.createElement("div");
@@ -120,5 +120,58 @@ describe("computeHtmlSelectionAnchor", () => {
     const sel = selectRange(text, 0, text, 10);
     const result = computeHtmlSelectionAnchor(mount, sel, "html", undefined);
     expect(result?.quote).toBe("spaced");
+  });
+});
+
+describe("computeImageClickAnchor", () => {
+  beforeEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("emits an html-element anchor for hand-authored HTML images", () => {
+    const img = el("img", { src: "fig.png", alt: "a figure" }, []);
+    const mount = mountTagged("page.html", img);
+
+    const result = computeImageClickAnchor(mount, img);
+    expect(result).not.toBeNull();
+    if (!result) throw new Error("expected non-null");
+    expect(result.kind).toBe("html-element");
+    expect(result.quote).toBe("a figure");
+    if (result.kind !== "html-element") throw new Error("expected html-element kind");
+    expect(result.anchor.xpath).toBe("./img[1]");
+  });
+
+  it("falls back to filename when alt is empty", () => {
+    const img = el("img", { src: "figs/diagram.png", alt: "" }, []);
+    const mount = mountTagged("page.html", img);
+
+    const result = computeImageClickAnchor(mount, img);
+    expect(result?.quote).toBe("[image: diagram.png]");
+  });
+
+  it("emits a source anchor when the image lives inside a data-src-file block", () => {
+    // Markdown-rendered preview: the surrounding paragraph carries the
+    // source-file/line attributes; the image inherits them via the walk-up.
+    const p = document.createElement("p");
+    p.setAttribute("data-src-file", "paper.md");
+    p.setAttribute("data-src-line", "12");
+    p.setAttribute("data-src-col", "0");
+    const img = el("img", { src: "diagram.png", alt: "diagram" }, []);
+    p.appendChild(img);
+    const mount = mountTagged("paper.html", p);
+
+    const result = computeImageClickAnchor(mount, img);
+    expect(result?.kind).toBe("source");
+    if (result?.kind !== "source") throw new Error("expected source kind");
+    expect(result.anchor.file).toBe("paper.md");
+    expect(result.anchor.lineStart).toBe(12);
+    expect(result.quote).toBe("diagram");
+  });
+
+  it("returns null for an image outside the mount", () => {
+    const mount = mountTagged("page.html", el("p", {}, ["text"]));
+    const detached = document.createElement("img");
+    detached.setAttribute("alt", "stray");
+    expect(computeImageClickAnchor(mount, detached)).toBeNull();
   });
 });

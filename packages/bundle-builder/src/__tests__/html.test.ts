@@ -116,4 +116,60 @@ describe("mapHtmlAnnotations", () => {
     const result = mapHtmlAnnotations(rows, PAPER_ID);
     expect(result.annotations[0]?.groupId).toBe("g1");
   });
+
+  it("maps html-element rows through unchanged", () => {
+    const row: HtmlMapRow = {
+      id: "img-1",
+      category: "unclear",
+      quote: "diagram of pier",
+      contextBefore: "",
+      contextAfter: "",
+      anchor: {
+        kind: "html-element",
+        file: "diagram.html",
+        xpath: "./figure[1]/img[1]",
+      },
+      note: "",
+      thread: [],
+      createdAt,
+    };
+    const result = mapHtmlAnnotations([row], PAPER_ID);
+    expect(result.seenKinds).toEqual(new Set(["html-element"]));
+    const anchor = result.annotations[0]?.anchor;
+    expect(anchor).toEqual({
+      kind: "html-element",
+      file: "diagram.html",
+      xpath: "./figure[1]/img[1]",
+    });
+  });
+
+  it("preserves sourceHint on html-element rows", () => {
+    const row: HtmlMapRow = {
+      id: "img-2",
+      category: "unclear",
+      quote: "alt text",
+      contextBefore: "",
+      contextAfter: "",
+      anchor: {
+        kind: "html-element",
+        file: "rendered.html",
+        xpath: "./p[3]/img[1]",
+        sourceHint: {
+          kind: "source",
+          file: "paper.md",
+          lineStart: 22,
+          colStart: 0,
+          lineEnd: 22,
+          colEnd: 0,
+        },
+      },
+      note: "",
+      thread: [],
+      createdAt,
+    };
+    const result = mapHtmlAnnotations([row], PAPER_ID);
+    const anchor = result.annotations[0]?.anchor;
+    if (anchor?.kind !== "html-element") throw new Error("expected html-element anchor");
+    expect(anchor.sourceHint?.lineStart).toBe(22);
+  });
 });

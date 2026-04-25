@@ -243,9 +243,13 @@ export interface ExportHtmlBundleInput {
 // HTML reviewer papers: the paper's `entrypoint` is the .html path. Anchors
 // follow whichever mode classification committed at ingest — `kind: "source"`
 // for paired-source HTML (where the html carried `data-src-*` markers or had
-// a sibling `.md`/`.tex`/`.typ`), `kind: "html"` for hand-authored HTML.
-// Mixing the two on a single paper is a classification error; we throw rather
-// than emit a half-anchored bundle.
+// a sibling `.md`/`.tex`/`.typ`), or one of `kind: "html"` (text run with
+// char offsets) / `kind: "html-element"` (whole element addressed by xpath —
+// typically an `<img>`) for hand-authored HTML. The two html-mode shapes
+// coexist on the same paper by design: text selections produce `html`,
+// image clicks produce `html-element`. Source-mode mixed with html-mode is
+// the real classification error; we throw rather than emit a half-anchored
+// bundle.
 export async function exportHtmlBundleV2ForPaper(
   input: ExportHtmlBundleInput,
 ): Promise<ExportedBundle> {
@@ -269,16 +273,23 @@ export async function exportHtmlBundleV2ForPaper(
     rows,
     paper.id,
   );
-  // Desktop policy: classification commits one anchor mode per paper. Mixing
-  // is a classification error; we throw rather than emit a half-anchored
-  // bundle. Web's exporter is lenient by design.
-  if (seenKinds.size > 1) {
+  // Desktop policy: classification commits one anchor mode per paper. The
+  // mode is `source` (paired-source HTML) or `html` (hand-authored HTML);
+  // the latter spans both `html` and `html-element` kinds, which coexist by
+  // design (text vs. element anchors on the same paper). Source-mode mixed
+  // with html-mode is the real error. Web's exporter is lenient by design.
+  const modes = new Set<"source" | "html">();
+  for (const k of seenKinds) {
+    modes.add(k === "source" ? "source" : "html");
+  }
+  if (modes.size > 1) {
     const kinds = [...seenKinds].join(" + ");
     throw new Error(
-      `paper ${paper.id} has mixed anchor kinds (${kinds}); classification commits one mode per paper`,
+      `paper ${paper.id} mixes source-mode and html-mode anchors (${kinds}); classification commits one mode per paper`,
     );
   }
-  const observedKind: "source" | "html" | null = seenKinds.values().next().value ?? null;
+  const observedKind: "source" | "html" | "html-element" | null =
+    seenKinds.values().next().value ?? null;
 
   // Mirror the web exporter: paired-source HTML points the bundle entrypoint
   // at the source file (.md/.tex/.typ) so the plugin patches source, not the

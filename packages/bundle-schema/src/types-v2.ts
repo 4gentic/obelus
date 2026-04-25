@@ -4,6 +4,7 @@ import type {
   AnnotationV2,
   BundleV2,
   HtmlAnchor,
+  HtmlElementAnchor,
   PaperRubricV2,
   PdfAnchor,
   ProjectCategory,
@@ -17,6 +18,7 @@ export type Anchor2 = z.infer<typeof Anchor>;
 export type PdfAnchor2 = z.infer<typeof PdfAnchor>;
 export type SourceAnchor2 = z.infer<typeof SourceAnchor>;
 export type HtmlAnchor2 = z.infer<typeof HtmlAnchor>;
+export type HtmlElementAnchor2 = z.infer<typeof HtmlElementAnchor>;
 export type ProjectCategory2 = z.infer<typeof ProjectCategory>;
 export type ProjectKind2 = z.infer<typeof ProjectKind>;
 export type PaperRef2 = Bundle2["papers"][number];

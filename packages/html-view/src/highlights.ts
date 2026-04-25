@@ -1,4 +1,4 @@
-import type { HtmlAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
+import type { HtmlAnchor2, HtmlElementAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
@@ -15,7 +15,7 @@ function isSkippableElement(node: Node): boolean {
 
 // Geometry-only view of either anchor variant. The adapter passes the saved
 // anchor as-is regardless of which discriminant the persisted row carries.
-export type HtmlMountAnchor = SourceAnchor2 | HtmlAnchor2;
+export type HtmlMountAnchor = SourceAnchor2 | HtmlAnchor2 | HtmlElementAnchor2;
 
 function readIntAttr(el: HTMLElement, name: string): number | null {
   const raw = el.getAttribute(name);
@@ -164,6 +164,20 @@ export function resolveHtmlAnchorToRange(mount: HTMLElement, anchor: HtmlAnchor2
   return range;
 }
 
+// Element-anchor variant: the saved XPath addresses the element directly.
+// Returns null when the element is missing (DOM swapped out, asset still
+// loading) so the adapter can skip drawing a stale highlight.
+export function resolveElementAnchorToElement(
+  mount: HTMLElement,
+  anchor: HtmlElementAnchor2,
+): HTMLElement | null {
+  const doc = mount.ownerDocument;
+  if (!doc) return null;
+  const result = doc.evaluate(anchor.xpath, mount, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+  const node = result.singleNodeValue;
+  return node && node.nodeType === ELEMENT_NODE ? (node as HTMLElement) : null;
+}
+
 export function resolveAnchorToRange(mount: HTMLElement, anchor: HtmlMountAnchor): Range | null {
   if (anchor.kind === "source") return resolveSourceAnchorToRange(mount, anchor);
   if (anchor.kind === "html") return resolveHtmlAnchorToRange(mount, anchor);
@@ -180,19 +194,26 @@ export function resolveAnchorToRects(
   scrollContainer: HTMLElement,
   containerOffset: { left: number; top: number } = { left: 0, top: 0 },
 ): DOMRect[] {
+  const scrollRect = scrollContainer.getBoundingClientRect();
+  const project = (r: DOMRect | DOMRectReadOnly): DOMRect =>
+    new DOMRect(
+      r.left + containerOffset.left - scrollRect.left + scrollContainer.scrollLeft,
+      r.top + containerOffset.top - scrollRect.top + scrollContainer.scrollTop,
+      r.width,
+      r.height,
+    );
+
+  if (anchor.kind === "html-element") {
+    const el = resolveElementAnchorToElement(mount, anchor);
+    if (!el) return [];
+    return [project(el.getBoundingClientRect())];
+  }
+
   const range = resolveAnchorToRange(mount, anchor);
   if (!range) return [];
-  const scrollRect = scrollContainer.getBoundingClientRect();
   const out: DOMRect[] = [];
   for (const r of range.getClientRects()) {
-    out.push(
-      new DOMRect(
-        r.left + containerOffset.left - scrollRect.left + scrollContainer.scrollLeft,
-        r.top + containerOffset.top - scrollRect.top + scrollContainer.scrollTop,
-        r.width,
-        r.height,
-      ),
-    );
+    out.push(project(r));
   }
   return out;
 }

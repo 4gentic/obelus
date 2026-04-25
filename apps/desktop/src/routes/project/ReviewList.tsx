@@ -23,6 +23,13 @@ function markLocationLabel(a: AnnotationRow): string {
     const { charOffsetStart, charOffsetEnd } = a.anchor;
     return `c${charOffsetStart}–${charOffsetEnd}`;
   }
+  if (a.anchor.kind === "html-element") {
+    if (a.anchor.sourceHint) {
+      const { lineStart, lineEnd } = a.anchor.sourceHint;
+      return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+    }
+    return a.anchor.file;
+  }
   return `p. ${a.anchor.page}`;
 }
 

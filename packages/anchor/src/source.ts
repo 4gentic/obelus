@@ -127,6 +127,29 @@ export function selectionToSourceAnchor(
   };
 }
 
+// Builds a SourceAnchor for an element (typically an `<img>`) by resolving
+// the nearest ancestor that carries `data-src-file` / `data-src-line`. Used by
+// the click-to-mark path for images, where the user has no text selection
+// to drive `selectionToSourceAnchor`. Returns null when the element is in
+// hand-authored HTML (no source pairing).
+export function imageElementToSourceAnchor(img: HTMLElement): SourceAnchor2 | null {
+  const block = findSourceBlock(img);
+  if (!block) return null;
+  const file = block.getAttribute("data-src-file");
+  const line = readNumberAttr(block, "data-src-line");
+  const blockCol = readNumberAttr(block, "data-src-col");
+  if (file === null || line === null || blockCol === null) return null;
+  const endLine = readNumberAttr(block, "data-src-end-line") ?? line;
+  return {
+    kind: "source",
+    file,
+    lineStart: line,
+    colStart: blockCol,
+    lineEnd: endLine,
+    colEnd: blockCol,
+  };
+}
+
 // Computes the line-start byte offsets for a source file. Index i is the
 // offset of the first character of (1-indexed) line i+1; offsets[0] = 0.
 function lineOffsets(text: string): Array<number> {

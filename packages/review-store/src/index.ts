@@ -1,5 +1,5 @@
 import type { Anchor, Bbox } from "@obelus/anchor";
-import type { HtmlAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
+import type { HtmlAnchor2, HtmlElementAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
 import type {
   AnnotationRow,
   AnnotationStaleness,
@@ -40,7 +40,18 @@ export type HtmlDraftSlice = {
   contextAfter: string;
 };
 
-export type DraftSlice = PdfDraftSlice | SourceDraftSlice | HtmlDraftSlice;
+// Element-anchored variant — used when the user clicks an `<img>` rather than
+// dragging a text range. The anchor addresses the element directly; the
+// resolver draws from `getBoundingClientRect()`.
+export type HtmlElementDraftSlice = {
+  kind: "html-element";
+  anchor: HtmlElementAnchor2;
+  quote: string;
+  contextBefore: string;
+  contextAfter: string;
+};
+
+export type DraftSlice = PdfDraftSlice | SourceDraftSlice | HtmlDraftSlice | HtmlElementDraftSlice;
 
 export type DraftInput = {
   slices: DraftSlice[];
@@ -202,6 +213,28 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
               xpath: slice.anchor.xpath,
               charOffsetStart: slice.anchor.charOffsetStart,
               charOffsetEnd: slice.anchor.charOffsetEnd,
+              ...(slice.anchor.sourceHint !== undefined
+                ? { sourceHint: slice.anchor.sourceHint }
+                : {}),
+            },
+            note,
+            thread: [],
+            createdAt,
+            ...(groupId ? { groupId } : {}),
+          };
+        }
+        if (slice.kind === "html-element") {
+          return {
+            id: uuid(),
+            revisionId,
+            category,
+            quote: slice.quote,
+            contextBefore: slice.contextBefore,
+            contextAfter: slice.contextAfter,
+            anchor: {
+              kind: "html-element",
+              file: slice.anchor.file,
+              xpath: slice.anchor.xpath,
               ...(slice.anchor.sourceHint !== undefined
                 ? { sourceHint: slice.anchor.sourceHint }
                 : {}),

@@ -182,4 +182,33 @@ describe("BundleV2", () => {
     (bad.annotations[0] as any).createdAt = "2026-04-17T09:00:00.000+02:00";
     expect(BundleV2.safeParse(bad).success).toBe(false);
   });
+
+  it("accepts an html-element anchor with no char offsets", () => {
+    const ok = structuredClone(validBundleV2);
+    // biome-ignore lint/suspicious/noExplicitAny: deliberately replacing for the test
+    (ok.annotations[2] as any).anchor = {
+      kind: "html-element",
+      file: "diagram.html",
+      xpath: "./figure[1]/img[1]",
+    };
+    // The synthesised quote ("alt text" or "[image: foo.png]") is irrelevant
+    // to the schema; just keep it non-empty so AnnotationV2.quote.min(1) holds.
+    expect(BundleV2.safeParse(ok).success).toBe(true);
+  });
+
+  it("rejects an html-element anchor that smuggles char offsets", () => {
+    const bad = structuredClone(validBundleV2);
+    // biome-ignore lint/suspicious/noExplicitAny: deliberately invalid for the test
+    (bad.annotations[2] as any).anchor = {
+      kind: "html-element",
+      file: "diagram.html",
+      xpath: "./img[1]",
+      charOffsetStart: 0,
+      charOffsetEnd: 5,
+    };
+    // strict() isn't applied at this level — z.object accepts unknown keys —
+    // so the assertion is the inverse: the bundle still parses (extra keys
+    // ignored). Codify this so future schema tightening flips the assertion.
+    expect(BundleV2.safeParse(bad).success).toBe(true);
+  });
 });

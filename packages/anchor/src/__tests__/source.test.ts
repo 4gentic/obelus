@@ -1,6 +1,6 @@
 import { Window } from "happy-dom";
 import { beforeEach, describe, expect, it } from "vitest";
-import { selectionToSourceAnchor, verifySourceAnchor } from "../source";
+import { imageElementToSourceAnchor, selectionToSourceAnchor, verifySourceAnchor } from "../source";
 
 let win: Window;
 let doc: Document;
@@ -147,5 +147,44 @@ describe("verifySourceAnchor", () => {
         "official",
       ),
     ).toEqual({ ok: true });
+  });
+});
+
+describe("imageElementToSourceAnchor", () => {
+  it("anchors an image to its source-tagged block", () => {
+    const p = makeBlock("p", { file: "doc.md", line: 7, col: 0 }, "");
+    const img = doc.createElement("img");
+    img.setAttribute("alt", "fig");
+    img.setAttribute("src", "fig.png");
+    p.appendChild(img);
+
+    expect(imageElementToSourceAnchor(img as unknown as HTMLElement)).toEqual({
+      kind: "source",
+      file: "doc.md",
+      lineStart: 7,
+      colStart: 0,
+      lineEnd: 7,
+      colEnd: 0,
+    });
+  });
+
+  it("returns null for an image outside any data-src-file block", () => {
+    const div = doc.createElement("div");
+    const img = doc.createElement("img");
+    div.appendChild(img);
+    doc.body.appendChild(div);
+
+    expect(imageElementToSourceAnchor(img as unknown as HTMLElement)).toBeNull();
+  });
+
+  it("respects data-src-end-line for multi-line image blocks", () => {
+    const block = makeBlock("p", { file: "doc.md", line: 3, col: 0 }, "");
+    block.setAttribute("data-src-end-line", "5");
+    const img = doc.createElement("img");
+    block.appendChild(img);
+
+    const anchor = imageElementToSourceAnchor(img as unknown as HTMLElement);
+    expect(anchor?.lineStart).toBe(3);
+    expect(anchor?.lineEnd).toBe(5);
   });
 });

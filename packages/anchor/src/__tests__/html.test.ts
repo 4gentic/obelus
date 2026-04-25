@@ -1,6 +1,6 @@
 import { Window } from "happy-dom";
 import { beforeEach, describe, expect, it } from "vitest";
-import { selectionToHtmlAnchor, verifyHtmlAnchor } from "../html";
+import { imageElementToHtmlAnchor, selectionToHtmlAnchor, verifyHtmlAnchor } from "../html";
 
 let win: Window;
 let doc: Document;
@@ -159,5 +159,57 @@ describe("verifyHtmlAnchor", () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("quote-mismatch");
+  });
+});
+
+describe("imageElementToHtmlAnchor", () => {
+  it("builds an element-only anchor for a top-level image", () => {
+    const img = doc.createElement("img");
+    img.setAttribute("src", "fig.png");
+    img.setAttribute("alt", "a figure");
+    root.appendChild(img);
+
+    const anchor = imageElementToHtmlAnchor(img as unknown as HTMLElement);
+    expect(anchor).toEqual({
+      kind: "html-element",
+      file: "page.html",
+      xpath: "./img[1]",
+    });
+  });
+
+  it("builds a stable xpath for a nested image", () => {
+    const figure = doc.createElement("figure");
+    const img = doc.createElement("img");
+    img.setAttribute("src", "fig.png");
+    figure.appendChild(img);
+    root.appendChild(figure);
+
+    const anchor = imageElementToHtmlAnchor(img as unknown as HTMLElement);
+    expect(anchor?.xpath).toBe("./figure[1]/img[1]");
+  });
+
+  it("attaches an optional sourceHint", () => {
+    const img = doc.createElement("img");
+    img.setAttribute("src", "fig.png");
+    root.appendChild(img);
+
+    const anchor = imageElementToHtmlAnchor(img as unknown as HTMLElement, {
+      kind: "source",
+      file: "paper.md",
+      lineStart: 12,
+      colStart: 0,
+      lineEnd: 12,
+      colEnd: 0,
+    });
+    expect(anchor?.sourceHint?.lineStart).toBe(12);
+  });
+
+  it("returns null for an image outside any data-html-file root", () => {
+    const detached = doc.createElement("div");
+    const img = doc.createElement("img");
+    detached.appendChild(img);
+    doc.body.appendChild(detached);
+
+    expect(imageElementToHtmlAnchor(img as unknown as HTMLElement)).toBeNull();
   });
 });

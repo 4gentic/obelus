@@ -1,4 +1,4 @@
-import type { HtmlAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
+import type { HtmlAnchor2, HtmlElementAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
 import { normalizeQuote } from "./anchor";
 
 // See source.ts: hard-coded so these helpers run outside DOM environments.
@@ -143,6 +143,24 @@ export function selectionToHtmlAnchor(
     charOffsetStart: lo,
     charOffsetEnd: hi,
   };
+  if (sourceHint) {
+    return { ...anchor, sourceHint };
+  }
+  return anchor;
+}
+
+// Builds an element-only anchor (no char offsets) for a single image element
+// inside a `data-html-file`-tagged root. Used when the user clicks an `<img>`
+// rather than dragging a text range — the text walk has nothing to anchor to.
+export function imageElementToHtmlAnchor(
+  img: HTMLElement,
+  sourceHint?: SourceAnchor2,
+): HtmlElementAnchor2 | null {
+  const info = findHtmlRoot(img);
+  if (!info) return null;
+  const xpath = xpathFromRoot(info.root, img);
+  if (xpath === null) return null;
+  const anchor: HtmlElementAnchor2 = { kind: "html-element", file: info.file, xpath };
   if (sourceHint) {
     return { ...anchor, sourceHint };
   }

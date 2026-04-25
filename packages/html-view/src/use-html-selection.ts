@@ -1,5 +1,12 @@
-import { selectionToHtmlAnchor, selectionToSourceAnchor } from "@obelus/anchor";
-import type { HtmlAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
+import {
+  findImageTarget,
+  imageElementToHtmlAnchor,
+  imageElementToSourceAnchor,
+  quoteForImage,
+  selectionToHtmlAnchor,
+  selectionToSourceAnchor,
+} from "@obelus/anchor";
+import type { HtmlAnchor2, HtmlElementAnchor2, SourceAnchor2 } from "@obelus/bundle-schema";
 import { useEffect, useRef } from "react";
 
 export type HtmlSelectionAnchor =
@@ -13,6 +20,13 @@ export type HtmlSelectionAnchor =
   | {
       kind: "html";
       anchor: HtmlAnchor2;
+      quote: string;
+      contextBefore: string;
+      contextAfter: string;
+    }
+  | {
+      kind: "html-element";
+      anchor: HtmlElementAnchor2;
       quote: string;
       contextBefore: string;
       contextAfter: string;
@@ -148,6 +162,43 @@ function pickSelection(host: HTMLElement, mount: HTMLElement): Selection | null 
   return host.ownerDocument?.getSelection() ?? null;
 }
 
+// Builds an image-click anchor — a click is treated as a selection in its
+// own right, but the Selection API wouldn't help here: clicking an `<img>`
+// produces a collapsed range that fails the existing text gate. We bypass it
+// and synthesise the anchor + a non-empty quote (alt text or filename).
+//
+// In paired-source mode (md/tex preview rendered to HTML), if the image's
+// parent block carries `data-src-file` we prefer a `SourceAnchor` so the
+// bundle's downstream consumers (plugin, plan-fix) get line:col coordinates
+// for free. Otherwise the anchor is `html-element`.
+export function computeImageClickAnchor(
+  mount: HTMLElement,
+  img: HTMLElement,
+): HtmlSelectionAnchor | null {
+  if (!mount.contains(img)) return null;
+  const quote = quoteForImage(img);
+  if (quote === "") return null;
+  const sourceAnchor = imageElementToSourceAnchor(img);
+  if (sourceAnchor) {
+    return {
+      kind: "source",
+      anchor: sourceAnchor,
+      quote,
+      contextBefore: "",
+      contextAfter: "",
+    };
+  }
+  const elementAnchor = imageElementToHtmlAnchor(img);
+  if (!elementAnchor) return null;
+  return {
+    kind: "html-element",
+    anchor: elementAnchor,
+    quote,
+    contextBefore: "",
+    contextAfter: "",
+  };
+}
+
 export function computeHtmlSelectionAnchor(
   mount: HTMLElement,
   selection: Selection,
@@ -229,6 +280,39 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
     // attaching both keeps us robust across UA differences (touch vs
     // mouse, older WebKit, etc.).
     const REFRESH_EVENTS = ["selectionchange", "mouseup", "pointerup"] as const;
+
+    // The click handler runs in the iframe's document (where the user's
+    // pointer actually is) plus the parent document (legacy/test paths
+    // where the mount lives in the parent doc). It walks up from the click
+    // target to the nearest <img>; non-image clicks pass through unchanged
+    // so author scripts (canvas, svg, etc.) keep working.
+    //
+    // `instanceof Node` is intentionally avoided: the iframe and parent
+    // each own a separate `Node` constructor, so cross-realm `instanceof`
+    // checks return false for the very nodes we care about. Duck-type the
+    // numeric `nodeType` instead.
+    function onClick(ev: Event): void {
+      const liveMount = mountRef.current;
+      if (!liveMount) return;
+      const target = ev.target as { nodeType?: unknown } | null;
+      if (!target || typeof target.nodeType !== "number") return;
+      const img = findImageTarget(target as Node);
+      if (!img || !liveMount.contains(img)) return;
+      const result = computeImageClickAnchor(liveMount, img);
+      if (result === null) return;
+      const dedupKey =
+        result.kind === "source"
+          ? `img:source:${result.anchor.file}:${result.anchor.lineStart}:${result.quote}`
+          : `img:${result.kind}:${result.anchor.xpath}:${result.quote}`;
+      if (dedupKey === lastQuoteRef.current) return;
+      lastQuoteRef.current = dedupKey;
+      console.info("[html-select] image click", {
+        kind: result.kind,
+        quote: result.quote,
+      });
+      onSelectionRef.current(result);
+    }
+
     function onSelectionChange(): void {
       const liveHost = hostRef.current;
       const liveMount = mountRef.current;
@@ -255,7 +339,10 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
       const result = computeHtmlSelectionAnchor(liveMount, sel, mode, sourceFile);
       if (result === null) {
         console.info("[html-select] computeHtmlSelectionAnchor returned null");
-        if (lastQuoteRef.current !== "") {
+        // Don't nuke an image-click draft. Clicking an `<img>` produces a
+        // collapsed Selection (or none), which would otherwise look like
+        // "the user just cleared their text selection".
+        if (lastQuoteRef.current !== "" && !lastQuoteRef.current.startsWith("img:")) {
           lastQuoteRef.current = "";
           onSelectionRef.current(null);
         }
@@ -273,12 +360,17 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
       for (const evt of REFRESH_EVENTS) {
         d.addEventListener(evt, onSelectionChange);
       }
+      // Capture-phase click so we see the event before any author handlers
+      // can `stopPropagation()` (interactive HTML papers love to do this).
+      // We don't `preventDefault`, so the iframe's own listeners still run.
+      d.addEventListener("click", onClick, true);
     }
     return () => {
       for (const d of docs) {
         for (const evt of REFRESH_EVENTS) {
           d.removeEventListener(evt, onSelectionChange);
         }
+        d.removeEventListener("click", onClick, true);
       }
     };
   }, [hostRef, mountRef, mode, sourceFile, mountVersion]);

@@ -57,6 +57,13 @@ function locationLabel(row: AnnotationRow): string {
     const { charOffsetStart, charOffsetEnd } = row.anchor;
     return `c${charOffsetStart}–${charOffsetEnd}`;
   }
+  if (row.anchor.kind === "html-element") {
+    if (row.anchor.sourceHint) {
+      const { lineStart, lineEnd } = row.anchor.sourceHint;
+      return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
+    }
+    return row.anchor.file;
+  }
   const { lineStart, lineEnd } = row.anchor;
   return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
 }
@@ -174,6 +181,13 @@ function rowSortKey(row: AnnotationRow): [number, string, number, number] {
     }
     return [0, row.anchor.file, row.anchor.charOffsetStart, row.anchor.charOffsetEnd];
   }
+  if (row.anchor.kind === "html-element") {
+    if (row.anchor.sourceHint) {
+      const { file, lineStart, colStart } = row.anchor.sourceHint;
+      return [0, file, lineStart, colStart];
+    }
+    return [0, row.anchor.file, 0, 0];
+  }
   const { file, lineStart, colStart } = row.anchor;
   return [0, file, lineStart, colStart];
 }
@@ -251,7 +265,7 @@ function draftLocationLabel(draft: DraftInput): string {
     if (slice.kind === "source") {
       const { lineStart, lineEnd } = slice.anchor;
       labels.add(lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`);
-    } else if (slice.kind === "html") {
+    } else if (slice.kind === "html" || slice.kind === "html-element") {
       labels.add(slice.anchor.file);
     } else {
       labels.add(`p. ${slice.anchor.pageIndex + 1}`);
@@ -272,6 +286,10 @@ function draftSectionKey(draft: DraftInput): string {
   if (first.kind === "html") {
     const a = first.anchor;
     return `h:${a.file}:${a.charOffsetStart}:${a.charOffsetEnd}:${draft.quote}`;
+  }
+  if (first.kind === "html-element") {
+    const a = first.anchor;
+    return `he:${a.file}:${a.xpath}:${draft.quote}`;
   }
   return `p:${first.anchor.pageIndex}:${draft.quote}`;
 }
