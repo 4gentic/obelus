@@ -3,6 +3,47 @@ import type { DiffHunkRow, Repository } from "@obelus/repo";
 import { workspacePath, workspaceReadDir, workspaceReadFile } from "../../ipc/commands";
 import { paperHasSources } from "../../lib/paper-has-sources";
 
+// Format a parse-time error into one user-friendly line. Zod's default message
+// dumps every issue with stack-style indentation; for the status bar we want
+// the first issue's path + hint, so the user can tell whether the plan file is
+// malformed at the top level or one block deep. Duck-typed against ZodError to
+// avoid pulling `zod` into the desktop's direct dependency set.
+interface ZodIssueLike {
+  path: ReadonlyArray<string | number>;
+  message: string;
+}
+
+function formatZodPath(path: ReadonlyArray<string | number>): string {
+  let out = "";
+  for (const seg of path) {
+    if (typeof seg === "number") {
+      out += `[${seg}]`;
+    } else {
+      out += out === "" ? seg : `.${seg}`;
+    }
+  }
+  return out;
+}
+
+function describeParseError(err: unknown): string {
+  if (
+    err !== null &&
+    typeof err === "object" &&
+    "issues" in err &&
+    Array.isArray((err as { issues: unknown }).issues)
+  ) {
+    const issues = (err as { issues: ReadonlyArray<ZodIssueLike> }).issues;
+    const issue = issues[0];
+    if (!issue) return "invalid plan JSON";
+    const path = issue.path.length > 0 ? formatZodPath(issue.path) : "(root)";
+    return `invalid plan JSON at ${path}: ${issue.message}`;
+  }
+  if (err instanceof SyntaxError) {
+    return `plan JSON is not valid JSON: ${err.message}`;
+  }
+  return err instanceof Error ? err.message : "?";
+}
+
 export interface IngestPlanInput {
   repo: Repository;
   projectId: string;
@@ -109,9 +150,16 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   const scannedPlans: string[] = [];
 
   if (hintPath?.endsWith(".json")) {
+    const tHint = performance.now();
     const rel = toWorkspaceRel(workspaceAbs, hintPath);
     if (rel === null) {
       scannedPlans.push(`${hintPath} (marker) -> rejected: outside workspace`);
+      console.info("[write-perf]", {
+        step: "ingest:hint",
+        ms: Math.round(performance.now() - tHint),
+        picked: false,
+        error: "outside-workspace",
+      });
     } else {
       try {
         const buffer = await workspaceReadFile(projectId, rel);
@@ -122,16 +170,27 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
         if (planBundle === sessionBundleBasename) {
           picked = { name: basename(rel), plan };
         }
+        console.info("[write-perf]", {
+          step: "ingest:hint",
+          ms: Math.round(performance.now() - tHint),
+          picked: picked !== null,
+          bytes: buffer.byteLength,
+        });
       } catch (err) {
-        scannedPlans.push(
-          `${rel} (marker) -> unreadable (${err instanceof Error ? err.message : "?"})`,
-        );
+        scannedPlans.push(`${rel} (marker) -> unreadable (${describeParseError(err)})`);
+        console.info("[write-perf]", {
+          step: "ingest:hint",
+          ms: Math.round(performance.now() - tHint),
+          picked: false,
+          error: describeParseError(err),
+        });
       }
     }
   }
 
   let directoryNames: string[] = [];
   if (!picked) {
+    const tScan = performance.now();
     const entries = await workspaceReadDir(projectId, ".").catch(() => []);
     directoryNames = entries.map((e) => e.name);
     // Timestamped plans first (newest → oldest), then the bare fallback. A
@@ -147,7 +206,7 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
       : timestamped;
 
     if (planNames.length === 0 && scannedPlans.length === 0) {
-      const details = `Usually this means the spawn prompt reached Claude without the "Run apply-revision" trigger — check the job log. Workspace contents: ${directoryNames.join(", ") || "(empty)"}`;
+      const details = `Usually this means the spawn prompt reached Claude without an "apply-revision" or "plan-writer-fast" trigger — check the job log. Workspace contents: ${directoryNames.join(", ") || "(empty)"}`;
       throw new Error(
         `Claude finished without writing a plan file under the project workspace.\n\n${details}`,
       );
@@ -168,9 +227,15 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
           break;
         }
       } catch (err) {
-        scannedPlans.push(`${name} -> unreadable (${err instanceof Error ? err.message : "?"})`);
+        scannedPlans.push(`${name} -> unreadable (${describeParseError(err)})`);
       }
     }
+    console.info("[write-perf]", {
+      step: "ingest:scan",
+      ms: Math.round(performance.now() - tScan),
+      picked: picked !== null,
+      planNames: planNames.length,
+    });
   }
 
   if (!picked) {
