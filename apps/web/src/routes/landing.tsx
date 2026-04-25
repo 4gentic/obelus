@@ -518,34 +518,9 @@ export default function Landing() {
           letter, and LaTeX/Typst error recovery. Using a different agent? Skip this: the exported
           Markdown is self-describing.
         </p>
-        <div className="tabs">
-          <input
-            type="radio"
-            id="tab-plugin"
-            name="install-tab"
-            defaultChecked
-            className="tabs__input"
-          />
-          <input type="radio" id="tab-curl" name="install-tab" className="tabs__input" />
-          <div className="tabs__labels">
-            <label htmlFor="tab-plugin" className="tabs__label">
-              Claude Code
-            </label>
-            <label htmlFor="tab-curl" className="tabs__label">
-              curl
-            </label>
-          </div>
-          <div className="tabs__panels">
-            <pre className="tabs__panel tabs__panel--plugin">
-              <code>
-                {"/plugin marketplace add 4gentic/obelus\n/plugin install obelus@4gentic"}
-              </code>
-            </pre>
-            <pre className="tabs__panel tabs__panel--curl">
-              <code>curl -fsSL https://obelus.4gentic.ai/claude.tar.gz | tar -xz -C .</code>
-            </pre>
-          </div>
-        </div>
+        <pre className="install__code">
+          <code>{"/plugin marketplace add 4gentic/obelus\n/plugin install obelus@4gentic"}</code>
+        </pre>
       </section>
 
       <footer className="colophon" role="contentinfo" aria-labelledby="colophon-title">

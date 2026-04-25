@@ -44,7 +44,7 @@ The apps never see the network at runtime. No telemetry, no analytics, no counte
 
 ## Install
 
-**Web app** — visit [obelus.4gentic.ai](https://obelus.4gentic.ai). Installable as a PWA, fully functional offline after first load. PDF, Markdown, and HTML review; v2 bundle export.
+**Web app** — visit [obelus.4gentic.ai](https://obelus.4gentic.ai). Installable as a PWA, fully functional offline after first load. PDF, Markdown, and HTML review; bundle export.
 
 **Desktop app** — Tauri v2 build. Adds source editing in CodeMirror, a git-style diff review pane, project folders, managed Typst/Tectonic engines, and Claude Code in-app. Downloads land under [Releases](https://github.com/4gentic/obelus/releases) once the v1 pipeline ships.
 
@@ -53,12 +53,8 @@ The apps never see the network at runtime. No telemetry, no analytics, no counte
 **Claude Code plugin** — in your paper repo:
 
 ```sh
-# Option A: plugin install
 /plugin marketplace add 4gentic/obelus
 /plugin install obelus@4gentic
-
-# Option B: copy the folder
-curl -fsSL https://obelus.4gentic.ai/claude.tar.gz | tar -xz -C .
 ```
 
 Skills: `/apply-revision`, `/apply-fix`, `/write-review`, `/fix-compile`. See [`packages/claude-plugin/README.md`](packages/claude-plugin/README.md).
@@ -70,8 +66,8 @@ apps/
   web/              Vite + React + TypeScript. Landing + PWA.
   desktop/          Tauri v2 app (Rust + React renderer).
 packages/
-  bundle-schema/    The bundle contract (Zod + JSON Schema, v1 + v2).
-  bundle-builder/   Pure builder: Repository + ids → BundleV2.
+  bundle-schema/    The bundle contract (Zod + JSON Schema).
+  bundle-builder/   Pure builder: Repository + ids → Bundle.
   anchor/           PDF/source/HTML anchoring primitives.
   pdf-view/         PdfDocument + PdfPage + SelectionListener.
   md-view/          Markdown adapter (line/col anchors).
