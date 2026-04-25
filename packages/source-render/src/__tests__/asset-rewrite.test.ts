@@ -3,6 +3,7 @@ import {
   type AssetResolver,
   blockExternalAssets,
   rewriteRelativeAssets,
+  scrubExternalCssUrls,
 } from "../asset-rewrite.js";
 
 function fakeResolver(map: Record<string, string | null>): AssetResolver {
@@ -211,5 +212,173 @@ describe("blockExternalAssets", () => {
     expect(result.html).toContain("<title>x</title>");
     expect(result.html).toContain('<link rel="stylesheet"');
     expect(result.html).toContain("<script");
+  });
+
+  it("blocks protocol-relative URLs the same as http/https", () => {
+    const result = blockExternalAssets('<img src="//cdn.example.com/x.png">');
+    expect(result.blocked).toEqual(["//cdn.example.com/x.png"]);
+    expect(result.html).toContain('src="data:,"');
+    expect(result.html).toContain('data-blocked-src="//cdn.example.com/x.png"');
+  });
+
+  it("rewrites only the external candidates inside <img srcset>", () => {
+    const result = blockExternalAssets(
+      '<img src="data:," srcset="./local.png 1x, https://evil.example/x.png 2x, /also-local.png 3x">',
+    );
+    expect(result.blocked).toEqual(["https://evil.example/x.png"]);
+    const img = mountResult(result.html);
+    const srcset = img.querySelector("img")?.getAttribute("srcset") ?? "";
+    expect(srcset).toContain("./local.png 1x");
+    expect(srcset).toContain("data:, 2x");
+    expect(srcset).toContain("/also-local.png 3x");
+  });
+
+  it("rewrites <source srcset> inside <picture>", () => {
+    const result = blockExternalAssets(
+      '<picture><source srcset="https://evil.example/hi.webp 2x"><img src="data:,"></picture>',
+    );
+    expect(result.blocked).toEqual(["https://evil.example/hi.webp"]);
+    expect(result.html).toContain('srcset="data:, 2x"');
+  });
+
+  it("rewrites <link rel=preload imagesrcset> in head context", () => {
+    const result = blockExternalAssets(
+      '<link rel="preload" as="image" imagesrcset="https://evil.example/p.png 1x">',
+      "head",
+    );
+    expect(result.blocked).toEqual(["https://evil.example/p.png"]);
+    expect(result.html).toContain('imagesrcset="data:, 1x"');
+  });
+
+  it("blocks <video src>, <video poster>, <audio src>, and <track src>", () => {
+    const result = blockExternalAssets(
+      '<video src="https://evil.example/v.mp4" poster="https://evil.example/p.png"></video>' +
+        '<audio src="https://evil.example/a.mp3"></audio>' +
+        '<video><track src="https://evil.example/c.vtt"></video>',
+    );
+    expect(result.blocked).toEqual([
+      "https://evil.example/v.mp4",
+      "https://evil.example/p.png",
+      "https://evil.example/a.mp3",
+      "https://evil.example/c.vtt",
+    ]);
+    const wrapper = mountResult(result.html);
+    expect(wrapper.querySelector("video")?.getAttribute("src")).toBe("data:,");
+    expect(wrapper.querySelector("video")?.getAttribute("poster")).toBe("data:,");
+    expect(wrapper.querySelector("audio")?.getAttribute("src")).toBe("data:,");
+    expect(wrapper.querySelector("track")?.getAttribute("src")).toBe("data:,");
+  });
+
+  it("blocks SVG <image href> and <use href>", () => {
+    const result = blockExternalAssets(
+      '<svg><image href="https://evil.example/i.png"></image>' +
+        '<use href="https://evil.example/sprite.svg#x"></use></svg>',
+    );
+    expect(result.blocked).toEqual([
+      "https://evil.example/i.png",
+      "https://evil.example/sprite.svg#x",
+    ]);
+    const wrapper = mountResult(result.html);
+    expect(wrapper.querySelector("image")?.getAttribute("href")).toBe("data:,");
+    expect(wrapper.querySelector("use")?.getAttribute("href")).toBe("data:,");
+  });
+
+  it("scrubs external url() inside inline style attributes, leaves relative url() alone", () => {
+    const result = blockExternalAssets(
+      '<p style="background: url(https://evil.example/bg.png) center; color: red">a</p>' +
+        "<p style=\"background-image: url('./local.png')\">b</p>",
+    );
+    expect(result.blocked).toEqual(["https://evil.example/bg.png"]);
+    expect(result.html).toContain("background: url(data:,) center");
+    expect(result.html).toContain("color: red");
+    expect(result.html).toContain("background-image: url('./local.png')");
+  });
+});
+
+function mountResult(html: string): HTMLElement {
+  const wrapper = document.createElement("div");
+  const parsed = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
+  const root = parsed.body.firstElementChild;
+  if (!root) throw new Error("DOMParser returned no root");
+  wrapper.appendChild(document.importNode(root, true));
+  return wrapper;
+}
+
+describe("scrubExternalCssUrls", () => {
+  it("replaces external url() with url(data:,) and reports the original", () => {
+    const result = scrubExternalCssUrls('body { background: url("https://e/x.png") center; }');
+    expect(result.blocked).toEqual(["https://e/x.png"]);
+    expect(result.css).toBe("body { background: url(data:,) center; }");
+  });
+
+  it("preserves relative, data:, and blob: url() references", () => {
+    const result = scrubExternalCssUrls(
+      "body { background: url(./local.png); }" +
+        " a { cursor: url(data:image/png;base64,AAA); }" +
+        " p { background: url(blob:abc); }",
+    );
+    expect(result.blocked).toEqual([]);
+    expect(result.css).toContain("url(./local.png)");
+    expect(result.css).toContain("url(data:image/png;base64,AAA)");
+    expect(result.css).toContain("url(blob:abc)");
+  });
+
+  it("blocks protocol-relative url()", () => {
+    const result = scrubExternalCssUrls("body { background: url(//cdn.example/x.png); }");
+    expect(result.blocked).toEqual(["//cdn.example/x.png"]);
+    expect(result.css).toContain("url(data:,)");
+  });
+
+  it("blocks @import url(...) (the url() form)", () => {
+    const result = scrubExternalCssUrls(
+      '@import url("https://fonts.googleapis.com/css2?family=Inter");\nbody { color: red }',
+    );
+    expect(result.blocked).toEqual(["https://fonts.googleapis.com/css2?family=Inter"]);
+    expect(result.css).toContain("@import url(data:,)");
+    expect(result.css).toContain("body { color: red }");
+  });
+
+  it('blocks bare-string @import "..."', () => {
+    const result = scrubExternalCssUrls('@import "https://fonts.googleapis.com/css2";');
+    expect(result.blocked).toEqual(["https://fonts.googleapis.com/css2"]);
+    expect(result.css).toContain('@import "data:,"');
+  });
+
+  it("blocks url() across line breaks (multi-line @import url)", () => {
+    const result = scrubExternalCssUrls(
+      '@import\n  url(\n    "https://fonts.googleapis.com/css2"\n  );',
+    );
+    expect(result.blocked).toEqual(["https://fonts.googleapis.com/css2"]);
+    expect(result.css).toContain("url(data:,)");
+  });
+
+  it("does not interpret url() that appears inside a block comment", () => {
+    const css = '/* example: url("https://e/x") */ body { color: red }';
+    const result = scrubExternalCssUrls(css);
+    expect(result.blocked).toEqual([]);
+    expect(result.css).toBe(css);
+  });
+
+  it("does not interpret url() that appears inside a string value", () => {
+    const css = 'a::before { content: "url(https://e/x)" } b { background: url(./ok.png) }';
+    const result = scrubExternalCssUrls(css);
+    expect(result.blocked).toEqual([]);
+    expect(result.css).toBe(css);
+  });
+
+  it("handles unquoted url() values with whitespace padding", () => {
+    const result = scrubExternalCssUrls("body { background: url(  https://e/x.png  ); }");
+    expect(result.blocked).toEqual(["https://e/x.png"]);
+    expect(result.css).toContain("url(data:,)");
+  });
+
+  it("scrubs every url() in a block with multiple references", () => {
+    const result = scrubExternalCssUrls(
+      "@font-face { src: url(https://e/font.woff2) format('woff2'); }" +
+        " body { background: url(https://e/bg.png), url(./local.png); cursor: url(https://e/c.png), pointer; }",
+    );
+    expect(result.blocked).toEqual(["https://e/font.woff2", "https://e/bg.png", "https://e/c.png"]);
+    expect(result.css).toContain("./local.png");
+    expect(result.css.match(/url\(data:,\)/g)?.length).toBe(3);
   });
 });

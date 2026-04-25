@@ -1,10 +1,14 @@
+import { scrubExternalCssUrls } from "@obelus/source-render/browser";
 import createDOMPurify from "dompurify";
 
 // Tags we explicitly add to DOMPurify's allow-list. Both are dangerous by
-// default. Inside the iframe sandbox, scripts run under a strict CSP that
-// blocks all network egress; <link rel=stylesheet> is the only surviving
-// link rel — others (preconnect, dns-prefetch, preload, modulepreload, etc.)
-// are pre-stripped before DOMPurify runs.
+// default; the host frame's defence is layered. The pre-render asset rewrite
+// in `@obelus/source-render` rewrites every URL-bearing attribute on parse
+// (the actual enforcement, since CSP-via-meta is unreliable in WKWebView
+// srcdoc iframes), and the CSP <meta> blocks `connect-src` as a best-effort
+// secondary. `<link rel=stylesheet>` is the only surviving link rel —
+// others (preconnect, dns-prefetch, preload, modulepreload, etc.) are
+// pre-stripped before DOMPurify runs.
 const ADD_TAGS: ReadonlyArray<string> = ["script", "link"];
 
 // Tags we forbid even if DOMPurify's defaults would allow them. <meta> is
@@ -30,10 +34,16 @@ export interface SanitizeResult {
   // Sanitized <body> contents.
   bodyHtml: string;
   // CSS text from each author <style> block in the original document
-  // (head and body, in that order). Returned verbatim — DOMPurify is
-  // intentionally bypassed for these so values it doesn't recognize
-  // (`:root` custom properties, complex selectors) survive intact.
+  // (head and body, in that order). DOMPurify is intentionally bypassed
+  // for these so values it doesn't recognize (`:root` custom properties,
+  // complex selectors) survive intact; external `url(...)` references and
+  // `@import`s are pre-scrubbed to `data:,` so the browser still never
+  // starts the fetch. The originals are reported via `authorStylesBlocked`
+  // so the trust banner can list them.
   authorStyles: ReadonlyArray<string>;
+  // External URLs scrubbed out of author `<style>` blocks. Forwarded to
+  // `onExternalBlocked` by the host so the trust banner counts them.
+  authorStylesBlocked: ReadonlyArray<string>;
   // Boundary-log accounting (see CLAUDE.md "Tracing at ingest boundaries").
   scriptCount: number;
   linkCount: number;
@@ -48,9 +58,12 @@ export function sanitizeHtml(input: string): SanitizeResult {
   const parsed = new DOMParser().parseFromString(input, "text/html");
 
   const authorStyles: string[] = [];
+  const authorStylesBlocked: string[] = [];
   for (const root of [parsed.head, parsed.body]) {
     for (const styleEl of Array.from(root.querySelectorAll("style"))) {
-      authorStyles.push(styleEl.textContent ?? "");
+      const scrubbed = scrubExternalCssUrls(styleEl.textContent ?? "");
+      authorStyles.push(scrubbed.css);
+      for (const uri of scrubbed.blocked) authorStylesBlocked.push(uri);
       styleEl.remove();
     }
   }
@@ -100,6 +113,7 @@ export function sanitizeHtml(input: string): SanitizeResult {
     scriptCount,
     linkCount,
     authorStylesCount: authorStyles.length,
+    authorStylesBlockedCount: authorStylesBlocked.length,
     droppedTagCount,
     droppedDangerousLinks,
   });
@@ -108,6 +122,7 @@ export function sanitizeHtml(input: string): SanitizeResult {
     headHtml,
     bodyHtml,
     authorStyles,
+    authorStylesBlocked,
     scriptCount,
     linkCount,
     droppedTagCount,

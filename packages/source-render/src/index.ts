@@ -1,5 +1,9 @@
 export type { AssetResolver } from "./asset-rewrite.js";
-export { blockExternalAssets, rewriteRelativeAssets } from "./asset-rewrite.js";
+export {
+  blockExternalAssets,
+  rewriteRelativeAssets,
+  scrubExternalCssUrls,
+} from "./asset-rewrite.js";
 export type { LatexBinary, LatexDetection } from "./detect.js";
 export { detectLatexBinary, LATEX_BINARIES } from "./detect.js";
 export { renderLatex } from "./latex.js";

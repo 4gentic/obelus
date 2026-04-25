@@ -194,6 +194,7 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
             linkCount: sanitized.linkCount,
             droppedTagCount: sanitized.droppedTagCount,
             droppedDangerousLinks: sanitized.droppedDangerousLinks,
+            authorStylesBlockedCount: sanitized.authorStylesBlocked.length,
             paperId: lookup?.paper.id ?? null,
           });
           if (!cancelled) {

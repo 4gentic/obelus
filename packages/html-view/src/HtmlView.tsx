@@ -228,6 +228,8 @@ export function HtmlView({
         if (cb) {
           for (const uri of headBlocked.blocked) cb({ uri, directive: "blocked-pre-render" });
           for (const uri of bodyBlocked.blocked) cb({ uri, directive: "blocked-pre-render" });
+          for (const uri of sanitized.authorStylesBlocked)
+            cb({ uri, directive: "blocked-pre-render" });
         }
       }
       if (cancelled || !frame) return;

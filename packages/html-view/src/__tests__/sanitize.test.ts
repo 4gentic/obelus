@@ -127,6 +127,31 @@ describe("sanitizeHtml", () => {
     expect(result.bodyHtml).toContain('style="color: blue"');
   });
 
+  it("scrubs external url() out of author <style> blocks and reports the originals", () => {
+    const result = sanitizeHtml(
+      "<style>" +
+        '@import url("https://fonts.googleapis.com/css2?family=Inter");' +
+        " body { background: url(https://e/bg.png); }" +
+        "</style><p>x</p>",
+    );
+    expect(result.authorStyles).toHaveLength(1);
+    expect(result.authorStyles[0]).not.toContain("https://");
+    expect(result.authorStyles[0]).toContain("url(data:,)");
+    expect(result.authorStylesBlocked).toEqual([
+      "https://fonts.googleapis.com/css2?family=Inter",
+      "https://e/bg.png",
+    ]);
+  });
+
+  it("preserves relative url() inside author <style> blocks", () => {
+    const result = sanitizeHtml(
+      "<style>body { background: url(./local.png); cursor: url(data:image/png;base64,AAA) }</style>",
+    );
+    expect(result.authorStyles[0]).toContain("url(./local.png)");
+    expect(result.authorStyles[0]).toContain("url(data:image/png;base64,AAA)");
+    expect(result.authorStylesBlocked).toEqual([]);
+  });
+
   it("strips author <meta http-equiv> so the CSP injected by HtmlView cannot be overridden", () => {
     // DOMPurify reliably drops a single forbidden tag; with multiple
     // forbidden siblings its iterator can skip ahead and miss the next
