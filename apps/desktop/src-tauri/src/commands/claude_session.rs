@@ -1,4 +1,5 @@
 use crate::commands::claude::resolve_claude_path;
+use crate::commands::workspace::workspace_dir_for;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 use serde::Serialize;
@@ -164,6 +165,7 @@ async fn spawn_streaming(
 fn claude_command(
     claude: &Path,
     project_root: &Path,
+    workspace_dir: &Path,
     model: Option<&str>,
     effort: Option<&str>,
 ) -> Command {
@@ -172,7 +174,15 @@ fn claude_command(
     // child inherits the Tauri dev CWD (the Obelus worktree), and Glob/Grep
     // will happily walk our own source tree — adding minutes of wasted
     // exploration and leaking unrelated files into the model's context.
+    //
+    // `OBELUS_WORKSPACE_DIR` tells the plugin's skills where to write their
+    // artifacts (plans, writeups, apply summaries, rendered previews). It
+    // lives in app-data, not the user's repo, so the paper folder stays
+    // pristine. The skills require this var to be set and refuse to run
+    // without it — there is no `.obelus/` fallback that would otherwise
+    // write into the user's paper repo.
     cmd.current_dir(project_root)
+        .env("OBELUS_WORKSPACE_DIR", workspace_dir)
         .arg("--print")
         .arg("--output-format")
         .arg("stream-json")
@@ -180,6 +190,8 @@ fn claude_command(
         .arg("--verbose")
         .arg("--add-dir")
         .arg(project_root)
+        .arg("--add-dir")
+        .arg(workspace_dir)
         .arg("--allowedTools")
         .arg("Read")
         .arg("Glob")
@@ -198,7 +210,8 @@ fn claude_command(
 #[tauri::command]
 pub async fn claude_spawn(
     root_id: String,
-    bundle_rel_path: String,
+    project_id: String,
+    bundle_workspace_rel_path: String,
     extra_prompt_body: Option<String>,
     model: Option<String>,
     effort: Option<String>,
@@ -210,7 +223,9 @@ pub async fn claude_spawn(
         .ok_or_else(|| AppError::ClaudeDetect("claude binary not found".into()))?;
 
     let root = project_root(&state, &root_id)?;
-    let bundle_abs = root.join(&bundle_rel_path);
+    let workspace = workspace_dir_for(&app, &project_id)?;
+    tokio::fs::create_dir_all(&workspace).await.map_err(AppError::from)?;
+    let bundle_abs = workspace.join(&bundle_workspace_rel_path);
 
     let plugin_dir: PathBuf = app
         .path()
@@ -229,8 +244,9 @@ pub async fn claude_spawn(
     // and use `Edit` on the source directly — bypassing the plan-fix step the
     // desktop needs a file from.
     let base = format!(
-        "Run apply-revision with bundle path {}.\nTool policy for this run: write .obelus/plan-<iso>.json and .obelus/plan-<iso>.md only. Do NOT use Edit, Write, or any tool that mutates a source file — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with `OBELUS_WROTE: .obelus/plan-<iso>.json`.\n",
-        bundle_abs.display()
+        "Run apply-revision with bundle path {}.\nTool policy for this run: write only inside $OBELUS_WORKSPACE_DIR ({}). Do NOT use Edit, Write, or any tool that mutates a source file under the project working tree — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json`.\n",
+        bundle_abs.display(),
+        workspace.display(),
     );
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 
@@ -240,7 +256,7 @@ pub async fn claude_spawn(
     // Opus) was the single biggest contributor to 10-minute review runs on
     // paper-sized context. Explicit user picks still win.
     let effective_model = model.as_deref().or(Some("sonnet"));
-    let mut cmd = claude_command(&claude, &root, effective_model, effort.as_deref());
+    let mut cmd = claude_command(&claude, &root, &workspace, effective_model, effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await
@@ -249,10 +265,11 @@ pub async fn claude_spawn(
 #[tauri::command]
 pub async fn claude_draft_writeup(
     root_id: String,
-    bundle_rel_path: String,
+    project_id: String,
+    bundle_workspace_rel_path: String,
     paper_id: String,
     paper_title: String,
-    rubric_rel_path: Option<String>,
+    rubric_workspace_rel_path: Option<String>,
     extra_prompt_body: Option<String>,
     model: Option<String>,
     effort: Option<String>,
@@ -264,7 +281,9 @@ pub async fn claude_draft_writeup(
         .ok_or_else(|| AppError::ClaudeDetect("claude binary not found".into()))?;
 
     let root = project_root(&state, &root_id)?;
-    let bundle_abs = root.join(&bundle_rel_path);
+    let workspace = workspace_dir_for(&app, &project_id)?;
+    tokio::fs::create_dir_all(&workspace).await.map_err(AppError::from)?;
+    let bundle_abs = workspace.join(&bundle_workspace_rel_path);
 
     let plugin_dir: PathBuf = app
         .path()
@@ -281,8 +300,8 @@ pub async fn claude_draft_writeup(
         paper_id,
         paper_title,
     );
-    if let Some(rubric_rel) = rubric_rel_path.as_ref().filter(|s| !s.trim().is_empty()) {
-        let rubric_abs = root.join(rubric_rel);
+    if let Some(rubric_rel) = rubric_workspace_rel_path.as_ref().filter(|s| !s.trim().is_empty()) {
+        let rubric_abs = workspace.join(rubric_rel);
         base.push_str(&format!("rubricPath: {}\n", rubric_abs.display()));
     }
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
@@ -291,7 +310,7 @@ pub async fn claude_draft_writeup(
     // reasoning. Sonnet is the right tool here; Opus just doubles wall-clock
     // for output that reads the same. Explicit user picks still win.
     let effective_model = model.as_deref().or(Some("sonnet"));
-    let mut cmd = claude_command(&claude, &root, effective_model, effort.as_deref());
+    let mut cmd = claude_command(&claude, &root, &workspace, effective_model, effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await
@@ -300,7 +319,8 @@ pub async fn claude_draft_writeup(
 #[tauri::command]
 pub async fn claude_fix_compile(
     root_id: String,
-    bundle_rel_path: String,
+    project_id: String,
+    bundle_workspace_rel_path: String,
     paper_id: String,
     model: Option<String>,
     effort: Option<String>,
@@ -312,7 +332,9 @@ pub async fn claude_fix_compile(
         .ok_or_else(|| AppError::ClaudeDetect("claude binary not found".into()))?;
 
     let root = project_root(&state, &root_id)?;
-    let bundle_abs = root.join(&bundle_rel_path);
+    let workspace = workspace_dir_for(&app, &project_id)?;
+    tokio::fs::create_dir_all(&workspace).await.map_err(AppError::from)?;
+    let bundle_abs = workspace.join(&bundle_workspace_rel_path);
 
     let plugin_dir: PathBuf = app
         .path()
@@ -332,7 +354,7 @@ pub async fn claude_fix_compile(
     // reasoning. Sonnet is the right model; the compile-error bundle is small
     // and the edits are localised.
     let effective_model = model.as_deref().or(Some("sonnet"));
-    let mut cmd = claude_command(&claude, &root, effective_model, effort.as_deref());
+    let mut cmd = claude_command(&claude, &root, &workspace, effective_model, effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await
@@ -341,6 +363,7 @@ pub async fn claude_fix_compile(
 #[tauri::command]
 pub async fn claude_ask(
     root_id: String,
+    project_id: String,
     prompt_body: String,
     model: Option<String>,
     effort: Option<String>,
@@ -352,6 +375,8 @@ pub async fn claude_ask(
         .ok_or_else(|| AppError::ClaudeDetect("claude binary not found".into()))?;
 
     let root = project_root(&state, &root_id)?;
+    let workspace = workspace_dir_for(&app, &project_id)?;
+    tokio::fs::create_dir_all(&workspace).await.map_err(AppError::from)?;
     let body = if prompt_body.ends_with('\n') {
         prompt_body
     } else {
@@ -359,7 +384,7 @@ pub async fn claude_ask(
         s.push('\n');
         s
     };
-    let cmd = claude_command(&claude, &root, model.as_deref(), effort.as_deref());
+    let cmd = claude_command(&claude, &root, &workspace, model.as_deref(), effort.as_deref());
     spawn_streaming(cmd, body, app, &state).await
 }
 

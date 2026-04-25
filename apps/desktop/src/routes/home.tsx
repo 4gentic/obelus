@@ -1,7 +1,7 @@
 import type { DeskRow, ProjectKind, ProjectRow } from "@obelus/repo";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { authorizeProjectRoot, fsReadDir } from "../ipc/commands";
+import { authorizeProjectRoot, fsReadDir, workspaceDelete } from "../ipc/commands";
 import { getRepository } from "../lib/repo";
 import { getAppState, setAppState } from "../store/app-state";
 import "./home.css";
@@ -471,6 +471,15 @@ export default function Home(): JSX.Element {
   async function onForget(id: string): Promise<void> {
     const repo = await getRepository();
     await repo.projects.forget(id);
+    try {
+      await workspaceDelete(id);
+    } catch (err) {
+      console.warn("[home]", {
+        op: "forget-workspace-cleanup",
+        projectId: id,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
     setRows((prev) => (prev ? prev.filter((r) => r.project.id !== id) : prev));
   }
 

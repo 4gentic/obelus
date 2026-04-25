@@ -1,7 +1,8 @@
 // Project-metadata scanner. Walks the project root, classifies each file into a
-// `ProjectFileFormat`, picks a heuristic "main" when the caller did not pin one,
-// and mirrors the result to `<project-root>/.obelus/project.json` so the Claude
-// Code plugin can read it without going through the desktop app.
+// `ProjectFileFormat`, picks a heuristic "main" when the caller did not pin
+// one, and mirrors the result to the project's app-data workspace as
+// `project.json` so the Claude Code plugin can read it without going through
+// the desktop app.
 //
 // The scanner is intentionally separate from `history::walk_tracked`: history
 // owns a narrow text-only allowlist (blobs stay small), whereas project
@@ -9,80 +10,15 @@
 // tools actually need to reason about.
 
 use crate::commands::fs_scoped::{atomic_write, root_path_for};
+use crate::commands::workspace::workspace_dir_for;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 const PROJECT_META_VERSION: u32 = 1;
-
-const GITIGNORE_BLOCK: &str =
-    "# Obelus review workspace (local bundles, plans, history, backups)\n.obelus/\n";
-
-fn is_inside_git_repo(start: &Path) -> bool {
-    let mut dir = start;
-    loop {
-        if dir.join(".git").try_exists().unwrap_or(false) {
-            return true;
-        }
-        match dir.parent() {
-            Some(parent) => dir = parent,
-            None => return false,
-        }
-    }
-}
-
-fn has_obelus_ignore_entry(content: &str) -> bool {
-    for raw in content.lines() {
-        let line = raw.trim();
-        if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
-            continue;
-        }
-        let mut pat = line.strip_prefix('/').unwrap_or(line);
-        if let Some(p) = pat.strip_suffix("/**") {
-            pat = p;
-        } else if let Some(p) = pat.strip_suffix("/*") {
-            pat = p;
-        } else if let Some(p) = pat.strip_suffix('/') {
-            pat = p;
-        }
-        if pat == ".obelus" {
-            return true;
-        }
-    }
-    false
-}
-
-async fn ensure_obelus_gitignored(project_root: &Path) -> AppResult<()> {
-    if !is_inside_git_repo(project_root) {
-        return Ok(());
-    }
-    let gitignore = project_root.join(".gitignore");
-    let existing = match tokio::fs::read_to_string(&gitignore).await {
-        Ok(s) => s,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(e) => return Err(AppError::from(e)),
-    };
-    if has_obelus_ignore_entry(&existing) {
-        return Ok(());
-    }
-    let mut next = existing;
-    if !next.is_empty() && !next.ends_with('\n') {
-        next.push('\n');
-    }
-    if !next.is_empty() {
-        next.push('\n');
-    }
-    next.push_str(GITIGNORE_BLOCK);
-    atomic_write(&gitignore, next.as_bytes()).await?;
-    eprintln!(
-        "[project_scan] added .obelus/ to {}",
-        gitignore.display()
-    );
-    Ok(())
-}
 
 fn is_excluded_dir(name: &str) -> bool {
     if name.starts_with('.') {
@@ -436,6 +372,7 @@ pub struct ProjectScanInput {
 
 #[tauri::command]
 pub async fn project_scan(
+    app: AppHandle,
     root_id: String,
     input: ProjectScanInput,
     state: State<'_, AppState>,
@@ -496,17 +433,12 @@ pub async fn project_scan(
         scanned_at: scanned_at.clone(),
     };
 
-    let meta_path = root.join(".obelus").join("project.json");
-    if let Some(parent) = meta_path.parent() {
-        tokio::fs::create_dir_all(parent).await.map_err(AppError::from)?;
-    }
+    let workspace = workspace_dir_for(&app, &input.project_id)?;
+    tokio::fs::create_dir_all(&workspace).await.map_err(AppError::from)?;
+    let meta_path = workspace.join("project.json");
     let body = serde_json::to_vec_pretty(&disk_meta)
         .map_err(|e| AppError::Apply(format!("project.json serialize: {e}")))?;
     atomic_write(&meta_path, &body).await?;
-
-    if let Err(e) = ensure_obelus_gitignored(&root).await {
-        eprintln!("[project_scan] gitignore update skipped: {e}");
-    }
 
     Ok(ProjectScanReport {
         project_id: input.project_id,
@@ -546,106 +478,6 @@ mod tests {
         let (fmt, main) = detect_main(&root, &files).await;
         assert_eq!(fmt.as_deref(), Some("tex"));
         assert_eq!(main.as_deref(), Some("main.tex"));
-    }
-
-    #[test]
-    fn gitignore_entry_detects_common_variants() {
-        for entry in [
-            ".obelus",
-            ".obelus/",
-            "/.obelus",
-            "/.obelus/",
-            ".obelus/**",
-            ".obelus/*",
-            "  .obelus/   ",
-        ] {
-            let body = format!("other/\n{entry}\n# trailing\n");
-            assert!(has_obelus_ignore_entry(&body), "should detect: {entry:?}");
-        }
-
-        assert!(!has_obelus_ignore_entry(""));
-        assert!(!has_obelus_ignore_entry("node_modules/\n"));
-        assert!(!has_obelus_ignore_entry("# .obelus/\n"));
-        assert!(!has_obelus_ignore_entry("!.obelus/\n"));
-        assert!(!has_obelus_ignore_entry("obelus/\n"));
-        assert!(!has_obelus_ignore_entry(".obelus-backup/\n"));
-    }
-
-    #[tokio::test]
-    async fn gitignore_skipped_when_no_git() {
-        let tmp = TempDir::new().unwrap();
-        let root = tmp.path().canonicalize().unwrap();
-        ensure_obelus_gitignored(&root).await.unwrap();
-        assert!(!root.join(".gitignore").exists());
-    }
-
-    #[tokio::test]
-    async fn gitignore_created_when_missing() {
-        let tmp = TempDir::new().unwrap();
-        let root = tmp.path().canonicalize().unwrap();
-        tokio::fs::create_dir(root.join(".git")).await.unwrap();
-        ensure_obelus_gitignored(&root).await.unwrap();
-        let content = tokio::fs::read_to_string(root.join(".gitignore"))
-            .await
-            .unwrap();
-        assert!(content.contains(".obelus/"));
-        assert!(content.contains("# Obelus review workspace"));
-    }
-
-    #[tokio::test]
-    async fn gitignore_append_is_idempotent() {
-        let tmp = TempDir::new().unwrap();
-        let root = tmp.path().canonicalize().unwrap();
-        tokio::fs::create_dir(root.join(".git")).await.unwrap();
-        let existing = "node_modules/\n.obelus/\n";
-        tokio::fs::write(root.join(".gitignore"), existing)
-            .await
-            .unwrap();
-        ensure_obelus_gitignored(&root).await.unwrap();
-        let after = tokio::fs::read_to_string(root.join(".gitignore"))
-            .await
-            .unwrap();
-        assert_eq!(after, existing);
-    }
-
-    #[tokio::test]
-    async fn gitignore_append_normalises_trailing_newline() {
-        let tmp = TempDir::new().unwrap();
-        let root = tmp.path().canonicalize().unwrap();
-        tokio::fs::create_dir(root.join(".git")).await.unwrap();
-        tokio::fs::write(root.join(".gitignore"), "node_modules/")
-            .await
-            .unwrap();
-        ensure_obelus_gitignored(&root).await.unwrap();
-        let after = tokio::fs::read_to_string(root.join(".gitignore"))
-            .await
-            .unwrap();
-        assert!(after.starts_with("node_modules/\n\n"));
-        assert!(after.ends_with(".obelus/\n"));
-    }
-
-    #[tokio::test]
-    async fn gitignore_detects_worktree_file_form() {
-        // Git worktrees use `.git` as a file, not a directory.
-        let tmp = TempDir::new().unwrap();
-        let root = tmp.path().canonicalize().unwrap();
-        tokio::fs::write(root.join(".git"), "gitdir: /some/path\n")
-            .await
-            .unwrap();
-        ensure_obelus_gitignored(&root).await.unwrap();
-        assert!(root.join(".gitignore").exists());
-    }
-
-    #[tokio::test]
-    async fn gitignore_written_at_project_root_when_git_is_parent() {
-        let tmp = TempDir::new().unwrap();
-        let outer = tmp.path().canonicalize().unwrap();
-        tokio::fs::create_dir(outer.join(".git")).await.unwrap();
-        let inner = outer.join("project");
-        tokio::fs::create_dir(&inner).await.unwrap();
-        ensure_obelus_gitignored(&inner).await.unwrap();
-        assert!(inner.join(".gitignore").exists());
-        assert!(!outer.join(".gitignore").exists());
     }
 
     #[tokio::test]

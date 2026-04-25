@@ -7,7 +7,7 @@ import {
   parseStreamLine,
 } from "@obelus/claude-sidecar";
 import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { fsWriteBytes } from "../../ipc/commands";
+import { workspaceWriteText } from "../../ipc/commands";
 import {
   collectBundleSourcePaths,
   snapshotBundleSources,
@@ -248,8 +248,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
               ? await exportHtmlBundleForPaper({ repo, paperId })
               : await exportBundleForPaper({ repo, paperId, rootId });
         const counts: RunCounts = { marks: annotationCount, files: fileCount, startedAt };
-        const bytes = new TextEncoder().encode(json);
-        await fsWriteBytes(rootId, filename, bytes);
+        await workspaceWriteText(project.id, filename, json);
 
         const overrides = await loadClaudeOverrides();
 
@@ -296,7 +295,8 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           .join("\n");
         const claudeSessionId = await claudeSpawn({
           rootId,
-          bundleRelPath: filename,
+          projectId: project.id,
+          bundleWorkspaceRelPath: filename,
           ...(combinedExtra !== "" ? { extraPromptBody: combinedExtra } : {}),
           model: overrides.model,
           effort: overrides.effort,

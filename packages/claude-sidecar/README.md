@@ -9,5 +9,5 @@
 **Public API.**
 - `claudeSpawn`, `claudeAsk`, `claudeDraftWriteup`, `claudeCancel` — lifecycle commands.
 - `onClaudeStdout`, `onClaudeStderr`, `onClaudeExit` — event subscriptions returning `UnlistenFn`.
-- `PlanFileSchema`, `pickLatestPlanName` — read the plan files the plugin writes under `.obelus/`.
+- `PlanFileSchema`, `pickLatestPlanName` — read the plan files the plugin writes under `$OBELUS_WORKSPACE_DIR/` (the per-project workspace dir Obelus passes via env when spawning Claude Code).
 - Types: `ClaudeSpawnInput`, `ClaudeAskInput`, `ClaudeDraftWriteupInput`, `ClaudeStreamEvent`, `ClaudeExitEvent`, `PlanBlock`, `PlanFile`.

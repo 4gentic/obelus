@@ -47,7 +47,7 @@ export default function ProjectRoute(): JSX.Element {
         const rootId = await authorizeProjectRoot(project.root);
         await repo.projects.touchLastOpened(id);
         // Refresh the project-metadata cache (file tree, main-file detection,
-        // .obelus/project.json mirror) before the shell mounts. Silent on
+        // $OBELUS_WORKSPACE_DIR/project.json mirror) before the shell mounts. Silent on
         // failure: a missing cache is recoverable via the manual Rescan action
         // and must not block the project from opening.
         void runProjectScan({

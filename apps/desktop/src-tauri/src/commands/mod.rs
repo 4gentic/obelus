@@ -13,3 +13,4 @@ pub mod project;
 pub mod project_meta;
 pub mod reset_local_state;
 pub mod typst;
+pub mod workspace;

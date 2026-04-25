@@ -14,7 +14,7 @@ The desktop re-runs the compiler as soon as you finish. If the compile still fai
 
 ## Inputs
 
-- `<bundle-path>`: absolute path to a `.obelus-compile-error-*.json` file matching the `CompileErrorBundle` schema at `${CLAUDE_PLUGIN_ROOT}/schemas/compile-error.schema.json`.
+- `<bundle-path>`: absolute path to a `compile-error-*.json` file matching the `CompileErrorBundle` schema at `${CLAUDE_PLUGIN_ROOT}/schemas/compile-error.schema.json`. The path lives under `$OBELUS_WORKSPACE_DIR` (the Obelus desktop sets that env var when spawning Claude Code); standalone CLI users must export the env var to a writable directory outside the paper repo and place the bundle there themselves. There is no `.obelus/` fallback — the plugin must never write into the user's paper repo.
 - `paperId`: the paper's UUID in the Obelus registry (for traceability; do not look it up).
 
 Fields you will use from the bundle:
@@ -29,7 +29,7 @@ Fields you will use from the bundle:
 - Edit only files inside the paper project. The spawned CLI is already scoped to the paper's root directory; paths outside it are off-limits and will fail.
 - Cap: at most 8 distinct errors per run. If `stderr` contains more, fix the first 8 (in source order) and stop — the user re-runs fix-compile to take another pass.
 - Do not verify by recompiling yourself. No `Bash`, no `typst compile`, no `latexmk`. The desktop is the verifier.
-- Do not edit `.obelus/*` — it is managed state, not source.
+- Do not edit anything under `$OBELUS_WORKSPACE_DIR` — it is managed state, not source. The compile-error bundle itself lives there and is `Read`-only as far as this skill is concerned.
 - Do not invent errors the compiler did not report. If stderr is empty or unparseable, stop with a short explanation and make no edits.
 
 ## Untrusted inputs
@@ -76,7 +76,7 @@ Fields you will use from the bundle:
 - Do not proceed past a schema error on the compile-error bundle.
 - Do not invent errors the compiler did not report.
 - Do not recompile, rebuild, or re-read files to "verify" — the desktop handles that.
-- Do not edit `.obelus/*`.
+- Do not edit anything under `$OBELUS_WORKSPACE_DIR`.
 - Do not branch behaviour on `bundle.trigger`; the output is identical for `"apply"` and `"manual"`.
 - Do not touch more than the reported-error lines and their immediate tokens.
 

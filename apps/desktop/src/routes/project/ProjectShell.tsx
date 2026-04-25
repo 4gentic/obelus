@@ -51,7 +51,7 @@ export default function ProjectShell(): JSX.Element {
     () => edits.live.find((e) => e.id === edits.currentDraftId),
     [edits.live, edits.currentDraftId],
   );
-  const divergence = useWorkingTreeDivergence(rootId, currentDraft);
+  const divergence = useWorkingTreeDivergence(rootId, project.id, currentDraft);
   const findStore = useFindStore();
   const quickOpenStore = useQuickOpenStore();
   const pdfOpen = openPaper.kind === "ready";

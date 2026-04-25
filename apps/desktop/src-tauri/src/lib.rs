@@ -28,6 +28,10 @@ use commands::{
     project_meta::project_scan,
     reset_local_state::reset_local_state,
     typst::compile_typst,
+    workspace::{
+        workspace_delete, workspace_path, workspace_read_dir, workspace_read_file,
+        workspace_write_bytes, workspace_write_text,
+    },
 };
 use state::AppState;
 
@@ -85,6 +89,12 @@ pub fn run() {
             project_scan,
             reset_local_state,
             factory_reset,
+            workspace_path,
+            workspace_read_file,
+            workspace_read_dir,
+            workspace_write_text,
+            workspace_write_bytes,
+            workspace_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Obelus");

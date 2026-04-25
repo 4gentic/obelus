@@ -16,7 +16,7 @@ import {
   useEffect,
   useMemo,
 } from "react";
-import { fsWriteBytes, fsWriteText } from "../../ipc/commands";
+import { workspaceWriteText } from "../../ipc/commands";
 import { useJobsStore } from "../../lib/jobs-store";
 import { getRepository } from "../../lib/repo";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
@@ -149,22 +149,22 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
 
       try {
         const { filename, json } = await exportBundleForPaper({ repo, paperId, rootId });
-        const bytes = new TextEncoder().encode(json);
-        await fsWriteBytes(rootId, filename, bytes);
+        await workspaceWriteText(project.id, filename, json);
         const paper = await repo.papers.get(paperId);
-        let rubricRelPath: string | undefined;
+        let rubricWorkspaceRelPath: string | undefined;
         if (paper?.rubric) {
-          rubricRelPath = `.obelus/rubric-${paperId}.md`;
-          await fsWriteText(rootId, rubricRelPath, paper.rubric.body);
+          rubricWorkspaceRelPath = `rubric-${paperId}.md`;
+          await workspaceWriteText(project.id, rubricWorkspaceRelPath, paper.rubric.body);
         }
         const overrides = await loadClaudeOverrides();
         progressStore.getState().start();
         const claudeSessionId = await claudeDraftWriteup({
           rootId,
-          bundleRelPath: filename,
+          projectId: project.id,
+          bundleWorkspaceRelPath: filename,
           paperId,
           paperTitle,
-          ...(rubricRelPath !== undefined ? { rubricRelPath } : {}),
+          ...(rubricWorkspaceRelPath !== undefined ? { rubricWorkspaceRelPath } : {}),
           model: overrides.model,
           effort: overrides.effort,
         });

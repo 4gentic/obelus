@@ -146,6 +146,7 @@ export default function AskPanel(): JSX.Element {
       const overrides = await loadClaudeOverrides();
       const claudeSessionId = await claudeAsk({
         rootId,
+        projectId: project.id,
         promptBody,
         model: overrides.model,
         effort: overrides.effort,
