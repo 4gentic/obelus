@@ -189,25 +189,6 @@
   transform: translateX(3px);
 }
 
-.doors__cta--pending {
-  color: var(--ink-soft);
-  border-bottom-color: var(--ink-soft);
-}
-
-.doors__cta--pending .btn__arrow {
-  color: var(--ink-soft);
-}
-
-.doors__cta--pending:hover {
-  color: var(--rubric);
-  border-bottom-color: var(--rubric);
-}
-
-.doors__cta--pending:hover .btn__arrow {
-  color: var(--rubric);
-  transform: translateY(2px);
-}
-
 .doors__caption {
   font-family: var(--font-body);
   font-style: italic;
@@ -593,16 +574,6 @@
 
 .desktop__link:hover {
   border-bottom-color: var(--rubric);
-}
-
-.desktop__link--pending {
-  color: var(--ink-soft);
-  cursor: default;
-}
-
-.desktop__link--pending:hover {
-  border-bottom-color: transparent;
-  color: var(--ink-soft);
 }
 
 .desktop__status {
