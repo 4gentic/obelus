@@ -656,44 +656,6 @@ button.files__row {
   font-weight: 600;
 }
 
-.files__row-action {
-  background: transparent;
-  border: none;
-  padding: 0 var(--space-1);
-  margin: 0;
-  color: var(--ink-soft);
-  font-family: var(--font-body);
-  font-size: 0.78rem;
-  line-height: 1;
-  cursor: pointer;
-  flex-shrink: 0;
-  display: none;
-  transition: color 120ms linear;
-}
-
-.files__row:hover .files__row-action,
-.files__row:focus-within .files__row-action,
-.files__row--selected .files__row-action {
-  display: inline-flex;
-  align-items: center;
-}
-
-.files__row-action:hover,
-.files__row-action:focus-visible {
-  color: var(--ink);
-}
-
-.files__row-action--danger:hover,
-.files__row-action--danger:focus-visible {
-  color: var(--rubric);
-}
-
-.files__row-action:disabled {
-  cursor: not-allowed;
-  color: var(--ink-soft);
-  opacity: 0.4;
-}
-
 .files__row--paper .files__path-hint {
   margin-left: 0;
   padding-left: 0;
@@ -798,6 +760,95 @@ button.files__row {
 
 .pane__path-save {
   flex: 0 0 auto;
+}
+
+.paper-actions-wrap {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.paper-actions-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    border-color 120ms linear,
+    background 120ms linear;
+}
+
+.paper-actions-trigger:hover,
+.paper-actions-trigger:focus-visible {
+  color: var(--ink);
+  border-color: var(--rule-soft);
+  background: color-mix(in oklab, var(--ink) 4%, transparent);
+}
+
+.paper-actions-trigger--open {
+  color: var(--ink);
+  border-color: var(--rule-soft);
+  background: color-mix(in oklab, var(--ink) 4%, transparent);
+}
+
+.paper-actions-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.paper-actions-pop {
+  position: fixed;
+  z-index: 200;
+  padding: var(--space-1);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 0 6px 20px color-mix(in oklab, var(--ink) 14%, transparent);
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 16px);
+}
+
+.paper-actions-pop__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+  text-align: left;
+}
+
+.paper-actions-pop__item:hover,
+.paper-actions-pop__item:focus-visible {
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+
+.paper-actions-pop__item--danger {
+  color: var(--rubric);
+}
+
+.paper-actions-pop__hint {
+  font-family: var(--font-mono);
+  font-size: var(--step--3);
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
 }
 
 .pdf-pane {

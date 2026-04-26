@@ -1,15 +1,12 @@
 import type { PaperRow } from "@obelus/repo";
-import { ask } from "@tauri-apps/plugin-dialog";
 import type { DragEvent, JSX, ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type DirEntry, fsCreateFile, fsMovePath, fsReadDir } from "../../ipc/commands";
 import { useJobsStore } from "../../lib/jobs-store";
-import { exportPaperToFile } from "../../lib/paper-export";
-import { resetPaper as resetPaperOp } from "../../lib/paper-reset";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
-import { extensionOf, isSource, NOISE_DIRS } from "./openable";
+import { extensionOf, isOpenable, NOISE_DIRS } from "./openable";
 import { useInlineConfirm } from "./use-inline-confirm";
 import { usePaperBuild } from "./use-paper-build";
 
@@ -18,12 +15,6 @@ interface TreeState {
   entries: Map<string, DirEntry[]>;
   hasOpenable: Map<string, boolean>;
   walking: boolean;
-}
-
-interface PdfEntry {
-  dir: string;
-  name: string;
-  path: string;
 }
 
 function joinPath(dir: string, name: string): string {
@@ -55,7 +46,7 @@ async function walkAndPrecompute(
     entries.set(dir, sortEntries(kept));
 
     for (const child of kept) {
-      if (child.kind === "file" && isSource(child.name)) {
+      if (child.kind === "file" && isOpenable(child.name)) {
         hasOpenable.set(dir, true);
         for (const a of ancestors) hasOpenable.set(a, true);
       }
@@ -70,23 +61,6 @@ async function walkAndPrecompute(
 
   await visit(".", []);
   return { entries, hasOpenable };
-}
-
-function collectPdfs(entries: Map<string, DirEntry[]>): PdfEntry[] {
-  const out: PdfEntry[] = [];
-  for (const [dir, children] of entries) {
-    for (const child of children) {
-      if (child.kind === "file" && extensionOf(child.name) === "pdf") {
-        out.push({ dir, name: child.name, path: joinPath(dir, child.name) });
-      }
-    }
-  }
-  out.sort((a, b) => {
-    const byName = a.name.localeCompare(b.name);
-    if (byName !== 0) return byName;
-    return a.dir.localeCompare(b.dir);
-  });
-  return out;
 }
 
 function splitPath(path: string): { dir: string; name: string } {
@@ -205,33 +179,16 @@ interface ReviewingRowProps {
   showDir: boolean;
   onOpen: (path: string) => void;
   onRemove: (paper: PaperRow) => void | Promise<void>;
-  onExport: (paper: PaperRow) => void | Promise<void>;
-  onReset: (paper: PaperRow) => void | Promise<void>;
 }
 
 function ReviewingRow(props: ReviewingRowProps): JSX.Element {
-  const {
-    paper,
-    path,
-    dir,
-    isActive,
-    isReviewing,
-    marks,
-    showDir,
-    onOpen,
-    onRemove,
-    onExport,
-    onReset,
-  } = props;
+  const { paper, path, dir, isActive, isReviewing, marks, showDir, onOpen, onRemove } = props;
   const confirm = useInlineConfirm();
   const removeTitle = isReviewing
     ? "Cannot remove while review is running"
     : confirm.armed
       ? "Click again to remove from Reviewing"
       : "Remove from Reviewing — opening the file again restores it";
-  const resetTitle = isReviewing
-    ? "Cannot reset while review is running"
-    : "Erase every annotation, review, and write-up for this paper";
   return (
     <li className="files__flat-item">
       <div className={`files__row files__row--paper${isActive ? " files__row--selected" : ""}`}>
@@ -239,32 +196,6 @@ function ReviewingRow(props: ReviewingRowProps): JSX.Element {
           <span className="files__name">{paper.title}</span>
           {showDir && dir !== "." && <span className="files__path-hint">({dir})</span>}
           <span className="files__paper-meta">({marks})</span>
-        </button>
-        <button
-          type="button"
-          className="files__row-action"
-          aria-label={`Export ${paper.title} bundle`}
-          title="Save a JSON backup of this paper's review data"
-          onClick={(event) => {
-            event.stopPropagation();
-            void onExport(paper);
-          }}
-        >
-          Export…
-        </button>
-        <button
-          type="button"
-          className="files__row-action files__row-action--danger"
-          aria-label={`Reset ${paper.title}`}
-          title={resetTitle}
-          disabled={isReviewing}
-          onClick={(event) => {
-            event.stopPropagation();
-            if (isReviewing) return;
-            void onReset(paper);
-          }}
-        >
-          Reset…
         </button>
         <button
           type="button"
@@ -319,7 +250,7 @@ function filterChildren(
 ): DirEntry[] {
   if (!children) return [];
   return children.filter((e) => {
-    if (e.kind === "file") return isSource(e.name);
+    if (e.kind === "file") return isOpenable(e.name);
     const childPath = joinPath(path, e.name);
     return tree.hasOpenable.get(childPath) === true;
   });
@@ -570,7 +501,6 @@ export default function FilesColumn(): JSX.Element {
   const [pinned, setPinned] = useState<Set<string>>(() => new Set());
   const [papersOpen, setPapersOpen] = useState(true);
   const [pinnedOpen, setPinnedOpen] = useState(true);
-  const [reviewOpen, setReviewOpen] = useState(true);
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
 
   useEffect(() => {
@@ -943,8 +873,6 @@ export default function FilesColumn(): JSX.Element {
     [project.id, repo.filePins],
   );
 
-  const pdfs = useMemo(() => collectPdfs(tree.entries), [tree.entries]);
-
   const jobs = useJobsStore((s) => s.jobs);
   const activeReviewPaperIds = useMemo(() => {
     const ids = new Set<string>();
@@ -978,57 +906,6 @@ export default function FilesColumn(): JSX.Element {
       await reloadPapers();
     },
     [openFilePath, setOpenFilePath, repo.papers, reloadPapers],
-  );
-
-  const exportPaper = useCallback(
-    async (paper: PaperRow) => {
-      try {
-        const { savedTo } = await exportPaperToFile({
-          repo,
-          paperId: paper.id,
-          format: paper.format,
-          rootId,
-        });
-        if (savedTo === null) return;
-        console.info("[paper-export]", { paperId: paper.id, savedTo });
-      } catch (err) {
-        console.warn("FilesColumn: export paper failed", paper.id, err);
-        await ask(err instanceof Error ? err.message : "Could not export this paper.", {
-          title: "Export failed",
-          kind: "error",
-          okLabel: "OK",
-        });
-      }
-    },
-    [repo, rootId],
-  );
-
-  const resetPaper = useCallback(
-    async (paper: PaperRow) => {
-      const ok = await ask(
-        `This permanently erases every annotation, review, write-up, and apply history for "${paper.title}". The file on disk is untouched. This cannot be undone.\n\nTip: cancel and click Export… first if you want a backup.`,
-        {
-          title: "Reset paper",
-          kind: "warning",
-          okLabel: "Reset paper",
-          cancelLabel: "Cancel",
-        },
-      );
-      if (!ok) return;
-      if (paper.pdfRelPath && openFilePath === paper.pdfRelPath) setOpenFilePath(null);
-      try {
-        await resetPaperOp({ repo, paperId: paper.id, projectId: project.id });
-      } catch (err) {
-        console.warn("FilesColumn: reset paper failed", paper.id, err);
-        await ask(err instanceof Error ? err.message : "Could not reset this paper.", {
-          title: "Reset failed",
-          kind: "error",
-          okLabel: "OK",
-        });
-      }
-      await reloadPapers();
-    },
-    [repo, project.id, openFilePath, setOpenFilePath, reloadPapers],
   );
 
   const pinnedList = useMemo(
@@ -1084,8 +961,6 @@ export default function FilesColumn(): JSX.Element {
                     showDir={(paperNameCounts.get(name) ?? 0) > 1}
                     onOpen={openFile}
                     onRemove={removePaper}
-                    onExport={exportPaper}
-                    onReset={resetPaper}
                   />
                 );
               })}
@@ -1133,45 +1008,6 @@ export default function FilesColumn(): JSX.Element {
           )}
         </section>
       )}
-
-      <section className="files__section files__section--review">
-        <div className="files__section-header">
-          <button
-            type="button"
-            className="files__section-toggle"
-            aria-expanded={reviewOpen}
-            onClick={() => setReviewOpen((o) => !o)}
-          >
-            <span className="files__chevron" aria-hidden="true">
-              ▸
-            </span>
-            <span className="files__header-title">
-              To review <span className="files__count">({pdfs.length})</span>
-            </span>
-          </button>
-        </div>
-        {reviewOpen &&
-          (tree.walking ? (
-            <p className="files__hint">…</p>
-          ) : pdfs.length === 0 ? (
-            <p className="files__hint files__hint--empty">No PDFs here yet.</p>
-          ) : (
-            <ul className="files__flat">
-              {pdfs.map((pdf) => (
-                <FlatRow
-                  key={`pdf:${pdf.path}`}
-                  path={pdf.path}
-                  name={pdf.name}
-                  dir={pdf.dir}
-                  pinned={pinned.has(pdf.path)}
-                  selected={openFilePath === pdf.path}
-                  onOpen={openFile}
-                  onTogglePin={togglePin}
-                />
-              ))}
-            </ul>
-          ))}
-      </section>
 
       <section className="files__section files__section--workspace">
         <div className="files__section-header">
