@@ -349,6 +349,12 @@ pub async fn claude_spawn(
     // this path; free-form `claude_ask` is where user picks land.
     let _ = model;
     let _ = effort;
+    // Boundary log: confirm DISPATCH_MODEL reaches argv. Routed through stderr
+    // so the existing `[claude-stderr]` listener surfaces it in devtools.
+    eprintln!(
+        "[claude-session] spawn-model rootId={} requested={:?} effective={:?} mode={:?}",
+        root_id, model, DISPATCH_MODEL, mode
+    );
     let mut cmd =
         claude_command(&claude, &root, &workspace, DISPATCH_MODEL, DISPATCH_EFFORT);
     cmd.arg("--plugin-dir").arg(&plugin_dir);
