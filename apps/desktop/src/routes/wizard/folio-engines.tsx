@@ -17,8 +17,8 @@ export default function FolioEngines({ onAdvance, onBack }: Props): JSX.Element 
           </header>
           <p className="folio__body">
             Obelus can compile your source into PDF without touching your system. If you already
-            have a TeX distribution or Typst on your machine, Obelus will find them. If not, it
-            can install a self-contained copy now — or later, from Settings.
+            have a TeX distribution or Typst on your machine, Obelus will find them. If not, it can
+            install a self-contained copy now — or later, from Settings.
           </p>
         </div>
         <div className="folio__split-aside">

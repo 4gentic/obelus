@@ -87,10 +87,7 @@ export function formatSpawnInvocation(input: SpawnInvocationInput): string {
       return appendExtra(base, input.extraBody);
     }
     case "fix-compile": {
-      const lines = [
-        `/obelus:fix-compile ${input.bundleAbsPath}`,
-        `paperId: ${input.paperId}`,
-      ];
+      const lines = [`/obelus:fix-compile ${input.bundleAbsPath}`, `paperId: ${input.paperId}`];
       const base = `${lines.join("\n")}\n`;
       return appendExtra(base, input.extraBody);
     }
