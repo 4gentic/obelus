@@ -270,7 +270,7 @@ fn render_rigorous(bundle: &Bundle, project_root: &Path) -> String {
     } else {
         let titles: Vec<String> = papers_with_rubric
             .iter()
-            .map(|p| format!("\"{}\"", p.title.replace('"', "\\\"")))
+            .map(|p| format!("\"{}\"", sanitize_title_for_prelude(&p.title)))
             .collect();
         s.push_str(&format!(
             "- has-rubric: true ({} {})\n",
@@ -303,7 +303,7 @@ fn render_rigorous(bundle: &Bundle, project_root: &Path) -> String {
         let per_paper_format = detect_format(extension_of(&per_paper_entrypoint));
         s.push_str(&format!(
             "  paper \"{}\" (id {})\n",
-            paper.title.replace('"', "\\\""),
+            sanitize_title_for_prelude(&paper.title),
             short_id(&paper.id)
         ));
         s.push_str(&format!(
@@ -339,6 +339,29 @@ fn render_rigorous(bundle: &Bundle, project_root: &Path) -> String {
 fn short_id(id: &str) -> String {
     let head: String = id.chars().take(8).collect();
     format!("{head}…")
+}
+
+// Belt-and-braces: bundle-builder already refuses titles with the OBELUS
+// delimiters or C0/DEL control chars at export time. We re-sanitize at the
+// prelude boundary so a future ingestion path that bypasses the builder can't
+// forge a second prelude line via embedded newlines, and so non-ASCII glyphs
+// surrounded by " stay quoted on a single line.
+fn sanitize_title_for_prelude(title: &str) -> String {
+    let mut out = String::with_capacity(title.len());
+    for ch in title.chars() {
+        if ch == '"' {
+            out.push_str("\\\"");
+        } else if ch == '\t' {
+            out.push(' ');
+        } else if ch.is_control() {
+            // Drop newlines and other C0/DEL — never let them survive into the
+            // line-oriented prelude.
+            continue;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 fn pdf_sha_status(project_root: &Path, rel_path: &str, expected_hex: &str) -> &'static str {

@@ -115,7 +115,7 @@ function decodeSource(buffer: ArrayBuffer): LoadedBuffer {
 
 export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   const buffers = useBuffersStore();
-  const { setOpenFilePath } = useProject();
+  const { project, setOpenFilePath } = useProject();
   // Subscribe to a boolean hydration flag, not the full BufferEntry. setText
   // allocates a new entry object on every keystroke; using it as an effect
   // dep would re-run the view-mount effect per keystroke and destroy the
@@ -159,10 +159,12 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   const htmlAssets = useAssetResolver(rootId, relPath);
   // Writer-mode previews don't have a `paperId` (the file isn't necessarily
   // registered as a paper yet), so derive a synthetic trust key from the
-  // root id + path. The user is the author, but the banner is still
+  // project id + path. The user is the author, but the banner is still
   // informative — it surfaces external resources the author may not have
   // intended to ship and lets them grant trust once instead of every preview.
-  const writerTrustKey = hasPreview ? `writer:${rootId}:${relPath}` : null;
+  // `project.id` is the stable persisted UUID; `rootId` here is a per-session
+  // value minted at project authorization, which would re-prompt every restart.
+  const writerTrustKey = hasPreview ? `writer:${project.id}:${relPath}` : null;
   const writerTrust = usePaperTrust(writerTrustKey);
 
   const hostRef = useRef<HTMLDivElement>(null);

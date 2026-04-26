@@ -95,6 +95,19 @@ export function sanitizeHtml(input: string): SanitizeResult {
     }
   }
 
+  // Pre-strip <meta> and <base> with the same iterator-safe walker. They are
+  // also in FORBID_TAGS as a defence-in-depth, but DOMPurify's NodeIterator
+  // can skip the next sibling after removing a forbidden element — leaving
+  // an adjacent <meta>+<base> pair partially un-purified. querySelectorAll
+  // returns a fresh static NodeList that doesn't suffer the skip.
+  const prePassDroppedTags: string[] = [];
+  for (const root of [parsed.head, parsed.body]) {
+    for (const el of Array.from(root.querySelectorAll("meta, base"))) {
+      prePassDroppedTags.push(el.nodeName.toLowerCase());
+      el.remove();
+    }
+  }
+
   const scriptCount = parsed.querySelectorAll("script").length;
   const linkCount = parsed.querySelectorAll("link").length;
 
@@ -119,7 +132,11 @@ export function sanitizeHtml(input: string): SanitizeResult {
   const bodyDroppedTags = purify.removed
     .filter((entry): entry is { element: Node } => "element" in entry)
     .map((entry) => entry.element.nodeName.toLowerCase());
-  const droppedTags: ReadonlyArray<string> = [...headDroppedTags, ...bodyDroppedTags];
+  const droppedTags: ReadonlyArray<string> = [
+    ...prePassDroppedTags,
+    ...headDroppedTags,
+    ...bodyDroppedTags,
+  ];
 
   console.info("[html-sanitize]", {
     scriptCount,

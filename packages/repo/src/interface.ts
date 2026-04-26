@@ -69,7 +69,14 @@ export interface PapersRepo {
   // `null` clear the column; omitted keys are left untouched.
   setPaths(id: string, patch: PaperPathsPatch): Promise<void>;
   // Soft-remove from the "Reviewing" sidebar. Idempotent: subsequent calls
-  // refresh the timestamp. All dependent rows stay intact.
+  // refresh the timestamp. All dependent rows stay intact, and so do any
+  // paper-keyed workspace artifacts (plans, writeups, apply backups under
+  // `<app_data>/projects/<projectId>/`). Those artifacts persist deliberately
+  // so a future time-travel-across-drafts feature can replay history; they
+  // are reaped only by `papers.remove` (Trash view), `forgetProject`, or
+  // `factory_reset`. Soft-removing en masse therefore accumulates workspace
+  // bytes — acceptable for the current product surface, revisit if Trash UI
+  // ships first.
   hide(id: string): Promise<void>;
   // Restores a soft-removed paper to the sidebar. Auto-called when the user
   // re-opens the source file from disk, so an accidental hide is undone by

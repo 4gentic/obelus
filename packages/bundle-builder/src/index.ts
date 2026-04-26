@@ -139,6 +139,16 @@ function findDelimiter(value: string): string | null {
   return null;
 }
 
+// `paper.title` lands on a single line of the desktop's Pre-flight prelude
+// (the prompt the model reads as ground truth). A newline or control character
+// in the title would let an attacker forge what looks like a second prelude
+// line; rejecting them at export keeps the consumer's line-oriented parser
+// honest. U+0009 (\t) is allowed because it renders harmlessly inside a quoted
+// title; everything else in C0 plus DEL is refused. Built via `new RegExp`
+// from a string so the literal control chars don't trip the lint rule that
+// forbids them in regex *literals*.
+const TITLE_FORBIDDEN_CHARS = new RegExp("[\\x00-\\x08\\x0A-\\x1F\\x7F]");
+
 function assertNoDelimiterCollisions(input: BuildBundleInput): void {
   for (const ann of input.annotations) {
     const fields = [
@@ -167,6 +177,17 @@ function assertNoDelimiterCollisions(input: BuildBundleInput): void {
     }
   }
   for (const paper of input.papers) {
+    const titleHit = findDelimiter(paper.title);
+    if (titleHit) {
+      throw new Error(
+        `bundle export refused: paper ${paper.id} title contains the reserved delimiter ${titleHit}`,
+      );
+    }
+    if (TITLE_FORBIDDEN_CHARS.test(paper.title)) {
+      throw new Error(
+        `bundle export refused: paper ${paper.id} title contains a newline or control character`,
+      );
+    }
     if (paper.rubric === undefined) continue;
     const hit = findDelimiter(paper.rubric.body);
     if (hit) {

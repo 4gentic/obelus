@@ -194,4 +194,21 @@ describe("sanitizeHtml", () => {
     expect(result.headHtml).not.toContain("<base");
     expect(result.droppedTags).toContain("base");
   });
+
+  it("strips <meta> and <base> reliably even when both are siblings", () => {
+    // Regression: DOMPurify's NodeIterator can skip the next sibling after
+    // removing a forbidden element, so a bare FORBID_TAGS pass alone could
+    // leave one of the pair behind. The pre-pass walker uses
+    // querySelectorAll — a static NodeList — so this can't happen.
+    const result = sanitizeHtml(
+      "<!doctype html><html><head>" +
+        '<meta http-equiv="Content-Security-Policy" content="connect-src *">' +
+        '<base href="https://evil.example/">' +
+        "</head><body><p>x</p></body></html>",
+    );
+    expect(result.headHtml).not.toContain("Content-Security-Policy");
+    expect(result.headHtml).not.toContain("<base");
+    expect(result.droppedTags).toContain("meta");
+    expect(result.droppedTags).toContain("base");
+  });
 });

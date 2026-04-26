@@ -26,7 +26,8 @@ async function buildBundleForFormat(input: ExportPaperInput): Promise<ExportedBu
   const { repo, paperId, format, rootId } = input;
   if (format === "md") return exportMdBundleForPaper({ repo, paperId });
   if (format === "html") return exportHtmlBundleForPaper({ repo, paperId });
-  if (format === "pdf") return exportBundleForPaper({ repo, paperId, ...(rootId !== undefined ? { rootId } : {}) });
+  if (format === "pdf")
+    return exportBundleForPaper({ repo, paperId, ...(rootId !== undefined ? { rootId } : {}) });
   format satisfies never;
   throw new Error(`unsupported paper format: ${String(format)}`);
 }

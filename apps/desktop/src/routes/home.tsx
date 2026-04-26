@@ -46,7 +46,7 @@ interface RowItemProps {
   onRename: (id: string, label: string) => void;
   onForget: (id: string) => void;
   onReset: (id: string, label: string) => void;
-  onRepoint: (id: string) => void;
+  onRepoint: () => void;
   onMove: (id: string, deskId: string) => void;
   onTogglePin: (id: string, pinned: boolean) => void;
 }
@@ -113,11 +113,7 @@ function RowItem({
         <span className="home__row-kind">{kindLabel(project.kind)}</span>
         {missing ? (
           <>
-            <button
-              type="button"
-              className="home__row-action"
-              onClick={() => onRepoint(project.id)}
-            >
+            <button type="button" className="home__row-action" onClick={() => onRepoint()}>
               repoint
             </button>
             <button type="button" className="home__row-action" onClick={() => onForget(project.id)}>
@@ -225,7 +221,7 @@ interface SectionProps {
   onRename: (id: string, label: string) => void;
   onForget: (id: string) => void;
   onReset: (id: string, label: string) => void;
-  onRepoint: (id: string) => void;
+  onRepoint: () => void;
   onMove: (id: string, deskId: string) => void;
   onTogglePin: (id: string, pinned: boolean) => void;
 }
@@ -551,7 +547,7 @@ export default function Home(): JSX.Element {
     }
   }
 
-  async function onRepoint(_id: string): Promise<void> {
+  async function onRepoint(): Promise<void> {
     navigate("/wizard");
   }
 
@@ -655,7 +651,7 @@ export default function Home(): JSX.Element {
           onRename={(id, l) => void onRename(id, l)}
           onForget={(id) => void onForget(id)}
           onReset={(id, l) => void onReset(id, l)}
-          onRepoint={(id) => void onRepoint(id)}
+          onRepoint={() => void onRepoint()}
           onMove={(id, deskId) => void onMove(id, deskId)}
           onTogglePin={(id, pinned) => void onTogglePin(id, pinned)}
         />
@@ -666,7 +662,7 @@ export default function Home(): JSX.Element {
           onRename={(id, l) => void onRename(id, l)}
           onForget={(id) => void onForget(id)}
           onReset={(id, l) => void onReset(id, l)}
-          onRepoint={(id) => void onRepoint(id)}
+          onRepoint={() => void onRepoint()}
           onMove={(id, deskId) => void onMove(id, deskId)}
           onTogglePin={(id, pinned) => void onTogglePin(id, pinned)}
         />
@@ -677,7 +673,7 @@ export default function Home(): JSX.Element {
           onRename={(id, l) => void onRename(id, l)}
           onForget={(id) => void onForget(id)}
           onReset={(id, l) => void onReset(id, l)}
-          onRepoint={(id) => void onRepoint(id)}
+          onRepoint={() => void onRepoint()}
           onMove={(id, deskId) => void onMove(id, deskId)}
           onTogglePin={(id, pinned) => void onTogglePin(id, pinned)}
         />

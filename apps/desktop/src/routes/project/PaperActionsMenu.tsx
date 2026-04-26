@@ -1,6 +1,14 @@
 import type { PaperRow } from "@obelus/repo";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { type CSSProperties, type JSX, useCallback, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type JSX,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { exportPaperToFile } from "../../lib/paper-export";
 import { resetPaper as resetPaperOp } from "../../lib/paper-reset";
@@ -38,9 +46,16 @@ export default function PaperActionsMenu({ paper }: PaperActionsMenuProps): JSX.
     if (triggerRef.current) setPos(computePopPosition(triggerRef.current));
   }, []);
 
-  useEffect(() => {
+  // Position synchronously before the browser paints the popover so the
+  // first frame is at the right spot — a `useEffect` would briefly show the
+  // popover offscreen at `top: 0; right: 0` before the layout pass.
+  useLayoutEffect(() => {
     if (!open) return;
     reposition();
+  }, [open, reposition]);
+
+  useEffect(() => {
+    if (!open) return;
     function onClick(e: MouseEvent): void {
       const target = e.target;
       if (!(target instanceof Node)) return;

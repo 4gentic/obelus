@@ -41,7 +41,9 @@ export default function TypstPane({ rootId, relPath }: Props): JSX.Element {
     let cancelled = false;
     void (async () => {
       const papers = await repo.papers.list();
-      const inProject = papers.filter((p) => p.projectId === project.id);
+      const inProject = papers.filter(
+        (p) => p.projectId === project.id && p.removedAt === undefined,
+      );
 
       const companionPdf = relPath.replace(/\.[^./]+$/, ".pdf");
       const byCompanion = inProject.find(

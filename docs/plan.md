@@ -438,7 +438,7 @@ ready to cut a v1 release.
   even when no PDF is open
 - Sidecar gains `claude_ask` (sibling of `claude_spawn`) — single-shot `claude --print`
   with `--add-dir` and `--allowedTools "Read Glob Grep"`, no plugin-dir
-- Persistence: `ask_threads` + `ask_messages` SQLite tables (migration 0004), one thread
+- Persistence: `ask_threads` + `ask_messages` SQLite tables (migration 0001), one thread
   per `(project_id, paper_id NULL-able)`; web repo throws `NotSupportedError`
 - Renderer assembles prompt with project + open paper + selected mark + last ~6 turns,
   streams stdout into the assistant message body
