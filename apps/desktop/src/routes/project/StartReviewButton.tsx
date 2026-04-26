@@ -4,7 +4,8 @@ import { z } from "zod";
 import { splitHeadline } from "../../lib/split-headline";
 import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
-import { usePaperId } from "./OpenPaper";
+import { useEnsureRevision } from "./ensure-revision-context";
+import { useIsPaperOpen, usePaperId } from "./OpenPaper";
 import { type ReviewRunnerMode, useReviewRunner } from "./review-runner-context";
 import { useReviewStore } from "./store-context";
 import { useInlineConfirm } from "./use-inline-confirm";
@@ -16,6 +17,8 @@ const ModeSchema = z.enum(["writer-fast", "rigorous"]);
 export default function StartReviewButton(): JSX.Element {
   const { project, repo } = useProject();
   const paperId = usePaperId();
+  const isPaperOpen = useIsPaperOpen();
+  const ensureRevision = useEnsureRevision();
   const store = useReviewStore();
   const annotations = store((s) => s.annotations);
   const { status, start, cancel } = useReviewRunner();
@@ -27,6 +30,8 @@ export default function StartReviewButton(): JSX.Element {
   return (
     <WriterStartReview
       paperId={paperId}
+      isPaperOpen={isPaperOpen}
+      ensureRevision={ensureRevision}
       annotationCount={annotations.length}
       statusKind={status.kind}
       statusMessage={status.kind === "done" || status.kind === "error" ? status.message : null}
@@ -39,6 +44,8 @@ export default function StartReviewButton(): JSX.Element {
 
 interface WriterStartReviewProps {
   paperId: string | null;
+  isPaperOpen: boolean;
+  ensureRevision: (() => Promise<{ paperId: string; revisionId: string }>) | null;
   annotationCount: number;
   statusKind: "idle" | "working" | "running" | "ingesting" | "done" | "error";
   statusMessage: string | null;
@@ -56,6 +63,8 @@ const MODE_KEY = (paperId: string): string => `paper.${paperId}.lastWriterMode`;
 
 function WriterStartReview({
   paperId,
+  isPaperOpen,
+  ensureRevision,
   annotationCount,
   statusKind,
   statusMessage,
@@ -100,39 +109,48 @@ function WriterStartReview({
     if (statusKind === "done") void edits.refresh();
   }, [statusKind, edits.refresh]);
 
+  const trimmedIndications = indications.trim();
   const canStart =
-    paperId !== null &&
-    annotationCount > 0 &&
+    isPaperOpen &&
+    (annotationCount > 0 || trimmedIndications.length > 0) &&
     statusKind !== "working" &&
     statusKind !== "running" &&
     statusKind !== "ingesting";
 
   const handleStart = useCallback(async () => {
-    if (!canStart || !paperId) return;
+    if (!canStart) return;
+    // Writer-mode MD/HTML papers don't get a paper row until they're needed.
+    // Notes-only Start-review on a freshly-opened file is the trigger.
+    let effectivePaperId = paperId;
+    if (effectivePaperId === null) {
+      if (!ensureRevision) return;
+      const ensured = await ensureRevision();
+      effectivePaperId = ensured.paperId;
+    }
     if (!isOnTip && current && discards.length > 0) {
       await repo.paperEdits.tombstoneDescendantsOf(current.id);
       await edits.refresh();
     }
-    const trimmed = indications.trim();
     await Promise.all([
-      repo.settings.set(INDICATIONS_KEY(paperId), trimmed),
-      repo.settings.set(MODE_KEY(paperId), mode),
+      repo.settings.set(INDICATIONS_KEY(effectivePaperId), trimmedIndications),
+      repo.settings.set(MODE_KEY(effectivePaperId), mode),
     ]);
     await onStart({
-      paperId,
+      paperId: effectivePaperId,
       mode,
-      ...(trimmed !== "" ? { indications: trimmed } : {}),
+      ...(trimmedIndications !== "" ? { indications: trimmedIndications } : {}),
     });
   }, [
     canStart,
     paperId,
+    ensureRevision,
     isOnTip,
     current,
     discards.length,
     repo,
     onStart,
     edits.refresh,
-    indications,
+    trimmedIndications,
     mode,
   ]);
 
@@ -152,17 +170,7 @@ function WriterStartReview({
 
   return (
     <div className="review-column__actions">
-      {paperId !== null && statusKind !== "running" && (
-        <textarea
-          className="review-column__indications"
-          value={indications}
-          onChange={(event) => setIndications(event.target.value)}
-          placeholder="Optional notes for this pass — specific directions, constraints, paragraphs to leave alone."
-          rows={3}
-          disabled={modeDisabled}
-        />
-      )}
-      {paperId !== null && statusKind !== "running" && (
+      {isPaperOpen && statusKind !== "running" && (
         <fieldset className="review-column__mode" disabled={modeDisabled}>
           <legend className="visually-hidden">Review thoroughness</legend>
           <label
@@ -199,7 +207,7 @@ function WriterStartReview({
       )}
       {statusKind !== "running" ? (
         <div className="review-column__launch">
-          {paperId !== null ? <ClaudeChip /> : null}
+          {isPaperOpen ? <ClaudeChip /> : null}
           <button
             type="button"
             className={
@@ -223,8 +231,21 @@ function WriterStartReview({
           Cancel
         </button>
       )}
-      {paperId === null && <p className="review-column__hint">Open a paper to start a review.</p>}
-      {paperId !== null &&
+      {isPaperOpen && statusKind !== "running" && (
+        <label className="review-column__notes">
+          <span className="review-column__notes-label">Notes</span>
+          <textarea
+            className="review-column__notes-input"
+            value={indications}
+            onChange={(event) => setIndications(event.target.value)}
+            placeholder="Tell the reviewer what to focus on — or leave alone. e.g. “check the whole paper for inconsistencies.”"
+            rows={3}
+            disabled={modeDisabled}
+          />
+        </label>
+      )}
+      {!isPaperOpen && <p className="review-column__hint">Open a paper to start a review.</p>}
+      {isPaperOpen &&
         !isOnTip &&
         current &&
         discards.length > 0 &&

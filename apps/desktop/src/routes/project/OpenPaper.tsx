@@ -265,3 +265,8 @@ export function usePaperId(): string | null {
   if (op.kind === "ready-html") return op.paper?.id ?? null;
   return null;
 }
+
+export function useIsPaperOpen(): boolean {
+  const op = useContext(OpenPaperContext).state;
+  return op.kind === "ready" || op.kind === "ready-md" || op.kind === "ready-html";
+}

@@ -140,8 +140,8 @@ export default function ProjectShell(): JSX.Element {
     if (!isLazyMd && !isLazyHtml) return null;
     const relPath = openPaper.path;
     const format = isLazyMd ? "md" : "html";
-    return async (): Promise<string> => {
-      const { revision } = await findOrCreatePaper({
+    return async (): Promise<{ paperId: string; revisionId: string }> => {
+      const { paper, revision } = await findOrCreatePaper({
         repo,
         projectId: project.id,
         rootId,
@@ -150,7 +150,7 @@ export default function ProjectShell(): JSX.Element {
         pageCount: 0,
       });
       refreshOpenPaper();
-      return revision.id;
+      return { paperId: paper.id, revisionId: revision.id };
     };
   }, [openPaper, repo, project.id, rootId, refreshOpenPaper]);
 
