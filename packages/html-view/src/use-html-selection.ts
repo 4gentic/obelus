@@ -245,6 +245,11 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
   const onSelectionRef = useRef(onSelection);
   onSelectionRef.current = onSelection;
   const lastQuoteRef = useRef<string>("");
+  // Mirrors `lastQuoteRef` but stores only the bare quote text (not the
+  // `img:...` dedup key), so the copy listener below can write the actual
+  // selected text to the clipboard when the user presses Cmd+C inside the
+  // sandboxed iframe.
+  const copyQuoteRef = useRef<string>("");
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: mountVersion is the intentional re-trigger — the iframe loads asynchronously, so the listener must re-attach to the iframe document once mountRef.current points there.
   useEffect(() => {
@@ -306,6 +311,7 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
           : `img:${result.kind}:${result.anchor.xpath}:${result.quote}`;
       if (dedupKey === lastQuoteRef.current) return;
       lastQuoteRef.current = dedupKey;
+      copyQuoteRef.current = result.quote;
       console.info("[html-select] image click", {
         kind: result.kind,
         quote: result.quote,
@@ -344,17 +350,38 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
         // "the user just cleared their text selection".
         if (lastQuoteRef.current !== "" && !lastQuoteRef.current.startsWith("img:")) {
           lastQuoteRef.current = "";
+          copyQuoteRef.current = "";
           onSelectionRef.current(null);
         }
         return;
       }
       if (result.quote === lastQuoteRef.current) return;
       lastQuoteRef.current = result.quote;
+      copyQuoteRef.current = result.quote;
       console.info("[html-select] emitting anchor", {
         kind: result.kind,
         quoteLen: result.quote.length,
       });
       onSelectionRef.current(result);
+    }
+    function onCopy(ev: ClipboardEvent): void {
+      const liveMount = mountRef.current;
+      if (!liveMount) return;
+      const quote = copyQuoteRef.current;
+      if (quote === "") return;
+      // Resolve the live Selection from whichever document fired this copy.
+      // The user's selection lives in the iframe doc when the mount is
+      // iframed; the parent doc otherwise. We only override the clipboard
+      // when the selection's commonAncestor is inside our mount, so author
+      // pages outside the paper aren't affected.
+      const evDoc = ev.target instanceof Document ? ev.target : null;
+      const win = evDoc?.defaultView ?? null;
+      const sel = win?.getSelection() ?? evDoc?.getSelection() ?? null;
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      const range = sel.getRangeAt(0);
+      if (!liveMount.contains(range.commonAncestorContainer)) return;
+      ev.clipboardData?.setData("text/plain", quote);
+      ev.preventDefault();
     }
     for (const d of docs) {
       for (const evt of REFRESH_EVENTS) {
@@ -364,6 +391,7 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
       // can `stopPropagation()` (interactive HTML papers love to do this).
       // We don't `preventDefault`, so the iframe's own listeners still run.
       d.addEventListener("click", onClick, true);
+      d.addEventListener("copy", onCopy);
     }
     return () => {
       for (const d of docs) {
@@ -371,6 +399,7 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
           d.removeEventListener(evt, onSelectionChange);
         }
         d.removeEventListener("click", onClick, true);
+        d.removeEventListener("copy", onCopy);
       }
     };
   }, [hostRef, mountRef, mode, sourceFile, mountVersion]);
