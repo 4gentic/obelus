@@ -9,9 +9,49 @@ import { resolveAcrossFiles } from "./resolveSourceAnchors";
 // excluded upstream; this keeps the candidate set to searchable text.
 const SOURCE_FORMATS = new Set(["typ", "tex", "md"]);
 
+// Formats kept in the bundle's `project.files[]` inventory. Broader than the
+// pre-resolver's set: `html` and `bib` can legitimately compile a paper, and
+// the desktop's prelude builder will further filter to `typ`/`tex`/`md` for
+// the model's read list. The bundle is the canonical manifest; downstream
+// consumers narrow as they see fit.
+const INVENTORY_FORMATS = new Set(["typ", "tex", "md", "html", "bib"]);
+
 function dirnameOf(relPath: string): string {
   const i = relPath.lastIndexOf("/");
   return i < 0 ? "" : relPath.slice(0, i);
+}
+
+// Files that compile the paper. Scope: source format AND inside the paper's
+// source-root directory tree. The source root is `dirname(mainRelPath)` when
+// the paper declares an entrypoint, else `dirname(pdfRelPath)` (writer
+// projects typically colocate the PDF and its source). Always retain the
+// entrypoint itself, even when its dirname is empty (paper at project root).
+//
+// Without this scoping, a project with hundreds of unrelated source files
+// (CLAUDE.md, ROADMAP.md, integration docs, benchmark fixtures registered as
+// JSON, etc.) bloats the bundle with files the planner never needs — and the
+// model paginates the entire JSON before reaching the annotations.
+export function scopePaperFiles(
+  projectFiles: ReadonlyArray<Pick<ProjectFileRow, "relPath" | "format" | "role">>,
+  paperSourceRoot: string,
+  entrypoint: string | undefined,
+): Array<Pick<ProjectFileRow, "relPath" | "format" | "role">> {
+  const root = paperSourceRoot;
+  const matchesScope = (relPath: string): boolean => {
+    if (entrypoint !== undefined && relPath === entrypoint) return true;
+    if (root === "") return true;
+    return relPath === root || relPath.startsWith(`${root}/`);
+  };
+  const out = projectFiles.filter(
+    (f) => INVENTORY_FORMATS.has(f.format) && matchesScope(f.relPath),
+  );
+  // De-duplicate by relPath (entrypoint may sit in the scoped tree already).
+  const seen = new Set<string>();
+  return out.filter((f) => {
+    if (seen.has(f.relPath)) return false;
+    seen.add(f.relPath);
+    return true;
+  });
 }
 
 // Candidate source files to try when the paper's `mainRelPath` either isn't
@@ -194,6 +234,9 @@ export async function exportBundleForPaper(input: ExportBundleInput): Promise<Ex
     resolutionsByFile: Object.fromEntries(resolutionsByFile),
   });
 
+  const paperSourceRoot = dirnameOf(mainRelPath ?? paper.pdfRelPath);
+  const scopedFiles = scopePaperFiles(projectFiles, paperSourceRoot, mainRelPath);
+
   const projectInput: ProjectInput = {
     id: project.id,
     label: project.label,
@@ -203,18 +246,24 @@ export async function exportBundleForPaper(input: ExportBundleInput): Promise<Ex
       label: c.label,
     })),
     ...(paperBuild?.mainRelPath ? { main: paperBuild.mainRelPath } : {}),
-    ...(projectFiles.length > 0
+    ...(scopedFiles.length > 0
       ? {
-          files: projectFiles
-            .filter((f) => f.format !== "pdf")
-            .map((f) => ({
-              relPath: f.relPath,
-              format: f.format,
-              ...(f.role !== null ? { role: f.role } : {}),
-            })),
+          files: scopedFiles.map((f) => ({
+            relPath: f.relPath,
+            format: f.format,
+            ...(f.role !== null ? { role: f.role } : {}),
+          })),
         }
       : {}),
   };
+
+  console.info("[export-bundle:scope]", {
+    paperId: paper.id,
+    paperSourceRoot,
+    projectFilesTotal: projectFiles.length,
+    scopedFiles: scopedFiles.length,
+    droppedFiles: projectFiles.length - scopedFiles.length,
+  });
 
   const bundle = buildBundle({
     project: projectInput,

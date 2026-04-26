@@ -144,9 +144,8 @@ function findDelimiter(value: string): string | null {
 // in the title would let an attacker forge what looks like a second prelude
 // line; rejecting them at export keeps the consumer's line-oriented parser
 // honest. U+0009 (\t) is allowed because it renders harmlessly inside a quoted
-// title; everything else in C0 plus DEL is refused. Built via `new RegExp`
-// from a string so the literal control chars don't trip the lint rule that
-// forbids them in regex *literals*.
+// title; everything else in C0 plus DEL is refused.
+// biome-ignore lint/complexity/useRegexLiterals: \x0A and friends trip noControlCharactersInRegex in a literal
 const TITLE_FORBIDDEN_CHARS = new RegExp("[\\x00-\\x08\\x0A-\\x1F\\x7F]");
 
 function assertNoDelimiterCollisions(input: BuildBundleInput): void {

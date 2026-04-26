@@ -166,6 +166,29 @@ function snapshotPage(
 
 export default function SelectionListener({ onAnchor, children }: Props): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  // The quote we computed geometrically from the user's drag — what they
+  // actually selected. The native pdf.js Range gets this wrong (its boundaries
+  // can pin to a much earlier span; see the comment block in the mouseup
+  // handler), so any Cmd+C of the live Selection would copy the wrong text.
+  // The copy listener below substitutes this quote when the user copies.
+  const quoteRef = useRef<string>("");
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const onCopy = (ev: ClipboardEvent): void => {
+      const quote = quoteRef.current;
+      if (quote === "") return;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      const range = sel.getRangeAt(0);
+      if (!host.contains(range.commonAncestorContainer)) return;
+      ev.clipboardData?.setData("text/plain", quote);
+      ev.preventDefault();
+    };
+    document.addEventListener("copy", onCopy);
+    return () => document.removeEventListener("copy", onCopy);
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -250,7 +273,10 @@ export default function SelectionListener({ onAnchor, children }: Props): JSX.El
         quote,
         itemsByPage,
       );
-      window.getSelection()?.removeAllRanges();
+      // Keep the live Selection visible — the user's drag rect is the
+      // confirmation that the gesture landed. The copy-event override above
+      // substitutes the geometric quote when they actually press Cmd+C.
+      quoteRef.current = quote;
     };
 
     document.addEventListener("mousedown", onDown);
