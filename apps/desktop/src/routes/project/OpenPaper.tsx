@@ -192,9 +192,9 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
             sourceFile: classification.mode === "source" ? classification.sourceFile : null,
             scriptCount: sanitized.scriptCount,
             linkCount: sanitized.linkCount,
-            droppedTagCount: sanitized.droppedTagCount,
+            droppedTags: sanitized.droppedTags,
             droppedDangerousLinks: sanitized.droppedDangerousLinks,
-            authorStylesBlockedCount: sanitized.authorStylesBlocked.length,
+            authorStylesBlocked: sanitized.authorStylesBlocked,
             paperId: lookup?.paper.id ?? null,
           });
           if (!cancelled) {
@@ -264,4 +264,9 @@ export function usePaperId(): string | null {
   if (op.kind === "ready-md") return op.paper?.id ?? null;
   if (op.kind === "ready-html") return op.paper?.id ?? null;
   return null;
+}
+
+export function useIsPaperOpen(): boolean {
+  const op = useContext(OpenPaperContext).state;
+  return op.kind === "ready" || op.kind === "ready-md" || op.kind === "ready-html";
 }

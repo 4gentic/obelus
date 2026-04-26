@@ -275,15 +275,40 @@ function PhaseLog({ job }: { job: JobRecord }): JSX.Element {
       </p>
     );
   }
+  // Per-row duration is `next.at − cur.at` for terminal rows; for the active
+  // row (last entry while the job is live) it is `now − cur.at` and ticks via
+  // the dock's existing 1s setInterval. After exit, the active row freezes on
+  // its final span (`endedAt − cur.at`).
   const tail = entries.slice(-16);
+  const live = isLive(job);
+  const referenceEnd = job.endedAt ?? Date.now();
+  const lastIndex = entries.length - 1;
   return (
     <ol className="jobs-dock__phases">
-      {tail.map((entry) => (
-        <li key={`${entry.at}:${entry.phase}`}>
-          <time className="jobs-dock__phase-when">{formatHMS(entry.at)}</time>
-          <span className="jobs-dock__phase-what">{entry.phase}</span>
-        </li>
-      ))}
+      {tail.map((entry, i) => {
+        const indexInHistory = entries.length - tail.length + i;
+        const isActive = live && indexInHistory === lastIndex;
+        const next = entries[indexInHistory + 1];
+        const endAt = next ? next.at : referenceEnd;
+        const durationMs = Math.max(0, endAt - entry.at);
+        return (
+          <li
+            key={`${entry.at}:${entry.phase}`}
+            className={isActive ? "jobs-dock__phase--active" : undefined}
+          >
+            <time className="jobs-dock__phase-when">{formatHMS(entry.at)}</time>
+            <div className="jobs-dock__phase-body">
+              <span className="jobs-dock__phase-what">{entry.phase}</span>
+              <span className="jobs-dock__phase-dur">
+                {isActive ? `running · ${formatElapsed(durationMs)}` : formatElapsed(durationMs)}
+              </span>
+              {isActive && job.currentTool ? (
+                <span className="jobs-dock__phase-now">{job.currentTool}</span>
+              ) : null}
+            </div>
+          </li>
+        );
+      })}
     </ol>
   );
 }

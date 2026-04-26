@@ -24,6 +24,12 @@ export interface PaperRow {
   pageCount?: number;
   entrypointRelPath?: string;
   rubric?: PaperRubric;
+  // ISO timestamp set when the paper is soft-removed from the project's
+  // "Reviewing" sidebar. The row + every dependent record (revisions,
+  // annotations, paper_edits chain, review_sessions, diff_hunks, writeups,
+  // paper_build) stays intact so future time-travel-across-drafts can still
+  // walk the history. Re-opening the paper file from disk clears this.
+  removedAt?: string;
 }
 
 export interface RevisionRow {
@@ -146,17 +152,35 @@ export interface DiffHunkApplyFailure {
   attemptedAt: string;
 }
 
+// Categorical reason a hunk arrived with `patch === ""`. Mirrors the planner's
+// emptyReason field in the plan JSON; the diff-review UI keys off it to render
+// margin badges (praised, ambiguous, impact, no-edit) instead of dumping a
+// generic "skipped" placeholder into the diff list.
+export type DiffHunkEmptyReason = "praise" | "ambiguous" | "structural-note" | "no-edit-requested";
+
 export interface DiffHunkRow {
   id: string;
   sessionId: string;
-  annotationId: string | null;
+  // Marks this hunk satisfies. A user-mark hunk carries one or more annotation
+  // UUIDs (>1 when the planner merged overlapping marks into a single edit);
+  // a synthesised hunk (cascade-/impact-/coherence-/quality-/compile-) carries
+  // exactly one synthesised id whose prefix downstream readers key on.
+  annotationIds: string[];
   file: string;
   category: string | null;
   patch: string;
   modifiedPatchText: string | null;
   state: DiffHunkState;
   ambiguous: boolean;
+  // Set iff `patch === ""`. The discriminator the diff-review UI switches on.
+  emptyReason: DiffHunkEmptyReason | null;
   noteText: string;
+  // Planner prose attached to this block — the *agent's* explanation of why
+  // it produced the patch (or, for empty patches, why no edit was made).
+  // Distinct from `noteText`, which is the reviewer's followup that feeds
+  // the repass prompt. Often empty for ordinary diffs; the value is most
+  // interesting for informational marks where there is no diff to read.
+  reviewerNotes: string;
   ordinal: number;
   // Populated by a partial apply when this hunk could not be applied against
   // the current source. Cleared on repass / discard / dismiss-failures.

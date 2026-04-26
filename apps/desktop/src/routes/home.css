@@ -379,6 +379,12 @@
   text-decoration-color: var(--rubric);
 }
 
+.home__row-action--armed {
+  opacity: 1;
+  color: var(--rubric);
+  text-decoration-color: var(--rubric);
+}
+
 .home__row-input {
   font-family: var(--font-display);
   font-size: 20px;

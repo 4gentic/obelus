@@ -182,6 +182,12 @@ export function workspaceDelete(projectId: string): Promise<void> {
   return invoke<void>("workspace_delete", { projectId });
 }
 
+// Removes every top-level workspace file whose name embeds `paperId`. Used by
+// the per-paper reset flow. Returns the number of files deleted.
+export function workspaceRemovePaperFiles(projectId: string, paperId: string): Promise<number> {
+  return invoke<number>("workspace_remove_paper_files", { projectId, paperId });
+}
+
 export interface TypstCompileReport {
   outputRelPath: string;
   stderr: string;

@@ -1,12 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type { PlanBlock, PlanFile } from "./plan";
+export type { PlanBlock, PlanEmptyReason, PlanFile } from "./plan";
 export {
+  PLAN_EMPTY_REASONS,
   PlanFile as PlanFileSchema,
   pickLatestPlanName,
   pickLatestWriteupName,
 } from "./plan";
+
+export type ClaudeSpawnMode = "writer-fast" | "rigorous";
 
 export interface ClaudeSpawnInput {
   rootId: string;
@@ -15,6 +18,10 @@ export interface ClaudeSpawnInput {
   extraPromptBody?: string;
   model?: string | null;
   effort?: string | null;
+  // "writer-fast" routes to the one-turn plan-writer-fast skill on Haiku.
+  // "rigorous" (default) routes to apply-revision → plan-fix on Sonnet — the
+  // existing path with stress-test, impact, and coherence sweeps.
+  mode?: ClaudeSpawnMode;
 }
 
 export interface ClaudeStreamEvent {
@@ -37,6 +44,7 @@ export function claudeSpawn(input: ClaudeSpawnInput): Promise<string> {
     extraPromptBody: input.extraPromptBody ?? null,
     model: input.model ?? null,
     effort: input.effort ?? null,
+    mode: input.mode ?? null,
   });
 }
 

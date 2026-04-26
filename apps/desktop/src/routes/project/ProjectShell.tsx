@@ -54,7 +54,6 @@ export default function ProjectShell(): JSX.Element {
   const divergence = useWorkingTreeDivergence(rootId, project.id, currentDraft);
   const findStore = useFindStore();
   const quickOpenStore = useQuickOpenStore();
-  const pdfOpen = openPaper.kind === "ready";
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent): void => {
@@ -75,9 +74,10 @@ export default function ProjectShell(): JSX.Element {
       }
 
       // Cmd/Ctrl+F: route to CodeMirror when a source editor is mounted; open
-      // the PDF find bar otherwise. When the event originates inside a
-      // CodeMirror editor, its own `searchKeymap` already handled it — bail
-      // out so we don't fire twice.
+      // the shared FindBar otherwise (PDF, MD preview, HTML preview each
+      // register their own provider through `setProvider`). When the event
+      // originates inside a CodeMirror editor, its own `searchKeymap` already
+      // handled it — bail out so we don't fire twice.
       if (
         (ev.metaKey || ev.ctrlKey) &&
         !ev.shiftKey &&
@@ -93,10 +93,8 @@ export default function ProjectShell(): JSX.Element {
           openSearchPanel(view);
           return;
         }
-        if (pdfOpen) {
-          ev.preventDefault();
-          findStore.getState().open();
-        }
+        ev.preventDefault();
+        findStore.getState().open();
         return;
       }
 
@@ -127,7 +125,7 @@ export default function ProjectShell(): JSX.Element {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [reviewStore, findStore, quickOpenStore, pdfOpen]);
+  }, [reviewStore, findStore, quickOpenStore]);
 
   // Writer-mode MD/HTML papers don't get a `papers` row until their first mark.
   // `ReviewDraft` (mounted in `ReviewColumn`, a sibling subtree of `CenterPane`)
@@ -140,8 +138,8 @@ export default function ProjectShell(): JSX.Element {
     if (!isLazyMd && !isLazyHtml) return null;
     const relPath = openPaper.path;
     const format = isLazyMd ? "md" : "html";
-    return async (): Promise<string> => {
-      const { revision } = await findOrCreatePaper({
+    return async (): Promise<{ paperId: string; revisionId: string }> => {
+      const { paper, revision } = await findOrCreatePaper({
         repo,
         projectId: project.id,
         rootId,
@@ -150,7 +148,7 @@ export default function ProjectShell(): JSX.Element {
         pageCount: 0,
       });
       refreshOpenPaper();
-      return revision.id;
+      return { paperId: paper.id, revisionId: revision.id };
     };
   }, [openPaper, repo, project.id, rootId, refreshOpenPaper]);
 

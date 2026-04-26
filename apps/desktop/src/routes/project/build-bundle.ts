@@ -96,9 +96,6 @@ export async function exportBundleForPaper(input: ExportBundleInput): Promise<Ex
   if (!latest) throw new Error("paper has no revision");
 
   const rows = await repo.annotations.listForRevision(latest.id);
-  if (rows.length === 0) {
-    throw new Error("no annotations to review");
-  }
 
   const papers: PaperRefInput[] = [
     {
@@ -267,7 +264,6 @@ export async function exportHtmlBundleForPaper(
   if (!latest) throw new Error("paper has no revision");
 
   const rows = await repo.annotations.listForRevision(latest.id);
-  if (rows.length === 0) throw new Error("no annotations to review");
 
   const { annotations, droppedForPdfAnchor, seenKinds, firstSourceFile } = mapHtmlAnnotations(
     rows,
@@ -370,7 +366,6 @@ export async function exportMdBundleForPaper(input: ExportMdBundleInput): Promis
   if (!latest) throw new Error("paper has no revision");
 
   const rows = await repo.annotations.listForRevision(latest.id);
-  if (rows.length === 0) throw new Error("no annotations to review");
 
   const droppedForMissingAnchor: string[] = [];
   const annotations: AnnotationInput[] = [];

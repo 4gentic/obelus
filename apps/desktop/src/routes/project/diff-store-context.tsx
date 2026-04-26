@@ -15,10 +15,11 @@ export function DiffStoreProvider({ children }: { children: ReactNode }): JSX.El
 
   // Source of truth is the DB: query the latest review session that is
   // neither discarded nor already applied for the active paper, and load its
-  // hunks. Applied sessions have landed as drafts — they belong to the Drafts
-  // tab, not the Diff tab. Subscribing to the jobs store is still load-bearing
-  // for the in-flight → done transition (we re-query then), but a fresh app
-  // refresh now finds the previous review without any job records present.
+  // hunks. Applied sessions have landed as drafts — they live on the drafts
+  // rail, not the Diff tab. Subscribing to the jobs store is still
+  // load-bearing for the in-flight → done transition (we re-query then), but
+  // a fresh app refresh now finds the previous review without any job
+  // records present.
   useEffect(() => {
     let cancelled = false;
 
@@ -63,10 +64,10 @@ export function useDiffStore(): DiffStore {
 // actively review. We exclude `discarded` (explicit user dismissal) and
 // pre-ingest states so the UI doesn't flash an empty diff while plan-fix is
 // still writing, and we exclude sessions that have already been applied
-// (`appliedAt !== null`) — those have landed as drafts and belong to the
-// Drafts tab. Without this second filter, the post-apply jobs-store tick
+// (`appliedAt !== null`) — those have landed as drafts on the rail, not as
+// pending diffs. Without this second filter, the post-apply jobs-store tick
 // re-loads the just-applied session and the Diff tab reappears with the
-// hunks and the "keep these changes" button, as if nothing had been applied.
+// hunks and the "apply" button, as if nothing had been applied.
 // Finally, we skip sessions that persisted with zero hunks — new sessions
 // are auto-discarded at ingest, but historical rows written before that fix
 // would otherwise keep surfacing as "Plan loaded but no hunks were produced"

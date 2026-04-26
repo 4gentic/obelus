@@ -23,8 +23,11 @@ export async function buildRepassPrompt(input: BuildRepassPromptInput): Promise<
 
   for (const h of responses) {
     const file = h.file === "" ? "(unresolved)" : h.file;
-    const id = h.annotationId ?? h.id;
-    lines.push(`## ${file}:${id}`);
+    const headingId = h.annotationIds[0] ?? h.id;
+    lines.push(`## ${file}:${headingId}`);
+    if (h.annotationIds.length > 1) {
+      lines.push(`Satisfies marks: ${h.annotationIds.join(", ")}`);
+    }
     if (h.noteText.trim() !== "") {
       lines.push(h.noteText.trim());
     }

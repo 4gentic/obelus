@@ -187,6 +187,50 @@ pub async fn workspace_delete(app: AppHandle, project_id: String) -> AppResult<(
     }
 }
 
+// Removes every top-level file in the project's workspace whose name embeds
+// the paper UUID. The plugin writes paper-keyed artifacts as
+// `writeup-<paperId>-<iso>.md`; any future paper-keyed artifact must follow
+// the same convention. `paper_id` is UUID-validated before use as a
+// substring match, otherwise a forged value could match every entry.
+// Subdirectories are not recursed (the workspace is flat today).
+#[tauri::command]
+pub async fn workspace_remove_paper_files(
+    app: AppHandle,
+    project_id: String,
+    paper_id: String,
+) -> AppResult<u32> {
+    Uuid::parse_str(&paper_id).map_err(|_| AppError::UnknownRootId)?;
+    let dir = workspace_dir_for(&app, &project_id)?;
+    let mut rd = match tokio::fs::read_dir(&dir).await {
+        Ok(rd) => rd,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(err) => return Err(AppError::from(err)),
+    };
+    let mut removed: u32 = 0;
+    while let Some(entry) = rd.next_entry().await.map_err(AppError::from)? {
+        let ft = match entry.file_type().await {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if !ft.is_file() {
+            continue;
+        }
+        let name = entry.file_name();
+        let Some(name_str) = name.to_str() else {
+            continue;
+        };
+        if !name_str.contains(&paper_id) {
+            continue;
+        }
+        match tokio::fs::remove_file(entry.path()).await {
+            Ok(()) => removed += 1,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(AppError::from(err)),
+        }
+    }
+    Ok(removed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -72,26 +72,23 @@ This skill delegates the actual planning to `plan-fix`, which writes the plan fi
 
 3. **Per-paper preflight.** For each entry in `bundle.papers`:
 
-   a. **PDF hash check (optional).** If `paper.pdf?.relPath` is present, check whether the file exists at that path in the repo.
-      - **Exists, hash matches:** stay silent.
-      - **Exists, hash mismatches:** warn in one sentence naming the paper title and continue. Record it for the summary.
-      - **Missing:** narrate one sentence (`The PDF for "<paper title>" (<relPath>) isn't in this repo.`) and continue. Step 3b may still find source if the repo holds it but not the rendered PDF.
+   a. **PDF hash check.** The desktop's `Pre-flight` reports `pdf: <relPath> (sha256 matches | mismatches | missing)` per paper. Surface the warning verbatim:
+      - **matches:** stay silent.
+      - **mismatches:** warn in one sentence naming the paper title (`The PDF for "<title>" has changed since the bundle was built.`) and continue.
+      - **missing:** narrate one sentence (`The PDF for "<title>" (<relPath>) isn't in this repo.`) and continue. Step 3b may still find source if the repo holds it but not the rendered PDF.
 
-   b. **Locate the paper source.** Precedence:
-      - If `--entrypoint <path>` was supplied (single-paper case only), use it. For multi-paper bundles, refuse `--entrypoint` and tell the user to omit it.
-      - Else if `paper.entrypoint` is present in the bundle, use it and infer `format` from the extension (`.tex` → latex, `.md` → markdown, `.typ` → typst, `.html` / `.htm` → html).
-      - Else if `bundle.project.main` is present, use it as the project-wide entrypoint when the paper has no per-paper override; infer `format` from the extension as above. The desktop app populates `project.main` from the `project_build` cache, and mirrors the same data to `$OBELUS_WORKSPACE_DIR/project.json` (readable via `Read` if `bundle.project.main` is absent but the repo was opened in the desktop app).
-      - Else run the classification procedure inline using only `Glob` / `Read` / `Grep`:
+      When invoked without a host (no `Pre-flight` block in the prompt), the same logic applies inline: read `paper.pdf?.relPath` if present and compare its bytes against `paper.pdf.sha256`.
 
-        - **LaTeX.** Glob `**/*.tex`. For each, read the first ~200 lines and look for `\documentclass`. The entrypoint is the file that has it (not `\input`'d from elsewhere). If multiple candidates exist, prefer `main.tex`, `paper.tex`, then the shortest path.
-        - **Typst.** Glob `**/*.typ`. Entrypoint heuristic: presence of `#set document(` or `#show:` at top level. Prefer `main.typ`, `paper.typ`, `report.typ`.
-        - **Markdown.** Glob `**/*.md` excluding `README.md`, `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, and anything under `node_modules/`, `.git/`, `dist/`, `build/`. A Markdown paper usually has a YAML frontmatter block (`---` at line 1) with `title:` or `author:`. Prefer `paper.md`, `manuscript.md`, then the longest remaining `.md` by word count.
-        - **HTML.** Hand-authored HTML papers — paired-source HTML bundles already arrive with a `.md` / `.tex` / `.typ` entrypoint and are handled by the previous branches. Glob `**/*.{html,htm}` excluding `node_modules/`, `.git/`, `dist/`, `build/`, and rendered preview files (basename starts with `preview` or ends in `.preview.html`). A hand-authored HTML paper usually has `<article>`, `<main>`, or a `<title>` / `<h1>` carrying the paper title. Prefer `paper.html`, `manuscript.html`, `index.html`, then the longest remaining `.html` by word count.
-        - **Conflict resolution.** If two formats both present candidates, pick the one whose entrypoint was modified most recently; the displaced one goes into a disambiguation note.
+   b. **Locate the paper source.** The desktop's `Pre-flight` block above
+      reports `format` and `entrypoint` per paper; use them. The host has
+      already computed the same answer the cascade below would compute, and
+      its `bundle.project.main` / `bundle.project.files[]` fields back the
+      result. Skip detection and emit `Detected <format> source at <entrypoint>
+      for "<paper title>".` per paper, in one turn.
 
-        If `bundle.project.files` is present, use it as the pre-filtered candidate set instead of a fresh glob (the desktop already walked the tree for you; entries with `role: "main"` are preferred). Do **not** emit a JSON block; narrate one sentence per paper (`Detected <format> source at <entrypoint> for <paper title>.`) and continue in the same turn.
-
-      - **On nothing matched**, stop with the structured refusal below, scoped to the specific paper — name the paper title in the first sentence and keep both fallback options:
+      When invoked without a host (no `Pre-flight` block in the prompt and the
+      bundle lacks both `paper.entrypoint` and `bundle.project.main`), fall
+      through to the structured refusal below.
 
         > **Cannot apply this revision for "<paper title>" — no `.tex`, `.md`, `.typ`, or `.html` paper source found in this repo.**
         >
