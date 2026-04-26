@@ -1447,16 +1447,101 @@ button.files__row {
   cursor: help;
 }
 
-.diff-review__hidden-note {
+.diff-review__informational {
   /* Surfaces ingested-but-hidden empty hunks (praise / ambiguous / impact)
-     so the user knows the planner did look at every mark; the diff list just
-     skipped the ones with nothing to accept. */
+     as a non-actionable section above the diff list. The user gets to read
+     the planner's commentary without anything to accept or reject. */
   margin: 0 var(--space-2) var(--space-2);
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--ink-soft);
+  background: var(--panel);
+}
+
+.diff-review__informational-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.diff-review__informational-title {
+  font-size: var(--step--1);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.diff-review__informational-sub {
+  font-size: var(--step--1);
   color: var(--ink-soft);
+}
+
+.diff-review__informational-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.diff-review__informational-item {
+  padding: var(--space-1) var(--space-2);
+  border-top: 1px solid var(--rule-soft);
+}
+
+.diff-review__informational-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.diff-review__informational-item-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--step--1);
+  margin-bottom: var(--space-1);
+}
+
+.diff-review__informational-reason {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--rule-soft);
+  border-radius: 2px;
+  font-size: var(--step--2, 0.75rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.diff-review__informational-reason[data-reason="praise"] {
+  color: var(--rubric);
+  border-color: color-mix(in oklab, var(--rubric) 35%, var(--rule-soft));
+}
+
+.diff-review__informational-loc {
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+}
+
+.diff-review__informational-cat {
+  color: var(--ink);
+}
+
+.diff-review__informational-quote {
+  margin: 0 0 var(--space-1);
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--rule-soft);
+  color: var(--ink);
   font-size: var(--step--1);
   font-style: italic;
-  border-left: 2px solid var(--rule-soft);
+}
+
+.diff-review__informational-notes {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--step--1);
+  line-height: 1.45;
 }
 
 .diff-block__notes {
@@ -2008,6 +2093,45 @@ button.files__row {
 
 .cat-tooltip[data-cat-tooltip]:hover::after,
 .cat-tooltip[data-cat-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+
+/* Hover panel for the "satisfies N marks" chip on a hunk header. Lists each
+   linked mark's quote, one per line, middle-truncated to keep a single
+   oversized highlight from blowing out the panel. Same paper aesthetic as
+   .cat-tooltip but left-anchored, wider, and pre-wrap so explicit \n
+   separators between bullets render as line breaks. Left-anchored because the
+   chip sits near the left of the hunk header, and .diff-review's overflow-y
+   makes overflow-x clip — anchoring right would clip the tooltip's left edge.
+   Extending rightward stays inside the wide diff body. */
+.satisfies-tooltip {
+  position: relative;
+}
+
+.satisfies-tooltip[data-satisfies-tooltip]::after {
+  content: attr(data-satisfies-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  max-width: 480px;
+  width: max-content;
+  padding: var(--space-2) var(--space-3);
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--radius-1);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 100;
+  transition: opacity 120ms ease 250ms;
+}
+
+.satisfies-tooltip[data-satisfies-tooltip]:hover::after,
+.satisfies-tooltip[data-satisfies-tooltip]:focus-visible::after {
   opacity: 1;
 }
 

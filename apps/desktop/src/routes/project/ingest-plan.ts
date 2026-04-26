@@ -310,6 +310,7 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     ambiguous: b.ambiguous,
     emptyReason: b.emptyReason,
     noteText: "",
+    reviewerNotes: b.reviewerNotes,
     ordinal: i,
     applyFailure: null,
   }));

@@ -165,6 +165,8 @@ export interface DiffHunksRepo {
   setModifiedPatch(id: string, patch: string): Promise<void>;
   setNote(id: string, note: string): Promise<void>;
   acceptAllInFile(sessionId: string, file: string): Promise<void>;
+  acceptAllInSession(sessionId: string): Promise<void>;
+  rejectAllInSession(sessionId: string): Promise<void>;
   countsByState(sessionId: string): Promise<Record<DiffHunkState, number>>;
   setApplyFailure(id: string, failure: DiffHunkApplyFailure | null): Promise<void>;
   clearApplyFailures(sessionId: string): Promise<void>;

@@ -169,6 +169,12 @@ export interface DiffHunkRow {
   // Set iff `patch === ""`. The discriminator the diff-review UI switches on.
   emptyReason: DiffHunkEmptyReason | null;
   noteText: string;
+  // Planner prose attached to this block — the *agent's* explanation of why
+  // it produced the patch (or, for empty patches, why no edit was made).
+  // Distinct from `noteText`, which is the reviewer's followup that feeds
+  // the repass prompt. Often empty for ordinary diffs; the value is most
+  // interesting for informational marks where there is no diff to read.
+  reviewerNotes: string;
   ordinal: number;
   // Populated by a partial apply when this hunk could not be applied against
   // the current source. Cleared on repass / discard / dismiss-failures.

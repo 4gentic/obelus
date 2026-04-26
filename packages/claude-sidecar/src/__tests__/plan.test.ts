@@ -175,6 +175,123 @@ describe("PlanBlock empty-patch invariants", () => {
     );
     expect(parsed.blocks[0]?.annotationIds).toEqual(["cascade-abcd1234-1"]);
   });
+
+  it("rejects an impact-* block with empty reviewerNotes", () => {
+    expect(() =>
+      PlanFile.parse(
+        envelope([
+          block({
+            annotationIds: ["impact-abcd1234-1"],
+            category: "unclear",
+            patch: "",
+            emptyReason: "structural-note",
+            reviewerNotes: "",
+          }),
+        ]),
+      ),
+    ).toThrow(/structural-note blocks require non-empty reviewerNotes/);
+  });
+
+  it("rejects an impact-* block whose reviewerNotes lacks the 'Impact of ' prefix", () => {
+    expect(() =>
+      PlanFile.parse(
+        envelope([
+          block({
+            annotationIds: ["impact-abcd1234-1"],
+            category: "unclear",
+            patch: "",
+            emptyReason: "structural-note",
+            reviewerNotes: "Section 3 still depends on the withdrawn assumption.",
+          }),
+        ]),
+      ),
+    ).toThrow(/impact-\* blocks require reviewerNotes starting with/);
+  });
+
+  it("rejects an impact-* block whose reviewerNotes is the bare prefix", () => {
+    expect(() =>
+      PlanFile.parse(
+        envelope([
+          block({
+            annotationIds: ["impact-abcd1234-1"],
+            category: "unclear",
+            patch: "",
+            emptyReason: "structural-note",
+            reviewerNotes: "Impact of ",
+          }),
+        ]),
+      ),
+    ).toThrow(/substantive reviewerNotes after the/);
+  });
+
+  it("rejects a cascade-* block whose reviewerNotes lacks the 'Cascaded from ' prefix", () => {
+    expect(() =>
+      PlanFile.parse(
+        envelope([
+          block({
+            annotationIds: ["cascade-abcd1234-1"],
+            reviewerNotes: "same-referent rename without the prefix",
+          }),
+        ]),
+      ),
+    ).toThrow(/cascade-\* blocks require reviewerNotes starting with/);
+  });
+
+  it("rejects a coherence-* block with empty reviewerNotes", () => {
+    expect(() =>
+      PlanFile.parse(
+        envelope([
+          block({
+            annotationIds: ["coherence-1"],
+            category: "unclear",
+            patch: "",
+            emptyReason: "structural-note",
+            reviewerNotes: "",
+          }),
+        ]),
+      ),
+    ).toThrow(/structural-note blocks require non-empty reviewerNotes/);
+  });
+
+  it("accepts a coherence-* block with non-empty notes (no prefix required)", () => {
+    const parsed = PlanFile.parse(
+      envelope([
+        block({
+          annotationIds: ["coherence-1"],
+          category: "unclear",
+          patch: "",
+          emptyReason: "structural-note",
+          reviewerNotes: "Marks ...440001 and ...440002 disagree on 'estimator' vs 'algorithm'.",
+        }),
+      ]),
+    );
+    expect(parsed.blocks[0]?.annotationIds).toEqual(["coherence-1"]);
+  });
+
+  it("rejects a quality-* block whose reviewerNotes lacks the 'Quality pass: ' prefix", () => {
+    expect(() =>
+      PlanFile.parse(
+        envelope([
+          block({
+            annotationIds: ["quality-intro-1"],
+            reviewerNotes: "Removed boilerplate hedging triad.",
+          }),
+        ]),
+      ),
+    ).toThrow(/quality-\* blocks require reviewerNotes starting with/);
+  });
+
+  it("accepts a quality-* block with substantive prefixed notes", () => {
+    const parsed = PlanFile.parse(
+      envelope([
+        block({
+          annotationIds: ["quality-intro-1"],
+          reviewerNotes: "Quality pass: removed boilerplate hedging triad.",
+        }),
+      ]),
+    );
+    expect(parsed.blocks[0]?.annotationIds).toEqual(["quality-intro-1"]);
+  });
 });
 
 describe("pickLatestPlanName", () => {

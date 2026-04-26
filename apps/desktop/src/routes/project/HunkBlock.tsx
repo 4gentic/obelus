@@ -1,6 +1,7 @@
 import type { DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { type CSSProperties, useEffect, useRef } from "react";
+import { truncateMiddle } from "../../lib/text";
 import { buildDisplayLines } from "./patch-with-context";
 
 const CONTEXT_LINES = 3;
@@ -155,10 +156,10 @@ export default function HunkBlock(props: Props): JSX.Element {
         <span className="diff-block__cat">{hunk.category ?? "—"}</span>
         {mergedMarkCount > 1 && (
           <span
-            className="diff-block__tag diff-block__tag--merged"
-            title={
+            className="diff-block__tag diff-block__tag--merged satisfies-tooltip"
+            data-satisfies-tooltip={
               linkedQuotes.length > 0
-                ? linkedQuotes.map((m) => `• ${m.quote}`).join("\n")
+                ? linkedQuotes.map((m) => `•  ${truncateMiddle(m.quote, 180)}`).join("\n")
                 : `Satisfies ${mergedMarkCount} marks`
             }
           >

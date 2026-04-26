@@ -67,7 +67,7 @@ export function useDiffStore(): DiffStore {
 // (`appliedAt !== null`) — those have landed as drafts on the rail, not as
 // pending diffs. Without this second filter, the post-apply jobs-store tick
 // re-loads the just-applied session and the Diff tab reappears with the
-// hunks and the "keep these changes" button, as if nothing had been applied.
+// hunks and the "apply" button, as if nothing had been applied.
 // Finally, we skip sessions that persisted with zero hunks — new sessions
 // are auto-discarded at ingest, but historical rows written before that fix
 // would otherwise keep surfacing as "Plan loaded but no hunks were produced"

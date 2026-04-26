@@ -17,8 +17,24 @@ const EmptyReason = z.enum(PLAN_EMPTY_REASONS);
 // contract; `cascade-`, `quality-`, and `compile-` carry a real edit.
 const EMPTY_PATCH_SYNTHESIS_PREFIXES = ["impact-", "coherence-"] as const;
 
+// Per-prefix `reviewerNotes` prefix the SKILL.md (`plan-fix`) requires.
+// Coherence notes describe drift between two ids and have no single source —
+// they only need to be non-empty.
+const REVIEWER_NOTES_PREFIX = {
+  "impact-": "Impact of ",
+  "cascade-": "Cascaded from ",
+  "quality-": "Quality pass: ",
+} as const;
+
 function startsWithAny(id: string, prefixes: ReadonlyArray<string>): boolean {
   return prefixes.some((p) => id.startsWith(p));
+}
+
+function findPrefix<T extends string>(id: string, table: Readonly<Record<T, string>>): T | null {
+  for (const key of Object.keys(table) as T[]) {
+    if (id.startsWith(key)) return key;
+  }
+  return null;
 }
 
 export const PlanBlock = z
@@ -50,35 +66,77 @@ export const PlanBlock = z
           message: "emptyReason 'ambiguous' requires ambiguous: true",
         });
       }
-      if (b.emptyReason === "structural-note" && !requiresEmptyPatch) {
+      if (b.emptyReason === "structural-note") {
+        if (!requiresEmptyPatch) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["emptyReason"],
+            message: "emptyReason 'structural-note' is only valid on impact-/coherence- blocks",
+          });
+        }
+        // The original empty-`reviewerNotes` regression: a structural-note
+        // block with no notes renders as a content-less header chip in the
+        // desktop UI and is useless. Belt-and-braces with the per-prefix
+        // checks below.
+        if (b.reviewerNotes.trim().length === 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["reviewerNotes"],
+            message: "structural-note blocks require non-empty reviewerNotes",
+          });
+        }
+      }
+    } else {
+      // Non-empty patch.
+      if (b.emptyReason !== null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["emptyReason"],
-          message: "emptyReason 'structural-note' is only valid on impact-/coherence- blocks",
+          message: "non-empty patch must not carry an emptyReason",
         });
       }
-      return;
+      if (b.ambiguous) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["ambiguous"],
+          message: "ambiguous: true requires patch: \"\" (with emptyReason: 'ambiguous')",
+        });
+      }
+      if (requiresEmptyPatch) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["patch"],
+          message: `${firstId.split("-")[0]}-* blocks must carry an empty patch`,
+        });
+      }
     }
-    // Non-empty patch.
-    if (b.emptyReason !== null) {
+    // Synthesised-prefix `reviewerNotes` enforcement. Substantive check is
+    // character-count, not semantic — the prompt + per-hunk review enforce
+    // meaning. Coherence notes (no single source id) are caught by the
+    // length check below.
+    const prefixKey = findPrefix(firstId, REVIEWER_NOTES_PREFIX);
+    if (prefixKey !== null) {
+      const required = REVIEWER_NOTES_PREFIX[prefixKey];
+      // Check the prefix against the raw notes (the required strings end in
+      // a space) and check substantive content against the trimmed remainder.
+      if (!b.reviewerNotes.startsWith(required)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["reviewerNotes"],
+          message: `${prefixKey}* blocks require reviewerNotes starting with "${required}"`,
+        });
+      } else if (b.reviewerNotes.slice(required.length).trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["reviewerNotes"],
+          message: `${prefixKey}* blocks require substantive reviewerNotes after the "${required}" prefix`,
+        });
+      }
+    } else if (firstId.startsWith("coherence-") && b.reviewerNotes.trim().length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["emptyReason"],
-        message: "non-empty patch must not carry an emptyReason",
-      });
-    }
-    if (b.ambiguous) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["ambiguous"],
-        message: "ambiguous: true requires patch: \"\" (with emptyReason: 'ambiguous')",
-      });
-    }
-    if (requiresEmptyPatch) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["patch"],
-        message: `${firstId.split("-")[0]}-* blocks must carry an empty patch`,
+        path: ["reviewerNotes"],
+        message: "coherence-* blocks require non-empty reviewerNotes",
       });
     }
   });

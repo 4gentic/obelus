@@ -33,6 +33,7 @@ interface DiffHunkSqlRow {
   ambiguous: number;
   empty_reason: string | null;
   note_text: string;
+  reviewer_notes: string;
   ordinal: number;
   apply_failure_json: string | null;
 }
@@ -76,14 +77,15 @@ function toRow(r: DiffHunkSqlRow): DiffHunkRow {
     ambiguous: r.ambiguous === 1,
     emptyReason: parseEmptyReason(r.empty_reason),
     noteText: r.note_text,
+    reviewerNotes: r.reviewer_notes,
     ordinal: r.ordinal,
     applyFailure: parseApplyFailure(r.apply_failure_json),
   };
 }
 
 const SELECT = `SELECT id, session_id, annotation_ids_json, file, category, patch,
-         modified_patch_text, state, ambiguous, empty_reason, note_text, ordinal,
-         apply_failure_json
+         modified_patch_text, state, ambiguous, empty_reason, note_text,
+         reviewer_notes, ordinal, apply_failure_json
   FROM diff_hunks`;
 
 export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
@@ -104,9 +106,9 @@ export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
         stmts.push({
           sql: `INSERT INTO diff_hunks
                   (id, session_id, annotation_ids_json, file, category, patch,
-                   modified_patch_text, state, ambiguous, empty_reason, note_text, ordinal,
-                   apply_failure_json)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                   modified_patch_text, state, ambiguous, empty_reason, note_text,
+                   reviewer_notes, ordinal, apply_failure_json)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
           params: [
             r.id,
             sessionId,
@@ -119,6 +121,7 @@ export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
             r.ambiguous ? 1 : 0,
             r.emptyReason,
             r.noteText,
+            r.reviewerNotes,
             r.ordinal,
             r.applyFailure === null ? null : JSON.stringify(r.applyFailure),
           ],
@@ -143,10 +146,29 @@ export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
     },
 
     async acceptAllInFile(sessionId: string, file: string): Promise<void> {
+      // Bulk ops skip informational hunks (patch === ''): they have no apply
+      // path, and flipping their state would desync the apply-gate counts.
       await db.execute(
         `UPDATE diff_hunks SET state = 'accepted'
-         WHERE session_id = $1 AND file = $2 AND state IN ('pending', 'rejected')`,
+         WHERE session_id = $1 AND file = $2 AND patch != ''
+           AND state IN ('pending', 'rejected')`,
         [sessionId, file],
+      );
+    },
+
+    async acceptAllInSession(sessionId: string): Promise<void> {
+      await db.execute(
+        `UPDATE diff_hunks SET state = 'accepted'
+         WHERE session_id = $1 AND patch != '' AND state IN ('pending', 'rejected')`,
+        [sessionId],
+      );
+    },
+
+    async rejectAllInSession(sessionId: string): Promise<void> {
+      await db.execute(
+        `UPDATE diff_hunks SET state = 'rejected'
+         WHERE session_id = $1 AND patch != '' AND state IN ('pending', 'accepted')`,
+        [sessionId],
       );
     },
 
