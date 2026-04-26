@@ -2,6 +2,23 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7](https://github.com/4gentic/obelus/compare/desktop-v0.1.6...desktop-v0.1.7) (2026-04-26)
+
+
+### Features
+
+* **desktop:** stream-idle watchdog + spawn-model diagnostics ([#81](https://github.com/4gentic/obelus/issues/81)) ([75c99f3](https://github.com/4gentic/obelus/commit/75c99f3885f791f58af915350ad1f54dd56923fb))
+
+
+### Performance
+
+* **review:** cut rigorous-mode latency from ~25 min to ~7 min ([#82](https://github.com/4gentic/obelus/issues/82)) ([89a1935](https://github.com/4gentic/obelus/commit/89a193594e1e857770d7d75ff5691be2d82c04ed))
+
+
+### Refactor
+
+* **desktop:** drop the post-pick "desk is set" wizard folio ([#78](https://github.com/4gentic/obelus/issues/78)) ([0dcb2dd](https://github.com/4gentic/obelus/commit/0dcb2dd247deb6598e050a97b95967382823e156))
+
 ## [0.1.6](https://github.com/4gentic/obelus/compare/desktop-v0.1.5...desktop-v0.1.6) (2026-04-26)
 
 
