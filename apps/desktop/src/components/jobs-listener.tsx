@@ -13,6 +13,7 @@ import {
 import type { ReactNode } from "react";
 import { type JSX, useEffect } from "react";
 import { compileLatex, compileTypst, type LatexCompiler } from "../ipc/commands";
+import { artifactLabel } from "../lib/artifact-label";
 import { sourcesDiffSincePresnap, takeSnapshotForSession } from "../lib/bundle-sources";
 import { extractPhaseMarker, phaseFromEvent, SEMANTIC_PHASE_PREFIX } from "../lib/claude-phase";
 import { type PhaseKind, useJobsStore } from "../lib/jobs-store";
@@ -86,9 +87,12 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
       if (usage) sessionUsage.set(ev.sessionId, usage);
 
       // Prefer semantic `[obelus:phase] X` markers emitted by the plugin's
-      // plan-fix skill. Once a marker fires for this session, suppress
-      // tool-level phase updates — otherwise a Read/Grep between markers
-      // would overwrite the semantic label and skew the per-phase stopwatch.
+      // plan-fix skill. Once a marker fires for this session, tool-level
+      // events stop driving the phase label (oscillating Read/Grep would
+      // otherwise overwrite the semantic name and skew per-phase timing).
+      // They are not discarded though: in semantic mode we route them to
+      // `currentTool`, a transient sub-caption that surfaces what the model
+      // is doing *inside* the current phase without polluting the history.
       const marker = extractPhaseMarker(parsed);
       let nextPhase: string | null = null;
       let nextKind: PhaseKind = "tool";
@@ -99,7 +103,12 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
         if (!sessionFirstObelusPhaseAt.has(ev.sessionId)) {
           sessionFirstObelusPhaseAt.set(ev.sessionId, Date.now());
         }
-      } else if (!semanticSessions.has(ev.sessionId)) {
+      } else if (semanticSessions.has(ev.sessionId)) {
+        const narration = phaseFromEvent(parsed);
+        if (narration !== null) {
+          useJobsStore.getState().setCurrentTool(ev.sessionId, narration);
+        }
+      } else {
         nextPhase = phaseFromEvent(parsed);
         nextKind = "tool";
       }
@@ -281,10 +290,9 @@ async function handleExit(
         ms: Math.round(performance.now() - tIngestStart),
       });
       const bytes = new TextEncoder().encode(ingested.body).byteLength;
-      const fileName = ingested.path;
       store.markDone(
         sessionId,
-        `Write-up ready. ${bytes.toLocaleString()} bytes from ${fileName}.`,
+        `Write-up ready. ${bytes.toLocaleString()} bytes from ${artifactLabel(ingested.path)}.`,
       );
     }
   } catch (err) {

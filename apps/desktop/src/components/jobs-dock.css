@@ -244,15 +244,24 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-1) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   max-height: 26vh;
   overflow-y: auto;
 }
 
 .jobs-dock__phases > li {
-  display: contents;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-4);
+  align-items: baseline;
+}
+
+.jobs-dock__phase--active {
+  border-left: 2px solid var(--rubric);
+  padding-left: var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
 }
 
 .jobs-dock__phase-when {
@@ -263,11 +272,41 @@
   padding-top: 3px;
 }
 
+.jobs-dock__phase-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  row-gap: 2px;
+  min-width: 0;
+}
+
 .jobs-dock__phase-what {
   font-family: var(--font-body);
   font-size: var(--step--1);
   color: var(--ink);
   min-width: 0;
+}
+
+.jobs-dock__phase-dur {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.jobs-dock__phase--active .jobs-dock__phase-dur {
+  color: var(--rubric);
+}
+
+.jobs-dock__phase-now {
+  flex-basis: 100%;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .jobs-dock__panel-empty {
