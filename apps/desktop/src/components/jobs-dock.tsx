@@ -1,7 +1,7 @@
 import { claudeCancel } from "@obelus/claude-sidecar";
 import { type JSX, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { type JobRecord, useJobsStore } from "../lib/jobs-store";
+import { type JobRecord, STALL_THRESHOLD_MS, useJobsStore } from "../lib/jobs-store";
 import { emitOpenFile } from "../lib/open-file-event";
 import { getRepository } from "../lib/repo";
 import { splitHeadline } from "../lib/split-headline";
@@ -127,16 +127,20 @@ interface JobSegmentProps {
 function JobSegment({ job, isOpen, onToggle }: JobSegmentProps): JSX.Element {
   const title = job.kind === "writeup" ? (job.paperTitle ?? job.projectLabel) : job.projectLabel;
   const kindLabel = jobKindLabel(job.kind);
+  const stalled = isStalled(job, Date.now());
+  const segClass = [
+    "jobs-dock__seg",
+    `jobs-dock__seg--${job.status}`,
+    stalled ? "jobs-dock__seg--stalled" : "",
+    isOpen ? "jobs-dock__seg--open" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <button
-      type="button"
-      className={`jobs-dock__seg jobs-dock__seg--${job.status} ${isOpen ? "jobs-dock__seg--open" : ""}`}
-      onClick={onToggle}
-      aria-expanded={isOpen}
-    >
+    <button type="button" className={segClass} onClick={onToggle} aria-expanded={isOpen}>
       <span className="jobs-dock__seg-kind">{kindLabel}</span>
       <span className="jobs-dock__seg-title">{title}</span>
-      <span className="jobs-dock__seg-phase">{shortPhase(job)}</span>
+      <span className="jobs-dock__seg-phase">{stalled ? "No progress" : shortPhase(job)}</span>
       <span className="jobs-dock__seg-elapsed">
         {formatElapsed((job.endedAt ?? Date.now()) - job.startedAt)}
       </span>
@@ -239,6 +243,15 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
         </dl>
       </header>
 
+      {isStalled(job, Date.now()) ? (
+        <StallBanner
+          job={job}
+          onCancel={handleCancelClick}
+          cancelArmed={cancelConfirm.armed}
+          cancelBind={cancelConfirm.bind()}
+        />
+      ) : null}
+
       <PhaseLog job={job} />
 
       {job.message ? <JobMessage message={job.message} /> : null}
@@ -263,6 +276,43 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
         )}
       </footer>
     </section>
+  );
+}
+
+interface StallBannerProps {
+  job: JobRecord;
+  onCancel: () => void;
+  cancelArmed: boolean;
+  cancelBind: { onBlur: () => void; "data-armed": "true" | "false" };
+}
+
+function StallBanner({ job, onCancel, cancelArmed, cancelBind }: StallBannerProps): JSX.Element {
+  const idleMs = Date.now() - (job.lastEventAt ?? job.startedAt);
+  const idleMin = Math.max(1, Math.floor(idleMs / 60_000));
+  const ackKeepWaiting = useCallback((): void => {
+    useJobsStore.getState().acknowledgeStall(job.claudeSessionId);
+  }, [job.claudeSessionId]);
+  return (
+    <aside className="jobs-dock__stall" role="alert">
+      <p className="jobs-dock__stall-headline">No progress for {idleMin} min.</p>
+      <p className="jobs-dock__stall-body">
+        The Claude CLI may have lost its network connection — common after the laptop sleeps
+        mid-run. The subprocess is still alive but no stream events are arriving.
+      </p>
+      <div className="jobs-dock__stall-actions">
+        <button
+          type="button"
+          className="jobs-dock__btn jobs-dock__btn--danger"
+          onClick={onCancel}
+          {...cancelBind}
+        >
+          {cancelArmed ? "Click to confirm" : "Cancel"}
+        </button>
+        <button type="button" className="jobs-dock__btn" onClick={ackKeepWaiting}>
+          Keep waiting
+        </button>
+      </div>
+    </aside>
   );
 }
 
@@ -315,6 +365,18 @@ function PhaseLog({ job }: { job: JobRecord }): JSX.Element {
 
 function isLive(job: JobRecord): boolean {
   return job.status === "running" || job.status === "ingesting";
+}
+
+// "Stalled" is a visual overlay on a still-running job — the data model
+// remains `running`. Suppressed for `STALL_THRESHOLD_MS` after a "Keep waiting"
+// click; cleared on any fresh stream event (jobs-store.noteEvent strips
+// `stalledAckAt` so the next stall is a new one).
+function isStalled(job: JobRecord, now: number): boolean {
+  if (job.status !== "running") return false;
+  if (job.lastEventAt === undefined) return false;
+  if (now - job.lastEventAt <= STALL_THRESHOLD_MS) return false;
+  if (job.stalledAckAt !== undefined && now - job.stalledAckAt <= STALL_THRESHOLD_MS) return false;
+  return true;
 }
 
 function orderJobs(jobs: Record<string, JobRecord>): JobRecord[] {

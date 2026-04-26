@@ -319,6 +319,17 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           .join("\n");
         const mode: ReviewRunnerMode =
           opts.mode ?? (project.kind === "writer" ? "writer-fast" : "rigorous");
+        // Boundary log: what model the React side is actually handing to the
+        // spawn. Pairs with `[claude-session] spawn-model …` in stderr to pin
+        // down which hop drops the value when the chip's selection doesn't
+        // reach the CLI argv.
+        console.info("[spawn-model]", {
+          reviewSessionId: session.id,
+          overridesModel: overrides.model,
+          overridesEffort: overrides.effort,
+          mode,
+          resolvedFromOverride: overrides.model !== null,
+        });
         const tSpawn = performance.now();
         const claudeSessionId = await claudeSpawn({
           rootId,
