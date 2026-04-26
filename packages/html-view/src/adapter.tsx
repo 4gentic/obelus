@@ -9,6 +9,7 @@ import type {
 import type { AssetResolver } from "@obelus/source-render/browser";
 import type { JSX, ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createHtmlFindProvider, type FindRect } from "./find";
 import { type HtmlExternalBlocked, HtmlView, type HtmlViewHandle } from "./HtmlView";
 import { type HtmlMountAnchor, resolveAnchorToRects } from "./highlights";
 import { type HtmlSelectionAnchor, useHtmlSelection } from "./use-html-selection";
@@ -154,6 +155,24 @@ function HighlightLayer({ rects }: { rects: ReadonlyArray<HighlightRect> }): JSX
           data-category={r.category}
           data-focused={r.focused ? "true" : undefined}
           data-stale={r.stale ? "true" : undefined}
+          style={{ left: r.left, top: r.top, width: r.width, height: r.height }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FindLayer({ rects }: { rects: ReadonlyArray<FindRect> }): JSX.Element {
+  return (
+    <div className="review-shell__hl-layer review-shell__hl-layer--find" aria-hidden="true">
+      {rects.map((r) => (
+        <div
+          key={r.key}
+          className={
+            r.current
+              ? "review-shell__hl review-shell__hl--find review-shell__hl--find-current"
+              : "review-shell__hl review-shell__hl--find"
+          }
           style={{ left: r.left, top: r.top, width: r.width, height: r.height }}
         />
       ))}
@@ -318,6 +337,43 @@ export function useHtmlDocumentView(params: Params): DocumentView {
     [annotationTops],
   );
 
+  const [findRects, setFindRects] = useState<ReadonlyArray<FindRect>>([]);
+  const find = useMemo(
+    () =>
+      createHtmlFindProvider({
+        getMount: () => mountRef.current,
+        getHost: () => hostRef.current,
+        getFrame: () => iframeOf(mountRef.current, hostRef.current),
+        getScrollAncestor: (el) => findScrollAncestor(el),
+        paint: (rects) => setFindRects(rects),
+        scrollMatchIntoView: (range) => {
+          // Iframe content owns its own scroll; native scrollIntoView on the
+          // common ancestor element brings the match into view inside the
+          // iframe. The parent's scroll-ancestor stays put — the iframe
+          // height is fixed, so the match is reachable without parent scroll.
+          const node =
+            range.startContainer.nodeType === 1
+              ? (range.startContainer as Element)
+              : range.startContainer.parentElement;
+          node?.scrollIntoView({ block: "center", behavior: "smooth" });
+        },
+      }),
+    [],
+  );
+
+  // On layout shifts, cached Ranges still resolve — re-project rect coords.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: layoutTick is an intentional re-fire trigger; the body reads it implicitly through the latest iframe + scroll-container geometry.
+  useEffect(() => {
+    find.repaint();
+  }, [layoutTick, find]);
+
+  // On a full iframe srcdoc swap, the cached Ranges reference detached nodes
+  // — drop them so the host re-runs search on the next setQuery call.
+  useEffect(() => {
+    if (renderVersion === 0) return;
+    find.invalidate();
+  }, [renderVersion, find]);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: layoutTick re-triggers the draft overlay even when no other dep changed.
   const overlayRects = useMemo<HighlightRect[]>(() => {
     const out: HighlightRect[] = [];
@@ -385,6 +441,7 @@ export function useHtmlDocumentView(params: Params): DocumentView {
         {...(onExternalBlocked !== undefined ? { onExternalBlocked } : {})}
       />
       <HighlightLayer rects={overlayRects} />
+      <FindLayer rects={findRects} />
     </div>
   );
 
@@ -393,6 +450,7 @@ export function useHtmlDocumentView(params: Params): DocumentView {
     annotationTops,
     scrollToAnnotation,
     editable: false,
+    find,
   };
 }
 

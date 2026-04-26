@@ -2,7 +2,7 @@ import { type FindMatch, usePdfDocumentView } from "@obelus/pdf-view";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { JSX, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useFindStore } from "./find-store-context";
+import { useFindStore, usePdfFindRectsStore } from "./find-store-context";
 import { useReviewStore } from "./store-context";
 
 interface Props {
@@ -25,8 +25,9 @@ export default function PdfPane({ doc }: Props): JSX.Element {
   const setFocused = store((s) => s.setFocusedAnnotation);
   const setSelectedAnchor = store((s) => s.setSelectedAnchor);
   const findStore = useFindStore();
-  const findMatches = findStore((s) => s.matches);
-  const findCurrentIndex = findStore((s) => s.currentIndex);
+  const pdfRects = usePdfFindRectsStore();
+  const findMatches = pdfRects((s) => s.matches);
+  const findCurrentIndex = pdfRects((s) => s.currentIndex);
   const findScrollTick = findStore((s) => s.scrollTick);
 
   const findMatchesByPage = useMemo(() => {

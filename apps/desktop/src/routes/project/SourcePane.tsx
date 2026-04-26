@@ -7,7 +7,15 @@ import {
   indentOnInput,
   syntaxHighlighting,
 } from "@codemirror/language";
-import { search, searchKeymap } from "@codemirror/search";
+import {
+  closeSearchPanel,
+  getSearchQuery,
+  openSearchPanel,
+  SearchQuery,
+  search,
+  searchKeymap,
+  setSearchQuery,
+} from "@codemirror/search";
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
   crosshairCursor,
@@ -29,6 +37,7 @@ import { setActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
 import { editorTheme } from "./editor-theme";
+import { useFindStore } from "./find-store-context";
 import HtmlReviewSurface from "./HtmlReviewSurface";
 import MdReviewSurface from "./MdReviewSurface";
 import { extensionOf } from "./openable";
@@ -162,6 +171,59 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   // can reconfigure the flag when `locked` flips without rebuilding the view.
   const editableCompartment = useMemo(() => new Compartment(), []);
 
+  // Bridge find state across the source ↔ preview toggle. The two surfaces
+  // own different find UIs (CodeMirror's panel with replace, vs. the shared
+  // FindBar without), but the user expects the typed query + case-sensitivity
+  // to follow the toggle so they don't have to retype.
+  const findStore = useFindStore();
+  const prevViewModeRef = useRef(viewMode);
+  const prevPathRef = useRef(relPath);
+  useEffect(() => {
+    const prevMode = prevViewModeRef.current;
+    const prevPath = prevPathRef.current;
+    prevViewModeRef.current = viewMode;
+    prevPathRef.current = relPath;
+    // File swap — let `resetForPaperSwap` (in find-store-context) handle the
+    // wipe; bridging stale state into the new file's CM would leak the prior
+    // query.
+    if (prevPath !== relPath) return;
+    if (prevMode === viewMode) return;
+
+    if (viewMode === "source") {
+      const { isOpen, query, caseSensitive } = findStore.getState();
+      // Always close the FindBar on the toggle. It's a parent-level overlay
+      // and would otherwise hover above the source pane regardless of whether
+      // we have a query to bridge.
+      if (isOpen) findStore.getState().close();
+      if (query.length === 0) return;
+      const view = viewRef.current;
+      if (!view) return;
+      openSearchPanel(view);
+      view.dispatch({
+        effects: setSearchQuery.of(new SearchQuery({ search: query, caseSensitive })),
+      });
+      return;
+    }
+
+    // viewMode === "preview"
+    const view = viewRef.current;
+    if (!view) return;
+    const cmQuery = getSearchQuery(view.state);
+    // Always close the CM search panel on the toggle. The editor host is
+    // hidden but mounted, so a leftover panel stays visible above the
+    // preview surface unless we explicitly close it.
+    closeSearchPanel(view);
+    if (cmQuery.search.length === 0) return;
+    const store = findStore.getState();
+    if (store.caseSensitive !== cmQuery.caseSensitive) {
+      store.setCaseSensitive(cmQuery.caseSensitive);
+    }
+    if (store.query !== cmQuery.search) {
+      store.setQuery(cmQuery.search);
+    }
+    store.open();
+  }, [viewMode, relPath, findStore]);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: `retryTick` is a deliberate re-fire trigger — the body doesn't read its value, just needs the effect to re-run when the user clicks "retry" after a transient read failure.
   useEffect(() => {
     buffers.getState().setCurrentPath(relPath);
@@ -266,13 +328,32 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
       return;
     }
     viewRef.current = view;
-    setActiveSourceView(view);
     return () => {
-      setActiveSourceView(null);
       view.destroy();
       viewRef.current = null;
     };
   }, [hasEntry, relPath, externalVersion, buffers, editableCompartment]);
+
+  // The CodeMirror host stays mounted (just `hidden`) while the user is in
+  // preview mode so toggling back doesn't lose caret/scroll. But the global
+  // Cmd+F handler in ProjectShell prefers an "active source view" over the
+  // shared FindBar — registering an offscreen view would route Cmd+F into a
+  // hidden CodeMirror search panel instead of opening the MD/HTML find UI.
+  // Gate the registration on `viewMode` so only the visible surface claims it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: relPath and externalVersion are intentional re-fire triggers — the view-mount effect destroys/recreates `viewRef.current` when either flips, and this effect needs to re-run afterwards so the active ref points at the new view.
+  useEffect(() => {
+    if (!hasEntry) return;
+    const view = viewRef.current;
+    if (!view) return;
+    if (viewMode === "preview") {
+      setActiveSourceView(null);
+      return;
+    }
+    setActiveSourceView(view);
+    return () => {
+      setActiveSourceView(null);
+    };
+  }, [viewMode, hasEntry, relPath, externalVersion]);
 
   useEffect(() => {
     const view = viewRef.current;

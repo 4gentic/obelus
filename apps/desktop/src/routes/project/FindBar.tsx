@@ -7,7 +7,7 @@ export default function FindBar(): JSX.Element | null {
   const isOpen = store((s) => s.isOpen);
   const query = store((s) => s.query);
   const status = store((s) => s.status);
-  const matches = store((s) => s.matches);
+  const count = store((s) => s.count);
   const currentIndex = store((s) => s.currentIndex);
   const caseSensitive = store((s) => s.caseSensitive);
   const focusTick = store((s) => s.focusTick);
@@ -29,8 +29,8 @@ export default function FindBar(): JSX.Element | null {
   const counter = ((): string => {
     if (status === "searching") return "…";
     if (query.length === 0) return "";
-    if (matches.length === 0) return "0 / 0";
-    return `${currentIndex + 1} / ${matches.length}`;
+    if (count === 0) return "0 / 0";
+    return `${currentIndex + 1} / ${count}`;
   })();
 
   const onKeyDown = (ev: KeyboardEvent<HTMLInputElement>): void => {
@@ -46,7 +46,7 @@ export default function FindBar(): JSX.Element | null {
     }
   };
 
-  const disabled = matches.length === 0;
+  const disabled = count === 0;
 
   return (
     <search className="find-bar" aria-label="Find in document">
