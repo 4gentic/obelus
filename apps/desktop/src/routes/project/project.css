@@ -1216,7 +1216,7 @@ button.files__row {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-1) var(--space-2);
-  flex-shrink: 0;
+  min-width: 0;
   margin-left: auto;
 }
 
@@ -1367,7 +1367,6 @@ button.files__row {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  overflow-y: auto;
 }
 
 .diff-review__group {
@@ -1422,6 +1421,11 @@ button.files__row {
   padding: var(--space-1) var(--space-2);
   background: var(--panel);
   font-size: var(--step--1);
+  /* Positioning context for the .satisfies-tooltip ::after panel — anchoring
+     to the header (which spans the full diff-block width) lets the tooltip
+     stay inside the diff-block regardless of how far right the chip itself
+     sits or how narrow the .diff-review pane has been resized. */
+  position: relative;
 }
 
 .diff-block__cat {
@@ -1449,20 +1453,39 @@ button.files__row {
 
 .diff-review__informational {
   /* Surfaces ingested-but-hidden empty hunks (praise / ambiguous / impact)
-     as a non-actionable section above the diff list. The user gets to read
-     the planner's commentary without anything to accept or reject. */
+     as a non-actionable section above the diff list. Section header reads
+     as a header — items below carry their own card treatment so a
+     long list doesn't render as one giant panel. */
   margin: 0 var(--space-2) var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid var(--rule-soft);
-  border-left: 2px solid var(--ink-soft);
-  background: var(--panel);
 }
 
 .diff-review__informational-head {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.diff-review__informational-head::-webkit-details-marker {
+  display: none;
+}
+
+.diff-review__informational-head::before {
+  content: "▸";
+  display: inline-block;
+  font-size: 0.7em;
+  color: var(--ink-soft);
+  transition: transform 100ms ease;
+}
+
+.diff-review__informational[open] > .diff-review__informational-head {
   margin-bottom: var(--space-1);
+}
+
+.diff-review__informational[open] > .diff-review__informational-head::before {
+  transform: rotate(90deg);
 }
 
 .diff-review__informational-title {
@@ -1483,25 +1506,44 @@ button.files__row {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .diff-review__informational-item {
   padding: var(--space-1) var(--space-2);
-  border-top: 1px solid var(--rule-soft);
+  border: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--ink-soft);
+  background: var(--panel);
 }
 
-.diff-review__informational-item:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.diff-review__informational-item-head {
+.diff-review__informational-item-details > summary {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
   font-size: var(--step--1);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.diff-review__informational-item-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.diff-review__informational-item-details > summary::before {
+  content: "▸";
+  display: inline-block;
+  font-size: 0.7em;
+  color: var(--ink-soft);
+  transition: transform 100ms ease;
+}
+
+.diff-review__informational-item-details[open] > summary {
   margin-bottom: var(--space-1);
+}
+
+.diff-review__informational-item-details[open] > summary::before {
+  transform: rotate(90deg);
 }
 
 .diff-review__informational-reason {
@@ -2115,21 +2157,18 @@ button.files__row {
 /* Hover panel for the "satisfies N marks" chip on a hunk header. Lists each
    linked mark's quote, one per line, middle-truncated to keep a single
    oversized highlight from blowing out the panel. Same paper aesthetic as
-   .cat-tooltip but left-anchored, wider, and pre-wrap so explicit \n
-   separators between bullets render as line breaks. Left-anchored because the
-   chip sits near the left of the hunk header, and .diff-review's overflow-y
-   makes overflow-x clip — anchoring right would clip the tooltip's left edge.
-   Extending rightward stays inside the wide diff body. */
-.satisfies-tooltip {
-  position: relative;
-}
-
+   .cat-tooltip, but anchored to the diff-block header rather than the chip
+   itself: the chip's position inside the header varies with content (and the
+   .diff-review pane's overflow-y clips horizontal overflow on both sides),
+   so anchoring to the header — which always spans the diff-block's full
+   width — lets us cap max-width against the header and stay inside the
+   diff-block at any pane width. */
 .satisfies-tooltip[data-satisfies-tooltip]::after {
   content: attr(data-satisfies-tooltip);
   position: absolute;
   top: calc(100% + 6px);
-  left: 0;
-  max-width: 480px;
+  left: var(--space-2);
+  max-width: min(480px, calc(100% - 2 * var(--space-2)));
   width: max-content;
   padding: var(--space-2) var(--space-3);
   background: var(--panel);
@@ -3000,15 +3039,6 @@ button.files__row {
   font-size: var(--step--2);
   color: var(--ink-soft);
   letter-spacing: 0.02em;
-}
-
-.review-progress__filler {
-  margin: var(--space-3) 0 0 0;
-  font-family: var(--font-display);
-  font-style: italic;
-  color: var(--ink-soft);
-  opacity: 0.7;
-  transition: opacity 280ms ease-in;
 }
 
 .review-progress__log {

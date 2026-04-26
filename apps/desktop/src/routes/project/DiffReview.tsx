@@ -543,14 +543,14 @@ export default function DiffReview(props: Props): JSX.Element {
         )}
 
       {hiddenInformational.length > 0 && (
-        <section className="diff-review__informational" aria-label="Informational marks (no edit)">
-          <header className="diff-review__informational-head">
+        <details className="diff-review__informational" open>
+          <summary className="diff-review__informational-head">
             <span className="diff-review__informational-title">Informational</span>
             <span className="diff-review__informational-sub">
               {hiddenInformational.length} mark
               {hiddenInformational.length === 1 ? "" : "s"} · no edit to accept
             </span>
-          </header>
+          </summary>
           <ul className="diff-review__informational-list">
             {hiddenInformational.map((h) => {
               const annotation = annotationsById.get(h.annotationIds[0] ?? "") ?? null;
@@ -563,32 +563,37 @@ export default function DiffReview(props: Props): JSX.Element {
                     : reason;
               return (
                 <li key={h.id} className="diff-review__informational-item">
-                  <header className="diff-review__informational-item-head">
-                    <span className="diff-review__informational-reason" data-reason={reason}>
-                      {reasonLabel}
-                    </span>
-                    {annotation !== null && (
-                      <span className="diff-review__informational-loc">
-                        {markLocationLabel(annotation)}
+                  <details
+                    className="diff-review__informational-item-details"
+                    open={hiddenInformational.length <= 2}
+                  >
+                    <summary className="diff-review__informational-item-head">
+                      <span className="diff-review__informational-reason" data-reason={reason}>
+                        {reasonLabel}
                       </span>
+                      {annotation !== null && (
+                        <span className="diff-review__informational-loc">
+                          {markLocationLabel(annotation)}
+                        </span>
+                      )}
+                      {h.category !== null && h.category !== "" && (
+                        <span className="diff-review__informational-cat">{h.category}</span>
+                      )}
+                    </summary>
+                    {annotation !== null && annotation.quote !== "" && (
+                      <blockquote className="diff-review__informational-quote">
+                        {trimQuoteMiddle(annotation.quote)}
+                      </blockquote>
                     )}
-                    {h.category !== null && h.category !== "" && (
-                      <span className="diff-review__informational-cat">{h.category}</span>
+                    {h.reviewerNotes !== "" && (
+                      <p className="diff-review__informational-notes">{h.reviewerNotes}</p>
                     )}
-                  </header>
-                  {annotation !== null && annotation.quote !== "" && (
-                    <blockquote className="diff-review__informational-quote">
-                      {trimQuoteMiddle(annotation.quote)}
-                    </blockquote>
-                  )}
-                  {h.reviewerNotes !== "" && (
-                    <p className="diff-review__informational-notes">{h.reviewerNotes}</p>
-                  )}
+                  </details>
                 </li>
               );
             })}
           </ul>
-        </section>
+        </details>
       )}
       <section className="diff-review__list">
         {visibleHunks.map((h) => {
@@ -643,15 +648,6 @@ export default function DiffReview(props: Props): JSX.Element {
   );
 }
 
-const FILLER_LINES: ReadonlyArray<string> = [
-  "the review is a careful reading.",
-  "every page is turned.",
-  "the manuscript is read like a letter.",
-  "weighing the argument.",
-  "consulting the marginalia.",
-  "cross-checking the citations.",
-];
-
 interface ReviewProgressPanelProps {
   marks: number;
   files: number;
@@ -679,14 +675,6 @@ function ReviewProgressPanel({
     return () => window.clearInterval(id);
   }, []);
 
-  const [fillerIndex, setFillerIndex] = useState(0);
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setFillerIndex((i) => (i + 1) % FILLER_LINES.length);
-    }, 8000);
-    return () => window.clearInterval(id);
-  }, []);
-
   const clock = new Date(startedAt).toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
@@ -706,7 +694,6 @@ function ReviewProgressPanel({
         : "Waiting for Claude.");
 
   const thinking = lastThinkingAt !== null && now - lastThinkingAt < 3000;
-  const filler = FILLER_LINES[fillerIndex] ?? FILLER_LINES[0] ?? "";
   const logTail = phaseHistory.slice(-8);
 
   return (
@@ -719,7 +706,6 @@ function ReviewProgressPanel({
         {marks} {markLabel} · {files} {fileLabel} · {toolEvents} tool{toolEvents === 1 ? "" : "s"} ·{" "}
         {assistantChars.toLocaleString()} chars · {elapsedLabel} · started {clock}
       </p>
-      <p className="review-progress__filler">…{filler}</p>
       {logTail.length > 0 ? (
         <ol className="review-progress__log" aria-label="Phase timeline">
           {logTail.map((entry) => (
