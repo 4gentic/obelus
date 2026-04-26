@@ -12,7 +12,7 @@ export interface BundleSourceSnapshot {
   readonly bySha: ReadonlyMap<string, { sha256: string; size: number }>;
 }
 
-interface BundleLike {
+export interface BundleLike {
   papers?: ReadonlyArray<{ entrypoint?: string | null; pdf?: { relPath?: string | null } | null }>;
   annotations?: ReadonlyArray<{
     anchor?: { kind?: string; file?: string | null } | null;

@@ -30,11 +30,14 @@ async function buildOne(input: {
   const { repo, paper, rootId } = input;
   if (paper.format === "md") return exportMdBundleForPaper({ repo, paperId: paper.id });
   if (paper.format === "html") return exportHtmlBundleForPaper({ repo, paperId: paper.id });
-  return exportBundleForPaper({
-    repo,
-    paperId: paper.id,
-    ...(rootId !== undefined ? { rootId } : {}),
-  });
+  if (paper.format === "pdf")
+    return exportBundleForPaper({
+      repo,
+      paperId: paper.id,
+      ...(rootId !== undefined ? { rootId } : {}),
+    });
+  paper.format satisfies never;
+  throw new Error(`unsupported paper format: ${String(paper.format)}`);
 }
 
 function joinPath(dir: string, name: string): string {

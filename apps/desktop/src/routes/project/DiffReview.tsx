@@ -106,19 +106,24 @@ export default function DiffReview(props: Props): JSX.Element {
   const [annotationsById, setAnnotationsById] = useState<ReadonlyMap<string, AnnotationRow>>(
     () => new Map<string, AnnotationRow>(),
   );
+  // Tracks which annotation IDs have already been fetched for the current
+  // session. Using a ref avoids putting `annotationsById` in the effect dep
+  // array (which would cause a spin: fetch → setState → effect re-fires → no
+  // missing → exits, repeat). The ref is reset whenever the session changes.
+  const loadedAnnotationIds = useRef(new Set<string>());
+  const lastSessionId = useRef<string | null>(null);
   useEffect(() => {
-    if (sessionId === null) {
-      if (annotationsById.size > 0) setAnnotationsById(new Map<string, AnnotationRow>());
-      return;
+    if (sessionId !== lastSessionId.current) {
+      lastSessionId.current = sessionId;
+      loadedAnnotationIds.current = new Set<string>();
+      setAnnotationsById(new Map<string, AnnotationRow>());
     }
+    if (sessionId === null) return;
     const wanted = new Set<string>();
     for (const h of hunks) {
       for (const id of h.annotationIds) wanted.add(id);
     }
-    const missing: string[] = [];
-    for (const id of wanted) {
-      if (!annotationsById.has(id)) missing.push(id);
-    }
+    const missing = [...wanted].filter((id) => !loadedAnnotationIds.current.has(id));
     if (missing.length === 0) return;
     let cancelled = false;
     void (async () => {
@@ -131,6 +136,7 @@ export default function DiffReview(props: Props): JSX.Element {
         includeResolved: true,
       });
       if (cancelled) return;
+      for (const a of annotations) loadedAnnotationIds.current.add(a.id);
       setAnnotationsById((prev) => {
         const next = new Map(prev);
         for (const a of annotations) next.set(a.id, a);
@@ -140,7 +146,7 @@ export default function DiffReview(props: Props): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [sessionId, hunks, repo, annotationsById]);
+  }, [sessionId, hunks, repo]);
   const marksByAnnotationId = useMemo<ReadonlyMap<string, string>>(() => {
     const m = new Map<string, string>();
     for (const [id, a] of annotationsById) m.set(id, a.quote);

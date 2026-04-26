@@ -9,6 +9,7 @@ import {
 import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { workspaceWriteText } from "../../ipc/commands";
 import {
+  type BundleLike,
   collectBundleSourcePaths,
   snapshotBundleSources,
   stashSnapshotForSession,
@@ -283,7 +284,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         // any of these files' sha256 changes and no plan file is produced,
         // the jobs-listener surfaces a tool-policy-violation error.
         try {
-          const bundleShape = JSON.parse(json) as Parameters<typeof collectBundleSourcePaths>[0];
+          const bundleShape = JSON.parse(json) as BundleLike;
           const paths = collectBundleSourcePaths(bundleShape);
           const snap = await snapshotBundleSources(rootId, paths);
           stashSnapshotForSession(session.id, snap);
