@@ -318,7 +318,7 @@ pub async fn claude_spawn(
     } else {
         preflight::Mode::Rigorous
     };
-    if let Some(prelude) = preflight::build_prelude(&bundle_abs, &root, mode_kind) {
+    if let Some(prelude) = preflight::build_prelude(&bundle_abs, &root, &plugin_dir, mode_kind) {
         base.push('\n');
         base.push_str(&prelude);
         if !base.ends_with('\n') {
