@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches-ignore:
+      - 'release-please--**'
 
 permissions:
   contents: read
