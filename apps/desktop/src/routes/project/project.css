@@ -1900,10 +1900,6 @@ button.files__row {
   flex-wrap: wrap;
 }
 
-.review-column__launch .claude-chip-wrap {
-  margin-right: auto;
-}
-
 .review-column__md-export {
   display: flex;
   flex-direction: column;
@@ -3179,6 +3175,10 @@ button.files__row {
   position: relative;
   display: inline-flex;
   min-width: 0;
+}
+
+.review-column__launch .claude-chip-wrap {
+  margin-right: auto;
 }
 
 .claude-chip {

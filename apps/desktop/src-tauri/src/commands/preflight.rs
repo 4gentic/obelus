@@ -88,7 +88,12 @@ pub enum Mode {
     Rigorous,
 }
 
-pub fn build_prelude(bundle_path: &Path, project_root: &Path, mode: Mode) -> Option<String> {
+pub fn build_prelude(
+    bundle_path: &Path,
+    project_root: &Path,
+    plugin_dir: &Path,
+    mode: Mode,
+) -> Option<String> {
     let raw = std::fs::read_to_string(bundle_path).ok()?;
     let bundle: Bundle = serde_json::from_str(&raw)
         .map_err(|e| {
@@ -97,7 +102,7 @@ pub fn build_prelude(bundle_path: &Path, project_root: &Path, mode: Mode) -> Opt
         .ok()?;
     Some(match mode {
         Mode::WriterFast => render_writer_fast(&bundle),
-        Mode::Rigorous => render_rigorous(&bundle, project_root),
+        Mode::Rigorous => render_rigorous(&bundle, project_root, plugin_dir),
     })
 }
 
@@ -213,7 +218,7 @@ fn render_writer_fast(bundle: &Bundle) -> String {
     s
 }
 
-fn render_rigorous(bundle: &Bundle, project_root: &Path) -> String {
+fn render_rigorous(bundle: &Bundle, project_root: &Path, plugin_dir: &Path) -> String {
     let entrypoint = primary_entrypoint(bundle).unwrap_or_default();
     let format = detect_format(extension_of(&entrypoint));
 
@@ -246,6 +251,16 @@ fn render_rigorous(bundle: &Bundle, project_root: &Path) -> String {
 
     let mut s = String::new();
     s.push_str("Pre-flight (validated by the desktop; trust it, do not re-derive):\n");
+    // The model's path to plan-fix's SKILL.md, given so it can `Read` the
+    // skill body directly without Glob-hunting. Both apply-revision and
+    // plan-fix have `disable-model-invocation: true`, which blocks Skill-tool
+    // dispatch — the model has to load plan-fix as a regular file, and
+    // without this line it spends 5–8 seconds (and a thinking block) finding
+    // it. The path is absolute and resolved via Tauri's plugin-resource
+    // resolution, so it works in both dev (`apps/desktop/src-tauri/target`)
+    // and the compiled bundle (`/Applications/Obelus.app/.../plugin`).
+    let plan_fix_path = plugin_dir.join("skills").join("plan-fix").join("SKILL.md");
+    s.push_str(&format!("- plan-fix skill: {}\n", plan_fix_path.display()));
     s.push_str(&format!("- format: {}\n", if format.is_empty() { "(unknown)" } else { format }));
     s.push_str(&format!(
         "- entrypoint: {}\n",
@@ -425,7 +440,8 @@ mod tests {
             ]
         }"#;
         let path = write_bundle(tmp.path(), bundle);
-        let out = build_prelude(&path, tmp.path(), Mode::WriterFast).unwrap();
+        let plugin = tmp.path().join("plugin");
+        let out = build_prelude(&path, tmp.path(), &plugin, Mode::WriterFast).unwrap();
         assert!(out.contains("- format: typst"));
         assert!(out.contains("- entrypoint: chapters/00-abstract.typ"));
         assert!(out.contains("- papers: 1, annotations: 2"));
@@ -461,7 +477,8 @@ mod tests {
             ]
         }"#;
         let path = write_bundle(tmp.path(), bundle);
-        let out = build_prelude(&path, tmp.path(), Mode::Rigorous).unwrap();
+        let plugin = tmp.path().join("plugin");
+        let out = build_prelude(&path, tmp.path(), &plugin, Mode::Rigorous).unwrap();
         assert!(out.contains("- format: latex"));
         assert!(out.contains("- substantive blocks: 1 (excluding 1 praise, 1 aside, 0 flag)"));
         assert!(out.contains("- anchor-kind histogram: source=2, pdf=1, html=0"));
@@ -470,6 +487,13 @@ mod tests {
         // substantive < 2 → coherence-sweep skip and quality-sweep skip both surface.
         assert!(out.contains("coherence-sweep: skipped"));
         assert!(out.contains("quality-sweep: skipped"));
+        // The plan-fix path is given so the model doesn't have to Glob-hunt
+        // for it. Resolved against the plugin dir argument.
+        let expected = plugin.join("skills").join("plan-fix").join("SKILL.md");
+        assert!(
+            out.contains(&format!("- plan-fix skill: {}", expected.display())),
+            "got: {out}"
+        );
     }
 
     #[test]
