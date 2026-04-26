@@ -87,6 +87,7 @@ export const SYNTHESISED_ID_PREFIXES = [
   "impact-",
   "coherence-",
   "quality-",
+  "directive-",
   "compile-",
 ] as const;
 

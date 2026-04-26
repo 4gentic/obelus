@@ -6,10 +6,12 @@
 // Filename contracts:
 //   bundle-YYYYMMDD-HHMMSS.json                     (build-bundle.ts)
 //   plan-YYYYMMDD-HHMMSS.json   |  plan.json        (claude-sidecar/plan.ts)
+//   plan-YYYYMMDD-HHMMSS.md                         (apply-revision skill, human-readable companion)
 //   writeup-<paperId>-YYYYMMDD-HHMMSS.md   |  writeup-<paperId>.md
 //   rubric-YYYYMMDD-HHMMSS.json                     (defensive)
 
 const STAMPED_RE = /^(bundle|plan|rubric)-\d{8}-(\d{2})(\d{2})\d{2}\.json$/;
+const PLAN_MD_RE = /^plan-\d{8}-(\d{2})(\d{2})\d{2}\.md$/;
 const WRITEUP_STAMPED_RE = /^writeup-.+-\d{8}-(\d{2})(\d{2})\d{2}\.md$/;
 const WRITEUP_BARE_RE = /^writeup-.+\.md$/;
 
@@ -29,6 +31,11 @@ export function artifactLabel(pathOrName: string): string {
   }
 
   if (name === "plan.json") return KIND_LABELS.plan;
+
+  const planMd = name.match(PLAN_MD_RE);
+  if (planMd) {
+    return `${KIND_LABELS.plan} (${planMd[1]}:${planMd[2]})`;
+  }
 
   const writeupStamped = name.match(WRITEUP_STAMPED_RE);
   if (writeupStamped) {

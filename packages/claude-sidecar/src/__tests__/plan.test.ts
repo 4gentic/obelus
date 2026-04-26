@@ -292,6 +292,31 @@ describe("PlanBlock empty-patch invariants", () => {
     );
     expect(parsed.blocks[0]?.annotationIds).toEqual(["quality-intro-1"]);
   });
+
+  it("rejects a directive-* block whose reviewerNotes lacks the 'Directive: ' prefix", () => {
+    expect(() =>
+      PlanFile.parse(
+        envelope([
+          block({
+            annotationIds: ["directive-abcd1234-1"],
+            reviewerNotes: "Tightened a vague claim per author indications.",
+          }),
+        ]),
+      ),
+    ).toThrow(/directive-\* blocks require reviewerNotes starting with/);
+  });
+
+  it("accepts a directive-* block with substantive prefixed notes", () => {
+    const parsed = PlanFile.parse(
+      envelope([
+        block({
+          annotationIds: ["directive-abcd1234-1"],
+          reviewerNotes: "Directive: tightened a vague claim per author indications.",
+        }),
+      ]),
+    );
+    expect(parsed.blocks[0]?.annotationIds).toEqual(["directive-abcd1234-1"]);
+  });
 });
 
 describe("pickLatestPlanName", () => {

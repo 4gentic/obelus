@@ -10,6 +10,10 @@ describe("artifactLabel", () => {
     expect(artifactLabel("plan-20260426-032015.json")).toBe("the plan (03:20)");
   });
 
+  it("prettifies the human-readable plan markdown companion", () => {
+    expect(artifactLabel("plan-20260426-105649.md")).toBe("the plan (10:56)");
+  });
+
   it("recognises a bare plan.json", () => {
     expect(artifactLabel("plan.json")).toBe("the plan");
   });
@@ -28,7 +32,9 @@ describe("artifactLabel", () => {
 
   it("strips the directory prefix before matching", () => {
     expect(
-      artifactLabel("/Users/x/Library/Application Support/app/projects/p/bundle-20260426-105649.json"),
+      artifactLabel(
+        "/Users/x/Library/Application Support/app/projects/p/bundle-20260426-105649.json",
+      ),
     ).toBe("the review bundle (10:56)");
   });
 

@@ -14,7 +14,7 @@ const EmptyReason = z.enum(PLAN_EMPTY_REASONS);
 // Synthesised blocks the planner produces on top of user marks. The first
 // element of `annotationIds` carries the synthesised id, which downstream
 // code keys on by prefix. `impact-` and `coherence-` carry an empty patch by
-// contract; `cascade-`, `quality-`, and `compile-` carry a real edit.
+// contract; `cascade-`, `quality-`, `directive-`, and `compile-` carry a real edit.
 const EMPTY_PATCH_SYNTHESIS_PREFIXES = ["impact-", "coherence-"] as const;
 
 // Per-prefix `reviewerNotes` prefix the SKILL.md (`plan-fix`) requires.
@@ -24,6 +24,7 @@ const REVIEWER_NOTES_PREFIX = {
   "impact-": "Impact of ",
   "cascade-": "Cascaded from ",
   "quality-": "Quality pass: ",
+  "directive-": "Directive: ",
 } as const;
 
 function startsWithAny(id: string, prefixes: ReadonlyArray<string>): boolean {

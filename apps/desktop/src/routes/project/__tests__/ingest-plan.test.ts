@@ -12,6 +12,7 @@ describe("isSynthesisedAnnotationId", () => {
       "impact-12345678-1",
       "coherence-1",
       "quality-01-introduction-1",
+      "directive-12345678-1",
     ];
     for (const id of samples) {
       expect(isSynthesisedAnnotationId(id)).toBe(true);
@@ -24,7 +25,7 @@ describe("isSynthesisedAnnotationId", () => {
 
   it("keeps the prefix list in sync with the planner contract", () => {
     expect(new Set(SYNTHESISED_ID_PREFIXES)).toEqual(
-      new Set(["cascade-", "impact-", "coherence-", "quality-", "compile-"]),
+      new Set(["cascade-", "impact-", "coherence-", "quality-", "directive-", "compile-"]),
     );
   });
 });
