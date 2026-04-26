@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { splitHeadline } from "../../lib/split-headline";
+import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
 import { type ReviewRunnerMode, useReviewRunner } from "./review-runner-context";
@@ -197,23 +198,26 @@ function WriterStartReview({
         </fieldset>
       )}
       {statusKind !== "running" ? (
-        <button
-          type="button"
-          className={
-            confirm.armed ? "btn btn--primary review-column__start--danger" : "btn btn--primary"
-          }
-          disabled={!canStart}
-          onClick={() => {
-            if (!isOnTip && discards.length > 0 && !confirm.armed) {
-              confirm.arm();
-              return;
+        <div className="review-column__launch">
+          {paperId !== null ? <ClaudeChip /> : null}
+          <button
+            type="button"
+            className={
+              confirm.armed ? "btn btn--primary review-column__start--danger" : "btn btn--primary"
             }
-            void confirm.confirm(() => handleStart());
-          }}
-          {...confirm.bind()}
-        >
-          {label}
-        </button>
+            disabled={!canStart}
+            onClick={() => {
+              if (!isOnTip && discards.length > 0 && !confirm.armed) {
+                confirm.arm();
+                return;
+              }
+              void confirm.confirm(() => handleStart());
+            }}
+            {...confirm.bind()}
+          >
+            {label}
+          </button>
+        </div>
       ) : (
         <button type="button" className="btn btn--subtle" onClick={() => void onCancel()}>
           Cancel

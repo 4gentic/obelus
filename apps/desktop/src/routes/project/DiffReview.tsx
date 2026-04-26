@@ -7,7 +7,6 @@ import { type PhaseEntry, useJobsStore } from "../../lib/jobs-store";
 import { paperHasSources } from "../../lib/paper-has-sources";
 import { splitHeadline } from "../../lib/split-headline";
 import { useKeyNav } from "../../lib/use-key-nav";
-import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useDiffStore } from "./diff-store-context";
 import HunkBlock from "./HunkBlock";
@@ -377,7 +376,6 @@ export default function DiffReview(props: Props): JSX.Element {
     <div className="diff-review">
       <header className="diff-review__head">
         <div className="diff-review__counter">
-          <ClaudeChip />
           <span className="diff-review__counter-text">
             {counts.pending > 0 ? (
               <>
@@ -626,9 +624,6 @@ function ReviewProgressPanel({
 
   return (
     <div className="review-progress">
-      <div className="review-progress__head">
-        <ClaudeChip />
-      </div>
       <p className="review-progress__phase">
         {phaseLine}
         {thinking ? <span className="review-progress__pulse" aria-hidden /> : null}

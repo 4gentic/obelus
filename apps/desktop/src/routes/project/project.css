@@ -1664,6 +1664,18 @@ button.files__row {
   border-bottom: 1px solid var(--rule-soft);
 }
 
+.review-column__launch {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.review-column__launch .claude-chip-wrap {
+  margin-right: auto;
+}
+
 .review-column__md-export {
   display: flex;
   flex-direction: column;
@@ -2813,13 +2825,6 @@ button.files__row {
   line-height: 1.7;
 }
 
-.review-progress__head {
-  display: flex;
-  justify-content: flex-end;
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--rule-soft);
-}
-
 .review-progress__phase {
   margin: 0;
   color: var(--ink);
@@ -2902,12 +2907,13 @@ button.files__row {
 .claude-chip-wrap {
   position: relative;
   display: inline-flex;
+  min-width: 0;
 }
 
 .claude-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.4em;
+  gap: 0.35em;
   padding: 2px var(--space-2);
   border: 1px solid var(--rule-soft);
   background: var(--paper);
@@ -2917,6 +2923,7 @@ button.files__row {
   letter-spacing: 0.02em;
   cursor: pointer;
   transition: border-color 120ms linear;
+  min-width: 0;
 }
 
 .claude-chip:hover,
@@ -2924,12 +2931,24 @@ button.files__row {
   border-color: var(--ink);
 }
 
+.claude-chip__brand {
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+
 .claude-chip__value {
   color: var(--ink);
 }
 
+.claude-chip__value--inherited {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
 .claude-chip__sep {
   color: var(--ink-soft);
+  opacity: 0.5;
 }
 
 .claude-chip__caret {
@@ -2939,24 +2958,29 @@ button.files__row {
 }
 
 .claude-chip-pop {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 20;
-  min-width: 220px;
+  position: fixed;
+  z-index: 200;
   padding: var(--space-3);
   background: var(--paper);
   border: 1px solid var(--ink);
-  box-shadow: 0 4px 16px color-mix(in oklab, var(--ink) 12%, transparent);
+  box-shadow: 0 6px 20px color-mix(in oklab, var(--ink) 14%, transparent);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  max-width: calc(100vw - 16px);
 }
 
 .claude-chip-pop__group {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+}
+
+.claude-chip-pop__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
 .claude-chip-pop__label {
@@ -2967,42 +2991,51 @@ button.files__row {
   color: var(--ink-soft);
 }
 
-.claude-chip-pop__options {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.claude-chip-pop__opt {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 4px var(--space-2);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: var(--step--1);
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.claude-chip-pop__opt:hover {
-  background: color-mix(in oklab, var(--ink) 6%, transparent);
-}
-
-.claude-chip-pop__opt--on {
-  background: color-mix(in oklab, var(--rubric) 12%, transparent);
-  border-color: color-mix(in oklab, var(--rubric) 40%, transparent);
-}
-
 .claude-chip-pop__hint {
   color: var(--ink-soft);
   font-family: var(--font-mono);
+  font-size: var(--step--3);
+  letter-spacing: 0.04em;
+}
+
+.claude-chip-pop__seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.claude-chip-pop__seg-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px var(--space-2);
+  border: none;
+  border-right: 1px solid var(--rule-soft);
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
   font-size: var(--step--2);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.claude-chip-pop__seg-btn:last-child {
+  border-right: none;
+}
+
+.claude-chip-pop__seg-btn:hover {
+  background: color-mix(in oklab, var(--ink) 5%, transparent);
+  color: var(--ink);
+}
+
+.claude-chip-pop__seg-btn--on {
+  background: color-mix(in oklab, var(--rubric) 12%, transparent);
+  color: var(--ink);
 }
 
 .claude-chip-pop__foot {
