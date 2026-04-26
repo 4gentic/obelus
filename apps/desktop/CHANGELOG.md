@@ -2,6 +2,18 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6](https://github.com/4gentic/obelus/compare/desktop-v0.1.5...desktop-v0.1.6) (2026-04-26)
+
+
+### Features
+
+* canonical bundle, writer-fast mode, holistic plans, and pre-flight prelude ([#76](https://github.com/4gentic/obelus/issues/76)) ([290d533](https://github.com/4gentic/obelus/commit/290d53349282757ac2a1e574a72f7ffede92f0d8))
+
+
+### Documentation
+
+* **marketing:** refresh README and landing for HTML/MD beta and use cases ([#70](https://github.com/4gentic/obelus/issues/70)) ([b1e2a53](https://github.com/4gentic/obelus/commit/b1e2a53261005ca4e20a9f8af4aa68374da24d4d))
+
 ## [0.1.5](https://github.com/4gentic/obelus/compare/desktop-v0.1.4...desktop-v0.1.5) (2026-04-25)
 
 
