@@ -459,6 +459,14 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
   const textRef = useRef(text);
   textRef.current = text;
   const lastQuoteRef = useRef<string>("");
+  // The geometric / source-byte quote we last emitted to the consumer. Held
+  // separately from `lastQuoteRef` because the latter doubles as a dedup key
+  // ("img:..." for image clicks) — not the actual text the user selected.
+  // The copy listener below substitutes this onto the clipboard when the
+  // user presses Cmd+C, because WebKit snaps `selection.toString()` to the
+  // block start once a drag crosses an inline/block boundary, returning more
+  // text than the user dragged.
+  const copyQuoteRef = useRef<string>("");
   const mousedownRef = useRef<{ x: number; y: number } | null>(null);
   // Live pointer position, updated on every pointermove during a drag.
   // `computeMarkdownSelection` consults it when WebKit snaps `focusNode` to a
@@ -500,6 +508,7 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
       const dedupKey = `img:${result.anchor.file}:${result.anchor.lineStart}:${result.quote}`;
       if (dedupKey === lastQuoteRef.current) return;
       lastQuoteRef.current = dedupKey;
+      copyQuoteRef.current = result.quote;
       onSelectionRef.current(result);
     }
     container.addEventListener("mousedown", onMousedown, true);
@@ -537,16 +546,35 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
       if (result === null) {
         if (lastQuoteRef.current !== "") {
           lastQuoteRef.current = "";
+          copyQuoteRef.current = "";
           onSelectionRef.current(null);
         }
         return;
       }
       if (result.quote === lastQuoteRef.current) return;
       lastQuoteRef.current = result.quote;
+      copyQuoteRef.current = result.quote;
       onSelectionRef.current(result);
     }
 
     document.addEventListener("selectionchange", onSelectionChange);
     return () => document.removeEventListener("selectionchange", onSelectionChange);
+  }, [containerRef]);
+
+  useEffect(() => {
+    function onCopy(ev: ClipboardEvent): void {
+      const container = containerRef.current;
+      if (!container) return;
+      const quote = copyQuoteRef.current;
+      if (quote === "") return;
+      const sel = document.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      const range = sel.getRangeAt(0);
+      if (!container.contains(range.commonAncestorContainer)) return;
+      ev.clipboardData?.setData("text/plain", quote);
+      ev.preventDefault();
+    }
+    document.addEventListener("copy", onCopy);
+    return () => document.removeEventListener("copy", onCopy);
   }, [containerRef]);
 }

@@ -28,6 +28,15 @@ import { ingestWriteupFile } from "../routes/project/ingest-writeup";
 // the path runs to end-of-line.
 const OBELUS_WROTE_RE = /OBELUS_WROTE:\s*(\S.*?)\s*$/m;
 
+// `claude_session.rs::now_iso` emits "<unix-ms>ms" — strip the suffix and
+// parse. Returns null on any malformed input so callers can fall back to
+// `Date.now()` and the watchdog still ticks.
+function parseTsMs(ts: string): number | null {
+  if (!ts.endsWith("ms")) return null;
+  const n = Number(ts.slice(0, -2));
+  return Number.isFinite(n) ? n : null;
+}
+
 // Per-session state the stdout listener feeds and handleExit drains. Lives at
 // module scope because handleExit is invoked outside the listener's effect
 // closure; sessions are cleaned up as soon as they exit.
@@ -74,6 +83,13 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
 
     void onClaudeStdout((ev) => {
       if (cancelled) return;
+
+      // Tick the watchdog *before* the parse short-circuit: any line at all —
+      // even a malformed one — is proof the socket is alive. Using the event's
+      // own ts (set by the Rust emit at line read time) keeps activity
+      // tracking honest across UI render delays.
+      useJobsStore.getState().noteEvent(ev.sessionId, parseTsMs(ev.ts) ?? Date.now());
+
       const parsed = parseStreamLine(ev.line);
       if (!parsed) return;
 

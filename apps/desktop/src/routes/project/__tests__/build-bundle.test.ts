@@ -2,6 +2,7 @@ import type {
   AnnotationRow,
   PaperRow,
   ProjectFileFormat,
+  ProjectFileRow,
   ProjectRow,
   Repository,
   RevisionRow,
@@ -10,12 +11,14 @@ import { describe, expect, it } from "vitest";
 import {
   exportHtmlBundleForPaper,
   exportMdBundleForPaper,
+  scopePaperFiles,
   selectSiblingSourceCandidates,
 } from "../build-bundle";
 
 // Minimal shape the selector needs from a ProjectFileRow; the full row has
 // more columns we don't exercise here.
 type FileShape = { relPath: string; format: ProjectFileFormat };
+type InventoryShape = Pick<ProjectFileRow, "relPath" | "format" | "role">;
 
 describe("selectSiblingSourceCandidates", () => {
   it("picks .typ files in the same directory as the PDF", () => {
@@ -92,6 +95,94 @@ describe("selectSiblingSourceCandidates", () => {
     const picks = selectSiblingSourceCandidates(files, "other/paper.pdf", undefined);
 
     expect(picks).toEqual([]);
+  });
+});
+
+describe("scopePaperFiles", () => {
+  it("drops files outside the paper's directory tree", () => {
+    // Real shape from negotiated_autonomy: hundreds of unrelated JSON
+    // fixtures, plus root-level docs, plus the actual paper at paper/short/.
+    // Only the paper's source files should survive.
+    const files: InventoryShape[] = [
+      { relPath: "CLAUDE.md", format: "md", role: null },
+      { relPath: "ROADMAP.md", format: "md", role: null },
+      { relPath: "integrations/ai-foundation/PRs/001-foo.md", format: "md", role: null },
+      { relPath: "runtime/benchmarks/results/foo.json", format: "json", role: null },
+      { relPath: "paper/short/main.typ", format: "typ", role: null },
+      { relPath: "paper/short/00-abstract.typ", format: "typ", role: null },
+      { relPath: "paper/short/09-conclusion.typ", format: "typ", role: null },
+      { relPath: "paper/short/main.pdf", format: "pdf", role: null },
+      { relPath: "paper/notes/literature/extra.md", format: "md", role: null },
+    ];
+
+    const scoped = scopePaperFiles(files, "paper/short", "paper/short/main.typ");
+
+    expect(scoped.map((f) => f.relPath)).toEqual([
+      "paper/short/main.typ",
+      "paper/short/00-abstract.typ",
+      "paper/short/09-conclusion.typ",
+    ]);
+  });
+
+  it("drops non-source formats inside the paper directory", () => {
+    // Even files inside the paper's directory only survive if their format
+    // is a source format the planner can read.
+    const files: InventoryShape[] = [
+      { relPath: "paper/short/main.typ", format: "typ", role: null },
+      { relPath: "paper/short/data.json", format: "json", role: null },
+      { relPath: "paper/short/notes.txt", format: "txt", role: null },
+      { relPath: "paper/short/refs.bib", format: "bib", role: null },
+    ];
+
+    const scoped = scopePaperFiles(files, "paper/short", "paper/short/main.typ");
+
+    expect(scoped.map((f) => f.relPath)).toEqual(["paper/short/main.typ", "paper/short/refs.bib"]);
+  });
+
+  it("retains the entrypoint even when its dirname is empty (paper at project root)", () => {
+    const files: InventoryShape[] = [
+      { relPath: "paper.tex", format: "tex", role: null },
+      { relPath: "intro.tex", format: "tex", role: null },
+      { relPath: "deep/nested/file.tex", format: "tex", role: null },
+      { relPath: "junk/other.json", format: "json", role: null },
+    ];
+
+    // root === "" means "no narrowing" — extension-only filter falls through.
+    const scoped = scopePaperFiles(files, "", "paper.tex");
+
+    expect(scoped.map((f) => f.relPath)).toEqual([
+      "paper.tex",
+      "intro.tex",
+      "deep/nested/file.tex",
+    ]);
+  });
+
+  it("does not match a file whose path starts with the root as a substring", () => {
+    // `paper/short` should not match `paper/shorter/foo.typ` — guard against
+    // the naive `startsWith(root)` bug.
+    const files: InventoryShape[] = [
+      { relPath: "paper/short/main.typ", format: "typ", role: null },
+      { relPath: "paper/shorter/foo.typ", format: "typ", role: null },
+      { relPath: "paper/short", format: "typ", role: null },
+    ];
+
+    const scoped = scopePaperFiles(files, "paper/short", "paper/short/main.typ");
+
+    expect(scoped.map((f) => f.relPath).sort()).toEqual(["paper/short", "paper/short/main.typ"]);
+  });
+
+  it("preserves the role field when present", () => {
+    const files: InventoryShape[] = [
+      { relPath: "paper/short/main.typ", format: "typ", role: "main" },
+      { relPath: "paper/short/01-intro.typ", format: "typ", role: null },
+    ];
+
+    const scoped = scopePaperFiles(files, "paper/short", "paper/short/main.typ");
+
+    expect(scoped).toEqual([
+      { relPath: "paper/short/main.typ", format: "typ", role: "main" },
+      { relPath: "paper/short/01-intro.typ", format: "typ", role: null },
+    ]);
   });
 });
 
