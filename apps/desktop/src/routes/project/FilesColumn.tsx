@@ -487,6 +487,7 @@ export default function FilesColumn(): JSX.Element {
   // so the new entry appears in Reviewing without a manual reload. Mark counts
   // for the previously active paper may also have moved; the full reload is
   // fine for the small N of papers per project.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activePaperId is an intentional trigger dep
   useEffect(() => {
     void reloadPapers();
   }, [activePaperId, reloadPapers]);
