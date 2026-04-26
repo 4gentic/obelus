@@ -173,6 +173,19 @@ async fn spawn_streaming(
     Ok(session_str)
 }
 
+// Hard-coded model + effort for the dispatch / locate / minimal-diff-composition
+// skills (apply-revision, plan-writer-fast, write-review, fix-compile). The
+// in-code comments at each call site already classify these as "not reasoning"
+// — Sonnet matches Opus quality at ~2× throughput, and `--effort high` produces
+// 38K+ character single-turn thinking blocks (minutes of wall-clock) for work
+// that doesn't reward extended thinking. Held hard-coded rather than
+// user-overridable: footgun if exposed via Settings, and the user has no
+// signal that would let them pick a better value than the workflow's author.
+// Free-form `claude_ask` still respects the user's `claude.model` /
+// `claude.effort` settings — that's reasoning territory, the user's call.
+const DISPATCH_MODEL: Option<&str> = Some("sonnet");
+const DISPATCH_EFFORT: Option<&str> = Some("low");
+
 fn claude_command(
     claude: &Path,
     project_root: &Path,
@@ -328,18 +341,16 @@ pub async fn claude_spawn(
 
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 
-    // Sonnet for both modes. apply-revision + plan-fix are dispatch, location,
-    // and minimal-diff composition — not reasoning; Sonnet matches Opus quality
-    // at ~2× throughput. plan-writer-fast is a single-turn drafter, so Haiku
-    // looked like the right tool — but in practice it intermittently writes
-    // only the plan `.md` and skips the `.json` companion the desktop UI
-    // consumes, leaving the run unrecoverable from the user's POV. Reliability
-    // wins over per-turn speed here; the writer-fast path is still much
-    // faster than rigorous on the same model (no subagent, no sweeps).
-    // Explicit user picks still win.
-    let mode_default = "sonnet";
-    let effective_model = model.as_deref().or(Some(mode_default));
-    let mut cmd = claude_command(&claude, &root, &workspace, effective_model, effort.as_deref());
+    // Sonnet + low effort, hard-coded — see DISPATCH_MODEL / DISPATCH_EFFORT
+    // above. apply-revision + plan-fix are dispatch, location, and minimal-diff
+    // composition; plan-writer-fast is a single-turn drafter. Neither benefits
+    // from Opus or extended thinking — both just inflate wall-clock. The user's
+    // `claude.model` / `claude.effort` settings are intentionally ignored on
+    // this path; free-form `claude_ask` is where user picks land.
+    let _ = model;
+    let _ = effort;
+    let mut cmd =
+        claude_command(&claude, &root, &workspace, DISPATCH_MODEL, DISPATCH_EFFORT);
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await
@@ -390,10 +401,12 @@ pub async fn claude_draft_writeup(
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 
     // write-review is composition (500–1500 words of reviewer voice), not
-    // reasoning. Sonnet is the right tool here; Opus just doubles wall-clock
-    // for output that reads the same. Explicit user picks still win.
-    let effective_model = model.as_deref().or(Some("sonnet"));
-    let mut cmd = claude_command(&claude, &root, &workspace, effective_model, effort.as_deref());
+    // reasoning. Hard-coded Sonnet + low effort — see DISPATCH_MODEL /
+    // DISPATCH_EFFORT above.
+    let _ = model;
+    let _ = effort;
+    let mut cmd =
+        claude_command(&claude, &root, &workspace, DISPATCH_MODEL, DISPATCH_EFFORT);
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await
@@ -434,10 +447,12 @@ pub async fn claude_fix_compile(
     );
 
     // fix-compile is dispatch and minimal-diff edit composition — not
-    // reasoning. Sonnet is the right model; the compile-error bundle is small
-    // and the edits are localised.
-    let effective_model = model.as_deref().or(Some("sonnet"));
-    let mut cmd = claude_command(&claude, &root, &workspace, effective_model, effort.as_deref());
+    // reasoning. Hard-coded Sonnet + low effort — see DISPATCH_MODEL /
+    // DISPATCH_EFFORT above.
+    let _ = model;
+    let _ = effort;
+    let mut cmd =
+        claude_command(&claude, &root, &workspace, DISPATCH_MODEL, DISPATCH_EFFORT);
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await

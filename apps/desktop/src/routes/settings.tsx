@@ -281,7 +281,11 @@ function ClaudeConfigBlock(): JSX.Element {
       <p className="settings__body">
         Choose the model and reasoning effort Obelus asks Claude Code to use. Leaving a field on{" "}
         <em>Follow Claude Code</em> inherits whatever you set via <code>/model</code> or in{" "}
-        <code>~/.claude/settings.json</code>.
+        <code>~/.claude/settings.json</code>. The review and revision skills (apply-revision,
+        plan-writer-fast, write-review, fix-compile) ignore both choices and always run on Sonnet
+        at low effort — they're dispatch and minimal-diff composition, not reasoning, and Opus or
+        extended thinking on those skills produces minutes of wall-clock per phase without
+        improving the output. The settings here apply to free-form ask sessions.
       </p>
       <div className="settings__fields">
         <label className="settings__field">
