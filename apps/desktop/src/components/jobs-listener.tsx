@@ -13,9 +13,10 @@ import {
 import type { ReactNode } from "react";
 import { type JSX, useEffect } from "react";
 import { compileLatex, compileTypst, type LatexCompiler } from "../ipc/commands";
+import { artifactLabel } from "../lib/artifact-label";
 import { sourcesDiffSincePresnap, takeSnapshotForSession } from "../lib/bundle-sources";
 import { extractPhaseMarker, phaseFromEvent, SEMANTIC_PHASE_PREFIX } from "../lib/claude-phase";
-import { useJobsStore } from "../lib/jobs-store";
+import { type PhaseKind, useJobsStore } from "../lib/jobs-store";
 import { getRepository } from "../lib/repo";
 import { getActiveBuffersStore } from "../routes/project/active-buffers-store";
 import { ingestPlanFile } from "../routes/project/ingest-plan";
@@ -34,12 +35,14 @@ const semanticSessions = new Set<string>();
 const sessionUsage = new Map<string, StreamUsage>();
 const sessionModel = new Map<string, string>();
 const sessionStreamStart = new Map<string, number>();
+const sessionFirstObelusPhaseAt = new Map<string, number>();
 
 function clearSession(sessionId: string): void {
   semanticSessions.delete(sessionId);
   sessionUsage.delete(sessionId);
   sessionModel.delete(sessionId);
   sessionStreamStart.delete(sessionId);
+  sessionFirstObelusPhaseAt.delete(sessionId);
 }
 
 // Owns the single, app-lifetime subscription to the Claude stdout/exit event
@@ -84,27 +87,48 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
       if (usage) sessionUsage.set(ev.sessionId, usage);
 
       // Prefer semantic `[obelus:phase] X` markers emitted by the plugin's
-      // plan-fix skill. Once a marker fires for this session, suppress
-      // tool-level phase updates — otherwise a Read/Grep between markers
-      // would overwrite the semantic label and skew the per-phase stopwatch.
+      // plan-fix skill. Once a marker fires for this session, tool-level
+      // events stop driving the phase label (oscillating Read/Grep would
+      // otherwise overwrite the semantic name and skew per-phase timing).
+      // They are not discarded though: in semantic mode we route them to
+      // `currentTool`, a transient sub-caption that surfaces what the model
+      // is doing *inside* the current phase without polluting the history.
       const marker = extractPhaseMarker(parsed);
       let nextPhase: string | null = null;
+      let nextKind: PhaseKind = "tool";
       if (marker !== null) {
         semanticSessions.add(ev.sessionId);
         nextPhase = `${SEMANTIC_PHASE_PREFIX}${marker}`;
-      } else if (!semanticSessions.has(ev.sessionId)) {
+        nextKind = "semantic";
+        if (!sessionFirstObelusPhaseAt.has(ev.sessionId)) {
+          sessionFirstObelusPhaseAt.set(ev.sessionId, Date.now());
+        }
+      } else if (semanticSessions.has(ev.sessionId)) {
+        const narration = phaseFromEvent(parsed);
+        if (narration !== null) {
+          useJobsStore.getState().setCurrentTool(ev.sessionId, narration);
+        }
+      } else {
         nextPhase = phaseFromEvent(parsed);
+        nextKind = "tool";
       }
       if (nextPhase !== null) {
         const store = useJobsStore.getState();
         const before = store.get(ev.sessionId);
         if (before && before.phase !== nextPhase) {
-          store.updatePhase(ev.sessionId, nextPhase);
+          store.updatePhase(ev.sessionId, nextPhase, nextKind);
           const hist = store.get(ev.sessionId)?.phaseHistory ?? [];
           const last = hist[hist.length - 1];
           const prev = hist.length >= 2 ? hist[hist.length - 2] : undefined;
           if (last && prev) {
-            console.info("[phase]", {
+            // `[obelus:phase]` is the skill's own self-reported lifecycle —
+            // an authoritative phase commitment. `[tool]` is raw tool-use
+            // narration: useful while a run is in flight, but it oscillates
+            // (Read → Read → Grep → Read) and is not a phase change. Keep
+            // the two log streams distinct so timing tools and humans can
+            // tell which signals to trust.
+            const tag = last.kind === "semantic" ? "[obelus:phase]" : "[tool]";
+            console.info(tag, {
               sessionId: ev.sessionId,
               from: prev.phase,
               to: last.phase,
@@ -112,7 +136,7 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
             });
           }
         } else if (!before) {
-          store.updatePhase(ev.sessionId, nextPhase);
+          store.updatePhase(ev.sessionId, nextPhase, nextKind);
         }
       }
 
@@ -168,7 +192,12 @@ async function handleExit(
     code,
     wasCancelled,
     obelusWrotePath: job.obelusWrotePath ?? null,
-    phaseHistory: job.phaseHistory.map((p) => p.phase),
+    // `semanticPhases` are the plugin's self-reported lifecycle markers.
+    // `toolHistory` is raw tool-use narration kept around for debugging
+    // when the skill never emitted any markers (which is itself a signal
+    // that something went wrong with the invocation).
+    semanticPhases: job.phaseHistory.filter((p) => p.kind === "semantic").map((p) => p.phase),
+    toolHistory: job.phaseHistory.filter((p) => p.kind === "tool").map((p) => p.phase),
   });
 
   // `review` and `compile-fix` both carry a review_session row whose status
@@ -199,6 +228,7 @@ async function handleExit(
     await markReviewStatus(reviewSessionId, "ingesting", null);
   }
 
+  const tIngestStart = performance.now();
   try {
     if (job.kind === "review") {
       // Before ingest: check whether Claude edited any bundle-referenced
@@ -229,6 +259,11 @@ async function handleExit(
         }
       }
       const message = await ingestReview(job.projectId, job.reviewSessionId, job.obelusWrotePath);
+      console.info("[write-perf]", {
+        step: "ingest",
+        kind: "review",
+        ms: Math.round(performance.now() - tIngestStart),
+      });
       store.markDone(sessionId, message);
     } else if (job.kind === "compile-fix") {
       // The skill edits source directly. Refresh any open buffers so the
@@ -249,11 +284,15 @@ async function handleExit(
         job.projectId,
         job.obelusWrotePath,
       );
+      console.info("[write-perf]", {
+        step: "ingest",
+        kind: "writeup",
+        ms: Math.round(performance.now() - tIngestStart),
+      });
       const bytes = new TextEncoder().encode(ingested.body).byteLength;
-      const fileName = ingested.path;
       store.markDone(
         sessionId,
-        `Write-up ready. ${bytes.toLocaleString()} bytes from ${fileName}.`,
+        `Write-up ready. ${bytes.toLocaleString()} bytes from ${artifactLabel(ingested.path)}.`,
       );
     }
   } catch (err) {
@@ -293,23 +332,28 @@ async function markReviewStatus(
 function emitReviewTiming(
   sessionId: string,
   startedAt: number,
-  history: ReadonlyArray<{ phase: string; at: number }>,
+  history: ReadonlyArray<{ phase: string; kind: PhaseKind; at: number }>,
   code: number | null,
   wasCancelled: boolean,
 ): void {
   const finishedAt = Date.now();
-  const phases: Array<{ phase: string; elapsedMs: number }> = [];
+  const phases: Array<{ phase: string; kind: PhaseKind; elapsedMs: number }> = [];
   for (let i = 0; i < history.length; i++) {
     const cur = history[i];
     if (!cur) continue;
     const nextEntry = history[i + 1];
     const endAt = nextEntry ? nextEntry.at : finishedAt;
-    phases.push({ phase: cur.phase, elapsedMs: endAt - cur.at });
+    phases.push({ phase: cur.phase, kind: cur.kind, elapsedMs: endAt - cur.at });
   }
   const usage = sessionUsage.get(sessionId);
+  const firstStdoutAt = sessionStreamStart.get(sessionId);
+  const firstObelusPhaseAt = sessionFirstObelusPhaseAt.get(sessionId);
   console.info("[review-timing]", {
     sessionId,
     totalMs: finishedAt - startedAt,
+    clickToFirstStdoutMs: firstStdoutAt !== undefined ? firstStdoutAt - startedAt : null,
+    clickToFirstObelusPhaseMs:
+      firstObelusPhaseAt !== undefined ? firstObelusPhaseAt - startedAt : null,
     exitCode: code,
     cancelled: wasCancelled,
     model: sessionModel.get(sessionId) ?? null,

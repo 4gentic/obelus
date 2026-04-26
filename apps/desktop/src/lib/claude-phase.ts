@@ -4,6 +4,7 @@ import {
   extractToolUses,
   type ParsedStreamEvent,
 } from "@obelus/claude-sidecar";
+import { artifactLabel } from "./artifact-label";
 
 // Semantic phase labels emitted by the `plan-fix` skill as bare
 // `[obelus:phase] <token>` lines at the top of each major section. The
@@ -36,12 +37,12 @@ export function describePhase(toolName: string, input: unknown): string {
   switch (toolName) {
     case "Read": {
       const p = str("file_path");
-      return p ? `Reading ${basename(p)}` : "Reading a file";
+      return p ? `Reading ${artifactLabel(p)}` : "Reading a file";
     }
     case "Grep": {
       const pat = str("pattern");
       const path = str("path");
-      if (pat && path) return `Searching ${basename(path)} for \`${truncate(pat, 28)}\``;
+      if (pat && path) return `Searching ${artifactLabel(path)} for \`${truncate(pat, 28)}\``;
       if (pat) return `Searching for \`${truncate(pat, 40)}\``;
       return "Searching the source";
     }
@@ -59,11 +60,11 @@ export function describePhase(toolName: string, input: unknown): string {
     case "Edit":
     case "MultiEdit": {
       const p = str("file_path");
-      return p ? `Editing ${basename(p)}` : "Editing a file";
+      return p ? `Editing ${artifactLabel(p)}` : "Editing a file";
     }
     case "Write": {
       const p = str("file_path");
-      return p ? `Writing ${basename(p)}` : "Writing a file";
+      return p ? `Writing ${artifactLabel(p)}` : "Writing a file";
     }
     case "TodoWrite":
       return "Updating the plan";
@@ -90,7 +91,7 @@ export function describePhase(toolName: string, input: unknown): string {
       return "Finalizing the plan";
     case "NotebookEdit": {
       const p = str("notebook_path");
-      return p ? `Editing ${basename(p)}` : "Editing a notebook";
+      return p ? `Editing ${artifactLabel(p)}` : "Editing a notebook";
     }
     default: {
       if (toolName.startsWith("mcp__")) {
@@ -108,11 +109,6 @@ export function phaseFromEvent(event: ParsedStreamEvent): string | null {
   const last = toolUses[toolUses.length - 1];
   if (!last) return null;
   return describePhase(last.name, last.input);
-}
-
-function basename(path: string): string {
-  const i = path.lastIndexOf("/");
-  return i === -1 ? path : path.slice(i + 1);
 }
 
 function truncate(s: string, n: number): string {

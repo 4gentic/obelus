@@ -506,7 +506,7 @@ button.files__row {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 55%;
+  max-width: 40%;
 }
 
 .files__dirty-dot {
@@ -627,21 +627,33 @@ button.files__row {
   font-size: 1em;
   line-height: 1;
   cursor: pointer;
-  opacity: 0;
   flex-shrink: 0;
-  transition:
-    opacity 120ms linear,
-    color 120ms linear;
+  display: none;
+  transition: color 120ms linear;
 }
 
 .files__row:hover .files__remove,
-.files__remove:focus-visible {
-  opacity: 1;
+.files__row:focus-within .files__remove,
+.files__row--selected .files__remove,
+.files__remove[data-armed="true"] {
+  display: inline-flex;
+  align-items: center;
 }
 
 .files__remove:hover,
 .files__remove:focus-visible {
   color: var(--rubric);
+}
+
+.files__remove:disabled {
+  cursor: not-allowed;
+  color: var(--ink-soft);
+  opacity: 0.4;
+}
+
+.files__remove[data-armed="true"] {
+  color: var(--rubric);
+  font-weight: 600;
 }
 
 .files__row--paper .files__path-hint {
@@ -748,6 +760,95 @@ button.files__row {
 
 .pane__path-save {
   flex: 0 0 auto;
+}
+
+.paper-actions-wrap {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.paper-actions-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    border-color 120ms linear,
+    background 120ms linear;
+}
+
+.paper-actions-trigger:hover,
+.paper-actions-trigger:focus-visible {
+  color: var(--ink);
+  border-color: var(--rule-soft);
+  background: color-mix(in oklab, var(--ink) 4%, transparent);
+}
+
+.paper-actions-trigger--open {
+  color: var(--ink);
+  border-color: var(--rule-soft);
+  background: color-mix(in oklab, var(--ink) 4%, transparent);
+}
+
+.paper-actions-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.paper-actions-pop {
+  position: fixed;
+  z-index: 200;
+  padding: var(--space-1);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 0 6px 20px color-mix(in oklab, var(--ink) 14%, transparent);
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 16px);
+}
+
+.paper-actions-pop__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+  text-align: left;
+}
+
+.paper-actions-pop__item:hover,
+.paper-actions-pop__item:focus-visible {
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+
+.paper-actions-pop__item--danger {
+  color: var(--rubric);
+}
+
+.paper-actions-pop__hint {
+  font-family: var(--font-mono);
+  font-size: var(--step--3);
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
 }
 
 .pdf-pane {
@@ -1216,7 +1317,7 @@ button.files__row {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-1) var(--space-2);
-  flex-shrink: 0;
+  min-width: 0;
   margin-left: auto;
 }
 
@@ -1367,7 +1468,6 @@ button.files__row {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  overflow-y: auto;
 }
 
 .diff-review__group {
@@ -1422,6 +1522,11 @@ button.files__row {
   padding: var(--space-1) var(--space-2);
   background: var(--panel);
   font-size: var(--step--1);
+  /* Positioning context for the .satisfies-tooltip ::after panel — anchoring
+     to the header (which spans the full diff-block width) lets the tooltip
+     stay inside the diff-block regardless of how far right the chip itself
+     sits or how narrow the .diff-review pane has been resized. */
+  position: relative;
 }
 
 .diff-block__cat {
@@ -1434,6 +1539,152 @@ button.files__row {
   font-family: var(--font-mono);
   color: var(--rubric);
   font-size: 0.85em;
+}
+
+.diff-block__tag--merged {
+  /* Merged-mark chip — the diff covers more than one user mark. Tooltip
+     spells out the contributing quotes; the chip itself stays minimal so the
+     header doesn't crowd. */
+  color: var(--ink);
+  border: 1px solid var(--rule-soft);
+  border-radius: 2px;
+  padding: 0 var(--space-1);
+  cursor: help;
+}
+
+.diff-review__informational {
+  /* Surfaces ingested-but-hidden empty hunks (praise / ambiguous / impact)
+     as a non-actionable section above the diff list. Section header reads
+     as a header — items below carry their own card treatment so a
+     long list doesn't render as one giant panel. */
+  margin: 0 var(--space-2) var(--space-2);
+}
+
+.diff-review__informational-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.diff-review__informational-head::-webkit-details-marker {
+  display: none;
+}
+
+.diff-review__informational-head::before {
+  content: "▸";
+  display: inline-block;
+  font-size: 0.7em;
+  color: var(--ink-soft);
+  transition: transform 100ms ease;
+}
+
+.diff-review__informational[open] > .diff-review__informational-head {
+  margin-bottom: var(--space-1);
+}
+
+.diff-review__informational[open] > .diff-review__informational-head::before {
+  transform: rotate(90deg);
+}
+
+.diff-review__informational-title {
+  font-size: var(--step--1);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.diff-review__informational-sub {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.diff-review__informational-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.diff-review__informational-item {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--ink-soft);
+  background: var(--panel);
+}
+
+.diff-review__informational-item-details > summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--step--1);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.diff-review__informational-item-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.diff-review__informational-item-details > summary::before {
+  content: "▸";
+  display: inline-block;
+  font-size: 0.7em;
+  color: var(--ink-soft);
+  transition: transform 100ms ease;
+}
+
+.diff-review__informational-item-details[open] > summary {
+  margin-bottom: var(--space-1);
+}
+
+.diff-review__informational-item-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.diff-review__informational-reason {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--rule-soft);
+  border-radius: 2px;
+  font-size: var(--step--2, 0.75rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.diff-review__informational-reason[data-reason="praise"] {
+  color: var(--rubric);
+  border-color: color-mix(in oklab, var(--rubric) 35%, var(--rule-soft));
+}
+
+.diff-review__informational-loc {
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+}
+
+.diff-review__informational-cat {
+  color: var(--ink);
+}
+
+.diff-review__informational-quote {
+  margin: 0 0 var(--space-1);
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--rule-soft);
+  color: var(--ink);
+  font-size: var(--step--1);
+  font-style: italic;
+}
+
+.diff-review__informational-notes {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--step--1);
+  line-height: 1.45;
 }
 
 .diff-block__notes {
@@ -1641,6 +1892,18 @@ button.files__row {
   border-bottom: 1px solid var(--rule-soft);
 }
 
+.review-column__launch {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.review-column__launch .claude-chip-wrap {
+  margin-right: auto;
+}
+
 .review-column__md-export {
   display: flex;
   flex-direction: column;
@@ -1650,7 +1913,23 @@ button.files__row {
   border-bottom: 1px solid var(--rule-soft);
 }
 
-.review-column__indications {
+.review-column__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--rule-soft);
+}
+
+.review-column__notes-label {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.review-column__notes-input {
   width: 100%;
   min-width: 0;
   min-height: 4.5em;
@@ -1664,14 +1943,91 @@ button.files__row {
   resize: vertical;
 }
 
-.review-column__indications:focus {
+.review-column__notes-input:focus {
   outline: none;
   border-color: var(--ink);
 }
 
-.review-column__indications::placeholder {
+.review-column__notes-input::placeholder {
   color: var(--ink-soft);
   font-style: italic;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.review-column__mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--paper);
+  margin: 0;
+  padding: 0;
+}
+
+.review-column__mode-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-2);
+  background: transparent;
+  border-right: 1px solid var(--rule-soft);
+  color: var(--ink-soft);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body);
+  transition:
+    background 120ms linear,
+    color 120ms linear;
+}
+
+.review-column__mode-option:last-child {
+  border-right: none;
+}
+
+.review-column__mode:not([disabled]) .review-column__mode-option:hover {
+  color: var(--ink);
+  background: color-mix(in oklab, var(--ink) 3%, transparent);
+}
+
+.review-column__mode-option--on {
+  color: var(--ink);
+  background: color-mix(in oklab, var(--rubric) 8%, transparent);
+}
+
+.review-column__mode[disabled] .review-column__mode-option {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.review-column__mode-label {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-0);
+  line-height: 1.1;
+}
+
+.review-column__mode-sub {
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  line-height: 1.25;
+}
+
+.review-column__mode-option:focus-within {
+  outline: 2px solid var(--rubric);
+  outline-offset: -2px;
 }
 
 .review-list {
@@ -1896,6 +2252,42 @@ button.files__row {
 
 .cat-tooltip[data-cat-tooltip]:hover::after,
 .cat-tooltip[data-cat-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+
+/* Hover panel for the "satisfies N marks" chip on a hunk header. Lists each
+   linked mark's quote, one per line, middle-truncated to keep a single
+   oversized highlight from blowing out the panel. Same paper aesthetic as
+   .cat-tooltip, but anchored to the diff-block header rather than the chip
+   itself: the chip's position inside the header varies with content (and the
+   .diff-review pane's overflow-y clips horizontal overflow on both sides),
+   so anchoring to the header — which always spans the diff-block's full
+   width — lets us cap max-width against the header and stay inside the
+   diff-block at any pane width. */
+.satisfies-tooltip[data-satisfies-tooltip]::after {
+  content: attr(data-satisfies-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: var(--space-2);
+  max-width: min(480px, calc(100% - 2 * var(--space-2)));
+  width: max-content;
+  padding: var(--space-2) var(--space-3);
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--radius-1);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 100;
+  transition: opacity 120ms ease 250ms;
+}
+
+.satisfies-tooltip[data-satisfies-tooltip]:hover::after,
+.satisfies-tooltip[data-satisfies-tooltip]:focus-visible::after {
   opacity: 1;
 }
 
@@ -2713,13 +3105,6 @@ button.files__row {
   line-height: 1.7;
 }
 
-.review-progress__head {
-  display: flex;
-  justify-content: flex-end;
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--rule-soft);
-}
-
 .review-progress__phase {
   margin: 0;
   color: var(--ink);
@@ -2755,15 +3140,6 @@ button.files__row {
   font-size: var(--step--2);
   color: var(--ink-soft);
   letter-spacing: 0.02em;
-}
-
-.review-progress__filler {
-  margin: var(--space-3) 0 0 0;
-  font-family: var(--font-display);
-  font-style: italic;
-  color: var(--ink-soft);
-  opacity: 0.7;
-  transition: opacity 280ms ease-in;
 }
 
 .review-progress__log {
@@ -2802,12 +3178,13 @@ button.files__row {
 .claude-chip-wrap {
   position: relative;
   display: inline-flex;
+  min-width: 0;
 }
 
 .claude-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.4em;
+  gap: 0.35em;
   padding: 2px var(--space-2);
   border: 1px solid var(--rule-soft);
   background: var(--paper);
@@ -2817,6 +3194,7 @@ button.files__row {
   letter-spacing: 0.02em;
   cursor: pointer;
   transition: border-color 120ms linear;
+  min-width: 0;
 }
 
 .claude-chip:hover,
@@ -2824,12 +3202,24 @@ button.files__row {
   border-color: var(--ink);
 }
 
+.claude-chip__brand {
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+
 .claude-chip__value {
   color: var(--ink);
 }
 
+.claude-chip__value--inherited {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
 .claude-chip__sep {
   color: var(--ink-soft);
+  opacity: 0.5;
 }
 
 .claude-chip__caret {
@@ -2839,24 +3229,29 @@ button.files__row {
 }
 
 .claude-chip-pop {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 20;
-  min-width: 220px;
+  position: fixed;
+  z-index: 200;
   padding: var(--space-3);
   background: var(--paper);
   border: 1px solid var(--ink);
-  box-shadow: 0 4px 16px color-mix(in oklab, var(--ink) 12%, transparent);
+  box-shadow: 0 6px 20px color-mix(in oklab, var(--ink) 14%, transparent);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  max-width: calc(100vw - 16px);
 }
 
 .claude-chip-pop__group {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+}
+
+.claude-chip-pop__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
 .claude-chip-pop__label {
@@ -2867,42 +3262,51 @@ button.files__row {
   color: var(--ink-soft);
 }
 
-.claude-chip-pop__options {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.claude-chip-pop__opt {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 4px var(--space-2);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: var(--step--1);
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.claude-chip-pop__opt:hover {
-  background: color-mix(in oklab, var(--ink) 6%, transparent);
-}
-
-.claude-chip-pop__opt--on {
-  background: color-mix(in oklab, var(--rubric) 12%, transparent);
-  border-color: color-mix(in oklab, var(--rubric) 40%, transparent);
-}
-
 .claude-chip-pop__hint {
   color: var(--ink-soft);
   font-family: var(--font-mono);
+  font-size: var(--step--3);
+  letter-spacing: 0.04em;
+}
+
+.claude-chip-pop__seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.claude-chip-pop__seg-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px var(--space-2);
+  border: none;
+  border-right: 1px solid var(--rule-soft);
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
   font-size: var(--step--2);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.claude-chip-pop__seg-btn:last-child {
+  border-right: none;
+}
+
+.claude-chip-pop__seg-btn:hover {
+  background: color-mix(in oklab, var(--ink) 5%, transparent);
+  color: var(--ink);
+}
+
+.claude-chip-pop__seg-btn--on {
+  background: color-mix(in oklab, var(--rubric) 12%, transparent);
+  color: var(--ink);
 }
 
 .claude-chip-pop__foot {

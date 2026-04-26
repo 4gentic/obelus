@@ -61,7 +61,7 @@ The user sees the named path in the summary so they can audit the bundle that pr
 
 0. **Verify target paths.** Before any Read/Edit/Write, walk the parsed blocks and check every `file` against the **Path scope** rules above. A single refused block does not abort the run — skip it and continue — but an Edit/Write tool call for a refused path is a bug, never execute one.
 
-1. Read the plan at `<plan-path>`. Parse each `##` block into `{ annotationId, file, startLine, endLine, before, after, ambiguous }`.
+1. Read the plan at `<plan-path>`. Parse each `##` block into `{ annotationId, file, startLine, endLine, before, after, ambiguous }`. The `annotationId` is the heading id (the first of the block's `annotationIds` array); a merged block whose diff satisfies several marks carries an `**Affects**` line listing every contributing id — record those for the summary but key the apply on the heading id.
 
 2. For each block, in order:
    - If the block's `file` failed step 0, skip. Record as refused.

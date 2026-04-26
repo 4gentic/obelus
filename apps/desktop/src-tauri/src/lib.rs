@@ -8,7 +8,7 @@ use commands::{
     claude::detect_claude,
     claude_session::{
         claude_ask, claude_cancel, claude_draft_writeup, claude_fix_compile, claude_is_alive,
-        claude_spawn,
+        claude_spawn, perf_log,
     },
     claude_user_settings::read_claude_user_settings,
     db_tx::db_tx_batch,
@@ -30,7 +30,7 @@ use commands::{
     typst::compile_typst,
     workspace::{
         workspace_delete, workspace_path, workspace_read_dir, workspace_read_file,
-        workspace_write_bytes, workspace_write_text,
+        workspace_remove_paper_files, workspace_write_bytes, workspace_write_text,
     },
 };
 use state::AppState;
@@ -71,6 +71,7 @@ pub fn run() {
             claude_fix_compile,
             claude_cancel,
             claude_is_alive,
+            perf_log,
             read_claude_user_settings,
             apply_hunks,
             compile_typst,
@@ -95,6 +96,7 @@ pub fn run() {
             workspace_write_text,
             workspace_write_bytes,
             workspace_delete,
+            workspace_remove_paper_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Obelus");

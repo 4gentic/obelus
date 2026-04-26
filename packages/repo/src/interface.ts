@@ -56,6 +56,10 @@ export interface PaperPathsPatch {
 }
 
 export interface PapersRepo {
+  // Returns every row, including soft-removed ones. Callers that build the
+  // "Reviewing" sidebar filter on `removedAt` themselves. Lookups by id
+  // (via this list or via `get`) return rows regardless of removal state —
+  // the row's data is still valid; only its sidebar visibility is gated.
   list(): Promise<PaperRow[]>;
   get(id: string): Promise<PaperRow | undefined>;
   rename(id: string, title: string): Promise<void>;
@@ -64,6 +68,24 @@ export interface PapersRepo {
   // Updates on-disk path references after a file/folder move. Keys set to
   // `null` clear the column; omitted keys are left untouched.
   setPaths(id: string, patch: PaperPathsPatch): Promise<void>;
+  // Soft-remove from the "Reviewing" sidebar. Idempotent: subsequent calls
+  // refresh the timestamp. All dependent rows stay intact, and so do any
+  // paper-keyed workspace artifacts (plans, writeups, apply backups under
+  // `<app_data>/projects/<projectId>/`). Those artifacts persist deliberately
+  // so a future time-travel-across-drafts feature can replay history; they
+  // are reaped only by `papers.remove` (Trash view), `forgetProject`, or
+  // `factory_reset`. Soft-removing en masse therefore accumulates workspace
+  // bytes — acceptable for the current product surface, revisit if Trash UI
+  // ships first.
+  hide(id: string): Promise<void>;
+  // Restores a soft-removed paper to the sidebar. Auto-called when the user
+  // re-opens the source file from disk, so an accidental hide is undone by
+  // simply clicking the file again.
+  unhide(id: string): Promise<void>;
+  // Hard delete: cascades through revisions, annotations, paper_edits chain,
+  // review_sessions, diff_hunks, writeups, paper_build. Reserved for an
+  // explicit Trash view's "Delete forever" action and for `forgetProject`'s
+  // project-wide cascade — never wired to the sidebar's `×` button.
   remove(id: string): Promise<void>;
 }
 
@@ -120,6 +142,12 @@ export interface ProjectsRepo {
   rename(id: string, label: string): Promise<void>;
   setPinned(id: string, pinned: boolean): Promise<void>;
   forget(id: string): Promise<void>;
+  // Wipes every paper and ask thread that belongs to this project, but keeps
+  // the project row itself (label, desk membership, pin state). The caller
+  // also owns clearing app-state and the workspace dir; this method only
+  // touches SQL. Returns the paper IDs that were resident at the moment of
+  // reset so the caller can drop their `trustedPapers` entries.
+  reset(id: string): Promise<{ paperIds: string[] }>;
   moveToDesk(id: string, deskId: string): Promise<void>;
   touchLastOpened(id: string): Promise<void>;
   setLastOpenedFile(id: string, path: string | null): Promise<void>;
@@ -165,6 +193,8 @@ export interface DiffHunksRepo {
   setModifiedPatch(id: string, patch: string): Promise<void>;
   setNote(id: string, note: string): Promise<void>;
   acceptAllInFile(sessionId: string, file: string): Promise<void>;
+  acceptAllInSession(sessionId: string): Promise<void>;
+  rejectAllInSession(sessionId: string): Promise<void>;
   countsByState(sessionId: string): Promise<Record<DiffHunkState, number>>;
   setApplyFailure(id: string, failure: DiffHunkApplyFailure | null): Promise<void>;
   clearApplyFailures(sessionId: string): Promise<void>;

@@ -179,6 +179,10 @@ export function HtmlView({
     // loads avoids a redundant `onMountReady` (which otherwise fires twice on
     // initial mount and re-runs every adapter effect once for nothing).
     let srcdocAssigned = false;
+    // Per-load pair of (doc, keydown listener) so srcdoc swaps clean up the
+    // prior iframe document before the new one attaches its own listener.
+    let keydownDoc: Document | null = null;
+    let keydownHandler: ((ev: KeyboardEvent) => void) | null = null;
     const onLoad = (): void => {
       if (cancelled) return;
       if (!srcdocAssigned) return;
@@ -197,6 +201,40 @@ export function HtmlView({
         body.removeAttribute("data-source-file");
       }
       mountRef.current = body;
+
+      // Sandboxed iframe keydowns don't bubble across the frame boundary,
+      // so the parent window's shell-level handlers (Cmd+F → FindBar,
+      // Cmd+P → Quick Open, Escape → close) never see them when focus is
+      // inside paper content. Forward just those three to `window` as
+      // synthetic events; everything else stays the iframe's concern.
+      if (keydownDoc && keydownHandler) {
+        keydownDoc.removeEventListener("keydown", keydownHandler);
+      }
+      const onInnerKeyDown = (ev: KeyboardEvent): void => {
+        const isMod = ev.metaKey || ev.ctrlKey;
+        const key = ev.key.toLowerCase();
+        const isCmdF = isMod && !ev.shiftKey && !ev.altKey && key === "f";
+        const isCmdP = isMod && !ev.shiftKey && !ev.altKey && key === "p";
+        const isEscape = ev.key === "Escape";
+        if (!isCmdF && !isCmdP && !isEscape) return;
+        ev.preventDefault();
+        window.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: ev.key,
+            code: ev.code,
+            metaKey: ev.metaKey,
+            ctrlKey: ev.ctrlKey,
+            shiftKey: ev.shiftKey,
+            altKey: ev.altKey,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      };
+      innerDoc.addEventListener("keydown", onInnerKeyDown);
+      keydownDoc = innerDoc;
+      keydownHandler = onInnerKeyDown;
+
       onMountReadyRef.current?.();
     };
 
@@ -248,6 +286,11 @@ export function HtmlView({
     return () => {
       cancelled = true;
       frame?.removeEventListener("load", onLoad);
+      if (keydownDoc && keydownHandler) {
+        keydownDoc.removeEventListener("keydown", keydownHandler);
+        keydownDoc = null;
+        keydownHandler = null;
+      }
     };
   }, [sanitized, file, mode, sourceFile, assets, trusted]);
 

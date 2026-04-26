@@ -1,5 +1,7 @@
 # Obelus — Desktop expansion (PWA + Tauri v2)
 
+> **Status:** Plan implemented. The v1/v2 bundle migration described below collapsed to a single `Bundle` schema in commit `f420c94`; references to `BundleV1`/`BundleV2`, the `1.0`/`2.0` envelope literal, and "v1 bundle export" are preserved as the milestone record. For the live API, see [`packages/bundle-schema/README.md`](../packages/bundle-schema/README.md).
+
 ## Context
 
 Obelus today is a browser-only offline PWA for reviewing academic PDFs: highlight, margin-note,
@@ -326,7 +328,7 @@ refinement; "Save to folder" and "Copy to clipboard" — no cloud.
 ### Voice
 
 Observational, declarative, slightly archaic. No exclamations. Verbs over adjectives. Register
-matches existing landing hero "Writing AI papers is cheap. / Reviewing them is the work."
+matches existing landing hero "Writing a paper with AI is cheap. / Reviewing it is the work."
 
 Examples:
 - Wizard heading: "First, the machinist."
@@ -436,7 +438,7 @@ ready to cut a v1 release.
   even when no PDF is open
 - Sidecar gains `claude_ask` (sibling of `claude_spawn`) — single-shot `claude --print`
   with `--add-dir` and `--allowedTools "Read Glob Grep"`, no plugin-dir
-- Persistence: `ask_threads` + `ask_messages` SQLite tables (migration 0004), one thread
+- Persistence: `ask_threads` + `ask_messages` SQLite tables (migration 0001), one thread
   per `(project_id, paper_id NULL-able)`; web repo throws `NotSupportedError`
 - Renderer assembles prompt with project + open paper + selected mark + last ~6 turns,
   streams stdout into the assistant message body

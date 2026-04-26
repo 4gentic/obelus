@@ -79,3 +79,27 @@ export async function trustPaper(paperId: string): Promise<void> {
   if (existing[paperId] === true) return;
   await setAppState("trustedPapers", { ...existing, [paperId]: true });
 }
+
+export async function untrustPaper(paperId: string): Promise<void> {
+  const existing = await getAppState("trustedPapers");
+  if (!existing || existing[paperId] !== true) return;
+  const next: Record<string, true> = { ...existing };
+  delete next[paperId];
+  await setAppState("trustedPapers", next);
+}
+
+export async function untrustPapers(paperIds: ReadonlyArray<string>): Promise<void> {
+  if (paperIds.length === 0) return;
+  const existing = await getAppState("trustedPapers");
+  if (!existing) return;
+  const next: Record<string, true> = { ...existing };
+  let changed = false;
+  for (const id of paperIds) {
+    if (next[id] === true) {
+      delete next[id];
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  await setAppState("trustedPapers", next);
+}

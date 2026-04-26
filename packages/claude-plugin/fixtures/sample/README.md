@@ -9,10 +9,10 @@ Three source variants of the same short paper on transformer-attention scalabili
 - `sample.typ` — Typst source.
 - `sample.html` — paired-source HTML rendered from `sample.md` via `@obelus/source-render`. Carries `data-html-file` on `<body>` and `data-src-file`/`data-src-line` on every leaf block so HTML anchors round-trip back into `sample.md`. Regenerate with `_render-html.mjs` (see below).
 - `sample-handauthored.html` — a small hand-authored HTML manuscript with no `data-src-*` attributes; the only paired hint is `data-html-file` on `<body>`. Used by the hand-authored HTML e2e scenario where the planner cannot resolve a source line range.
-- `bundle.json` — a valid v1 bundle with three annotations (one `unclear`, one `citation-needed`, one `praise`) anchored to the rendered PDF.
-- `bundle-md.json` — a valid v2 bundle with two `source`-anchored annotations pointing at specific lines of `sample.md`; used by the plugin-e2e `revise-markdown-source` scenario to prove the markdown round-trip.
-- `bundle-html-paired.json` — a valid v2 bundle whose two annotations carry `kind: "html"` anchors against `sample.html`, each with a `sourceHint` `SourceAnchor` pointing back into `sample.md`. The paper's `entrypoint` is `sample.md` — paired bundles target the source.
-- `bundle-html-handauthored.json` — a valid v2 bundle whose two annotations carry `kind: "html"` anchors against `sample-handauthored.html` with no `sourceHint`. The planner emits `ambiguous: true` blocks per the `plan-fix` HTML branch.
+- `bundle.json` — a valid bundle with three annotations (one `unclear`, one `citation-needed`, one `praise`) anchored to the rendered PDF.
+- `bundle-md.json` — a valid bundle with two `source`-anchored annotations pointing at specific lines of `sample.md`; used by the plugin-e2e `revise-markdown-source` scenario to prove the markdown round-trip.
+- `bundle-html-paired.json` — a valid bundle whose two annotations carry `kind: "html"` anchors against `sample.html`, each with a `sourceHint` `SourceAnchor` pointing back into `sample.md`. The paper's `entrypoint` is `sample.md` — paired bundles target the source.
+- `bundle-html-handauthored.json` — a valid bundle whose two annotations carry `kind: "html"` anchors against `sample-handauthored.html` with no `sourceHint`. The planner emits `ambiguous: true` blocks per the `plan-fix` HTML branch.
 
 The `.pdf` is deliberately not committed: binaries in a source repo age poorly and this fixture is meant to be regenerated on demand.
 

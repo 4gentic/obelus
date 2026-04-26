@@ -1,18 +1,19 @@
-import type { DiffHunkRow } from "@obelus/repo";
+import type { AnnotationRow, DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
-import type { CompileStatus } from "../../lib/diff-store";
+import { type CompileStatus, recount } from "../../lib/diff-store";
 import { type PhaseEntry, useJobsStore } from "../../lib/jobs-store";
 import { paperHasSources } from "../../lib/paper-has-sources";
 import { splitHeadline } from "../../lib/split-headline";
 import { useKeyNav } from "../../lib/use-key-nav";
-import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useDiffStore } from "./diff-store-context";
 import HunkBlock from "./HunkBlock";
+import { markLocationLabel } from "./mark-location-label";
 import { usePaperId } from "./OpenPaper";
 import { useReviewProgress, useReviewRunner } from "./review-runner-context";
+import { trimQuoteMiddle } from "./trim-quote";
 import type { ForkInfo } from "./use-diff-actions";
 import { usePaperBuild } from "./use-paper-build";
 
@@ -70,12 +71,87 @@ export default function DiffReview(props: Props): JSX.Element {
   const editingText = store((s) => s.editingText);
   const noteId = store((s) => s.noteId);
   const noteText = store((s) => s.noteText);
-  const counts = store((s) => s.counts);
   const applyStatus = store((s) => s.applyStatus);
   const compileStatus = store((s) => s.compileStatus);
 
-  const grouped = useMemo(() => groupByFile(hunks), [hunks]);
+  // Empty-patch hunks (praise / no-edit / ambiguous / structural-note) live as
+  // margin-mark badges, not as rows in the diff list — they offer no edit to
+  // accept or reject. Reviewer-mode papers without source files are the
+  // exception: every hunk is a note there by design, so the filter only
+  // applies when the paper has sources.
+  const visibleAllHunks = useMemo(
+    () => (hasSources ? hunks.filter((h) => h.patch !== "") : hunks),
+    [hunks, hasSources],
+  );
+  // Apply-gate math runs over the *applicable* set: hunks that carry a real
+  // patch and could ever be applied. Informational hunks (patch === '') stay
+  // pending forever — there's no UI to flip their state — so counting them
+  // would permanently disable the apply button. Independent of `hasSources`:
+  // in reviewer-mode, applicableHunks is empty, and the gate falls back to
+  // the `acceptedTotal > 0` check.
+  const applicableHunks = useMemo(() => hunks.filter((h) => h.patch !== ""), [hunks]);
+  const applicableCounts = useMemo(() => recount(applicableHunks), [applicableHunks]);
+  const hiddenInformational = useMemo(
+    () => (hasSources ? hunks.filter((h) => h.patch === "") : []),
+    [hunks, hasSources],
+  );
+
+  const grouped = useMemo(() => groupByFile(visibleAllHunks), [visibleAllHunks]);
   const files = useMemo(() => [...grouped.keys()], [grouped]);
+
+  // Annotation-id → row for tooltips on multi-mark diffs and the informational
+  // section's location/quote/category rendering. Loaded lazily once per
+  // session; the hunks reference annotation rows that may have been archived
+  // after a prior apply, so we ask for resolved rows too.
+  const [annotationsById, setAnnotationsById] = useState<ReadonlyMap<string, AnnotationRow>>(
+    () => new Map<string, AnnotationRow>(),
+  );
+  // Tracks which annotation IDs have already been fetched for the current
+  // session. Using a ref avoids putting `annotationsById` in the effect dep
+  // array (which would cause a spin: fetch → setState → effect re-fires → no
+  // missing → exits, repeat). The ref is reset whenever the session changes.
+  const loadedAnnotationIds = useRef(new Set<string>());
+  const lastSessionId = useRef<string | null>(null);
+  useEffect(() => {
+    if (sessionId !== lastSessionId.current) {
+      lastSessionId.current = sessionId;
+      loadedAnnotationIds.current = new Set<string>();
+      setAnnotationsById(new Map<string, AnnotationRow>());
+    }
+    if (sessionId === null) return;
+    const wanted = new Set<string>();
+    for (const h of hunks) {
+      for (const id of h.annotationIds) wanted.add(id);
+    }
+    const missing = [...wanted].filter((id) => !loadedAnnotationIds.current.has(id));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const session = await repo.reviewSessions.get(sessionId);
+      if (!session || cancelled) return;
+      const revisions = await repo.revisions.listForPaper(session.paperId);
+      const latest = revisions[revisions.length - 1];
+      if (!latest || cancelled) return;
+      const annotations: AnnotationRow[] = await repo.annotations.listForRevision(latest.id, {
+        includeResolved: true,
+      });
+      if (cancelled) return;
+      for (const a of annotations) loadedAnnotationIds.current.add(a.id);
+      setAnnotationsById((prev) => {
+        const next = new Map(prev);
+        for (const a of annotations) next.set(a.id, a);
+        return next;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, hunks, repo]);
+  const marksByAnnotationId = useMemo<ReadonlyMap<string, string>>(() => {
+    const m = new Map<string, string>();
+    for (const [id, a] of annotationsById) m.set(id, a.quote);
+    return m;
+  }, [annotationsById]);
 
   const [activeFile, setActiveFile] = useState<string | null>(() => files[0] ?? null);
 
@@ -92,8 +168,8 @@ export default function DiffReview(props: Props): JSX.Element {
   const focusedHunk = hunks[focusedIndex];
   const visibleHunks = useMemo(() => {
     if (activeFile === null) return [];
-    return hunks.filter((h) => fileKey(h) === activeFile);
-  }, [hunks, activeFile]);
+    return visibleAllHunks.filter((h) => fileKey(h) === activeFile);
+  }, [visibleAllHunks, activeFile]);
 
   const pendingInActive = useMemo(() => {
     if (activeFile === null) return 0;
@@ -104,10 +180,10 @@ export default function DiffReview(props: Props): JSX.Element {
   const goToFile = useCallback(
     (file: string): void => {
       setActiveFile(file);
-      const idx = hunks.findIndex((h) => fileKey(h) === file);
+      const idx = hunks.findIndex((h) => fileKey(h) === file && (h.patch !== "" || !hasSources));
       if (idx >= 0) store.getState().focus(idx);
     },
-    [hunks, store],
+    [hunks, hasSources, store],
   );
 
   const stepFile = useCallback(
@@ -179,7 +255,9 @@ export default function DiffReview(props: Props): JSX.Element {
       const state = store.getState();
       const locals: number[] = [];
       state.hunks.forEach((h, i) => {
-        if (fileKey(h) === activeFile) locals.push(i);
+        if (fileKey(h) !== activeFile) return;
+        if (hasSources && h.patch === "") return;
+        locals.push(i);
       });
       if (locals.length === 0) return;
       const curGlobal = state.focusedIndex;
@@ -188,7 +266,7 @@ export default function DiffReview(props: Props): JSX.Element {
       const globalIdx = locals[nextLocal];
       if (globalIdx !== undefined) state.focus(globalIdx);
     },
-    [activeFile, store],
+    [activeFile, hasSources, store],
   );
 
   const focusEdge = useCallback(
@@ -197,13 +275,15 @@ export default function DiffReview(props: Props): JSX.Element {
       const state = store.getState();
       const locals: number[] = [];
       state.hunks.forEach((h, i) => {
-        if (fileKey(h) === activeFile) locals.push(i);
+        if (fileKey(h) !== activeFile) return;
+        if (hasSources && h.patch === "") return;
+        locals.push(i);
       });
       if (locals.length === 0) return;
       const pick = edge === "first" ? locals[0] : locals[locals.length - 1];
       if (pick !== undefined) state.focus(pick);
     },
-    [activeFile, store],
+    [activeFile, hasSources, store],
   );
 
   useKeyNav(
@@ -303,13 +383,20 @@ export default function DiffReview(props: Props): JSX.Element {
     );
   }
 
-  const acceptedTotal = counts.accepted + counts.modified;
+  const acceptedTotal = applicableCounts.accepted + applicableCounts.modified;
   const runnerBusy =
     runner.status.kind === "working" ||
     runner.status.kind === "running" ||
     runner.status.kind === "ingesting";
+  const bulkAvailable =
+    applyStatus.kind !== "applying" &&
+    applyStatus.kind !== "applied" &&
+    applyStatus.kind !== "partial" &&
+    !runnerBusy;
+  const canAcceptAll = bulkAvailable && applicableCounts.pending + applicableCounts.rejected > 0;
+  const canRejectAll = bulkAvailable && applicableCounts.pending + applicableCounts.accepted > 0;
   const applicable =
-    counts.pending === 0 &&
+    applicableCounts.pending === 0 &&
     acceptedTotal > 0 &&
     applyStatus.kind !== "applying" &&
     applyStatus.kind !== "applied" &&
@@ -320,20 +407,21 @@ export default function DiffReview(props: Props): JSX.Element {
     <div className="diff-review">
       <header className="diff-review__head">
         <div className="diff-review__counter">
-          <ClaudeChip />
           <span className="diff-review__counter-text">
-            {counts.pending > 0 ? (
+            {applicableCounts.pending > 0 ? (
               <>
-                <span className="diff-review__counter-pending">{counts.pending} pending</span>
+                <span className="diff-review__counter-pending">
+                  {applicableCounts.pending} pending
+                </span>
                 <span className="diff-review__counter-sep"> · </span>
                 <span>
-                  {acceptedTotal}/{hunks.length} kept
+                  {acceptedTotal}/{applicableHunks.length} kept
                 </span>
               </>
             ) : (
               <>
                 <span>
-                  {acceptedTotal}/{hunks.length} kept
+                  {acceptedTotal}/{applicableHunks.length} kept
                 </span>
                 <span className="diff-review__counter-sep"> · </span>
                 <span className="diff-review__counter-ready">ready</span>
@@ -341,6 +429,24 @@ export default function DiffReview(props: Props): JSX.Element {
             )}
           </span>
           <div className="diff-review__head-tools">
+            <button
+              type="button"
+              className="btn btn--subtle"
+              disabled={!canAcceptAll}
+              onClick={() => void store.getState().acceptAll()}
+              title="Accept every hunk in this session. Hunks you've edited stay as-is."
+            >
+              accept all
+            </button>
+            <button
+              type="button"
+              className="btn btn--subtle"
+              disabled={!canRejectAll}
+              onClick={() => void store.getState().rejectAll()}
+              title="Reject every hunk in this session. Hunks you've edited stay as-is."
+            >
+              reject all
+            </button>
             <button
               type="button"
               className="btn"
@@ -355,14 +461,14 @@ export default function DiffReview(props: Props): JSX.Element {
               disabled={!applicable}
               onClick={() => void props.onApply()}
               title={
-                counts.pending > 0
-                  ? `Handle the remaining ${counts.pending} hunk${counts.pending === 1 ? "" : "s"} first.`
+                applicableCounts.pending > 0
+                  ? `Handle the remaining ${applicableCounts.pending} hunk${applicableCounts.pending === 1 ? "" : "s"} first.`
                   : "Apply the accepted changes to source (keyboard: .)"
               }
             >
-              keep these changes
+              apply
               <span className="diff-review__kbd" aria-hidden>
-                · .
+                .
               </span>
             </button>
           </div>
@@ -442,6 +548,59 @@ export default function DiffReview(props: Props): JSX.Element {
           </p>
         )}
 
+      {hiddenInformational.length > 0 && (
+        <details className="diff-review__informational" open>
+          <summary className="diff-review__informational-head">
+            <span className="diff-review__informational-title">Informational</span>
+            <span className="diff-review__informational-sub">
+              {hiddenInformational.length} mark
+              {hiddenInformational.length === 1 ? "" : "s"} · no edit to accept
+            </span>
+          </summary>
+          <ul className="diff-review__informational-list">
+            {hiddenInformational.map((h) => {
+              const annotation = annotationsById.get(h.annotationIds[0] ?? "") ?? null;
+              const reason = h.emptyReason ?? "informational";
+              const reasonLabel =
+                reason === "structural-note"
+                  ? "impact"
+                  : reason === "no-edit-requested"
+                    ? "no edit"
+                    : reason;
+              return (
+                <li key={h.id} className="diff-review__informational-item">
+                  <details
+                    className="diff-review__informational-item-details"
+                    open={hiddenInformational.length <= 2}
+                  >
+                    <summary className="diff-review__informational-item-head">
+                      <span className="diff-review__informational-reason" data-reason={reason}>
+                        {reasonLabel}
+                      </span>
+                      {annotation !== null && (
+                        <span className="diff-review__informational-loc">
+                          {markLocationLabel(annotation)}
+                        </span>
+                      )}
+                      {h.category !== null && h.category !== "" && (
+                        <span className="diff-review__informational-cat">{h.category}</span>
+                      )}
+                    </summary>
+                    {annotation !== null && annotation.quote !== "" && (
+                      <blockquote className="diff-review__informational-quote">
+                        {trimQuoteMiddle(annotation.quote)}
+                      </blockquote>
+                    )}
+                    {h.reviewerNotes !== "" && (
+                      <p className="diff-review__informational-notes">{h.reviewerNotes}</p>
+                    )}
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
       <section className="diff-review__list">
         {visibleHunks.map((h) => {
           const global = hunks.indexOf(h);
@@ -457,6 +616,7 @@ export default function DiffReview(props: Props): JSX.Element {
                 totalInFile={bucket.length}
                 sourceText={source}
                 hasSources={hasSources}
+                marksByAnnotationId={marksByAnnotationId}
                 focused={focusedHunk?.id === h.id}
                 editing={editingId === h.id}
                 editingText={editingText}
@@ -494,15 +654,6 @@ export default function DiffReview(props: Props): JSX.Element {
   );
 }
 
-const FILLER_LINES: ReadonlyArray<string> = [
-  "the review is a careful reading.",
-  "every page is turned.",
-  "the manuscript is read like a letter.",
-  "weighing the argument.",
-  "consulting the marginalia.",
-  "cross-checking the citations.",
-];
-
 interface ReviewProgressPanelProps {
   marks: number;
   files: number;
@@ -530,14 +681,6 @@ function ReviewProgressPanel({
     return () => window.clearInterval(id);
   }, []);
 
-  const [fillerIndex, setFillerIndex] = useState(0);
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setFillerIndex((i) => (i + 1) % FILLER_LINES.length);
-    }, 8000);
-    return () => window.clearInterval(id);
-  }, []);
-
   const clock = new Date(startedAt).toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
@@ -557,14 +700,10 @@ function ReviewProgressPanel({
         : "Waiting for Claude.");
 
   const thinking = lastThinkingAt !== null && now - lastThinkingAt < 3000;
-  const filler = FILLER_LINES[fillerIndex] ?? FILLER_LINES[0] ?? "";
   const logTail = phaseHistory.slice(-8);
 
   return (
     <div className="review-progress">
-      <div className="review-progress__head">
-        <ClaudeChip />
-      </div>
       <p className="review-progress__phase">
         {phaseLine}
         {thinking ? <span className="review-progress__pulse" aria-hidden /> : null}
@@ -573,7 +712,6 @@ function ReviewProgressPanel({
         {marks} {markLabel} · {files} {fileLabel} · {toolEvents} tool{toolEvents === 1 ? "" : "s"} ·{" "}
         {assistantChars.toLocaleString()} chars · {elapsedLabel} · started {clock}
       </p>
-      <p className="review-progress__filler">…{filler}</p>
       {logTail.length > 0 ? (
         <ol className="review-progress__log" aria-label="Phase timeline">
           {logTail.map((entry) => (

@@ -2,10 +2,12 @@ import type { PaperRow } from "@obelus/repo";
 import type { DragEvent, JSX, ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type DirEntry, fsCreateFile, fsMovePath, fsReadDir } from "../../ipc/commands";
+import { useJobsStore } from "../../lib/jobs-store";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
-import { useOpenPaper } from "./OpenPaper";
-import { extensionOf, isSource, NOISE_DIRS } from "./openable";
+import { usePaperId } from "./OpenPaper";
+import { extensionOf, isOpenable, NOISE_DIRS } from "./openable";
+import { useInlineConfirm } from "./use-inline-confirm";
 import { usePaperBuild } from "./use-paper-build";
 
 interface TreeState {
@@ -13,12 +15,6 @@ interface TreeState {
   entries: Map<string, DirEntry[]>;
   hasOpenable: Map<string, boolean>;
   walking: boolean;
-}
-
-interface PdfEntry {
-  dir: string;
-  name: string;
-  path: string;
 }
 
 function joinPath(dir: string, name: string): string {
@@ -50,7 +46,7 @@ async function walkAndPrecompute(
     entries.set(dir, sortEntries(kept));
 
     for (const child of kept) {
-      if (child.kind === "file" && isSource(child.name)) {
+      if (child.kind === "file" && isOpenable(child.name)) {
         hasOpenable.set(dir, true);
         for (const a of ancestors) hasOpenable.set(a, true);
       }
@@ -65,23 +61,6 @@ async function walkAndPrecompute(
 
   await visit(".", []);
   return { entries, hasOpenable };
-}
-
-function collectPdfs(entries: Map<string, DirEntry[]>): PdfEntry[] {
-  const out: PdfEntry[] = [];
-  for (const [dir, children] of entries) {
-    for (const child of children) {
-      if (child.kind === "file" && extensionOf(child.name) === "pdf") {
-        out.push({ dir, name: child.name, path: joinPath(dir, child.name) });
-      }
-    }
-  }
-  out.sort((a, b) => {
-    const byName = a.name.localeCompare(b.name);
-    if (byName !== 0) return byName;
-    return a.dir.localeCompare(b.dir);
-  });
-  return out;
 }
 
 function splitPath(path: string): { dir: string; name: string } {
@@ -190,6 +169,58 @@ function FlatRow(props: FlatRowProps): JSX.Element {
   );
 }
 
+interface ReviewingRowProps {
+  paper: PaperRow;
+  path: string;
+  dir: string;
+  isActive: boolean;
+  isReviewing: boolean;
+  marks: number;
+  showDir: boolean;
+  onOpen: (path: string) => void;
+  onRemove: (paper: PaperRow) => void | Promise<void>;
+}
+
+function ReviewingRow(props: ReviewingRowProps): JSX.Element {
+  const { paper, path, dir, isActive, isReviewing, marks, showDir, onOpen, onRemove } = props;
+  const confirm = useInlineConfirm();
+  const removeTitle = isReviewing
+    ? "Cannot remove while review is running"
+    : confirm.armed
+      ? "Click again to remove from Reviewing"
+      : "Remove from Reviewing — opening the file again restores it";
+  return (
+    <li className="files__flat-item">
+      <div className={`files__row files__row--paper${isActive ? " files__row--selected" : ""}`}>
+        <button type="button" className="files__row-open" onClick={() => onOpen(path)} title={path}>
+          <span className="files__name">{paper.title}</span>
+          {showDir && dir !== "." && <span className="files__path-hint">({dir})</span>}
+          <span className="files__paper-meta">({marks})</span>
+        </button>
+        <button
+          type="button"
+          className="files__remove"
+          aria-label={`Remove ${paper.title}`}
+          title={removeTitle}
+          disabled={isReviewing}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (isReviewing) return;
+            if (!confirm.armed) {
+              confirm.arm();
+              return;
+            }
+            void confirm.confirm(() => onRemove(paper));
+          }}
+          {...confirm.bind()}
+        >
+          ×
+        </button>
+      </div>
+    </li>
+  );
+}
+
 interface EntryRowCallbacks {
   onToggle: (path: string) => void;
   onOpenFile: (path: string) => void;
@@ -219,7 +250,7 @@ function filterChildren(
 ): DirEntry[] {
   if (!children) return [];
   return children.filter((e) => {
-    if (e.kind === "file") return isSource(e.name);
+    if (e.kind === "file") return isOpenable(e.name);
     const childPath = joinPath(path, e.name);
     return tree.hasOpenable.get(childPath) === true;
   });
@@ -417,8 +448,7 @@ function NewFileInputRow(props: NewFileInputRowProps): JSX.Element {
 
 export default function FilesColumn(): JSX.Element {
   const { project, rootId, repo, setOpenFilePath, openFilePath } = useProject();
-  const openPaper = useOpenPaper();
-  const activePaperId = openPaper.kind === "ready" ? openPaper.paper.id : null;
+  const activePaperId = usePaperId();
   const buffers = useBuffersStore();
   const { build, setMain } = usePaperBuild(repo, activePaperId);
   const [papers, setPapers] = useState<PaperRow[]>([]);
@@ -426,7 +456,7 @@ export default function FilesColumn(): JSX.Element {
 
   const reloadPapers = useCallback(async () => {
     const all = await repo.papers.list().catch(() => [] as PaperRow[]);
-    const mine = all.filter((p) => p.projectId === project.id);
+    const mine = all.filter((p) => p.projectId === project.id && p.removedAt === undefined);
     setPapers(mine);
     // Lazily compute unresolved-mark counts per paper. Small N; single pass.
     const counts = new Map<string, number>();
@@ -452,11 +482,15 @@ export default function FilesColumn(): JSX.Element {
     void reloadPapers();
   }, [reloadPapers]);
 
-  // When the open paper changes, its mark count may have moved too; refresh
-  // cheaply. The full reload is fine for the small N of papers per project.
+  // When the active paper id changes — including null → id, the writer-mode
+  // first-mark/first-note transition that materializes the paper row — refresh
+  // so the new entry appears in Reviewing without a manual reload. Mark counts
+  // for the previously active paper may also have moved; the full reload is
+  // fine for the small N of papers per project.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activePaperId is an intentional trigger dep
   useEffect(() => {
-    if (openPaper.kind === "ready") void reloadPapers();
-  }, [openPaper.kind, reloadPapers]);
+    void reloadPapers();
+  }, [activePaperId, reloadPapers]);
 
   const [tree, setTree] = useState<TreeState>(() => ({
     expanded: new Set(),
@@ -468,7 +502,6 @@ export default function FilesColumn(): JSX.Element {
   const [pinned, setPinned] = useState<Set<string>>(() => new Set());
   const [papersOpen, setPapersOpen] = useState(true);
   const [pinnedOpen, setPinnedOpen] = useState(true);
-  const [reviewOpen, setReviewOpen] = useState(true);
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
 
   useEffect(() => {
@@ -841,39 +874,39 @@ export default function FilesColumn(): JSX.Element {
     [project.id, repo.filePins],
   );
 
-  const pdfs = useMemo(() => collectPdfs(tree.entries), [tree.entries]);
-
-  const visiblePapers = useMemo(
-    () => papers.filter((p) => (markCounts.get(p.id) ?? 0) > 0),
-    [papers, markCounts],
-  );
+  const jobs = useJobsStore((s) => s.jobs);
+  const activeReviewPaperIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const j of Object.values(jobs)) {
+      if (j.kind !== "review") continue;
+      if (j.projectId !== project.id) continue;
+      if (!j.paperId) continue;
+      if (j.status === "running" || j.status === "ingesting") ids.add(j.paperId);
+    }
+    return ids;
+  }, [jobs, project.id]);
 
   const paperNameCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const p of visiblePapers) {
+    for (const p of papers) {
       if (!p.pdfRelPath) continue;
       const { name } = splitPath(p.pdfRelPath);
       m.set(name, (m.get(name) ?? 0) + 1);
     }
     return m;
-  }, [visiblePapers]);
+  }, [papers]);
 
   const removePaper = useCallback(
     async (paper: PaperRow) => {
-      const marks = markCounts.get(paper.id) ?? 0;
-      const ok = window.confirm(
-        `Remove ${paper.title} and delete ${marks} mark${marks === 1 ? "" : "s"}?`,
-      );
-      if (!ok) return;
       if (paper.pdfRelPath && openFilePath === paper.pdfRelPath) setOpenFilePath(null);
       try {
-        await repo.papers.remove(paper.id);
+        await repo.papers.hide(paper.id);
       } catch (err) {
-        console.warn("FilesColumn: remove paper failed", paper.id, err);
+        console.warn("FilesColumn: hide paper failed", paper.id, err);
       }
       await reloadPapers();
     },
-    [markCounts, openFilePath, setOpenFilePath, repo.papers, reloadPapers],
+    [openFilePath, setOpenFilePath, repo.papers, reloadPapers],
   );
 
   const pinnedList = useMemo(
@@ -894,7 +927,7 @@ export default function FilesColumn(): JSX.Element {
     <aside className="files">
       {error && <p className="files__error">{error}</p>}
 
-      {visiblePapers.length > 0 && (
+      {papers.length > 0 && (
         <section className="files__section files__section--papers">
           <div className="files__section-header">
             <button
@@ -907,52 +940,29 @@ export default function FilesColumn(): JSX.Element {
                 ▸
               </span>
               <span className="files__header-title">
-                Papers <span className="files__count">({visiblePapers.length})</span>
+                Reviewing <span className="files__count">({papers.length})</span>
               </span>
             </button>
           </div>
           {papersOpen && (
             <ul className="files__flat">
-              {visiblePapers.map((paper) => {
+              {papers.map((paper) => {
                 const path = paper.pdfRelPath;
                 if (!path) return null;
-                const isActive = paper.id === activePaperId;
-                const marks = markCounts.get(paper.id) ?? 0;
                 const { dir, name } = splitPath(path);
-                const collides = (paperNameCounts.get(name) ?? 0) > 1;
                 return (
-                  <li key={`paper:${paper.id}`} className="files__flat-item">
-                    <div
-                      className={`files__row files__row--paper${isActive ? " files__row--selected" : ""}`}
-                    >
-                      <button
-                        type="button"
-                        className="files__row-open"
-                        onClick={() => openFile(path)}
-                        title={path}
-                      >
-                        <span className="files__name">{paper.title}</span>
-                        {collides && dir !== "." && (
-                          <span className="files__path-hint">({dir})</span>
-                        )}
-                        <span className="files__paper-meta">
-                          {marks} mark{marks === 1 ? "" : "s"}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="files__remove"
-                        aria-label={`Remove ${paper.title}`}
-                        title="Remove paper — deletes all marks"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void removePaper(paper);
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </li>
+                  <ReviewingRow
+                    key={`paper:${paper.id}`}
+                    paper={paper}
+                    path={path}
+                    dir={dir}
+                    isActive={paper.id === activePaperId}
+                    isReviewing={activeReviewPaperIds.has(paper.id)}
+                    marks={markCounts.get(paper.id) ?? 0}
+                    showDir={(paperNameCounts.get(name) ?? 0) > 1}
+                    onOpen={openFile}
+                    onRemove={removePaper}
+                  />
                 );
               })}
             </ul>
@@ -999,45 +1009,6 @@ export default function FilesColumn(): JSX.Element {
           )}
         </section>
       )}
-
-      <section className="files__section files__section--review">
-        <div className="files__section-header">
-          <button
-            type="button"
-            className="files__section-toggle"
-            aria-expanded={reviewOpen}
-            onClick={() => setReviewOpen((o) => !o)}
-          >
-            <span className="files__chevron" aria-hidden="true">
-              ▸
-            </span>
-            <span className="files__header-title">
-              To review <span className="files__count">({pdfs.length})</span>
-            </span>
-          </button>
-        </div>
-        {reviewOpen &&
-          (tree.walking ? (
-            <p className="files__hint">…</p>
-          ) : pdfs.length === 0 ? (
-            <p className="files__hint files__hint--empty">No PDFs here yet.</p>
-          ) : (
-            <ul className="files__flat">
-              {pdfs.map((pdf) => (
-                <FlatRow
-                  key={`pdf:${pdf.path}`}
-                  path={pdf.path}
-                  name={pdf.name}
-                  dir={pdf.dir}
-                  pinned={pinned.has(pdf.path)}
-                  selected={openFilePath === pdf.path}
-                  onOpen={openFile}
-                  onTogglePin={togglePin}
-                />
-              ))}
-            </ul>
-          ))}
-      </section>
 
       <section className="files__section files__section--workspace">
         <div className="files__section-header">

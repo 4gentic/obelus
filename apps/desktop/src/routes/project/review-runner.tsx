@@ -9,6 +9,7 @@ import {
 import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { workspaceWriteText } from "../../ipc/commands";
 import {
+  type BundleLike,
   collectBundleSourcePaths,
   snapshotBundleSources,
   stashSnapshotForSession,
@@ -27,6 +28,7 @@ import { usePaperId } from "./OpenPaper";
 import { createReviewProgressStore } from "./review-progress-store";
 import {
   ReviewRunnerContext,
+  type ReviewRunnerMode,
   type RunCounts,
   type RunOptions,
   type RunStatus,
@@ -239,6 +241,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
       });
       let createdSessionId: string | null = null;
       try {
+        const tBundleStart = performance.now();
         const paper = await repo.papers.get(paperId);
         if (!paper) throw new Error(`paper ${paperId} not found`);
         const { filename, json, annotationCount, fileCount } =
@@ -248,7 +251,23 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
               ? await exportHtmlBundleForPaper({ repo, paperId })
               : await exportBundleForPaper({ repo, paperId, rootId });
         const counts: RunCounts = { marks: annotationCount, files: fileCount, startedAt };
+        const bytes = new TextEncoder().encode(json);
+        console.info("[write-perf]", {
+          step: "bundle-build",
+          ms: Math.round(performance.now() - tBundleStart),
+          annotationCount,
+          fileCount,
+          bytes: bytes.byteLength,
+          format: paper.format,
+        });
+
+        const tBundleFlush = performance.now();
         await workspaceWriteText(project.id, filename, json);
+        console.info("[write-perf]", {
+          step: "bundle-flush",
+          ms: Math.round(performance.now() - tBundleFlush),
+          bytes: bytes.byteLength,
+        });
 
         const overrides = await loadClaudeOverrides();
 
@@ -265,7 +284,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         // any of these files' sha256 changes and no plan file is produced,
         // the jobs-listener surfaces a tool-policy-violation error.
         try {
-          const bundleShape = JSON.parse(json) as Parameters<typeof collectBundleSourcePaths>[0];
+          const bundleShape = JSON.parse(json) as BundleLike;
           const paths = collectBundleSourcePaths(bundleShape);
           const snap = await snapshotBundleSources(rootId, paths);
           stashSnapshotForSession(session.id, snap);
@@ -285,7 +304,12 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         });
 
         setLocal({ kind: "working", paperId, step: "Spawning Claude…", counts });
+        const tPriorContext = performance.now();
         const priorContext = await buildPriorDraftsPrompt(repo, paperId);
+        console.info("[write-perf]", {
+          step: "prior-context",
+          ms: Math.round(performance.now() - tPriorContext),
+        });
         const indicationsBlock =
           opts.indications && opts.indications.trim().length > 0
             ? `\n## Indications for this pass\n\n${opts.indications.trim()}\n`
@@ -293,6 +317,9 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         const combinedExtra = [priorContext, indicationsBlock, opts.extraPromptBody ?? ""]
           .filter((s) => s.trim().length > 0)
           .join("\n");
+        const mode: ReviewRunnerMode =
+          opts.mode ?? (project.kind === "writer" ? "writer-fast" : "rigorous");
+        const tSpawn = performance.now();
         const claudeSessionId = await claudeSpawn({
           rootId,
           projectId: project.id,
@@ -300,6 +327,14 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           ...(combinedExtra !== "" ? { extraPromptBody: combinedExtra } : {}),
           model: overrides.model,
           effort: overrides.effort,
+          mode,
+        });
+        console.info("[write-perf]", {
+          step: "spawn",
+          ms: Math.round(performance.now() - tSpawn),
+          sessionId: claudeSessionId,
+          mode,
+          clickToSpawnMs: Date.now() - startedAt,
         });
         await repo.reviewSessions.setClaudeSessionId(session.id, claudeSessionId);
 
@@ -334,7 +369,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         setLocal({ kind: "error", paperId, message });
       }
     },
-    [repo, project.id, project.label, rootId, buffers, progressStore],
+    [repo, project.id, project.label, project.kind, rootId, buffers, progressStore],
   );
 
   const cancel = useCallback(async (): Promise<void> => {

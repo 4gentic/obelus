@@ -2,8 +2,9 @@ import { type MarkdownExternalBlocked, useMdDocumentView } from "@obelus/md-view
 import "@obelus/md-view/md.css";
 import { TrustBanner } from "@obelus/review-shell";
 import "@obelus/review-shell/review-shell.css";
-import { type JSX, useCallback, useState } from "react";
+import { type JSX, useCallback, useEffect, useState } from "react";
 import "./md-review-surface.css";
+import { useFindStore } from "./find-store-context";
 import { useReviewStore } from "./store-context";
 import { useVerifyOnSave } from "./use-verify-on-save";
 
@@ -46,6 +47,16 @@ export default function MdReviewSurface({ path, text, trusted, onTrust }: Props)
     trusted,
     onExternalBlocked,
   });
+
+  const findStore = useFindStore();
+  const findProvider = documentView.find;
+  useEffect(() => {
+    if (!findProvider) return;
+    findStore.getState().setProvider(findProvider);
+    return () => {
+      findStore.getState().setProvider(null);
+    };
+  }, [findProvider, findStore]);
 
   const showBanner =
     !trusted && !bannerDismissed && blockedUris.length > 0 && onTrust !== undefined;

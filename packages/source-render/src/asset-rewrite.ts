@@ -12,6 +12,23 @@ const ABSOLUTE_OR_NON_FILE = /^(?:[a-z]+:|\/\/|#|data:|blob:)/i;
 const EXTERNAL_URL = /^(?:https?:)?\/\//i;
 const SRCSET_DESCRIPTOR = /^\d+(?:\.\d+)?[xw]$/;
 
+// HTML5 attribute parsing preserves leading/trailing whitespace in quoted
+// values, but the URL parser strips ASCII whitespace + a few extra Unicode
+// code points before fetching (see WHATWG URL §3.1 and the set DOMPurify
+// uses internally). The regexes above are `^`-anchored, so without trimming
+// here a paper containing `<img src=" https://evil/p.png">` would slip past
+// `EXTERNAL_URL` while the browser still issues the request. The class
+// below mirrors DOMPurify's `ATTR_WHITESPACE` so the rewriter sees what
+// the URL parser sees. The C0-control range is intentional (the URL
+// parser strips it), so we build the regex via the RegExp constructor —
+// a literal would trip Biome's noControlCharactersInRegex lint, and the
+// string-form character class is the cleanest opt-out.
+const ATTR_TRIM_CHARS = "\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000";
+const ATTR_TRIM_RE = new RegExp(`^[${ATTR_TRIM_CHARS}]+|[${ATTR_TRIM_CHARS}]+$`, "g");
+function stripAttrWhitespace(value: string): string {
+  return value.replace(ATTR_TRIM_RE, "");
+}
+
 const REWRITE_TARGETS: ReadonlyArray<{ tag: string; attr: string }> = [
   { tag: "img", attr: "src" },
   { tag: "source", attr: "src" },
@@ -29,8 +46,11 @@ const REWRITE_TARGETS: ReadonlyArray<{ tag: string; attr: string }> = [
 // blocked papers still have working in-document links. The set covers
 // both the markdown path (`<img>` / `<source>` from rendered prose) and
 // the html-iframe path (author-provided `<link>`/`<script>` plus media,
-// SVG `<image>`/`<use>`, and the `srcset`/`imagesrcset`/`poster`
-// secondary loaders that the browser fetches in parallel with `src`).
+// SVG `<image>`/`<use>`, the `srcset`/`imagesrcset`/`poster` secondary
+// loaders that the browser fetches in parallel with `src`, and
+// `<input type=image src>` which auto-loads on parse just like `<img>`.
+// We don't qualify `[type=image]` — non-image inputs ignore `src`, and
+// rewriting the attribute on them is harmless.
 type BlockTarget = { tag: string; attr: string; kind: "scalar" | "srcset" };
 
 const BLOCK_TARGETS: ReadonlyArray<BlockTarget> = [
@@ -49,11 +69,13 @@ const BLOCK_TARGETS: ReadonlyArray<BlockTarget> = [
   { tag: "image", attr: "xlink:href", kind: "scalar" },
   { tag: "use", attr: "href", kind: "scalar" },
   { tag: "use", attr: "xlink:href", kind: "scalar" },
+  { tag: "input", attr: "src", kind: "scalar" },
 ];
 
 function isRelative(value: string): boolean {
-  if (value === "") return false;
-  return !ABSOLUTE_OR_NON_FILE.test(value);
+  const trimmed = stripAttrWhitespace(value);
+  if (trimmed === "") return false;
+  return !ABSOLUTE_OR_NON_FILE.test(trimmed);
 }
 
 // Splits an `srcset` / `imagesrcset` value, replaces external candidates
@@ -291,9 +313,10 @@ export function blockExternalAssets(
         el.setAttribute(target.attr, result.srcset);
         continue;
       }
-      if (!EXTERNAL_URL.test(value)) continue;
-      blocked.push(value);
-      el.setAttribute("data-blocked-src", value);
+      const trimmed = stripAttrWhitespace(value);
+      if (!EXTERNAL_URL.test(trimmed)) continue;
+      blocked.push(trimmed);
+      el.setAttribute("data-blocked-src", trimmed);
       el.setAttribute(target.attr, "data:,");
     }
   }
@@ -320,9 +343,10 @@ export async function rewriteRelativeAssets(
       const value = el.getAttribute(attr);
       if (value === null) continue;
       if (!isRelative(value)) continue;
-      const resolved = await resolver.resolve(value);
+      const trimmed = stripAttrWhitespace(value);
+      const resolved = await resolver.resolve(trimmed);
       if (resolved === null) {
-        missing.push(value);
+        missing.push(trimmed);
         continue;
       }
       el.setAttribute(attr, resolved);

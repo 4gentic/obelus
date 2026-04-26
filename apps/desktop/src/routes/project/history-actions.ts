@@ -55,7 +55,7 @@ export async function snapshotAfterApply(args: {
   const annotationIds = Array.from(
     new Set(
       landedHunks
-        .map((h) => h.annotationId)
+        .flatMap((h) => h.annotationIds)
         .filter((id): id is string => typeof id === "string" && id.length > 0),
     ),
   );

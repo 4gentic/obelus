@@ -32,6 +32,12 @@ CREATE TABLE projects (
 
 CREATE INDEX projects_desk_idx ON projects(desk_id);
 
+-- `removed_at` is the soft-remove flag for the "Reviewing" sidebar. Removing
+-- a paper from the list hides it (sets removed_at); the row, its revisions,
+-- paper_edits chain and review history stay intact so a future
+-- time-travel-across-drafts feature can still walk them. The hard-delete
+-- path (`papers.remove`) remains for a future Trash view and for
+-- `forgetProject`'s cascade.
 CREATE TABLE papers (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -45,10 +51,12 @@ CREATE TABLE papers (
   rubric_label TEXT,
   rubric_updated_at TEXT,
   format TEXT NOT NULL DEFAULT 'pdf' CHECK (format IN ('pdf', 'md', 'html')),
+  removed_at TEXT,
   created_at TEXT NOT NULL
 );
 
 CREATE INDEX papers_project_idx ON papers(project_id);
+CREATE INDEX papers_removed_at_idx ON papers(removed_at);
 
 CREATE TABLE revisions (
   id TEXT PRIMARY KEY,
@@ -86,11 +94,16 @@ CREATE INDEX review_sessions_project_idx ON review_sessions(project_id);
 CREATE INDEX review_sessions_paper_idx ON review_sessions(paper_id);
 CREATE INDEX review_sessions_paper_status_idx ON review_sessions(paper_id, status);
 
+-- `parent_edit_id` cascades on parent delete: if a paper edit is removed
+-- (e.g. as part of a paper hard-delete from a future Trash view), its entire
+-- chain of derived edits goes with it. RESTRICT would block the multi-row
+-- cascade because SQLite checks RESTRICT immediately when the parent row is
+-- deleted, not at end-of-statement.
 CREATE TABLE paper_edits (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   paper_id TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
-  parent_edit_id TEXT REFERENCES paper_edits(id) ON DELETE RESTRICT,
+  parent_edit_id TEXT REFERENCES paper_edits(id) ON DELETE CASCADE,
   ordinal INTEGER NOT NULL,
   kind TEXT NOT NULL CHECK (kind IN ('baseline', 'ai', 'manual')),
   session_id TEXT REFERENCES review_sessions(id) ON DELETE SET NULL,
@@ -126,22 +139,31 @@ CREATE TABLE annotations (
 CREATE INDEX annotations_revision_idx ON annotations(revision_id);
 CREATE INDEX annotations_resolved_in_idx ON annotations(resolved_in_edit_id);
 
+-- `annotation_ids_json` is a JSON array of strings: a single hunk may satisfy
+-- several user marks when the planner merges overlapping marks into one
+-- coherent edit. `empty_reason` declares why a hunk has an empty patch so the
+-- diff-review UI can render the right margin-mark status badge instead of a
+-- generic "skipped" placeholder. `reviewer_notes` carries the planner's
+-- per-block prose explanation (especially relevant for empty-patch blocks).
+-- `apply_failure_json` shape: `{ "reason": string, "attemptedAt": ISO-8601 string }`.
 CREATE TABLE diff_hunks (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL REFERENCES review_sessions(id) ON DELETE CASCADE,
-  annotation_id TEXT,
+  annotation_ids_json TEXT NOT NULL DEFAULT '[]',
   file TEXT NOT NULL,
   category TEXT,
   patch TEXT NOT NULL,
   modified_patch_text TEXT,
   state TEXT NOT NULL CHECK (state IN ('pending', 'accepted', 'rejected', 'modified')) DEFAULT 'pending',
   ambiguous INTEGER NOT NULL DEFAULT 0,
+  empty_reason TEXT
+    CHECK (empty_reason IS NULL
+           OR empty_reason IN ('praise', 'ambiguous', 'structural-note', 'no-edit-requested')),
+  reviewer_notes TEXT NOT NULL DEFAULT '',
   note_text TEXT NOT NULL DEFAULT '',
   ordinal INTEGER NOT NULL DEFAULT 0,
   apply_failure_json TEXT
 );
-
--- apply_failure_json shape: `{ "reason": string, "attemptedAt": ISO-8601 string }`.
 
 CREATE INDEX diff_hunks_session_idx ON diff_hunks(session_id);
 CREATE INDEX diff_hunks_session_ordinal_idx ON diff_hunks(session_id, ordinal);

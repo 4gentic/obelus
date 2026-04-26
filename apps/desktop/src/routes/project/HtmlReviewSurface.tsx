@@ -7,8 +7,9 @@ import {
 import "@obelus/html-view/host-frame.css";
 import { TrustBanner } from "@obelus/review-shell";
 import "@obelus/review-shell/review-shell.css";
-import { type JSX, useCallback, useState } from "react";
+import { type JSX, useCallback, useEffect, useState } from "react";
 import "./html-review-surface.css";
+import { useFindStore } from "./find-store-context";
 import { useReviewStore } from "./store-context";
 
 interface Props {
@@ -61,6 +62,16 @@ export default function HtmlReviewSurface({
     focusedId,
     onAnchor: (draft) => setSelectedAnchor(draft),
   });
+
+  const findStore = useFindStore();
+  const findProvider = documentView.find;
+  useEffect(() => {
+    if (!findProvider) return;
+    findStore.getState().setProvider(findProvider);
+    return () => {
+      findStore.getState().setProvider(null);
+    };
+  }, [findProvider, findStore]);
 
   const showBanner =
     !trusted && !bannerDismissed && blockedUris.length > 0 && onTrust !== undefined;

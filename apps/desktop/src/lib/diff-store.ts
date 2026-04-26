@@ -70,6 +70,8 @@ export interface DiffState {
   accept(id?: string): Promise<void>;
   reject(id?: string): Promise<void>;
   acceptFile(file: string): Promise<void>;
+  acceptAll(): Promise<void>;
+  rejectAll(): Promise<void>;
   startEdit(id: string): void;
   setEditingText(text: string): void;
   commitEdit(): Promise<void>;
@@ -102,7 +104,7 @@ function emptyCounts(): Record<DiffHunkState, number> {
   return { pending: 0, accepted: 0, rejected: 0, modified: 0 };
 }
 
-function recount(hunks: ReadonlyArray<DiffHunkRow>): Record<DiffHunkState, number> {
+export function recount(hunks: ReadonlyArray<DiffHunkRow>): Record<DiffHunkState, number> {
   const counts = emptyCounts();
   for (const h of hunks) counts[h.state] += 1;
   return counts;
@@ -204,9 +206,34 @@ export function createDiffStore(
       const { sessionId, hunks } = get();
       if (!sessionId) return;
       await repo.acceptAllInFile(sessionId, file);
+      // Mirror the SQL guard: bulk ops skip informational hunks (patch === '').
       const next = hunks.map((h) =>
-        h.file === file && (h.state === "pending" || h.state === "rejected")
+        h.file === file && h.patch !== "" && (h.state === "pending" || h.state === "rejected")
           ? { ...h, state: "accepted" as const }
+          : h,
+      );
+      set({ hunks: next, counts: recount(next) });
+    },
+
+    async acceptAll(): Promise<void> {
+      const { sessionId, hunks } = get();
+      if (!sessionId) return;
+      await repo.acceptAllInSession(sessionId);
+      const next = hunks.map((h) =>
+        h.patch !== "" && (h.state === "pending" || h.state === "rejected")
+          ? { ...h, state: "accepted" as const }
+          : h,
+      );
+      set({ hunks: next, counts: recount(next) });
+    },
+
+    async rejectAll(): Promise<void> {
+      const { sessionId, hunks } = get();
+      if (!sessionId) return;
+      await repo.rejectAllInSession(sessionId);
+      const next = hunks.map((h) =>
+        h.patch !== "" && (h.state === "pending" || h.state === "accepted")
+          ? { ...h, state: "rejected" as const }
           : h,
       );
       set({ hunks: next, counts: recount(next) });

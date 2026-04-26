@@ -82,10 +82,11 @@ export type ReviewState = {
     category: Category;
     note: string;
     // Optional lazy-revision resolver. When the store has no revisionId yet
-    // (writer-mode MD that hasn't been ingested as a paper), this callback
-    // materializes one — typically by creating a PaperRow + RevisionRow. The
-    // returned id is stored and used for the bulkPut that follows.
-    ensureRevision?: () => Promise<string>;
+    // (writer-mode MD/HTML that hasn't been ingested as a paper), this
+    // callback materializes one — typically by creating a PaperRow +
+    // RevisionRow. Returns both ids so other callers (Start-review on a
+    // notes-only paper) can use the freshly-created paperId immediately.
+    ensureRevision?: () => Promise<{ paperId: string; revisionId: string }>;
   }) => Promise<void>;
   updateAnnotation: (id: string, patch: Partial<AnnotationRow>) => Promise<void>;
   deleteAnnotation: (id: string) => Promise<void>;
@@ -171,7 +172,8 @@ export function createReviewStore(repo: AnnotationsRepo): UseBoundStore<StoreApi
           });
           return;
         }
-        revisionId = await ensureRevision();
+        const ensured = await ensureRevision();
+        revisionId = ensured.revisionId;
         set({ revisionId });
       }
       const createdAt = nowIso();

@@ -123,6 +123,26 @@
   outline: 1px dotted color-mix(in srgb, var(--hl-color) 45%, transparent);
 }
 
+/* Find-in-document overlay. Sits in a sibling layer to the annotation layer
+   so the cascade is clean. Uses the same editorial yellow as the PDF find
+   pane (`--hl-unclear`) so the eye reads "this is search" regardless of
+   format. The active match gets a stronger fill plus an ink-coloured ring,
+   matching `.pdf-hl--find-current`. */
+.review-shell__hl-layer--find {
+  z-index: 1;
+}
+
+.review-shell__hl--find {
+  --hl-color: var(--hl-unclear);
+  background: color-mix(in srgb, var(--hl-unclear) 45%, transparent);
+}
+
+.review-shell__hl--find-current {
+  background: color-mix(in srgb, var(--hl-unclear) 65%, transparent);
+  outline: 1.5px solid var(--rubric);
+  outline-offset: 0;
+}
+
 /* Hover description for category chips. The highlights themselves are
    pointer-events:none to preserve text selection over the document, so the
    tooltip is hosted by the margin note chip and the picker chip. */

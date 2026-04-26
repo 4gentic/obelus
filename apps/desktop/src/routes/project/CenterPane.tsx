@@ -1,4 +1,5 @@
 import type { ClassifyResult } from "@obelus/html-view";
+import type { PaperRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { usePaperTrust } from "../../store/use-paper-trust";
 import { useBuffersStore } from "./buffers-store-context";
@@ -7,6 +8,7 @@ import HtmlReviewSurface from "./HtmlReviewSurface";
 import MdReviewSurface from "./MdReviewSurface";
 import { useOpenPaper } from "./OpenPaper";
 import { extensionOf, SOURCE_EXTS } from "./openable";
+import PaperActionsMenu from "./PaperActionsMenu";
 import PdfPane from "./PdfPane";
 import SourcePane from "./SourcePane";
 import TypstPane from "./TypstPane";
@@ -88,12 +90,23 @@ function ReviewerMdMount({
   );
 }
 
+function activePaperFromState(state: ReturnType<typeof useOpenPaper>): PaperRow | null {
+  if (state.kind === "ready") return state.paper;
+  if (state.kind === "ready-md" || state.kind === "ready-html") return state.paper;
+  return null;
+}
+
 export default function CenterPane(): JSX.Element {
   const { project, openFilePath, rootId } = useProject();
   const openPaper = useOpenPaper();
 
   const absolutePath = openFilePath ? `${project.root}/${openFilePath}` : null;
   const showSave = openFilePath !== null && isEditablePath(openFilePath, project.kind);
+  const activePaper = activePaperFromState(openPaper);
+  // Menu shows for any paper that's currently in the Reviewing list. A
+  // soft-hidden paper (removedAt set) keeps its rows but hides from the
+  // sidebar; suppressing the menu there matches that "out of view" stance.
+  const showPaperActions = activePaper !== null && activePaper.removedAt === undefined;
 
   const body = ((): JSX.Element => {
     if (!openFilePath) return <UnsupportedPane path={null} />;
@@ -182,6 +195,7 @@ export default function CenterPane(): JSX.Element {
         <header className="pane__path" title={absolutePath}>
           <code className="pane__path-code">{absolutePath}</code>
           {showSave && openFilePath !== null && <PathHeaderSave relPath={openFilePath} />}
+          {showPaperActions && activePaper !== null && <PaperActionsMenu paper={activePaper} />}
         </header>
       )}
       {body}

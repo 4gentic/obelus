@@ -116,6 +116,28 @@ describe("rewriteRelativeAssets", () => {
     expect(root.querySelector("script")?.getAttribute("src")).toBe("blob:canvas-1");
   });
 
+  it("treats a leading-space relative path as relative and resolves the trimmed value", async () => {
+    // Without the trim, ` figs/x.png` slipped past ABSOLUTE_OR_NON_FILE
+    // (which is `^`-anchored), the resolver was called with the un-trimmed
+    // key and returned null, the URL stayed on the element, and the
+    // browser's URL parser later stripped the space and fetched the file.
+    const root = mount('<img src=" figs/x.png" />');
+    const result = await rewriteRelativeAssets(root, fakeResolver({ "figs/x.png": "blob:trim-1" }));
+    expect(result.rewritten).toBe(1);
+    expect(result.missing).toEqual([]);
+    expect(root.querySelector("img")?.getAttribute("src")).toBe("blob:trim-1");
+  });
+
+  it("does not classify a leading-space https URL as relative", async () => {
+    const root = mount('<img src=" https://evil.example/p.png" />');
+    const resolver = fakeResolver({});
+    const spy = vi.spyOn(resolver, "resolve");
+    const result = await rewriteRelativeAssets(root, resolver);
+    expect(spy).not.toHaveBeenCalled();
+    expect(result.rewritten).toBe(0);
+    expect(result.missing).toEqual([]);
+  });
+
   it("leaves absolute <link href> and <script src> alone", async () => {
     const root = mount(
       '<link rel="stylesheet" href="https://cdn.example.com/foo.css" />' +
@@ -269,6 +291,26 @@ describe("blockExternalAssets", () => {
     expect(wrapper.querySelector("track")?.getAttribute("src")).toBe("data:,");
   });
 
+  it("blocks <input type=image src> — auto-loads on parse like <img>", () => {
+    // DOMPurify keeps <input> by default. type=image inputs fetch their
+    // `src` immediately on parse and POST form coords on click; the parse
+    // fetch is the one we have to gate before reaching the iframe.
+    const result = blockExternalAssets(
+      "<form>" +
+        '<input type="image" src="https://evil.example/btn.png" alt="go">' +
+        '<input type="text" src="https://evil.example/ignored.png">' +
+        "</form>",
+    );
+    expect(result.blocked).toEqual([
+      "https://evil.example/btn.png",
+      "https://evil.example/ignored.png",
+    ]);
+    const wrapper = mountResult(result.html);
+    const inputs = wrapper.querySelectorAll("input");
+    expect(inputs[0]?.getAttribute("src")).toBe("data:,");
+    expect(inputs[1]?.getAttribute("src")).toBe("data:,");
+  });
+
   it("blocks SVG <image href> and <use href>", () => {
     const result = blockExternalAssets(
       '<svg><image href="https://evil.example/i.png"></image>' +
@@ -292,6 +334,44 @@ describe("blockExternalAssets", () => {
     expect(result.html).toContain("background: url(data:,) center");
     expect(result.html).toContain("color: red");
     expect(result.html).toContain("background-image: url('./local.png')");
+  });
+
+  // Regression: the URL parser strips ASCII whitespace before fetching
+  // (WHATWG URL §3.1), so `<img src=" https://evil/p.png">` would have
+  // bypassed an `^`-anchored EXTERNAL_URL test and still hit the network.
+  // The rewriter must trim attribute values to match what the parser sees.
+  it("blocks a leading-space URL — browser strips whitespace before fetching", () => {
+    const result = blockExternalAssets('<img src=" https://evil.example/p.png">');
+    expect(result.blocked).toEqual(["https://evil.example/p.png"]);
+    expect(result.html).toContain('src="data:,"');
+    expect(result.html).toContain('data-blocked-src="https://evil.example/p.png"');
+  });
+
+  it("blocks tab- and newline-prefixed URLs", () => {
+    const result = blockExternalAssets(
+      '<img src="\thttps://evil.example/tab.png">' + '<img src="\n  https://evil.example/nl.png">',
+    );
+    expect(result.blocked).toEqual(["https://evil.example/tab.png", "https://evil.example/nl.png"]);
+  });
+
+  it("blocks a URL with NBSP / Unicode whitespace prefix (DOMPurify class)", () => {
+    // U+00A0 NBSP is in the URL parser's whitespace-strip set.
+    const result = blockExternalAssets('<link href=" https://evil.example/x.css">', "head");
+    expect(result.blocked).toEqual(["https://evil.example/x.css"]);
+    expect(result.html).toContain('href="data:,"');
+  });
+
+  it("blocks a leading-space protocol-relative URL", () => {
+    const result = blockExternalAssets('<img src=" //cdn.example/x.png">');
+    expect(result.blocked).toEqual(["//cdn.example/x.png"]);
+    expect(result.html).toContain('src="data:,"');
+  });
+
+  it("does not over-trim — a relative path with leading space is still treated as relative", () => {
+    // The relative path is NOT external, so blockExternalAssets leaves it
+    // for rewriteRelativeAssets to handle. We only assert "no false block".
+    const result = blockExternalAssets('<img src=" figs/diagram.png">');
+    expect(result.blocked).toEqual([]);
   });
 });
 

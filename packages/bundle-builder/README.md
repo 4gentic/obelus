@@ -7,6 +7,6 @@
 **Boundary.** It does not read storage, call the network, or decide when to export. Callers pass in typed row inputs; the builder returns a `Bundle` already parsed against the Zod schema in `@obelus/bundle-schema`. There are no parallel hand-typed duplicates of the schema.
 
 **Public API.**
-- `buildBundleV1` — assemble and validate a v1 bundle from paper, revision, PDF, and annotation rows.
-- `buildBundleV2` — assemble and validate a v2 bundle (cross-format source anchors).
-- Input types: `PaperInput`, `RevisionInput`, `PdfInput`, `AnnotationInput`, `BuildBundleV1Input`, `BuildBundleV2Input`.
+- `buildBundle(input)` — assemble and validate a bundle from paper, project, and annotation rows; supports cross-format anchors (PDF / Markdown / HTML).
+- `suggestBundleFilename(kind, now?)` — canonical filename for a `"review"` or `"revise"` export.
+- Input types: `BuildBundleInput`, `PaperRefInput`, `ProjectInput`, `ProjectFileSummaryInput`, `AnnotationInput`, `AnnotationAnchor`, `BundleKind`.

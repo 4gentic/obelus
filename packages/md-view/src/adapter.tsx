@@ -3,6 +3,7 @@ import type { DocumentView } from "@obelus/review-shell";
 import type { DraftInput, SourceDraftSlice } from "@obelus/review-store";
 import type { JSX, ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createMdFindProvider, type FindRect } from "./find";
 import { resolveSourceAnchorToRects } from "./highlights";
 import {
   type MarkdownExternalBlocked,
@@ -86,6 +87,27 @@ function HighlightLayer({ rects }: { rects: ReadonlyArray<HighlightRect> }): JSX
           data-category={r.category}
           data-focused={r.focused ? "true" : undefined}
           data-stale={r.stale ? "true" : undefined}
+          style={{ left: r.left, top: r.top, width: r.width, height: r.height }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Sibling layer for find matches. Kept distinct from `HighlightLayer` so the
+// styling cascade for annotations vs. find is not coupled — find rects use a
+// neutral yellow fill and a stronger ring on the active match.
+function FindLayer({ rects }: { rects: ReadonlyArray<FindRect> }): JSX.Element {
+  return (
+    <div className="review-shell__hl-layer review-shell__hl-layer--find" aria-hidden="true">
+      {rects.map((r) => (
+        <div
+          key={r.key}
+          className={
+            r.current
+              ? "review-shell__hl review-shell__hl--find review-shell__hl--find-current"
+              : "review-shell__hl review-shell__hl--find"
+          }
           style={{ left: r.left, top: r.top, width: r.width, height: r.height }}
         />
       ))}
@@ -217,6 +239,37 @@ export function useMdDocumentView({
     [annotationTops],
   );
 
+  const [findRects, setFindRects] = useState<ReadonlyArray<FindRect>>([]);
+  const find = useMemo(
+    () =>
+      createMdFindProvider({
+        getContainer: () => containerRef.current,
+        getScrollAncestor: (el) => findScrollAncestor(el),
+        paint: (rects) => setFindRects(rects),
+        scrollTo: (top) => {
+          const container = containerRef.current;
+          if (!container) return;
+          findScrollAncestor(container).scrollTo({ top, behavior: "smooth" });
+        },
+      }),
+    [],
+  );
+
+  // On layout shifts (resize / scroll bumps), the cached Ranges are still
+  // valid but the rect projections drift — re-paint from the same matches.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: layoutTick is an intentional re-fire trigger; the body reads it implicitly through the latest scroll-container geometry.
+  useEffect(() => {
+    find.repaint();
+  }, [layoutTick, find]);
+
+  // On a full DOM rebuild (renderVersion bump), the cached Range objects
+  // reference detached nodes — drop them so a stale find layer doesn't
+  // linger. The host re-runs search on the next setQuery / setProvider call.
+  useEffect(() => {
+    if (renderVersion === 0) return;
+    find.invalidate();
+  }, [renderVersion, find]);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: layoutTick is an intentional re-trigger so draft rects refresh on ResizeObserver / scroll bumps even when no other dep changed — without it the dashed-outline draft layer stays painted at pre-resize coords.
   const overlayRects = useMemo<HighlightRect[]>(() => {
     const out: HighlightRect[] = [];
@@ -285,6 +338,7 @@ export function useMdDocumentView({
         {...(onExternalBlocked !== undefined ? { onExternalBlocked } : {})}
       />
       <HighlightLayer rects={overlayRects} />
+      <FindLayer rects={findRects} />
     </div>
   );
 
@@ -293,5 +347,6 @@ export function useMdDocumentView({
     annotationTops,
     scrollToAnnotation,
     editable: false,
+    find,
   };
 }

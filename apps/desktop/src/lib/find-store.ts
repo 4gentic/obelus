@@ -1,6 +1,4 @@
-import type { FindMatch } from "@obelus/pdf-view";
-import { searchPdfDocument } from "@obelus/pdf-view";
-import type { PDFDocumentProxy } from "pdfjs-dist";
+import type { FindProvider } from "@obelus/review-shell";
 import { create, type StoreApi, type UseBoundStore } from "zustand";
 
 export type FindStatus = "idle" | "searching" | "ready" | "error";
@@ -8,12 +6,13 @@ export type FindStatus = "idle" | "searching" | "ready" | "error";
 export interface FindState {
   isOpen: boolean;
   query: string;
-  status: FindStatus;
-  matches: ReadonlyArray<FindMatch>;
-  currentIndex: number;
   caseSensitive: boolean;
-  // Bumped each time the current match changes so PdfPane can scroll without
-  // observing the matches array identity (which also changes on every search).
+  status: FindStatus;
+  count: number;
+  currentIndex: number;
+  // Bumped each time the active match changes so format-specific surfaces
+  // (e.g. PdfPane) can scroll without observing rect arrays whose identity
+  // also rolls on every search.
   scrollTick: number;
   // Bumped on every open() so FindBar refocuses even when isOpen is already true.
   focusTick: number;
@@ -24,7 +23,10 @@ export interface FindState {
   toggle(): void;
   setQuery(next: string): void;
   setCaseSensitive(next: boolean): void;
-  setDoc(doc: PDFDocumentProxy | null): void;
+  setProvider(provider: FindProvider | null): void;
+  // Wipes query/caseSensitive in addition to closing — called when the
+  // open paper changes so cross-paper find state doesn't leak.
+  resetForPaperSwap(): void;
   next(): void;
   prev(): void;
 }
@@ -34,7 +36,7 @@ export type FindStore = UseBoundStore<StoreApi<FindState>>;
 const DEBOUNCE_MS = 120;
 
 export function createFindStore(): FindStore {
-  let doc: PDFDocumentProxy | null = null;
+  let provider: FindProvider | null = null;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let controller: AbortController | null = null;
   let searchToken = 0;
@@ -52,24 +54,27 @@ export function createFindStore(): FindStore {
     }
 
     function runSearch(query: string, caseSensitive: boolean): void {
-      if (!doc) {
-        set({ matches: [], currentIndex: -1, status: "idle", error: null });
+      const p = provider;
+      if (!p) {
+        set({ count: 0, currentIndex: -1, status: "idle", error: null });
         return;
       }
       if (query.length === 0) {
-        set({ matches: [], currentIndex: -1, status: "idle", error: null });
+        p.clear();
+        set({ count: 0, currentIndex: -1, status: "idle", error: null });
         return;
       }
       controller = new AbortController();
       const ac = controller;
       const token = ++searchToken;
       set({ status: "searching", error: null });
-      searchPdfDocument(doc, query, { caseSensitive, signal: ac.signal }).then(
-        (matches) => {
+      p.search(query, { caseSensitive, signal: ac.signal }).then(
+        (count) => {
           if (token !== searchToken) return;
-          const currentIndex = matches.length > 0 ? 0 : -1;
+          const currentIndex = count > 0 ? 0 : -1;
+          if (currentIndex >= 0) p.goto(currentIndex);
           set((prev) => ({
-            matches,
+            count,
             currentIndex,
             status: "ready",
             error: null,
@@ -80,8 +85,8 @@ export function createFindStore(): FindStore {
           if (token !== searchToken) return;
           if (ac.signal.aborted) return;
           const message = err instanceof Error ? err.message : "search failed";
-          console.error("[find-pdf]", message, err);
-          set({ status: "error", matches: [], currentIndex: -1, error: message });
+          console.error("[find]", message, err);
+          set({ status: "error", count: 0, currentIndex: -1, error: message });
         },
       );
     }
@@ -89,10 +94,10 @@ export function createFindStore(): FindStore {
     return {
       isOpen: false,
       query: "",
-      status: "idle",
-      matches: [],
-      currentIndex: -1,
       caseSensitive: false,
+      status: "idle",
+      count: 0,
+      currentIndex: -1,
       scrollTick: 0,
       focusTick: 0,
       error: null,
@@ -102,12 +107,14 @@ export function createFindStore(): FindStore {
         const { query, caseSensitive } = get();
         if (query.length > 0) runSearch(query, caseSensitive);
       },
+      // Closes the bar but keeps query + caseSensitive so the next open()
+      // (or a viewMode toggle handing off to CodeMirror) re-uses them.
       close(): void {
         cancelPending();
+        provider?.clear();
         set({
           isOpen: false,
-          query: "",
-          matches: [],
+          count: 0,
           currentIndex: -1,
           status: "idle",
           error: null,
@@ -122,7 +129,8 @@ export function createFindStore(): FindStore {
         cancelPending();
         const caseSensitive = get().caseSensitive;
         if (next.length === 0) {
-          set({ matches: [], currentIndex: -1, status: "idle", error: null });
+          provider?.clear();
+          set({ count: 0, currentIndex: -1, status: "idle", error: null });
           return;
         }
         debounceTimer = setTimeout(() => {
@@ -135,24 +143,40 @@ export function createFindStore(): FindStore {
         const query = get().query;
         if (query.length > 0) runSearch(query, next);
       },
-      setDoc(nextDoc: PDFDocumentProxy | null): void {
-        if (doc === nextDoc) return;
+      setProvider(nextProvider: FindProvider | null): void {
+        if (provider === nextProvider) return;
         cancelPending();
-        doc = nextDoc;
-        set({ matches: [], currentIndex: -1, status: "idle", error: null });
+        provider?.clear();
+        provider = nextProvider;
+        set({ count: 0, currentIndex: -1, status: "idle", error: null });
         const { isOpen, query, caseSensitive } = get();
-        if (isOpen && nextDoc && query.length > 0) runSearch(query, caseSensitive);
+        if (isOpen && nextProvider && query.length > 0) runSearch(query, caseSensitive);
+      },
+      resetForPaperSwap(): void {
+        cancelPending();
+        provider?.clear();
+        set({
+          isOpen: false,
+          query: "",
+          caseSensitive: false,
+          count: 0,
+          currentIndex: -1,
+          status: "idle",
+          error: null,
+        });
       },
       next(): void {
-        const { matches, currentIndex } = get();
-        if (matches.length === 0) return;
-        const nextIndex = (currentIndex + 1) % matches.length;
+        const { count, currentIndex } = get();
+        if (count === 0) return;
+        const nextIndex = (currentIndex + 1) % count;
+        provider?.goto(nextIndex);
         set((prev) => ({ currentIndex: nextIndex, scrollTick: prev.scrollTick + 1 }));
       },
       prev(): void {
-        const { matches, currentIndex } = get();
-        if (matches.length === 0) return;
-        const nextIndex = (currentIndex - 1 + matches.length) % matches.length;
+        const { count, currentIndex } = get();
+        if (count === 0) return;
+        const nextIndex = (currentIndex - 1 + count) % count;
+        provider?.goto(nextIndex);
         set((prev) => ({ currentIndex: nextIndex, scrollTick: prev.scrollTick + 1 }));
       },
     };
