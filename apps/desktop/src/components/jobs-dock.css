@@ -60,8 +60,8 @@
 .jobs-dock__segments > li {
   display: flex;
   border-right: var(--rule-soft);
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 320px;
 }
 
 .jobs-dock__segments > li:last-child {
@@ -70,10 +70,11 @@
 
 .jobs-dock__seg {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1fr) max-content;
   align-items: baseline;
   gap: var(--space-3);
   padding: var(--space-1) var(--space-4);
+  width: 100%;
   background: transparent;
   border: 0;
   box-shadow: inset 0 2px 0 transparent;
