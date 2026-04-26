@@ -339,6 +339,15 @@ pub async fn claude_spawn(
     // Explicit user picks still win.
     let mode_default = "sonnet";
     let effective_model = model.as_deref().or(Some(mode_default));
+    // Boundary log: which model arg ended up on the CLI for this run. Pairs
+    // with the `[spawn-model]` console.info on the React side; together they
+    // pin down whether the user's chip selection reached argv. Routed through
+    // stderr so the existing `[claude-stderr]` listener surfaces it in
+    // devtools without a new IPC channel.
+    eprintln!(
+        "[claude-session] spawn-model rootId={} requested={:?} effective={:?} mode={:?}",
+        root_id, model, effective_model, mode
+    );
     let mut cmd = claude_command(&claude, &root, &workspace, effective_model, effort.as_deref());
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
