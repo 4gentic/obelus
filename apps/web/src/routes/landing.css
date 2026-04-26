@@ -189,7 +189,6 @@
   transform: translateX(3px);
 }
 
-
 .doors__caption {
   font-family: var(--font-body);
   font-style: italic;
@@ -576,7 +575,6 @@
 .desktop__link:hover {
   border-bottom-color: var(--rubric);
 }
-
 
 .desktop__status {
   font-family: var(--font-body);

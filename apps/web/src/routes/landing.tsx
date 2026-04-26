@@ -506,10 +506,7 @@ export default function Landing() {
         </ul>
         <p className="desktop__status">
           Current release: <code>{DESKTOP_TAG}</code>. All desktop releases at{" "}
-          <a
-            href="https://github.com/4gentic/obelus/releases?q=desktop"
-            rel="noreferrer noopener"
-          >
+          <a href="https://github.com/4gentic/obelus/releases?q=desktop" rel="noreferrer noopener">
             github.com/4gentic/obelus/releases
           </a>
           .
