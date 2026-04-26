@@ -55,7 +55,11 @@ export async function exportProjectToDirectory(
   const { repo, projectId, rootId } = input;
   const all = await repo.papers.list();
   const papers = all.filter((p) => p.projectId === projectId && p.removedAt === undefined);
+  const skippedRemoved = all
+    .filter((p) => p.projectId === projectId && p.removedAt !== undefined)
+    .map((p) => p.id);
   if (papers.length === 0) {
+    console.info("[project-export] no exportable papers", { projectId, skippedRemoved });
     return { dir: null, savedCount: 0, failed: [] };
   }
   const picked = await open({ directory: true, multiple: false });

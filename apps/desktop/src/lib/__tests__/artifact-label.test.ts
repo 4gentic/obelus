@@ -33,7 +33,7 @@ describe("artifactLabel", () => {
   it("strips the directory prefix before matching", () => {
     expect(
       artifactLabel(
-        "/Users/x/Library/Application Support/app/projects/p/bundle-20260426-105649.json",
+        "~/Library/Application Support/app.obelus.desktop/projects/p/bundle-20260426-105649.json",
       ),
     ).toBe("the review bundle (10:56)");
   });
