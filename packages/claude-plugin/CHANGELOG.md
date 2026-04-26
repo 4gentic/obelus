@@ -2,6 +2,13 @@
 
 All notable changes to the Obelus Claude Code plugin are documented here. This file is generated from Conventional Commits touching `packages/claude-plugin/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9](https://github.com/4gentic/obelus/compare/plugin-v0.1.8...plugin-v0.1.9) (2026-04-26)
+
+
+### Performance
+
+* **review:** cut rigorous-mode latency from ~25 min to ~7 min ([#82](https://github.com/4gentic/obelus/issues/82)) ([89a1935](https://github.com/4gentic/obelus/commit/89a193594e1e857770d7d75ff5691be2d82c04ed))
+
 ## [0.1.8](https://github.com/4gentic/obelus/compare/plugin-v0.1.7...plugin-v0.1.8) (2026-04-26)
 
 
