@@ -7,7 +7,6 @@ import FolioDesk from "./folio-desk";
 import FolioEngines from "./folio-engines";
 import FolioMachinist from "./folio-machinist";
 import FolioProject from "./folio-project";
-import FolioRenderHint from "./folio-render-hint";
 import { makeInitialWizardState, wizardReducer } from "./state";
 import "./wizard.css";
 
@@ -130,29 +129,22 @@ export default function Wizard(): JSX.Element {
           />
         ) : null}
         {state.folio === 4 ? (
-          state.project && state.project.kind === "writer" ? (
-            <FolioRenderHint
-              label={state.project.label}
-              firstProject={!addMode}
-              onFinish={() => dispatch({ type: "FINISH" })}
-            />
-          ) : (
-            <FolioProject
-              firstProject={!addMode}
-              onPickFolder={(root, label) => {
-                dispatch({ type: "PICK_FOLDER", root, label });
-              }}
-              onPickFile={(root, label, relPath) => {
-                dispatch({ type: "PICK_FILE", root, label, relPath });
-                dispatch({ type: "FINISH" });
-              }}
-              onBack={
-                addMode
-                  ? () => navigate("/home", { replace: true })
-                  : () => dispatch({ type: "BACK" })
-              }
-            />
-          )
+          <FolioProject
+            firstProject={!addMode}
+            onPickFolder={(root, label) => {
+              dispatch({ type: "PICK_FOLDER", root, label });
+              dispatch({ type: "FINISH" });
+            }}
+            onPickFile={(root, label, relPath) => {
+              dispatch({ type: "PICK_FILE", root, label, relPath });
+              dispatch({ type: "FINISH" });
+            }}
+            onBack={
+              addMode
+                ? () => navigate("/home", { replace: true })
+                : () => dispatch({ type: "BACK" })
+            }
+          />
         ) : null}
       </div>
     </section>
