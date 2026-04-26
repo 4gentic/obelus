@@ -30,6 +30,14 @@ export interface PhaseEntry {
 
 const PHASE_HISTORY_CAP = 32;
 
+// A running job that hasn't produced a stdout line in this many ms is treated
+// as stalled. Empirically the only thing that buys us this much silence is a
+// dead TCP socket (laptop suspend, network drop, server-side hang) — Claude's
+// stream-json fires partial-message deltas on a sub-second cadence during
+// active generation, and even long-tool-call phases (large reads, big greps)
+// emit tool_use / tool_result around them well within this window.
+export const STALL_THRESHOLD_MS = 180_000;
+
 export interface JobRecord {
   claudeSessionId: string;
   projectId: string;
@@ -51,6 +59,16 @@ export interface JobRecord {
   // holds. Cleared on each new semantic phase and at terminal status.
   currentTool?: string;
   message?: string;
+  // Wall-clock ms when the listener last saw a stdout line for this session.
+  // The dock derives "stalled" from `Date.now() - lastEventAt > threshold`. A
+  // job that never produces a single line will sit at `startedAt` and trip the
+  // watchdog at threshold, which is the correct semantics — silence from the
+  // CLI is the failure we're trying to surface.
+  lastEventAt?: number;
+  // Wall-clock ms when the user clicked "Keep waiting" on the stalled banner.
+  // While set and within `STALL_THRESHOLD_MS` of now, the banner is suppressed;
+  // a fresh stream event clears it so the next genuine stall re-prompts.
+  stalledAckAt?: number;
   // Path the plugin printed in its `OBELUS_WROTE: <path>` marker line. Used
   // by ingest as a hint when the desktop's filesystem scan would otherwise
   // miss the file (e.g. a smaller model wrote to a non-canonical name).
@@ -84,6 +102,8 @@ export interface JobsState {
   updatePhase(claudeSessionId: string, phase: string, kind: PhaseKind): void;
   setCurrentTool(claudeSessionId: string, tool: string | null): void;
   recordObelusWrotePath(claudeSessionId: string, path: string): void;
+  noteEvent(claudeSessionId: string, at: number): void;
+  acknowledgeStall(claudeSessionId: string): void;
   markIngesting(claudeSessionId: string): void;
   markDone(claudeSessionId: string, message: string): void;
   markError(claudeSessionId: string, message: string): void;
@@ -108,6 +128,11 @@ export const useJobsStore: JobsStore = create<JobsState>()((set, get) => ({
       status: "running",
       phase: "",
       phaseHistory: [],
+      // Seed the watchdog at startedAt: a job that never produces a single
+      // stream line should trip "stalled" at threshold rather than sit
+      // indefinitely (a CLI that fails to spawn at all is the most acute
+      // version of "stuck and silent").
+      lastEventAt: input.startedAt,
       ...(input.counts !== undefined ? { counts: input.counts } : {}),
       ...(input.reviewSessionId !== undefined ? { reviewSessionId: input.reviewSessionId } : {}),
       ...(input.paperId !== undefined ? { paperId: input.paperId } : {}),
@@ -151,6 +176,27 @@ export const useJobsStore: JobsStore = create<JobsState>()((set, get) => ({
       const existing = s.jobs[id];
       if (!existing || existing.obelusWrotePath === path) return s;
       return { jobs: { ...s.jobs, [id]: { ...existing, obelusWrotePath: path } } };
+    });
+  },
+
+  noteEvent(id, at) {
+    set((s) => {
+      const existing = s.jobs[id];
+      if (!existing) return s;
+      // A fresh stream line proves the socket is alive; any prior "Keep waiting"
+      // ack is now stale because the next stall would be a new one.
+      // `exactOptionalPropertyTypes` forbids assigning `undefined` directly, so
+      // strip the field by destructuring rather than setting it.
+      const { stalledAckAt: _drop, ...rest } = existing;
+      return { jobs: { ...s.jobs, [id]: { ...rest, lastEventAt: at } } };
+    });
+  },
+
+  acknowledgeStall(id) {
+    set((s) => {
+      const existing = s.jobs[id];
+      if (!existing) return s;
+      return { jobs: { ...s.jobs, [id]: { ...existing, stalledAckAt: Date.now() } } };
     });
   },
 
@@ -218,13 +264,19 @@ export const useJobsStore: JobsStore = create<JobsState>()((set, get) => ({
 // `currentTool` is a transient in-flight caption; it must not survive into
 // done/error/cancelled records. `exactOptionalPropertyTypes` forbids the
 // `currentTool: undefined` assignment shortcut, so build the next record
-// without the field.
+// without the field. `lastEventAt` and `stalledAckAt` only drive the
+// running-job watchdog and have no meaning on a terminal record; drop them.
 function terminalRecord(
   existing: JobRecord,
   status: Extract<JobStatus, "done" | "error" | "cancelled">,
   message: string,
 ): JobRecord {
-  const { currentTool: _drop, ...rest } = existing;
+  const {
+    currentTool: _drop,
+    lastEventAt: _dropLastEvent,
+    stalledAckAt: _dropStalledAck,
+    ...rest
+  } = existing;
   return { ...rest, status, message, phase: "", endedAt: Date.now() };
 }
 
