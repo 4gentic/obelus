@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { DiffHunksRepo } from "../interface";
-import type { DiffHunkApplyFailure, DiffHunkRow, DiffHunkState } from "../types";
+import type {
+  DiffHunkApplyFailure,
+  DiffHunkEmptyReason,
+  DiffHunkRow,
+  DiffHunkState,
+} from "../types";
 import type { Database } from "./db";
 import { dbTxBatch, type TxStmt } from "./transaction";
 
@@ -9,16 +14,24 @@ const DiffHunkApplyFailureSchema = z.object({
   attemptedAt: z.string(),
 });
 
+const EMPTY_REASONS = new Set<DiffHunkEmptyReason>([
+  "praise",
+  "ambiguous",
+  "structural-note",
+  "no-edit-requested",
+]);
+
 interface DiffHunkSqlRow {
   id: string;
   session_id: string;
-  annotation_id: string | null;
+  annotation_ids_json: string;
   file: string;
   category: string | null;
   patch: string;
   modified_patch_text: string | null;
   state: DiffHunkState;
   ambiguous: number;
+  empty_reason: string | null;
   note_text: string;
   ordinal: number;
   apply_failure_json: string | null;
@@ -35,25 +48,41 @@ function parseApplyFailure(raw: string | null): DiffHunkApplyFailure | null {
   }
 }
 
+function parseAnnotationIds(raw: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is string => typeof x === "string");
+  } catch {
+    return [];
+  }
+}
+
+function parseEmptyReason(raw: string | null): DiffHunkEmptyReason | null {
+  if (raw === null) return null;
+  return EMPTY_REASONS.has(raw as DiffHunkEmptyReason) ? (raw as DiffHunkEmptyReason) : null;
+}
+
 function toRow(r: DiffHunkSqlRow): DiffHunkRow {
   return {
     id: r.id,
     sessionId: r.session_id,
-    annotationId: r.annotation_id,
+    annotationIds: parseAnnotationIds(r.annotation_ids_json),
     file: r.file,
     category: r.category,
     patch: r.patch,
     modifiedPatchText: r.modified_patch_text,
     state: r.state,
     ambiguous: r.ambiguous === 1,
+    emptyReason: parseEmptyReason(r.empty_reason),
     noteText: r.note_text,
     ordinal: r.ordinal,
     applyFailure: parseApplyFailure(r.apply_failure_json),
   };
 }
 
-const SELECT = `SELECT id, session_id, annotation_id, file, category, patch,
-         modified_patch_text, state, ambiguous, note_text, ordinal,
+const SELECT = `SELECT id, session_id, annotation_ids_json, file, category, patch,
+         modified_patch_text, state, ambiguous, empty_reason, note_text, ordinal,
          apply_failure_json
   FROM diff_hunks`;
 
@@ -74,20 +103,21 @@ export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
       for (const r of rows) {
         stmts.push({
           sql: `INSERT INTO diff_hunks
-                  (id, session_id, annotation_id, file, category, patch,
-                   modified_patch_text, state, ambiguous, note_text, ordinal,
+                  (id, session_id, annotation_ids_json, file, category, patch,
+                   modified_patch_text, state, ambiguous, empty_reason, note_text, ordinal,
                    apply_failure_json)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           params: [
             r.id,
             sessionId,
-            r.annotationId,
+            JSON.stringify(r.annotationIds),
             r.file,
             r.category,
             r.patch,
             r.modifiedPatchText,
             r.state,
             r.ambiguous ? 1 : 0,
+            r.emptyReason,
             r.noteText,
             r.ordinal,
             r.applyFailure === null ? null : JSON.stringify(r.applyFailure),

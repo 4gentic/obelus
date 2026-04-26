@@ -1,4 +1,4 @@
-import type { DiffHunkRow } from "@obelus/repo";
+import type { AnnotationRow, DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fsReadFile } from "../../ipc/commands";
@@ -74,8 +74,61 @@ export default function DiffReview(props: Props): JSX.Element {
   const applyStatus = store((s) => s.applyStatus);
   const compileStatus = store((s) => s.compileStatus);
 
-  const grouped = useMemo(() => groupByFile(hunks), [hunks]);
+  // Empty-patch hunks (praise / no-edit / ambiguous / structural-note) live as
+  // margin-mark badges, not as rows in the diff list — they offer no edit to
+  // accept or reject. Reviewer-mode papers without source files are the
+  // exception: every hunk is a note there by design, so the filter only
+  // applies when the paper has sources.
+  const visibleAllHunks = useMemo(
+    () => (hasSources ? hunks.filter((h) => h.patch !== "") : hunks),
+    [hunks, hasSources],
+  );
+  const hiddenEmptyCount = hunks.length - visibleAllHunks.length;
+
+  const grouped = useMemo(() => groupByFile(visibleAllHunks), [visibleAllHunks]);
   const files = useMemo(() => [...grouped.keys()], [grouped]);
+
+  // Annotation-id → quote for tooltips on multi-mark diffs. Loaded lazily once
+  // per session; the hunks reference annotation rows that may have been
+  // archived after a prior apply, so we ask for resolved rows too.
+  const [marksByAnnotationId, setMarksByAnnotationId] = useState<ReadonlyMap<string, string>>(
+    () => new Map<string, string>(),
+  );
+  useEffect(() => {
+    if (sessionId === null) {
+      if (marksByAnnotationId.size > 0) setMarksByAnnotationId(new Map<string, string>());
+      return;
+    }
+    const wanted = new Set<string>();
+    for (const h of hunks) {
+      for (const id of h.annotationIds) wanted.add(id);
+    }
+    const missing: string[] = [];
+    for (const id of wanted) {
+      if (!marksByAnnotationId.has(id)) missing.push(id);
+    }
+    if (missing.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const session = await repo.reviewSessions.get(sessionId);
+      if (!session || cancelled) return;
+      const revisions = await repo.revisions.listForPaper(session.paperId);
+      const latest = revisions[revisions.length - 1];
+      if (!latest || cancelled) return;
+      const annotations: AnnotationRow[] = await repo.annotations.listForRevision(latest.id, {
+        includeResolved: true,
+      });
+      if (cancelled) return;
+      setMarksByAnnotationId((prev) => {
+        const next = new Map(prev);
+        for (const a of annotations) next.set(a.id, a.quote);
+        return next;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, hunks, repo, marksByAnnotationId]);
 
   const [activeFile, setActiveFile] = useState<string | null>(() => files[0] ?? null);
 
@@ -92,8 +145,8 @@ export default function DiffReview(props: Props): JSX.Element {
   const focusedHunk = hunks[focusedIndex];
   const visibleHunks = useMemo(() => {
     if (activeFile === null) return [];
-    return hunks.filter((h) => fileKey(h) === activeFile);
-  }, [hunks, activeFile]);
+    return visibleAllHunks.filter((h) => fileKey(h) === activeFile);
+  }, [visibleAllHunks, activeFile]);
 
   const pendingInActive = useMemo(() => {
     if (activeFile === null) return 0;
@@ -104,10 +157,10 @@ export default function DiffReview(props: Props): JSX.Element {
   const goToFile = useCallback(
     (file: string): void => {
       setActiveFile(file);
-      const idx = hunks.findIndex((h) => fileKey(h) === file);
+      const idx = hunks.findIndex((h) => fileKey(h) === file && (h.patch !== "" || !hasSources));
       if (idx >= 0) store.getState().focus(idx);
     },
-    [hunks, store],
+    [hunks, hasSources, store],
   );
 
   const stepFile = useCallback(
@@ -179,7 +232,9 @@ export default function DiffReview(props: Props): JSX.Element {
       const state = store.getState();
       const locals: number[] = [];
       state.hunks.forEach((h, i) => {
-        if (fileKey(h) === activeFile) locals.push(i);
+        if (fileKey(h) !== activeFile) return;
+        if (hasSources && h.patch === "") return;
+        locals.push(i);
       });
       if (locals.length === 0) return;
       const curGlobal = state.focusedIndex;
@@ -188,7 +243,7 @@ export default function DiffReview(props: Props): JSX.Element {
       const globalIdx = locals[nextLocal];
       if (globalIdx !== undefined) state.focus(globalIdx);
     },
-    [activeFile, store],
+    [activeFile, hasSources, store],
   );
 
   const focusEdge = useCallback(
@@ -197,13 +252,15 @@ export default function DiffReview(props: Props): JSX.Element {
       const state = store.getState();
       const locals: number[] = [];
       state.hunks.forEach((h, i) => {
-        if (fileKey(h) === activeFile) locals.push(i);
+        if (fileKey(h) !== activeFile) return;
+        if (hasSources && h.patch === "") return;
+        locals.push(i);
       });
       if (locals.length === 0) return;
       const pick = edge === "first" ? locals[0] : locals[locals.length - 1];
       if (pick !== undefined) state.focus(pick);
     },
-    [activeFile, store],
+    [activeFile, hasSources, store],
   );
 
   useKeyNav(
@@ -442,6 +499,12 @@ export default function DiffReview(props: Props): JSX.Element {
           </p>
         )}
 
+      {hiddenEmptyCount > 0 && (
+        <p className="diff-review__hidden-note">
+          {hiddenEmptyCount} informational mark{hiddenEmptyCount === 1 ? "" : "s"} hidden (praise,
+          ambiguous, or impact notes — no edit to accept).
+        </p>
+      )}
       <section className="diff-review__list">
         {visibleHunks.map((h) => {
           const global = hunks.indexOf(h);
@@ -457,6 +520,7 @@ export default function DiffReview(props: Props): JSX.Element {
                 totalInFile={bucket.length}
                 sourceText={source}
                 hasSources={hasSources}
+                marksByAnnotationId={marksByAnnotationId}
                 focused={focusedHunk?.id === h.id}
                 editing={editingId === h.id}
                 editingText={editingText}

@@ -32,9 +32,9 @@ describe("isSynthesisedAnnotationId", () => {
 describe("partitionPlanBlocks", () => {
   it("keeps user-mark blocks whose id is in knownAnnotationIds", () => {
     const knownId = "550e8400-e29b-41d4-a716-446655440001";
-    const blocks = [{ annotationId: knownId }, { annotationId: "550e8400-unknown" }];
+    const blocks = [{ annotationIds: [knownId] }, { annotationIds: ["550e8400-unknown"] }];
     const result = partitionPlanBlocks(blocks, new Set([knownId]));
-    expect(result.kept.map((b) => b.annotationId)).toEqual([knownId]);
+    expect(result.kept).toEqual([{ annotationIds: [knownId] }]);
     expect(result.droppedForUnknownAnnotation).toEqual(["550e8400-unknown"]);
     expect(result.synthesisedKept).toBe(0);
   });
@@ -45,12 +45,12 @@ describe("partitionPlanBlocks", () => {
   // filter silently discarded them, breaking the cascade/impact/quality surfaces end-to-end.
   it("keeps synthesised blocks even when knownAnnotationIds is empty", () => {
     const blocks = [
-      { annotationId: "cascade-abcd1234-1" },
-      { annotationId: "cascade-abcd1234-2" },
-      { annotationId: "impact-abcd1234-1" },
-      { annotationId: "coherence-1" },
-      { annotationId: "quality-01-introduction-1" },
-      { annotationId: "quality-02-approach-1" },
+      { annotationIds: ["cascade-abcd1234-1"] },
+      { annotationIds: ["cascade-abcd1234-2"] },
+      { annotationIds: ["impact-abcd1234-1"] },
+      { annotationIds: ["coherence-1"] },
+      { annotationIds: ["quality-01-introduction-1"] },
+      { annotationIds: ["quality-02-approach-1"] },
     ];
     const result = partitionPlanBlocks(blocks, new Set<string>());
     expect(result.kept.length).toBe(blocks.length);
@@ -61,18 +61,39 @@ describe("partitionPlanBlocks", () => {
   it("keeps user-mark and synthesised blocks together, dropping only truly unknown ids", () => {
     const userId = "550e8400-e29b-41d4-a716-446655440001";
     const blocks = [
-      { annotationId: userId },
-      { annotationId: "cascade-abcd1234-1" },
-      { annotationId: "quality-intro-1" },
-      { annotationId: "stale-annotation-from-old-bundle" },
+      { annotationIds: [userId] },
+      { annotationIds: ["cascade-abcd1234-1"] },
+      { annotationIds: ["quality-intro-1"] },
+      { annotationIds: ["stale-annotation-from-old-bundle"] },
     ];
     const result = partitionPlanBlocks(blocks, new Set([userId]));
-    expect(result.kept.map((b) => b.annotationId)).toEqual([
-      userId,
-      "cascade-abcd1234-1",
-      "quality-intro-1",
+    expect(result.kept).toEqual([
+      { annotationIds: [userId] },
+      { annotationIds: ["cascade-abcd1234-1"] },
+      { annotationIds: ["quality-intro-1"] },
     ]);
     expect(result.droppedForUnknownAnnotation).toEqual(["stale-annotation-from-old-bundle"]);
     expect(result.synthesisedKept).toBe(2);
+  });
+
+  it("keeps a multi-mark user block when every contributing mark is known", () => {
+    const a = "11111111-1111-4111-8111-111111111111";
+    const b = "22222222-2222-4222-8222-222222222222";
+    const c = "33333333-3333-4333-8333-333333333333";
+    const blocks = [{ annotationIds: [a, b, c] }];
+    const result = partitionPlanBlocks(blocks, new Set([a, b, c]));
+    expect(result.kept).toEqual(blocks);
+    expect(result.droppedForUnknownAnnotation).toEqual([]);
+  });
+
+  it("drops a multi-mark user block whole when any contributing mark is unknown", () => {
+    const a = "11111111-1111-4111-8111-111111111111";
+    const b = "22222222-2222-4222-8222-222222222222";
+    const stale = "stale-mark";
+    const blocks = [{ annotationIds: [a, stale, b] }];
+    const result = partitionPlanBlocks(blocks, new Set([a, b]));
+    expect(result.kept).toEqual([]);
+    expect(result.droppedForUnknownAnnotation).toEqual([`${a}+${stale}+${b}`]);
+    expect(result.synthesisedKept).toBe(0);
   });
 });

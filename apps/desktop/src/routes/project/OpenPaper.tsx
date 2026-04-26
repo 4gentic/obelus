@@ -192,9 +192,9 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
             sourceFile: classification.mode === "source" ? classification.sourceFile : null,
             scriptCount: sanitized.scriptCount,
             linkCount: sanitized.linkCount,
-            droppedTagCount: sanitized.droppedTagCount,
+            droppedTags: sanitized.droppedTags,
             droppedDangerousLinks: sanitized.droppedDangerousLinks,
-            authorStylesBlockedCount: sanitized.authorStylesBlocked.length,
+            authorStylesBlocked: sanitized.authorStylesBlocked,
             paperId: lookup?.paper.id ?? null,
           });
           if (!cancelled) {

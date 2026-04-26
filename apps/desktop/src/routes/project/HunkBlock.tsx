@@ -16,6 +16,12 @@ interface Props {
   editingText: string;
   noting: boolean;
   noteText: string;
+  // Quote text for each annotation this hunk satisfies, looked up by id from
+  // the route's annotations cache. Drives the multi-mark expansion. When the
+  // hunk's annotationIds is empty (synthesised blocks like cascade-/impact-,
+  // or stale legacy data), the map will be empty and the chip falls back to
+  // the category-only header.
+  marksByAnnotationId: ReadonlyMap<string, string>;
   onFocus: () => void;
   onAccept: () => void;
   onReject: () => void;
@@ -80,6 +86,7 @@ export default function HunkBlock(props: Props): JSX.Element {
     editingText,
     noting,
     noteText,
+    marksByAnnotationId,
     onFocus,
     onAccept,
     onReject,
@@ -119,6 +126,13 @@ export default function HunkBlock(props: Props): JSX.Element {
 
   const isNoteOnly = hunk.ambiguous && !hasSources;
   const isTrulyAmbiguous = hunk.ambiguous && hasSources;
+  // Marks the planner merged into this single edit. Length > 1 ⇒ the diff
+  // satisfies several user marks simultaneously; surface that explicitly so
+  // the reviewer knows what they're accepting.
+  const linkedQuotes: Array<{ id: string; quote: string }> = hunk.annotationIds
+    .map((id) => ({ id, quote: marksByAnnotationId.get(id) ?? "" }))
+    .filter((m) => m.quote !== "");
+  const mergedMarkCount = hunk.annotationIds.length;
 
   return (
     <article
@@ -139,6 +153,18 @@ export default function HunkBlock(props: Props): JSX.Element {
           hunk {indexInFile + 1}/{totalInFile}
         </span>
         <span className="diff-block__cat">{hunk.category ?? "—"}</span>
+        {mergedMarkCount > 1 && (
+          <span
+            className="diff-block__tag diff-block__tag--merged"
+            title={
+              linkedQuotes.length > 0
+                ? linkedQuotes.map((m) => `• ${m.quote}`).join("\n")
+                : `Satisfies ${mergedMarkCount} marks`
+            }
+          >
+            satisfies {mergedMarkCount} marks
+          </span>
+        )}
         {isNoteOnly && <span className="diff-block__tag">note</span>}
         {isTrulyAmbiguous && <span className="diff-block__tag">ambiguous</span>}
         <span className="hunk-block__state">{hunk.state}</span>

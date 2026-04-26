@@ -1436,6 +1436,29 @@ button.files__row {
   font-size: 0.85em;
 }
 
+.diff-block__tag--merged {
+  /* Merged-mark chip — the diff covers more than one user mark. Tooltip
+     spells out the contributing quotes; the chip itself stays minimal so the
+     header doesn't crowd. */
+  color: var(--ink);
+  border: 1px solid var(--rule-soft);
+  border-radius: 2px;
+  padding: 0 var(--space-1);
+  cursor: help;
+}
+
+.diff-review__hidden-note {
+  /* Surfaces ingested-but-hidden empty hunks (praise / ambiguous / impact)
+     so the user knows the planner did look at every mark; the diff list just
+     skipped the ones with nothing to accept. */
+  margin: 0 var(--space-2) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  font-style: italic;
+  border-left: 2px solid var(--rule-soft);
+}
+
 .diff-block__notes {
   padding: var(--space-1) var(--space-2);
   color: var(--ink-soft);

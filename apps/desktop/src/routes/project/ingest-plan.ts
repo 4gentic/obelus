@@ -1,4 +1,4 @@
-import { PlanFileSchema } from "@obelus/claude-sidecar";
+import { type PlanBlock, type PlanEmptyReason, PlanFileSchema } from "@obelus/claude-sidecar";
 import type { DiffHunkRow, Repository } from "@obelus/repo";
 import { workspacePath, workspaceReadDir, workspaceReadFile } from "../../ipc/commands";
 import { paperHasSources } from "../../lib/paper-has-sources";
@@ -62,6 +62,16 @@ export interface IngestPlanResult {
   blockCount: number;
   hunkCount: number;
   ambiguousCount: number;
+  // Count of blocks where one diff satisfies more than one user mark — the
+  // common case once the planner reasons holistically over a paper. Surfaced
+  // in the status bar so the user can tell "3 changes" apart from "3 changes
+  // (2 cover multiple marks)".
+  multiMarkDiffs: number;
+  // Tally of empty-patch blocks broken down by reason. Empty blocks never
+  // appear in the diff list (the UI filters them); they live as margin-mark
+  // status badges. Counts here let the status bar report what the agent
+  // actually said about each mark.
+  emptyByReason: Record<PlanEmptyReason, number>;
   droppedForUnknownAnnotation: string[];
   synthesisedKept: number;
   scannedPlans: string[];
@@ -85,13 +95,25 @@ export function isSynthesisedAnnotationId(id: string): boolean {
 }
 
 export interface PlanBlockLike {
-  annotationId: string;
+  annotationIds: ReadonlyArray<string>;
 }
 
 export interface PartitionedBlocks<T extends PlanBlockLike> {
   kept: T[];
+  // Each entry names the block's full id list (joined with "+") so the log
+  // can tell "single mark dropped because it's stale" apart from "merged
+  // block dropped because one of its three marks is unknown".
   droppedForUnknownAnnotation: string[];
   synthesisedKept: number;
+}
+
+// A block is synthesised iff its first id has a synthesised prefix. The
+// planner contract is that synthesised blocks carry a singleton array; mixed
+// arrays (real UUID + synthesised id) are not produced. We treat any block
+// whose first id is synthesised as synthesised.
+function isSynthesisedBlock(b: PlanBlockLike): boolean {
+  const first = b.annotationIds[0];
+  return typeof first === "string" && isSynthesisedAnnotationId(first);
 }
 
 export function partitionPlanBlocks<T extends PlanBlockLike>(
@@ -102,16 +124,21 @@ export function partitionPlanBlocks<T extends PlanBlockLike>(
   const droppedForUnknownAnnotation: string[] = [];
   let synthesisedKept = 0;
   for (const b of blocks) {
-    if (isSynthesisedAnnotationId(b.annotationId)) {
+    if (isSynthesisedBlock(b)) {
       synthesisedKept += 1;
       kept.push(b);
       continue;
     }
-    if (knownAnnotationIds.has(b.annotationId)) {
+    // User-mark block: drop the whole block if any contributing mark is
+    // unknown. The diff was authored to satisfy *all* its marks; surfacing a
+    // partially-attributed merged diff would mislead the reviewer about what
+    // they're accepting.
+    const allKnown = b.annotationIds.every((id) => knownAnnotationIds.has(id));
+    if (allKnown) {
       kept.push(b);
       continue;
     }
-    droppedForUnknownAnnotation.push(b.annotationId);
+    droppedForUnknownAnnotation.push(b.annotationIds.join("+"));
   }
   return { kept, droppedForUnknownAnnotation, synthesisedKept };
 }
@@ -274,13 +301,14 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   const rows: DiffHunkRow[] = keptBlocks.map((b, i) => ({
     id: crypto.randomUUID(),
     sessionId,
-    annotationId: b.annotationId,
+    annotationIds: [...b.annotationIds],
     file: b.file,
     category: b.category,
     patch: b.patch,
     modifiedPatchText: null,
     state: "pending",
     ambiguous: b.ambiguous,
+    emptyReason: b.emptyReason,
     noteText: "",
     ordinal: i,
     applyFailure: null,
@@ -289,6 +317,20 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   await repo.diffHunks.upsertMany(sessionId, rows);
 
   const ambiguousCount = keptBlocks.reduce((n, b) => n + (b.ambiguous ? 1 : 0), 0);
+  const multiMarkDiffs = keptBlocks.reduce((n, b) => n + (b.annotationIds.length > 1 ? 1 : 0), 0);
+  const emptyByReason = tallyEmptyReasons(keptBlocks);
+
+  console.info("[ingest-plan]", {
+    sessionId,
+    planPath: picked.name,
+    blockCount: picked.plan.blocks.length,
+    hunkCount: rows.length,
+    ambiguousCount,
+    multiMarkDiffs,
+    emptyByReason,
+    synthesisedKept,
+    droppedForUnknownAnnotation,
+  });
 
   return {
     planPath: picked.name,
@@ -297,9 +339,24 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     blockCount: picked.plan.blocks.length,
     hunkCount: rows.length,
     ambiguousCount,
+    multiMarkDiffs,
+    emptyByReason,
     droppedForUnknownAnnotation,
     synthesisedKept,
     scannedPlans,
     hasSources,
   };
+}
+
+function tallyEmptyReasons(blocks: ReadonlyArray<PlanBlock>): Record<PlanEmptyReason, number> {
+  const counts: Record<PlanEmptyReason, number> = {
+    praise: 0,
+    ambiguous: 0,
+    "structural-note": 0,
+    "no-edit-requested": 0,
+  };
+  for (const b of blocks) {
+    if (b.emptyReason !== null) counts[b.emptyReason] += 1;
+  }
+  return counts;
 }

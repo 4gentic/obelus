@@ -1,29 +1,45 @@
 import { describe, expect, it } from "vitest";
 import { PlanFile, pickLatestPlanName, pickLatestWriteupName } from "../plan";
 
+const USER_ID = "11111111-1111-4111-8111-111111111111";
+const USER_ID_2 = "22222222-2222-4222-8222-222222222222";
+
+function block(overrides: Partial<Record<string, unknown>> = {}): unknown {
+  return {
+    annotationIds: [USER_ID],
+    file: "intro.tex",
+    category: "unclear",
+    patch: "@@ -1 +1 @@\n-old\n+new\n",
+    ambiguous: false,
+    reviewerNotes: "",
+    emptyReason: null,
+    ...overrides,
+  };
+}
+
+function envelope(blocks: ReadonlyArray<unknown>): unknown {
+  return {
+    bundleId: "sha256:abc",
+    format: "typst",
+    entrypoint: "main.typ",
+    blocks,
+  };
+}
+
 describe("PlanFile schema", () => {
-  it("accepts well-formed plan JSON", () => {
-    const parsed = PlanFile.parse({
-      bundleId: "sha256:abc",
-      format: "typst",
-      entrypoint: "main.typ",
-      blocks: [
-        {
-          annotationId: "11111111-1111-4111-8111-111111111111",
-          file: "intro.tex",
-          category: "unclear",
-          patch: "@@ -1 +1 @@\n-old\n+new\n",
-          ambiguous: false,
-          reviewerNotes: "",
-        },
-      ],
-    });
-    expect(parsed.format).toBe("typst");
-    expect(parsed.entrypoint).toBe("main.typ");
+  it("accepts a single-mark block with a real patch", () => {
+    const parsed = PlanFile.parse(envelope([block()]));
     expect(parsed.blocks).toHaveLength(1);
+    expect(parsed.blocks[0]?.annotationIds).toEqual([USER_ID]);
+    expect(parsed.blocks[0]?.emptyReason).toBeNull();
   });
 
-  it("accepts empty-string format and entrypoint when no descriptor was available", () => {
+  it("accepts a multi-mark block where one diff satisfies several marks", () => {
+    const parsed = PlanFile.parse(envelope([block({ annotationIds: [USER_ID, USER_ID_2] })]));
+    expect(parsed.blocks[0]?.annotationIds).toHaveLength(2);
+  });
+
+  it("accepts an empty-string format and entrypoint when no descriptor was available", () => {
     const parsed = PlanFile.parse({
       bundleId: "sha256:abc",
       format: "",
@@ -32,15 +48,6 @@ describe("PlanFile schema", () => {
     });
     expect(parsed.format).toBe("");
     expect(parsed.entrypoint).toBe("");
-  });
-
-  it("rejects missing fields", () => {
-    expect(() =>
-      PlanFile.parse({
-        bundleId: "x",
-        blocks: [{ annotationId: "a", file: "f" }],
-      }),
-    ).toThrow();
   });
 
   it("accepts html format", () => {
@@ -62,6 +69,111 @@ describe("PlanFile schema", () => {
         blocks: [],
       }),
     ).toThrow();
+  });
+
+  it("rejects a missing annotationIds field", () => {
+    expect(() =>
+      PlanFile.parse(envelope([{ file: "intro.tex", patch: "@@ -1 +1 @@\n-x\n+y\n" }])),
+    ).toThrow();
+  });
+
+  it("rejects an empty annotationIds array", () => {
+    expect(() => PlanFile.parse(envelope([block({ annotationIds: [] })]))).toThrow();
+  });
+});
+
+describe("PlanBlock empty-patch invariants", () => {
+  it("rejects an empty patch with no emptyReason (the regression case)", () => {
+    expect(() =>
+      PlanFile.parse(envelope([block({ category: "wrong", patch: "", emptyReason: null })])),
+    ).toThrow(/empty patch requires an emptyReason/);
+  });
+
+  it("accepts a praise mark with empty patch and emptyReason 'praise'", () => {
+    const parsed = PlanFile.parse(
+      envelope([block({ category: "praise", patch: "", emptyReason: "praise" })]),
+    );
+    expect(parsed.blocks[0]?.emptyReason).toBe("praise");
+  });
+
+  it("accepts an aside / flag mark with empty patch and emptyReason 'no-edit-requested'", () => {
+    const parsed = PlanFile.parse(
+      envelope([block({ category: "aside", patch: "", emptyReason: "no-edit-requested" })]),
+    );
+    expect(parsed.blocks[0]?.emptyReason).toBe("no-edit-requested");
+  });
+
+  it("accepts ambiguous: true with empty patch and emptyReason 'ambiguous'", () => {
+    const parsed = PlanFile.parse(
+      envelope([
+        block({
+          category: "wrong",
+          patch: "",
+          ambiguous: true,
+          emptyReason: "ambiguous",
+          reviewerNotes: "Couldn't locate this mark in the source.",
+        }),
+      ]),
+    );
+    expect(parsed.blocks[0]?.ambiguous).toBe(true);
+    expect(parsed.blocks[0]?.emptyReason).toBe("ambiguous");
+  });
+
+  it("rejects ambiguous: true with a non-empty patch", () => {
+    expect(() => PlanFile.parse(envelope([block({ ambiguous: true })]))).toThrow(
+      /ambiguous: true requires patch/,
+    );
+  });
+
+  it("rejects emptyReason 'ambiguous' without ambiguous: true", () => {
+    expect(() =>
+      PlanFile.parse(envelope([block({ patch: "", emptyReason: "ambiguous", ambiguous: false })])),
+    ).toThrow(/emptyReason 'ambiguous' requires ambiguous: true/);
+  });
+
+  it("rejects a non-empty patch carrying an emptyReason", () => {
+    expect(() => PlanFile.parse(envelope([block({ emptyReason: "praise" })]))).toThrow(
+      /non-empty patch must not carry an emptyReason/,
+    );
+  });
+
+  it("accepts an impact-* block with empty patch + structural-note", () => {
+    const parsed = PlanFile.parse(
+      envelope([
+        block({
+          annotationIds: ["impact-abcd1234-1"],
+          category: "unclear",
+          patch: "",
+          emptyReason: "structural-note",
+          reviewerNotes: "Impact of <id>: section 3 narrowing.",
+        }),
+      ]),
+    );
+    expect(parsed.blocks[0]?.annotationIds).toEqual(["impact-abcd1234-1"]);
+  });
+
+  it("rejects an impact-* block carrying a non-empty patch", () => {
+    expect(() =>
+      PlanFile.parse(envelope([block({ annotationIds: ["impact-abcd1234-1"] })])),
+    ).toThrow(/impact-\* blocks must carry an empty patch/);
+  });
+
+  it("rejects emptyReason 'structural-note' on a user-mark block", () => {
+    expect(() =>
+      PlanFile.parse(envelope([block({ patch: "", emptyReason: "structural-note" })])),
+    ).toThrow(/'structural-note' is only valid on impact-\/coherence- blocks/);
+  });
+
+  it("accepts a cascade-* block with a real patch", () => {
+    const parsed = PlanFile.parse(
+      envelope([
+        block({
+          annotationIds: ["cascade-abcd1234-1"],
+          reviewerNotes: "Cascaded from <id>: same-referent rename.",
+        }),
+      ]),
+    );
+    expect(parsed.blocks[0]?.annotationIds).toEqual(["cascade-abcd1234-1"]);
   });
 });
 

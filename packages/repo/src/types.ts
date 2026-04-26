@@ -146,16 +146,28 @@ export interface DiffHunkApplyFailure {
   attemptedAt: string;
 }
 
+// Categorical reason a hunk arrived with `patch === ""`. Mirrors the planner's
+// emptyReason field in the plan JSON; the diff-review UI keys off it to render
+// margin badges (praised, ambiguous, impact, no-edit) instead of dumping a
+// generic "skipped" placeholder into the diff list.
+export type DiffHunkEmptyReason = "praise" | "ambiguous" | "structural-note" | "no-edit-requested";
+
 export interface DiffHunkRow {
   id: string;
   sessionId: string;
-  annotationId: string | null;
+  // Marks this hunk satisfies. A user-mark hunk carries one or more annotation
+  // UUIDs (>1 when the planner merged overlapping marks into a single edit);
+  // a synthesised hunk (cascade-/impact-/coherence-/quality-/compile-) carries
+  // exactly one synthesised id whose prefix downstream readers key on.
+  annotationIds: string[];
   file: string;
   category: string | null;
   patch: string;
   modifiedPatchText: string | null;
   state: DiffHunkState;
   ambiguous: boolean;
+  // Set iff `patch === ""`. The discriminator the diff-review UI switches on.
+  emptyReason: DiffHunkEmptyReason | null;
   noteText: string;
   ordinal: number;
   // Populated by a partial apply when this hunk could not be applied against

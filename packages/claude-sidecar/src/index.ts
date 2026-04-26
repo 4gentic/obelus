@@ -1,8 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type { PlanBlock, PlanFile } from "./plan";
+export type { PlanBlock, PlanEmptyReason, PlanFile } from "./plan";
 export {
+  PLAN_EMPTY_REASONS,
   PlanFile as PlanFileSchema,
   pickLatestPlanName,
   pickLatestWriteupName,

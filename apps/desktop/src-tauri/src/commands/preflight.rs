@@ -26,6 +26,15 @@ struct Bundle {
 struct Project {
     #[serde(default)]
     main: Option<String>,
+    #[serde(default)]
+    files: Vec<ProjectFile>,
+}
+
+#[derive(Deserialize)]
+struct ProjectFile {
+    #[serde(rename = "relPath")]
+    rel_path: String,
+    format: String,
 }
 
 #[derive(Deserialize)]
@@ -112,6 +121,25 @@ fn primary_entrypoint(bundle: &Bundle) -> Option<String> {
     bundle.papers.iter().find_map(|p| p.entrypoint.clone())
 }
 
+// Source files in the bundle's project inventory. The plan-writer-fast and
+// plan-fix SKILLs read these in full as the rewrite-coherence context — the
+// per-mark windows are still emitted as locator hints, but the agent must
+// see the whole paper to produce edits that respect terminology and tone
+// across sections. Filters to the textual source formats the plugin patches
+// (tex / md / typ); excludes binaries (pdf), bibliographies, and assets.
+fn whole_paper_files(bundle: &Bundle) -> Vec<String> {
+    let mut out: Vec<String> = bundle
+        .project
+        .files
+        .iter()
+        .filter(|f| matches!(f.format.as_str(), "tex" | "md" | "typ"))
+        .map(|f| f.rel_path.clone())
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
 // (file, [start, end]) windows merged within-file when within 100 lines per
 // plan-fix SKILL.md §Reading the paper first. Output is sorted by file then
 // start for stable prompt formatting.
@@ -162,11 +190,23 @@ fn render_writer_fast(bundle: &Bundle) -> String {
     ));
     let windows = source_windows(bundle);
     if windows.is_empty() {
-        s.push_str("- source windows to read: (none — no source-anchored annotations)\n");
+        s.push_str("- locator windows (per-mark hint): (none — no source-anchored annotations)\n");
     } else {
-        s.push_str("- source windows to read (already deduped/merged):\n");
+        s.push_str("- locator windows (per-mark hint, already deduped/merged):\n");
         for (file, start, end) in &windows {
             s.push_str(&format!("    {file}:[{start}-{end}]\n"));
+        }
+    }
+    let whole_paper = whole_paper_files(bundle);
+    if whole_paper.is_empty() {
+        s.push_str("- whole-paper read list: (none indexed)\n");
+    } else {
+        s.push_str(
+            "- whole-paper read list (Read all of these in one parallel batch — \
+             the per-mark windows above are only locator hints):\n",
+        );
+        for path in &whole_paper {
+            s.push_str(&format!("    {path}\n"));
         }
     }
     s.push_str("- delimiter collisions: none (bundle-builder enforces this at export)\n");
@@ -237,6 +277,19 @@ fn render_rigorous(bundle: &Bundle, project_root: &Path) -> String {
             if papers_with_rubric.len() == 1 { "paper" } else { "papers" },
             titles.join(", ")
         ));
+    }
+    let whole_paper = whole_paper_files(bundle);
+    if whole_paper.is_empty() {
+        s.push_str("- whole-paper read list: (none indexed)\n");
+    } else {
+        s.push_str(
+            "- whole-paper read list (Read all of these in one parallel batch — \
+             the per-mark windows are locator hints; the rewrite-coherence \
+             context is the whole source):\n",
+        );
+        for path in &whole_paper {
+            s.push_str(&format!("    {path}\n"));
+        }
     }
     s.push_str("- delimiter collisions: none (bundle-builder enforces this at export)\n");
 
@@ -323,7 +376,12 @@ mod tests {
             "project": {
               "id": "p", "label": "x", "kind": "writer",
               "categories": [{"slug":"unclear","label":"unclear"}],
-              "main": "chapters/00-abstract.typ"
+              "main": "chapters/00-abstract.typ",
+              "files": [
+                {"relPath": "chapters/00-abstract.typ", "format": "typ"},
+                {"relPath": "chapters/01-intro.typ", "format": "typ"},
+                {"relPath": "refs.bib", "format": "bib"}
+              ]
             },
             "papers": [{ "id": "11111111-1111-4111-8111-111111111111", "title": "T", "revision": 1, "createdAt": "2026-04-19T00:00:00.000Z", "entrypoint": "chapters/00-abstract.typ" }],
             "annotations": [
@@ -351,6 +409,11 @@ mod tests {
         // Two source-anchored marks at L12 and L80 in the same file: their
         // ±50 windows are [1..62] and [30..130] respectively; merged.
         assert!(out.contains("chapters/00-abstract.typ:[1-130]"), "got: {out}");
+        // Whole-paper read list filters to source formats only — `refs.bib`
+        // must not appear; both .typ chapters must.
+        assert!(out.contains("chapters/00-abstract.typ\n"), "got: {out}");
+        assert!(out.contains("chapters/01-intro.typ\n"), "got: {out}");
+        assert!(!out.contains("refs.bib"), "got: {out}");
     }
 
     #[test]

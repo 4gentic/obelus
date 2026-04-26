@@ -16,8 +16,9 @@ describe("sanitizeHtml", () => {
     expect(result).toHaveProperty("authorStyles");
     expect(result).toHaveProperty("scriptCount");
     expect(result).toHaveProperty("linkCount");
-    expect(result).toHaveProperty("droppedTagCount");
+    expect(result).toHaveProperty("droppedTags");
     expect(result).toHaveProperty("droppedDangerousLinks");
+    expect(Array.isArray(result.droppedTags)).toBe(true);
     expect(typeof result.bodyHtml).toBe("string");
     expect(Array.isArray(result.authorStyles)).toBe(true);
     expect(typeof result.scriptCount).toBe("number");
@@ -30,12 +31,25 @@ describe("sanitizeHtml", () => {
     expect(result.linkCount).toBe(0);
   });
 
-  it("preserves an inline <script> verbatim and counts it", () => {
-    const result = sanitizeHtml("<p>safe</p><script>console.log('x')</script>");
+  it("strips <script> tags so author code cannot reach the parent IPC bridge", () => {
+    // The iframe is same-origin (parent needs `contentWindow.getSelection()`),
+    // so any surviving author script would be able to call
+    // `parent.__TAURI_INTERNALS__.invoke(...)`. DOMPurify removes <script>
+    // entirely; the count is still recorded for boundary logging.
+    const result = sanitizeHtml(
+      "<p>safe</p>" +
+        "<script>window.parent.__TAURI_INTERNALS__.invoke('plugin:sql|select')</script>",
+    );
     expect(result.scriptCount).toBe(1);
     expect(result.bodyHtml).toContain("<p>safe</p>");
-    expect(result.bodyHtml).toContain("<script>");
-    expect(result.bodyHtml).toContain("console.log('x')");
+    expect(result.bodyHtml).not.toContain("<script");
+    expect(result.bodyHtml).not.toContain("__TAURI_INTERNALS__");
+  });
+
+  it("strips <script src> too — even with src already rewritten to data:,", () => {
+    const result = sanitizeHtml('<script src="data:,"></script><p>after</p>');
+    expect(result.bodyHtml).not.toContain("<script");
+    expect(result.bodyHtml).toContain("<p>after</p>");
   });
 
   it("preserves <link rel=stylesheet> and counts it", () => {
@@ -164,6 +178,20 @@ describe("sanitizeHtml", () => {
         "</head><body><p>x</p></body></html>",
     );
     expect(result.headHtml).not.toContain("Content-Security-Policy");
-    expect(result.droppedTagCount).toBeGreaterThanOrEqual(1);
+    expect(result.droppedTags).toContain("meta");
+  });
+
+  it("strips <base> so author can't re-base relative URLs to an attacker origin", () => {
+    // Without forbidding <base>, a single `<base href="https://evil/">` in
+    // <head> would make the iframe's CSS engine and any surviving relative
+    // <a href> resolve against an external origin — undoing the asset
+    // rewrite that turns relatives into local blobs.
+    const result = sanitizeHtml(
+      "<!doctype html><html><head>" +
+        '<base href="https://evil.example/">' +
+        "</head><body><p>x</p></body></html>",
+    );
+    expect(result.headHtml).not.toContain("<base");
+    expect(result.droppedTags).toContain("base");
   });
 });
