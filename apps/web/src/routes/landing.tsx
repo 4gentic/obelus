@@ -1,5 +1,17 @@
 import { Link } from "react-router-dom";
+import tauriConfig from "../../../desktop/src-tauri/tauri.conf.json";
 import "./landing.css";
+
+const DESKTOP_VERSION = tauriConfig.version;
+const DESKTOP_TAG = `desktop-v${DESKTOP_VERSION}`;
+const releaseAsset = (file: string) =>
+  `https://github.com/4gentic/obelus/releases/download/${DESKTOP_TAG}/${file}`;
+const DOWNLOADS = {
+  macArm: releaseAsset(`Obelus_${DESKTOP_VERSION}_aarch64.dmg`),
+  macIntel: releaseAsset(`Obelus_${DESKTOP_VERSION}_x64.dmg`),
+  winX64: releaseAsset(`Obelus_${DESKTOP_VERSION}_x64-setup.exe`),
+  linuxAppImage: releaseAsset(`Obelus_${DESKTOP_VERSION}_amd64.AppImage`),
+};
 
 export default function Landing() {
   return (
@@ -53,13 +65,13 @@ export default function Landing() {
               <strong>Best for writers running several drafts at once.</strong> Also for reviewers
               with a growing reading stack.
             </p>
-            <a href="#desktop" className="doors__cta doors__cta--pending">
+            <a href="#desktop" className="doors__cta">
               Download the desktop app{" "}
               <span className="btn__arrow" aria-hidden="true">
                 ↓
               </span>
             </a>
-            <p className="doors__caption">macOS · Windows · Linux — coming soon</p>
+            <p className="doors__caption">macOS · Windows · Linux</p>
           </article>
         </div>
       </section>
@@ -472,32 +484,35 @@ export default function Landing() {
         </p>
         <ul className="desktop__downloads" aria-label="Download options">
           <li>
-            <span className="desktop__link desktop__link--pending" aria-disabled="true">
+            <a className="desktop__link" href={DOWNLOADS.macArm} rel="noreferrer noopener">
               macOS · Apple silicon
-            </span>
+            </a>
           </li>
           <li>
-            <span className="desktop__link desktop__link--pending" aria-disabled="true">
+            <a className="desktop__link" href={DOWNLOADS.macIntel} rel="noreferrer noopener">
               macOS · Intel
-            </span>
+            </a>
           </li>
           <li>
-            <span className="desktop__link desktop__link--pending" aria-disabled="true">
+            <a className="desktop__link" href={DOWNLOADS.winX64} rel="noreferrer noopener">
               Windows · x64
-            </span>
+            </a>
           </li>
           <li>
-            <span className="desktop__link desktop__link--pending" aria-disabled="true">
+            <a className="desktop__link" href={DOWNLOADS.linuxAppImage} rel="noreferrer noopener">
               Linux · AppImage
-            </span>
+            </a>
           </li>
         </ul>
         <p className="desktop__status">
-          <em>Coming soon.</em> Releases at{" "}
-          <a href="https://github.com/4gentic/obelus/releases" rel="noreferrer noopener">
+          Current release: <code>{DESKTOP_TAG}</code>. All desktop releases at{" "}
+          <a
+            href="https://github.com/4gentic/obelus/releases?q=desktop"
+            rel="noreferrer noopener"
+          >
             github.com/4gentic/obelus/releases
-          </a>{" "}
-          when ready.
+          </a>
+          .
         </p>
         <aside className="desktop__footnote">
           <p className="desktop__footnote-label">First launch, unsigned.</p>
