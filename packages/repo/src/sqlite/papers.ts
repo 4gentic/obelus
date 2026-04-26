@@ -17,10 +17,11 @@ interface PaperSqlRow {
   rubric_source: string | null;
   rubric_label: string | null;
   rubric_updated_at: string | null;
+  removed_at: string | null;
 }
 
 const SELECT_COLUMNS =
-  "id, project_id, title, format, entrypoint_rel_path, pdf_rel_path, pdf_sha256, page_count, created_at, rubric_body, rubric_source, rubric_label, rubric_updated_at";
+  "id, project_id, title, format, entrypoint_rel_path, pdf_rel_path, pdf_sha256, page_count, created_at, rubric_body, rubric_source, rubric_label, rubric_updated_at, removed_at";
 
 function paperFormat(raw: string): PaperFormat {
   if (raw === "md") return "md";
@@ -64,7 +65,8 @@ function toPaperRow(r: PaperSqlRow): PaperRow {
       ? { ...countAdded, entrypointRelPath: r.entrypoint_rel_path }
       : countAdded;
   const rubric = rubricFromRow(r);
-  return rubric !== undefined ? { ...entryAdded, rubric } : entryAdded;
+  const rubricAdded = rubric !== undefined ? { ...entryAdded, rubric } : entryAdded;
+  return r.removed_at !== null ? { ...rubricAdded, removedAt: r.removed_at } : rubricAdded;
 }
 
 function uuid(): string {
@@ -148,10 +150,20 @@ export function buildPapersRepo(db: Database): PapersRepo {
       return { paper, revision };
     },
 
+    async hide(id: string): Promise<void> {
+      await db.execute("UPDATE papers SET removed_at = $1 WHERE id = $2", [nowIso(), id]);
+    },
+
+    async unhide(id: string): Promise<void> {
+      await db.execute("UPDATE papers SET removed_at = NULL WHERE id = $1", [id]);
+    },
+
     async remove(id: string): Promise<void> {
-      // Schema cascades revisions → annotations → write_ups via ON DELETE CASCADE,
-      // and nulls ask_threads.paper_id (ON DELETE SET NULL). On-disk PDF files
-      // are user-owned and intentionally left in place.
+      // Hard delete. Schema cascades revisions → annotations, review_sessions →
+      // diff_hunks, paper_edits (chain via parent_edit_id ON DELETE CASCADE,
+      // see migration 0004), writeups, paper_build via ON DELETE CASCADE, and
+      // nulls ask_threads.paper_id (ON DELETE SET NULL). On-disk PDF/MD/HTML
+      // files are user-owned and intentionally left in place.
       await db.execute("DELETE FROM papers WHERE id = $1", [id]);
     },
 

@@ -506,7 +506,7 @@ button.files__row {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 55%;
+  max-width: 40%;
 }
 
 .files__dirty-dot {
@@ -627,21 +627,71 @@ button.files__row {
   font-size: 1em;
   line-height: 1;
   cursor: pointer;
-  opacity: 0;
   flex-shrink: 0;
-  transition:
-    opacity 120ms linear,
-    color 120ms linear;
+  display: none;
+  transition: color 120ms linear;
 }
 
 .files__row:hover .files__remove,
-.files__remove:focus-visible {
-  opacity: 1;
+.files__row:focus-within .files__remove,
+.files__row--selected .files__remove,
+.files__remove[data-armed="true"] {
+  display: inline-flex;
+  align-items: center;
 }
 
 .files__remove:hover,
 .files__remove:focus-visible {
   color: var(--rubric);
+}
+
+.files__remove:disabled {
+  cursor: not-allowed;
+  color: var(--ink-soft);
+  opacity: 0.4;
+}
+
+.files__remove[data-armed="true"] {
+  color: var(--rubric);
+  font-weight: 600;
+}
+
+.files__row-action {
+  background: transparent;
+  border: none;
+  padding: 0 var(--space-1);
+  margin: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: none;
+  transition: color 120ms linear;
+}
+
+.files__row:hover .files__row-action,
+.files__row:focus-within .files__row-action,
+.files__row--selected .files__row-action {
+  display: inline-flex;
+  align-items: center;
+}
+
+.files__row-action:hover,
+.files__row-action:focus-visible {
+  color: var(--ink);
+}
+
+.files__row-action--danger:hover,
+.files__row-action--danger:focus-visible {
+  color: var(--rubric);
+}
+
+.files__row-action:disabled {
+  cursor: not-allowed;
+  color: var(--ink-soft);
+  opacity: 0.4;
 }
 
 .files__row--paper .files__path-hint {

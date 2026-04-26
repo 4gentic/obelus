@@ -22,6 +22,7 @@ const projectsStub: ProjectsRepo = {
   rename: () => Promise.reject(new NotSupportedError("projects")),
   setPinned: () => Promise.reject(new NotSupportedError("projects")),
   forget: () => Promise.reject(new NotSupportedError("projects")),
+  reset: () => Promise.reject(new NotSupportedError("projects")),
   moveToDesk: () => Promise.reject(new NotSupportedError("projects")),
   touchLastOpened: () => Promise.reject(new NotSupportedError("projects")),
   setLastOpenedFile: () => Promise.reject(new NotSupportedError("projects")),

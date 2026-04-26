@@ -1,11 +1,16 @@
 import type { PaperRow } from "@obelus/repo";
+import { ask } from "@tauri-apps/plugin-dialog";
 import type { DragEvent, JSX, ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type DirEntry, fsCreateFile, fsMovePath, fsReadDir } from "../../ipc/commands";
+import { useJobsStore } from "../../lib/jobs-store";
+import { exportPaperToFile } from "../../lib/paper-export";
+import { resetPaper as resetPaperOp } from "../../lib/paper-reset";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
-import { useOpenPaper } from "./OpenPaper";
+import { usePaperId } from "./OpenPaper";
 import { extensionOf, isSource, NOISE_DIRS } from "./openable";
+import { useInlineConfirm } from "./use-inline-confirm";
 import { usePaperBuild } from "./use-paper-build";
 
 interface TreeState {
@@ -185,6 +190,101 @@ function FlatRow(props: FlatRowProps): JSX.Element {
             unpin
           </button>
         )}
+      </div>
+    </li>
+  );
+}
+
+interface ReviewingRowProps {
+  paper: PaperRow;
+  path: string;
+  dir: string;
+  isActive: boolean;
+  isReviewing: boolean;
+  marks: number;
+  showDir: boolean;
+  onOpen: (path: string) => void;
+  onRemove: (paper: PaperRow) => void | Promise<void>;
+  onExport: (paper: PaperRow) => void | Promise<void>;
+  onReset: (paper: PaperRow) => void | Promise<void>;
+}
+
+function ReviewingRow(props: ReviewingRowProps): JSX.Element {
+  const {
+    paper,
+    path,
+    dir,
+    isActive,
+    isReviewing,
+    marks,
+    showDir,
+    onOpen,
+    onRemove,
+    onExport,
+    onReset,
+  } = props;
+  const confirm = useInlineConfirm();
+  const removeTitle = isReviewing
+    ? "Cannot remove while review is running"
+    : confirm.armed
+      ? "Click again to remove from Reviewing"
+      : "Remove from Reviewing — opening the file again restores it";
+  const resetTitle = isReviewing
+    ? "Cannot reset while review is running"
+    : "Erase every annotation, review, and write-up for this paper";
+  return (
+    <li className="files__flat-item">
+      <div className={`files__row files__row--paper${isActive ? " files__row--selected" : ""}`}>
+        <button type="button" className="files__row-open" onClick={() => onOpen(path)} title={path}>
+          <span className="files__name">{paper.title}</span>
+          {showDir && dir !== "." && <span className="files__path-hint">({dir})</span>}
+          <span className="files__paper-meta">({marks})</span>
+        </button>
+        <button
+          type="button"
+          className="files__row-action"
+          aria-label={`Export ${paper.title} bundle`}
+          title="Save a JSON backup of this paper's review data"
+          onClick={(event) => {
+            event.stopPropagation();
+            void onExport(paper);
+          }}
+        >
+          Export…
+        </button>
+        <button
+          type="button"
+          className="files__row-action files__row-action--danger"
+          aria-label={`Reset ${paper.title}`}
+          title={resetTitle}
+          disabled={isReviewing}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (isReviewing) return;
+            void onReset(paper);
+          }}
+        >
+          Reset…
+        </button>
+        <button
+          type="button"
+          className="files__remove"
+          aria-label={`Remove ${paper.title}`}
+          title={removeTitle}
+          disabled={isReviewing}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (isReviewing) return;
+            if (!confirm.armed) {
+              confirm.arm();
+              return;
+            }
+            void confirm.confirm(() => onRemove(paper));
+          }}
+          {...confirm.bind()}
+        >
+          ×
+        </button>
       </div>
     </li>
   );
@@ -417,8 +517,7 @@ function NewFileInputRow(props: NewFileInputRowProps): JSX.Element {
 
 export default function FilesColumn(): JSX.Element {
   const { project, rootId, repo, setOpenFilePath, openFilePath } = useProject();
-  const openPaper = useOpenPaper();
-  const activePaperId = openPaper.kind === "ready" ? openPaper.paper.id : null;
+  const activePaperId = usePaperId();
   const buffers = useBuffersStore();
   const { build, setMain } = usePaperBuild(repo, activePaperId);
   const [papers, setPapers] = useState<PaperRow[]>([]);
@@ -426,7 +525,7 @@ export default function FilesColumn(): JSX.Element {
 
   const reloadPapers = useCallback(async () => {
     const all = await repo.papers.list().catch(() => [] as PaperRow[]);
-    const mine = all.filter((p) => p.projectId === project.id);
+    const mine = all.filter((p) => p.projectId === project.id && p.removedAt === undefined);
     setPapers(mine);
     // Lazily compute unresolved-mark counts per paper. Small N; single pass.
     const counts = new Map<string, number>();
@@ -452,11 +551,14 @@ export default function FilesColumn(): JSX.Element {
     void reloadPapers();
   }, [reloadPapers]);
 
-  // When the open paper changes, its mark count may have moved too; refresh
-  // cheaply. The full reload is fine for the small N of papers per project.
+  // When the active paper id changes — including null → id, the writer-mode
+  // first-mark/first-note transition that materializes the paper row — refresh
+  // so the new entry appears in Reviewing without a manual reload. Mark counts
+  // for the previously active paper may also have moved; the full reload is
+  // fine for the small N of papers per project.
   useEffect(() => {
-    if (openPaper.kind === "ready") void reloadPapers();
-  }, [openPaper.kind, reloadPapers]);
+    void reloadPapers();
+  }, [activePaperId, reloadPapers]);
 
   const [tree, setTree] = useState<TreeState>(() => ({
     expanded: new Set(),
@@ -843,37 +945,90 @@ export default function FilesColumn(): JSX.Element {
 
   const pdfs = useMemo(() => collectPdfs(tree.entries), [tree.entries]);
 
-  const visiblePapers = useMemo(
-    () => papers.filter((p) => (markCounts.get(p.id) ?? 0) > 0),
-    [papers, markCounts],
-  );
+  const jobs = useJobsStore((s) => s.jobs);
+  const activeReviewPaperIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const j of Object.values(jobs)) {
+      if (j.kind !== "review") continue;
+      if (j.projectId !== project.id) continue;
+      if (!j.paperId) continue;
+      if (j.status === "running" || j.status === "ingesting") ids.add(j.paperId);
+    }
+    return ids;
+  }, [jobs, project.id]);
 
   const paperNameCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const p of visiblePapers) {
+    for (const p of papers) {
       if (!p.pdfRelPath) continue;
       const { name } = splitPath(p.pdfRelPath);
       m.set(name, (m.get(name) ?? 0) + 1);
     }
     return m;
-  }, [visiblePapers]);
+  }, [papers]);
 
   const removePaper = useCallback(
     async (paper: PaperRow) => {
-      const marks = markCounts.get(paper.id) ?? 0;
-      const ok = window.confirm(
-        `Remove ${paper.title} and delete ${marks} mark${marks === 1 ? "" : "s"}?`,
+      if (paper.pdfRelPath && openFilePath === paper.pdfRelPath) setOpenFilePath(null);
+      try {
+        await repo.papers.hide(paper.id);
+      } catch (err) {
+        console.warn("FilesColumn: hide paper failed", paper.id, err);
+      }
+      await reloadPapers();
+    },
+    [openFilePath, setOpenFilePath, repo.papers, reloadPapers],
+  );
+
+  const exportPaper = useCallback(
+    async (paper: PaperRow) => {
+      try {
+        const { savedTo } = await exportPaperToFile({
+          repo,
+          paperId: paper.id,
+          format: paper.format,
+          rootId,
+        });
+        if (savedTo === null) return;
+        console.info("[paper-export]", { paperId: paper.id, savedTo });
+      } catch (err) {
+        console.warn("FilesColumn: export paper failed", paper.id, err);
+        await ask(err instanceof Error ? err.message : "Could not export this paper.", {
+          title: "Export failed",
+          kind: "error",
+          okLabel: "OK",
+        });
+      }
+    },
+    [repo, rootId],
+  );
+
+  const resetPaper = useCallback(
+    async (paper: PaperRow) => {
+      const ok = await ask(
+        `This permanently erases every annotation, review, write-up, and apply history for "${paper.title}". The file on disk is untouched. This cannot be undone.\n\nTip: cancel and click Export… first if you want a backup.`,
+        {
+          title: "Reset paper",
+          kind: "warning",
+          okLabel: "Reset paper",
+          cancelLabel: "Cancel",
+        },
       );
       if (!ok) return;
       if (paper.pdfRelPath && openFilePath === paper.pdfRelPath) setOpenFilePath(null);
       try {
-        await repo.papers.remove(paper.id);
+        await resetPaperOp({ repo, paperId: paper.id, projectId: project.id });
       } catch (err) {
-        console.warn("FilesColumn: remove paper failed", paper.id, err);
+        console.warn("FilesColumn: reset paper failed", paper.id, err);
+        await ask(err instanceof Error ? err.message : "Could not reset this paper.", {
+          title: "Reset failed",
+          kind: "error",
+          okLabel: "OK",
+        });
       }
       await reloadPapers();
     },
-    [markCounts, openFilePath, setOpenFilePath, repo.papers, reloadPapers],
+    [repo, project.id, openFilePath, setOpenFilePath, reloadPapers],
   );
 
   const pinnedList = useMemo(
@@ -894,7 +1049,7 @@ export default function FilesColumn(): JSX.Element {
     <aside className="files">
       {error && <p className="files__error">{error}</p>}
 
-      {visiblePapers.length > 0 && (
+      {papers.length > 0 && (
         <section className="files__section files__section--papers">
           <div className="files__section-header">
             <button
@@ -907,52 +1062,31 @@ export default function FilesColumn(): JSX.Element {
                 ▸
               </span>
               <span className="files__header-title">
-                Papers <span className="files__count">({visiblePapers.length})</span>
+                Reviewing <span className="files__count">({papers.length})</span>
               </span>
             </button>
           </div>
           {papersOpen && (
             <ul className="files__flat">
-              {visiblePapers.map((paper) => {
+              {papers.map((paper) => {
                 const path = paper.pdfRelPath;
                 if (!path) return null;
-                const isActive = paper.id === activePaperId;
-                const marks = markCounts.get(paper.id) ?? 0;
                 const { dir, name } = splitPath(path);
-                const collides = (paperNameCounts.get(name) ?? 0) > 1;
                 return (
-                  <li key={`paper:${paper.id}`} className="files__flat-item">
-                    <div
-                      className={`files__row files__row--paper${isActive ? " files__row--selected" : ""}`}
-                    >
-                      <button
-                        type="button"
-                        className="files__row-open"
-                        onClick={() => openFile(path)}
-                        title={path}
-                      >
-                        <span className="files__name">{paper.title}</span>
-                        {collides && dir !== "." && (
-                          <span className="files__path-hint">({dir})</span>
-                        )}
-                        <span className="files__paper-meta">
-                          {marks} mark{marks === 1 ? "" : "s"}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="files__remove"
-                        aria-label={`Remove ${paper.title}`}
-                        title="Remove paper — deletes all marks"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void removePaper(paper);
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </li>
+                  <ReviewingRow
+                    key={`paper:${paper.id}`}
+                    paper={paper}
+                    path={path}
+                    dir={dir}
+                    isActive={paper.id === activePaperId}
+                    isReviewing={activeReviewPaperIds.has(paper.id)}
+                    marks={markCounts.get(paper.id) ?? 0}
+                    showDir={(paperNameCounts.get(name) ?? 0) > 1}
+                    onOpen={openFile}
+                    onRemove={removePaper}
+                    onExport={exportPaper}
+                    onReset={resetPaper}
+                  />
                 );
               })}
             </ul>

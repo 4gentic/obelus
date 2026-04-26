@@ -99,6 +99,19 @@ export const papers = {
     await db.papers.update(id, { rubric });
   },
 
+  async hide(id: string): Promise<void> {
+    await getDb().papers.update(id, { removedAt: nowIso() });
+  },
+
+  async unhide(id: string): Promise<void> {
+    const db = getDb();
+    const row = await db.papers.get(id);
+    if (!row) return;
+    if (row.removedAt === undefined) return;
+    const { removedAt: _drop, ...rest } = row;
+    await db.papers.put(rest);
+  },
+
   async remove(id: string): Promise<void> {
     const db = getDb();
     const paper = await db.papers.get(id);

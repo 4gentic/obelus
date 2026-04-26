@@ -1,7 +1,9 @@
 import type { DeskRow, ProjectKind, ProjectRow } from "@obelus/repo";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { authorizeProjectRoot, fsReadDir, workspaceDelete } from "../ipc/commands";
+import { resetProject } from "../lib/project-reset";
 import { getRepository } from "../lib/repo";
 import { getAppState, setAppState } from "../store/app-state";
 import "./home.css";
@@ -43,6 +45,7 @@ interface RowItemProps {
   otherDesks: DeskRow[];
   onRename: (id: string, label: string) => void;
   onForget: (id: string) => void;
+  onReset: (id: string, label: string) => void;
   onRepoint: (id: string) => void;
   onMove: (id: string, deskId: string) => void;
   onTogglePin: (id: string, pinned: boolean) => void;
@@ -53,6 +56,7 @@ function RowItem({
   otherDesks,
   onRename,
   onForget,
+  onReset,
   onRepoint,
   onMove,
   onTogglePin,
@@ -174,6 +178,15 @@ function RowItem({
             </button>
             <button
               type="button"
+              className="home__row-action"
+              onClick={() => onReset(project.id, project.label)}
+              aria-label={`Reset ${project.label}`}
+              title="Erase every review, write-up, and annotation in this project. Files on disk are kept."
+            >
+              Reset…
+            </button>
+            <button
+              type="button"
               className={
                 removeArmed ? "home__row-action home__row-action--armed" : "home__row-action"
               }
@@ -211,6 +224,7 @@ interface SectionProps {
   otherDesks: DeskRow[];
   onRename: (id: string, label: string) => void;
   onForget: (id: string) => void;
+  onReset: (id: string, label: string) => void;
   onRepoint: (id: string) => void;
   onMove: (id: string, deskId: string) => void;
   onTogglePin: (id: string, pinned: boolean) => void;
@@ -222,6 +236,7 @@ function Section({
   otherDesks,
   onRename,
   onForget,
+  onReset,
   onRepoint,
   onMove,
   onTogglePin,
@@ -238,6 +253,7 @@ function Section({
             otherDesks={otherDesks}
             onRename={onRename}
             onForget={onForget}
+            onReset={onReset}
             onRepoint={onRepoint}
             onMove={onMove}
             onTogglePin={onTogglePin}
@@ -507,6 +523,34 @@ export default function Home(): JSX.Element {
     setRows((prev) => (prev ? prev.filter((r) => r.project.id !== id) : prev));
   }
 
+  async function onReset(id: string, label: string): Promise<void> {
+    const ok = await ask(
+      `This permanently erases every review, write-up, annotation, and apply history for every paper in "${label}". The project, its desk membership, and the files on disk are kept. This cannot be undone.\n\nTip: cancel and open the project to export bundles per paper if you want backups.`,
+      {
+        title: "Reset project",
+        kind: "warning",
+        okLabel: "Reset project",
+        cancelLabel: "Cancel",
+      },
+    );
+    if (!ok) return;
+    try {
+      const repo = await getRepository();
+      await resetProject({ repo, projectId: id });
+    } catch (err) {
+      console.warn("[home]", {
+        op: "reset-project",
+        projectId: id,
+        err: err instanceof Error ? err.message : String(err),
+      });
+      await ask(err instanceof Error ? err.message : "Could not reset this project.", {
+        title: "Reset failed",
+        kind: "error",
+        okLabel: "OK",
+      });
+    }
+  }
+
   async function onRepoint(_id: string): Promise<void> {
     navigate("/wizard");
   }
@@ -610,6 +654,7 @@ export default function Home(): JSX.Element {
           otherDesks={otherDesks}
           onRename={(id, l) => void onRename(id, l)}
           onForget={(id) => void onForget(id)}
+          onReset={(id, l) => void onReset(id, l)}
           onRepoint={(id) => void onRepoint(id)}
           onMove={(id, deskId) => void onMove(id, deskId)}
           onTogglePin={(id, pinned) => void onTogglePin(id, pinned)}
@@ -620,6 +665,7 @@ export default function Home(): JSX.Element {
           otherDesks={otherDesks}
           onRename={(id, l) => void onRename(id, l)}
           onForget={(id) => void onForget(id)}
+          onReset={(id, l) => void onReset(id, l)}
           onRepoint={(id) => void onRepoint(id)}
           onMove={(id, deskId) => void onMove(id, deskId)}
           onTogglePin={(id, pinned) => void onTogglePin(id, pinned)}
@@ -630,6 +676,7 @@ export default function Home(): JSX.Element {
           otherDesks={otherDesks}
           onRename={(id, l) => void onRename(id, l)}
           onForget={(id) => void onForget(id)}
+          onReset={(id, l) => void onReset(id, l)}
           onRepoint={(id) => void onRepoint(id)}
           onMove={(id, deskId) => void onMove(id, deskId)}
           onTogglePin={(id, pinned) => void onTogglePin(id, pinned)}

@@ -1,6 +1,7 @@
 import type { ProjectCreateInput, ProjectsRepo } from "../interface";
 import type { ProjectKind, ProjectRow } from "../types";
 import type { Database } from "./db";
+import { dbTxBatch } from "./transaction";
 
 export interface ProjectSqlRow {
   id: string;
@@ -94,6 +95,19 @@ export function buildProjectsRepo(db: Database): ProjectsRepo {
 
     async forget(id: string): Promise<void> {
       await db.execute("DELETE FROM projects WHERE id = $1", [id]);
+    },
+
+    async reset(id: string): Promise<{ paperIds: string[] }> {
+      const rows = await db.select<Array<{ id: string }>>(
+        "SELECT id FROM papers WHERE project_id = $1",
+        [id],
+      );
+      const paperIds = rows.map((r) => r.id);
+      await dbTxBatch([
+        { sql: "DELETE FROM papers WHERE project_id = $1", params: [id] },
+        { sql: "DELETE FROM ask_threads WHERE project_id = $1", params: [id] },
+      ]);
+      return { paperIds };
     },
 
     async moveToDesk(id: string, deskId: string): Promise<void> {

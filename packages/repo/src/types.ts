@@ -24,6 +24,12 @@ export interface PaperRow {
   pageCount?: number;
   entrypointRelPath?: string;
   rubric?: PaperRubric;
+  // ISO timestamp set when the paper is soft-removed from the project's
+  // "Reviewing" sidebar. The row + every dependent record (revisions,
+  // annotations, paper_edits chain, review_sessions, diff_hunks, writeups,
+  // paper_build) stays intact so future time-travel-across-drafts can still
+  // walk the history. Re-opening the paper file from disk clears this.
+  removedAt?: string;
 }
 
 export interface RevisionRow {

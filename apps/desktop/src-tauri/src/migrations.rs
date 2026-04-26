@@ -20,5 +20,11 @@ pub fn all() -> Vec<Migration> {
             sql: include_str!("../migrations/0003_diff_hunks_reviewer_notes.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "papers_soft_remove_and_paper_edits_parent_cascade",
+            sql: include_str!("../migrations/0004_paper_edits_parent_cascade.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
