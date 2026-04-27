@@ -21,6 +21,22 @@ function dirnameOf(relPath: string): string {
   return i < 0 ? "" : relPath.slice(0, i);
 }
 
+// The PDF dirname is the trusted anchor: the reviewer marked up that PDF, so
+// its colocated source is what the read list should expose. Use the
+// mainRelPath-dirname only when it is the same as, or a descendant of, the
+// PDF dirname (split-source layout). When mainRelPath sits elsewhere (a
+// stale scan pinned to runtime/ARCHITECTURE.md while the PDF lives in
+// paper/short), ignore it — every unrelated file the model reads costs a
+// round-trip the read list shouldn't pay for.
+export function chooseSourceRoot(mainRelPath: string | undefined, pdfRelPath: string): string {
+  const pdfRoot = dirnameOf(pdfRelPath);
+  if (mainRelPath === undefined) return pdfRoot;
+  const mainRoot = dirnameOf(mainRelPath);
+  if (mainRoot === pdfRoot) return pdfRoot;
+  if (mainRoot.startsWith(`${pdfRoot}/`)) return pdfRoot;
+  return pdfRoot;
+}
+
 // Files that compile the paper. Scope: source format AND inside the paper's
 // source-root directory tree. The source root is `dirname(mainRelPath)` when
 // the paper declares an entrypoint, else `dirname(pdfRelPath)` (writer
@@ -245,8 +261,15 @@ export async function exportBundleForPaper(input: ExportBundleInput): Promise<Ex
     resolutionsByFile: Object.fromEntries(resolutionsByFile),
   });
 
-  const paperSourceRoot = dirnameOf(mainRelPath ?? paper.pdfRelPath);
-  const scopedFiles = scopePaperFiles(projectFiles, paperSourceRoot, mainRelPath);
+  const paperSourceRoot = chooseSourceRoot(mainRelPath, paper.pdfRelPath);
+  const scopedEntrypoint =
+    mainRelPath !== undefined &&
+    (paperSourceRoot === "" ||
+      mainRelPath === paperSourceRoot ||
+      mainRelPath.startsWith(`${paperSourceRoot}/`))
+      ? mainRelPath
+      : undefined;
+  const scopedFiles = scopePaperFiles(projectFiles, paperSourceRoot, scopedEntrypoint);
 
   const projectInput: ProjectInput = {
     id: project.id,

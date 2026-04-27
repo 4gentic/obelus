@@ -192,7 +192,107 @@ describe("MetricsStream", () => {
     expect(tool.name).toBe("Glob");
   });
 
-  it("emits a task-call (not tool-call) for an Agent tool_use with subagent_type", () => {
+  it("task-call uses toolUseResult.usage when present", () => {
+    const stream = fresh();
+    feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "tu_task_tur",
+                name: "Task",
+                input: {
+                  subagent_type: "obelus:paper-reviewer",
+                  description: "Stress-test 3 marks",
+                },
+              },
+            ],
+          },
+        }),
+        at: startedAt + 100,
+      },
+    ]);
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "user",
+          message: {
+            content: [{ type: "tool_result", tool_use_id: "tu_task_tur", content: "..." }],
+          },
+          toolUseResult: {
+            status: "completed",
+            agentType: "obelus:paper-reviewer",
+            totalDurationMs: 121962,
+            totalTokens: 33929,
+            usage: {
+              input_tokens: 4500,
+              output_tokens: 1200,
+              cache_read_input_tokens: 31528,
+              cache_creation_input_tokens: 1251,
+            },
+          },
+        }),
+        at: startedAt + 8_000,
+      },
+    ]);
+    const task = drained.find((e) => e.event === "task-call");
+    if (task?.event !== "task-call") throw new Error("typeguard");
+    expect(task.agent).toBe("obelus:paper-reviewer");
+    expect(task.inputTokens).toBe(4_500);
+    expect(task.outputTokens).toBe(1_200);
+  });
+
+  it("task-call agent name comes from toolUseResult.agentType when subagent_type input is missing", () => {
+    const stream = fresh();
+    feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "tu_task_no_subagent",
+                name: "Task",
+                // Newer Claude Code releases sometimes drop subagent_type from
+                // the tool_use input; the user event's toolUseResult.agentType
+                // is the fallback signal.
+                input: { description: "Stress-test 3 marks" },
+              },
+            ],
+          },
+        }),
+        at: startedAt + 100,
+      },
+    ]);
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "user",
+          message: {
+            content: [{ type: "tool_result", tool_use_id: "tu_task_no_subagent", content: "..." }],
+          },
+          toolUseResult: {
+            status: "completed",
+            agentType: "obelus:cascade-judge",
+            usage: { input_tokens: 100, output_tokens: 50 },
+          },
+        }),
+        at: startedAt + 8_000,
+      },
+    ]);
+    const task = drained.find((e) => e.event === "task-call");
+    expect(task).toBeDefined();
+    if (task?.event !== "task-call") throw new Error("typeguard");
+    expect(task.agent).toBe("obelus:cascade-judge");
+    expect(task.inputTokens).toBe(100);
+    expect(task.outputTokens).toBe(50);
+  });
+
+  it("task-call falls back to parent-turn delta when no toolUseResult", () => {
     const stream = fresh();
     feed(stream, [
       {

@@ -158,11 +158,14 @@ export class MetricsStream {
         // Code releases have shipped this as `Task` and `Agent`; the input
         // payload's `subagent_type` is the stable signal for "this is a
         // subagent invocation, not a leaf tool call".
-        const agent = readSubagentType(pending.input);
+        const subagentTypeFromInput = readSubagentType(pending.input);
+        const tur = readToolUseResult(parsed);
+        const agent = subagentTypeFromInput || tur?.agentType || "";
         if (agent !== "") {
           const inputDelta = Math.max(0, this.totals.inputTokens - pending.parentInputTokens);
           const outputDelta = Math.max(0, this.totals.outputTokens - pending.parentOutputTokens);
-          const nestedUsage = readNestedTaskUsage(block);
+          const usage = tur?.usage ??
+            readNestedTaskUsage(block) ?? { input: inputDelta, output: outputDelta };
           this.emitted.push({
             event: "task-call",
             at: atIso,
@@ -170,8 +173,8 @@ export class MetricsStream {
             phase: pending.phase,
             agent,
             durationMs,
-            inputTokens: nestedUsage?.input ?? inputDelta,
-            outputTokens: nestedUsage?.output ?? outputDelta,
+            inputTokens: usage.input,
+            outputTokens: usage.output,
           });
         } else {
           this.emitted.push({
@@ -269,6 +272,24 @@ function readSubagentType(input: unknown): string {
   if (!input || typeof input !== "object") return "";
   const v = (input as Record<string, unknown>).subagent_type;
   return typeof v === "string" ? v : "";
+}
+
+// Top-level on user events with Task tool_result; sibling of `message`.
+function readToolUseResult(parsed: ParsedStreamEvent): {
+  usage: { input: number; output: number } | null;
+  agentType: string | null;
+} | null {
+  const tur = parsed.raw.toolUseResult;
+  if (!tur || typeof tur !== "object") return null;
+  const t = tur as Record<string, unknown>;
+  const usage = t.usage;
+  let parsedUsage: { input: number; output: number } | null = null;
+  if (usage && typeof usage === "object") {
+    const u = usage as Record<string, unknown>;
+    parsedUsage = { input: numberAt(u, "input_tokens"), output: numberAt(u, "output_tokens") };
+  }
+  const agent = typeof t.agentType === "string" ? t.agentType : null;
+  return { usage: parsedUsage, agentType: agent };
 }
 
 // Some Claude Code releases include an `usage` object inside the tool_result

@@ -9,6 +9,7 @@ import type {
 } from "@obelus/repo";
 import { describe, expect, it } from "vitest";
 import {
+  chooseSourceRoot,
   exportHtmlBundleForPaper,
   exportMdBundleForPaper,
   scopePaperFiles,
@@ -182,6 +183,109 @@ describe("scopePaperFiles", () => {
     expect(scoped).toEqual([
       { relPath: "paper/short/main.typ", format: "typ", role: "main" },
       { relPath: "paper/short/01-intro.typ", format: "typ", role: null },
+    ]);
+  });
+});
+
+describe("chooseSourceRoot", () => {
+  it("returns PDF dirname when mainRelPath is in a different tree", () => {
+    // The live regression: a stale scan pinned `mainRelPath` at
+    // `runtime/ARCHITECTURE.md` while the PDF lives in `paper/short`. The
+    // chooser must ignore the misidentified entrypoint and trust the PDF.
+    expect(chooseSourceRoot("runtime/ARCHITECTURE.md", "paper/short/main.pdf")).toBe("paper/short");
+  });
+
+  it("returns PDF dirname when mainRelPath is undefined", () => {
+    expect(chooseSourceRoot(undefined, "paper/short/main.pdf")).toBe("paper/short");
+  });
+
+  it("returns PDF dirname when mainRelPath is a sibling of the PDF", () => {
+    expect(chooseSourceRoot("paper/short/main.typ", "paper/short/main.pdf")).toBe("paper/short");
+  });
+
+  it("returns PDF dirname for a flat layout where both sit at the project root", () => {
+    expect(chooseSourceRoot("main.tex", "paper.pdf")).toBe("");
+  });
+
+  it("returns PDF dirname when mainRelPath is a descendant of the PDF dirname", () => {
+    // Split-source layout: source under `paper/short/sections/` while the
+    // PDF lives at `paper/short/main.pdf`. The PDF dirname is still the
+    // anchor; the entrypoint may sit deeper without dragging the scope down.
+    expect(chooseSourceRoot("paper/short/sections/01-intro.typ", "paper/short/main.pdf")).toBe(
+      "paper/short",
+    );
+  });
+});
+
+describe("entrypoint scoping (regression for runtime/ARCHITECTURE.md leak)", () => {
+  // Mirrors the inline logic in `exportBundleForPaper` so the regression
+  // tests exercise both halves of the fix (chooser + entrypoint hand-off)
+  // as a single behaviour.
+  function pickScopedEntrypoint(mainRelPath: string | undefined, root: string): string | undefined {
+    if (mainRelPath === undefined) return undefined;
+    if (root === "") return mainRelPath;
+    if (mainRelPath === root) return mainRelPath;
+    if (mainRelPath.startsWith(`${root}/`)) return mainRelPath;
+    return undefined;
+  }
+
+  it("scopePaperFiles drops out-of-tree entrypoint when scopedEntrypoint is undefined", () => {
+    // Reproduces the bug: an out-of-tree mainRelPath used to slip past the
+    // INVENTORY_FORMATS filter via scopePaperFiles's entrypoint exception.
+    // With the chooser collapsing scopedEntrypoint to undefined for an
+    // out-of-tree main, the file must not survive scoping.
+    const files: InventoryShape[] = [
+      { relPath: "runtime/ARCHITECTURE.md", format: "md", role: null },
+      { relPath: "paper/short/main.typ", format: "typ", role: null },
+      { relPath: "paper/short/main.pdf", format: "pdf", role: null },
+    ];
+
+    const root = chooseSourceRoot("runtime/ARCHITECTURE.md", "paper/short/main.pdf");
+    const scopedEntrypoint = pickScopedEntrypoint("runtime/ARCHITECTURE.md", root);
+
+    expect(root).toBe("paper/short");
+    expect(scopedEntrypoint).toBeUndefined();
+
+    const scoped = scopePaperFiles(files, root, scopedEntrypoint);
+    expect(scoped.map((f) => f.relPath)).toEqual(["paper/short/main.typ"]);
+  });
+
+  it("flat layout: both PDF and main at the project root, both source files included", () => {
+    const files: InventoryShape[] = [
+      { relPath: "main.tex", format: "tex", role: null },
+      { relPath: "intro.tex", format: "tex", role: null },
+      { relPath: "paper.pdf", format: "pdf", role: null },
+      { relPath: "junk/other.json", format: "json", role: null },
+    ];
+
+    const root = chooseSourceRoot("main.tex", "paper.pdf");
+    expect(root).toBe("");
+
+    const scopedEntrypoint = pickScopedEntrypoint("main.tex", root);
+    expect(scopedEntrypoint).toBe("main.tex");
+
+    const scoped = scopePaperFiles(files, root, scopedEntrypoint);
+    expect(scoped.map((f) => f.relPath)).toEqual(["main.tex", "intro.tex"]);
+  });
+
+  it("split-source layout: mainRelPath descendant of pdfRoot is preserved as scopedEntrypoint", () => {
+    const files: InventoryShape[] = [
+      { relPath: "paper/short/main.typ", format: "typ", role: "main" },
+      { relPath: "paper/short/00-abstract.typ", format: "typ", role: null },
+      { relPath: "paper/short/main.pdf", format: "pdf", role: null },
+      { relPath: "runtime/ARCHITECTURE.md", format: "md", role: null },
+    ];
+
+    const root = chooseSourceRoot("paper/short/main.typ", "paper/short/main.pdf");
+    expect(root).toBe("paper/short");
+
+    const scopedEntrypoint = pickScopedEntrypoint("paper/short/main.typ", root);
+    expect(scopedEntrypoint).toBe("paper/short/main.typ");
+
+    const scoped = scopePaperFiles(files, root, scopedEntrypoint);
+    expect(scoped.map((f) => f.relPath)).toEqual([
+      "paper/short/main.typ",
+      "paper/short/00-abstract.typ",
     ]);
   });
 });
