@@ -111,66 +111,74 @@ Grep hit. The only legal `Read` in this phase is for a file that was *not*
 in the original whole-paper batch (rare; only when `project.files[]`
 excluded it).
 
-## Step C — invoke cascade-judge once over every hit
+## Step C — one decide-and-emit pass over all hits
 
-After Step B's Grep returns, invoke the `cascade-judge` subagent **once**
-via `Task` with `subagent_type: "cascade-judge"`. Do NOT walk the hit list
-yourself; do NOT issue any further `Read` or `Grep` during this step.
+Walk the Grep hit list once. For each hit, in order:
 
-Payload — fence everything inside one `<obelus:hits>…</obelus:hits>` block,
-exactly:
+1. **Map the hit to a source block.** Match the hit's matched substring
+   against each row's `candidateTerms`; the row whose term hit becomes the
+   "owning source block" for any block emitted from this hit.
 
-    <obelus:hits>
-    {
-      "sourceBlocks": [
-        {
-          "blockId": "<...>",
-          "deltaKind": "Lexical|Structural|Propositional|Local",
-          "userIntent": "<one short clause>",
-          "candidateTerms": ["...","..."],
-          "rationale": "<one sentence>"
-        },
-        ...
-      ],
-      "hits": [
-        {
-          "file": "<rel path>",
-          "lineStart": <int>,
-          "lineEnd": <int>,
-          "matchedSubstring": "<as Grep returned>",
-          "contextLines": [
-            "<L-5>", "<L-4>", "<L-3>", "<L-2>", "<L-1>",
-            "<MATCHED LINE>",
-            "<L+1>", "<L+2>", "<L+3>", "<L+4>", "<L+5>"
-          ]
-        },
-        ...
-      ]
-    }
-    </obelus:hits>
+2. **Skip if collision.** If the hit's line range falls inside a range
+   already covered by a non-synthesised block in this run, or by a
+   cascade/impact block emitted earlier in this same Step C walk, skip.
 
-The subagent returns a single JSON block keyed `decisions`. Parse it once.
-Convert the array into blocks per the shapes below: every `cascade` row
-becomes a `cascade-<sourceIdShort>-<k>` block; every `impact` row becomes
-an `impact-<sourceIdShort>-<k>` block; `skip` rows produce nothing. The
-collision guard, the cap accounting, and the block-shape composition
-all run here in the planner — `cascade-judge` only judges.
+3. **Skip if format-fenced.** Skip matches inside code blocks, math, verbatim
+   listings, line comments, and references / bibliography items — format-aware
+   per the target format (LaTeX: `\begin{verbatim}`, `\begin{lstlisting}`,
+   `$…$`, `\(…\)`, `%` comment lines, `\bibitem`; Markdown: fenced code,
+   inline `` ` ``, HTML comments; Typst: `raw` / triple-backtick, `#comment`
+   / `//`, `$…$` math; HTML: `<code>`, `<pre>`, `<script>`, `<style>`,
+   `<!-- … -->`, `class`/`data-*`-marked code/math). Exception: match in a
+   figure/table caption or body prose where a reader would read it as the
+   same referent.
 
-If the subagent's JSON fails to parse (malformed, missing the `decisions`
-key, or includes prose around the code block), fall back to the
-in-process per-hit pattern: walk the hits in order, applying the same
-decision rules listed in `cascade-judge.md` (mapping, format-fence,
-homonym, cascade-vs-flag) to each, emitting blocks as you go. Note the
-fallback in the run summary so the user knows.
+4. **Same-referent check.** Decide in one short reasoning step (target ≤2
+   sec, not ≤15): is this occurrence the same referent as the owning
+   source block's edit, anchored on the row's `userIntent` and the ±5
+   lines around the hit?
 
-Caps applied during block emission (after parsing the subagent's
-decisions), not by the subagent:
-- ≤ 10 `cascade` per `ownerSourceId`.
-- ≤ 5 `impact` per `ownerSourceId`.
-- ≤ 40 `cascade + impact` per run.
+   - When `userIntent` reads as a paper-wide concept rename, lean toward
+     same-referent for matches sharing the referent.
+   - When `userIntent` reads as a strictly local fix, stay local — skip.
+   - When `userIntent` is silent on scope, judge from the rename's nature
+     (defined term / method / dataset / labelled diagram entity → cascade;
+     sentence-level phrasing tweak → skip).
+   - When uncertain, **emit** with a rationale naming the doubt. Per-hunk
+     review is the gate; a rejected cascade is one keystroke.
+   - Homonym example: `"settings"` in "deployed in settings" vs.
+     "experimental settings" is **not** the same referent. `k=8` in a
+     hyperparameter paragraph vs. `k=8` inside a proof's enumeration are
+     not the same referent.
 
-When a source block's cascade cap is hit, skip subsequent decisions owned
-by that block and note the binding cap in the run summary.
+5. **Cascade vs. flag — apply the boundary rule.**
+
+   - Plain prose at the downstream site (paragraph still parses with the
+     substituted phrase, range, number, or named entity) → emit a
+     `cascade-*` real edit. Phrasing parallel updates *are* the cascade
+     case; do not hedge with "may need a parallel update".
+   - Listed object kind at the downstream site (proof, derivation,
+     figure/table, algorithm/model definition) → emit an `impact-*`
+     flag-note. These are *kinds of object* a single hunk cannot rebuild.
+   - Anything else → skip.
+
+6. **Emit the block.** Use the block shapes below verbatim. Append to the
+   in-progress block list; do not interleave Step A or Step B work.
+
+A `Local` row contributes nothing in Step C — its term list was empty so it
+produced no Grep hits.
+
+If all hits resolved to skips (collision / format-fenced / not same-referent
+/ neither prose-cascade nor listed-object-impact), emit zero blocks. Phase
+marker still fired; correct outcome.
+
+## Caps
+
+Unchanged from prior procedure. ≤10 `cascade-*` per source edit, ≤5
+`impact-*` per source edit, ≤40 cascade+impact total per run. Track caps
+per `blockId` during Step C; when a source block's cascade cap is hit, skip
+subsequent hits owned by that block and add a note in the run summary that
+the cap was binding.
 
 ## Block shapes
 
