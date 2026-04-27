@@ -79,8 +79,10 @@ export interface IngestPlanResult {
   // True iff this ingest appended to existing rows (deep-review plan riding
   // on top of an already-ingested rigorous plan) rather than replacing them.
   additive: boolean;
-  // Number of hunks that were already in the session before this ingest. Zero
-  // for non-additive runs; the count of pre-deep-review rows otherwise.
+  // Number of hunks that survived in the session from a prior ingest. Zero
+  // for non-additive runs; the count of non-quality rows that the new
+  // deep-review batch is layered on top of otherwise. A deep-review re-run
+  // deletes prior `quality-*` rows before this is computed.
   existingHunkCount: number;
 }
 
@@ -161,7 +163,7 @@ function basename(p: string): string {
 // on top. Centralised here so the filename convention is the only signal that
 // drives mode detection on the desktop side.
 export function isDeepReviewPlanName(name: string): boolean {
-  return /-deep\.json$/.test(name);
+  return name.endsWith("-deep.json");
 }
 
 function toWorkspaceRel(workspaceAbs: string, hintPath: string): string | null {
@@ -318,13 +320,16 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
 
   // Deep-review plans append to the existing session's hunks instead of
   // replacing them. The original rigorous plan's blocks must survive — the
-  // new `quality-*` blocks land alongside them in the diff-review UI. The
-  // deep-review SKILL guards against duplicate ids inside its own output;
-  // the desktop just preserves the original rows. If a deep-review plan
-  // arrives without an underlying rigorous plan in the session, surface a
-  // clear error: the deep-review depends on the prior rigorous plan being
-  // already ingested (its `bundleId` is what they share).
+  // new `quality-*` blocks land alongside them in the diff-review UI. A
+  // re-run replaces the prior deep-review batch only (delete `quality-*`
+  // rows, keep everything else). If a deep-review plan arrives without an
+  // underlying rigorous plan in the session, surface a clear error: the
+  // deep-review depends on the prior rigorous plan being already ingested
+  // (its `bundleId` is what they share).
   const isDeep = isDeepReviewPlanName(picked.name);
+  if (isDeep) {
+    await repo.diffHunks.deleteDeepReviewBlocks(sessionId);
+  }
   const existingHunks = isDeep ? await repo.diffHunks.listForSession(sessionId) : [];
   if (isDeep && existingHunks.length === 0) {
     throw new Error(

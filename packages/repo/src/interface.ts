@@ -194,6 +194,11 @@ export interface DiffHunksRepo {
   // ingested rigorous plan: the original plan's hunks must survive while the
   // new `quality-*` blocks land alongside them.
   appendMany(sessionId: string, rows: ReadonlyArray<DiffHunkRow>): Promise<void>;
+  // Remove rows produced by a prior deep-review pass (any row whose first
+  // annotation id begins with `quality-`). Called when re-running deep-review
+  // so the new pass replaces, rather than layers on top of, the previous
+  // quality blocks.
+  deleteDeepReviewBlocks(sessionId: string): Promise<void>;
   setState(id: string, state: DiffHunkState): Promise<void>;
   setModifiedPatch(id: string, patch: string): Promise<void>;
   setNote(id: string, note: string): Promise<void>;

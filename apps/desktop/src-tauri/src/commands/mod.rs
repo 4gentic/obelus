@@ -15,5 +15,6 @@ pub mod preflight;
 pub mod project;
 pub mod project_meta;
 pub mod reset_local_state;
+pub mod time;
 pub mod typst;
 pub mod workspace;

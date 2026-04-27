@@ -186,6 +186,11 @@ const DEFAULT_DISPATCH_MODEL: &str = "sonnet";
 const DEFAULT_DISPATCH_EFFORT: &str = "low";
 
 const ALLOWED_MODELS: &[&str] = &["sonnet", "opus", "haiku"];
+// The UI surfaces only "low" / "high" via THOROUGHNESS_SPAWN; "medium",
+// "xhigh", and "max" sit here for a future CLI-override path. Adding a UI
+// affordance for any of them needs an explicit wall-clock review — `max`
+// produces minutes-long thinking blocks for dispatch / locate work that
+// does not benefit from extended reasoning.
 const ALLOWED_EFFORTS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
 
 fn validate_model(value: Option<&str>) -> AppResult<&str> {
@@ -456,7 +461,7 @@ pub async fn claude_spawn(
 
     let session_id = spawn_streaming(cmd, prompt, app, &state).await?;
 
-    let now = metrics::now_iso();
+    let now = crate::commands::time::now_iso_millis();
     let validated_event = serde_json::json!({
         "event": "bundle-validated",
         "at": now,

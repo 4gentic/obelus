@@ -140,6 +140,15 @@ export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
       await dbTxBatch(stmts);
     },
 
+    async deleteDeepReviewBlocks(sessionId: string): Promise<void> {
+      await db.execute(
+        `DELETE FROM diff_hunks
+           WHERE session_id = $1
+             AND json_extract(annotation_ids_json, '$[0]') LIKE 'quality-%'`,
+        [sessionId],
+      );
+    },
+
     async setState(id: string, state: DiffHunkState): Promise<void> {
       await db.execute("UPDATE diff_hunks SET state = $1 WHERE id = $2", [state, id]);
     },

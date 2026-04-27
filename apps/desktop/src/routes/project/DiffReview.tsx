@@ -801,11 +801,9 @@ function firstLine(s: string): string {
 }
 
 // Whether a "Run deep review" affordance can be offered for the current
-// session. The button is offered only when:
-// - the session has an ingested rigorous plan in the workspace (we find it by
-//   bundleId match);
-// - no deep-review plan has been ingested yet for this session (no `*-deep.json`
-//   exists with a matching bundleId).
+// session. The button is offered as long as the session has an ingested
+// rigorous plan in the workspace (matched by bundleId). A re-run is allowed
+// — the ingest path replaces any prior `quality-*` rows with the new pass.
 // Re-runs whenever the sessionId changes; cheap because the workspace scan
 // is bounded to plan-shaped filenames.
 type DeepReviewAvailability =
@@ -844,17 +842,15 @@ function useDeepReviewAvailability(
         if (cancelled) return;
         const planNames = entries.map((e) => e.name).filter((n) => /^plan-.+\.json$/.test(n));
         let originalPlan: string | null = null;
-        let deepPlan: string | null = null;
         for (const name of planNames) {
+          if (isDeepReviewPlanName(name)) continue;
           try {
             const buffer = await workspaceReadFile(projectId, name);
             const text = new TextDecoder().decode(new Uint8Array(buffer));
             const plan = PlanFileSchema.safeParse(JSON.parse(text));
             if (!plan.success) continue;
             if (basenameNoExt(plan.data.bundleId) !== sessionBundleBasename) continue;
-            if (isDeepReviewPlanName(name)) {
-              if (deepPlan === null || name > deepPlan) deepPlan = name;
-            } else if (originalPlan === null || name > originalPlan) {
+            if (originalPlan === null || name > originalPlan) {
               originalPlan = name;
             }
           } catch {
@@ -865,10 +861,6 @@ function useDeepReviewAvailability(
         if (cancelled) return;
         if (originalPlan === null) {
           setState({ kind: "unavailable", reason: "no-rigorous-plan" });
-          return;
-        }
-        if (deepPlan !== null) {
-          setState({ kind: "unavailable", reason: "deep-review-already-run" });
           return;
         }
         setState({ kind: "ready", planRelPath: originalPlan });
@@ -889,13 +881,22 @@ function useDeepReviewAvailability(
     return cancel;
   }, [rescan]);
 
-  // Re-scan whenever the jobs store ticks. A deep-review run completing is
-  // the case that flips this hook from "ready" to "unavailable" (the new
-  // `-deep.json` is now on disk). A simple subscription with no selector
-  // catches every mutation; we re-scan once per tick.
+  // Re-scan only when a job transitions into a terminal state — that's the
+  // event that may have just dropped a fresh `-deep.json` on disk. Fire-on-
+  // every-mutation would invoke `rescan()` (workspace dir read + per-plan
+  // file parse) on every stdout event, which during heavy tool-call phases
+  // arrives 10–100x/sec.
   useEffect(() => {
-    const unsubscribe = useJobsStore.subscribe(() => {
-      rescan();
+    const unsubscribe = useJobsStore.subscribe((state, prev) => {
+      for (const id of Object.keys(state.jobs)) {
+        const was = prev.jobs[id]?.status;
+        const is = state.jobs[id]?.status;
+        if (was === is) continue;
+        if (is === "done" || is === "error" || is === "cancelled") {
+          rescan();
+          return;
+        }
+      }
     });
     return () => {
       unsubscribe();

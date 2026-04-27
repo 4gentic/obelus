@@ -71,39 +71,6 @@ pub(crate) async fn append_event_bestoffer(
     }
 }
 
-// Returns `<unix_seconds>.<frac>Z`-ish ISO 8601 (UTC) without a date dep.
-// The same stamper used by `apply.rs::iso8601_utc_now`, lifted here so callers
-// don't have to round-trip strings.
-pub(crate) fn now_iso() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let dur = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = dur.as_secs() as i64;
-    let ms = dur.subsec_millis();
-    let (y, mo, d, h, mi, s) = civil_from_seconds(secs);
-    format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}.{ms:03}Z")
-}
-
-fn civil_from_seconds(secs: i64) -> (i32, u32, u32, u32, u32, u32) {
-    let days = secs.div_euclid(86_400);
-    let rem = secs.rem_euclid(86_400);
-    let h = (rem / 3600) as u32;
-    let mi = ((rem % 3600) / 60) as u32;
-    let s = (rem % 60) as u32;
-    let z = days + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = (z - era * 146_097) as u64;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
-    let y = yoe as i64 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let mo = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    let y = (y + if mo <= 2 { 1 } else { 0 }) as i32;
-    (y, mo, d, h, mi, s)
-}
-
 #[tauri::command]
 pub async fn metrics_append(
     app: AppHandle,
