@@ -15,8 +15,6 @@ const DismissedFingerprintSchema = z.string();
 const DISMISSED_KEY = (paperId: string): string =>
   `paper.${paperId}.divergenceDismissedFingerprint`;
 
-// Sorted, prefixed list — moving a path between modified/added/missing buckets
-// produces a different fingerprint and reopens the banner.
 function fingerprint(report: HistoryDivergenceReport): string {
   return [
     ...report.modified.map((p) => `M:${p}`),
@@ -31,10 +29,6 @@ function fingerprint(report: HistoryDivergenceReport): string {
 // Re-runs when the draft pointer moves (check-outs) and when the manifest
 // itself changes (snapshot-after-apply mints a new one). Silent on failure:
 // a manifest miss or an IPC error just leaves the banner hidden.
-//
-// Dismissal is fingerprint-keyed: clicking × stores the current edit set; the
-// banner re-appears when the set changes (new file edited, file un-edited,
-// or the current draft advances and produces a different report).
 export function useWorkingTreeDivergence(
   rootId: string,
   projectId: string,
@@ -43,7 +37,7 @@ export function useWorkingTreeDivergence(
   paperId: string | null,
 ): DivergenceState {
   const [report, setReport] = useState<HistoryDivergenceReport | null>(null);
-  const [dismissedFp, setDismissedFp] = useState<string | undefined>(undefined);
+  const [dismissedFp, setDismissedFp] = useState<string | undefined | null>(null);
   const manifestSha = currentDraft?.manifestSha256;
   const ordinal = currentDraft?.ordinal;
 
@@ -71,6 +65,7 @@ export function useWorkingTreeDivergence(
       setDismissedFp(undefined);
       return;
     }
+    setDismissedFp(null);
     let cancelled = false;
     void (async () => {
       const fp = await repo.settings.get(DISMISSED_KEY(paperId), DismissedFingerprintSchema);
@@ -85,7 +80,7 @@ export function useWorkingTreeDivergence(
     report !== null &&
     (report.modified.length > 0 || report.added.length > 0 || report.missing.length > 0);
   const currentFp = report !== null && hasChanges ? fingerprint(report) : undefined;
-  const dirty = hasChanges && currentFp !== dismissedFp;
+  const dirty = hasChanges && dismissedFp !== null && currentFp !== dismissedFp;
 
   const dismiss = useCallback(async (): Promise<void> => {
     if (!paperId || !currentFp) return;
