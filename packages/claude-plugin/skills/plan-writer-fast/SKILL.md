@@ -222,6 +222,8 @@ validator rejects either combination.
 
 The structural contract the desktop diff-review UI consumes — and the only file this skill writes. The desktop projects a sibling `plan-<iso>.md` from this JSON; do not Write a Markdown plan from here.
 
+**The shape below is exact.** Field names are part of the contract — do **not** rename, pluralize, singularize, or invent additional keys. Top-level keys are exactly `bundleId`, `format`, `entrypoint`, `blocks`. Block keys are exactly `annotationIds`, `file`, `category`, `patch`, `ambiguous`, `reviewerNotes`, `emptyReason`. **Do not** add `schemaVersion`, `planId`, `planAt`, `bundlePath`, `papers[]`, `kind`, `description`, `anchor`, `reviewerNote` (singular), or `annotationId` (singular). A plan with any of those keys is unreadable and the run is wasted.
+
 ```json
 {
   "bundleId": "<absolute path to bundle file>",

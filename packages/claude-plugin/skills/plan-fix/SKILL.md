@@ -217,7 +217,9 @@ For HTML papers (`format === "html"`), `Read` `<plugin>/skills/plan-fix/refs/htm
 
 One block per *edit* (a merged block produces one entry, not N), in plan order. The JSON is the contract — the desktop projects a sibling `plan-<iso>.md` from it for the user to read; do not emit a Markdown plan from this skill.
 
-The structured shape:
+**The shape below is exact.** Field names are part of the contract — do **not** rename, pluralize, singularize, or invent additional keys. The desktop ingests with a strict Zod schema and rejects any plan whose top-level fields are not exactly `bundleId`, `format`, `entrypoint`, `blocks`, or whose block fields are not exactly `annotationIds`, `file`, `category`, `patch`, `ambiguous`, `reviewerNotes`, `emptyReason`. **Do not** add `schemaVersion`, `planId`, `planAt`, `bundlePath`, `papers[]`, `kind`, `description`, `anchor`, `reviewerNote` (singular), or `annotationId` (singular). A plan with any of those keys is unreadable and the run is wasted.
+
+The structured shape (every key listed is required; no others permitted):
 
 ```json
 {
@@ -233,6 +235,36 @@ The structured shape:
       "ambiguous": false,
       "reviewerNotes": "<paper-reviewer critique>",
       "emptyReason": null
+    }
+  ]
+}
+```
+
+**Worked example (a real plan, two blocks — one edit, one rejected mark):**
+
+```json
+{
+  "bundleId": "<workspace>/bundle-20260427-143404.json",
+  "format": "typst",
+  "entrypoint": "paper/short/main.typ",
+  "blocks": [
+    {
+      "annotationIds": ["489230f0-1da0-43c7-9916-0cd54c2a878a"],
+      "file": "paper/short/main.typ",
+      "category": "wrong",
+      "patch": "@@ -5,1 +5,1 @@\n-  title: \"Old Title\",\n+  title: \"New Title\",\n",
+      "ambiguous": false,
+      "reviewerNotes": "Direct edit; the rename is consistent with the rest of the document.",
+      "emptyReason": null
+    },
+    {
+      "annotationIds": ["489230f0-rejected"],
+      "file": "paper/short/main.typ",
+      "category": "wrong",
+      "patch": "",
+      "ambiguous": true,
+      "reviewerNotes": "REJECTED: this rename would break references throughout the paper; the reviewer's intent is unclear.",
+      "emptyReason": "ambiguous"
     }
   ]
 }
