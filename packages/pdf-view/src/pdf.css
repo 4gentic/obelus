@@ -22,6 +22,12 @@
 
 .pdf-page {
   position: relative;
+  /* Establish a stacking context so the text layer's z-index: 2 stays
+     contained. Without this, z:2 escapes upward (none of the ancestors are
+     stacking contexts) and paints over any sticky chrome with z-index < 2 —
+     including the pane path header during scroll, which was eating the kebab
+     and zoom-control clicks. */
+  isolation: isolate;
   background: #fff;
   box-shadow:
     0 1px 0 0 rgb(43 42 38 / 0.08),
@@ -63,7 +69,27 @@
   user-select: text;
 }
 
+.pdf-page__text::selection,
 .pdf-page__text ::selection {
-  background: rgb(184 74 46 / 0.28);
+  background: transparent;
   color: transparent;
+}
+
+/* Pan-mode visuals. The adapter root carries `data-pan-mode="true"` whenever
+   the host has activated the pan tool (or the user is holding Space).
+   `data-panning="true"` is added for the duration of an active drag so the
+   cursor switches from grab → grabbing without re-rendering React. */
+.pdf-adapter[data-pan-mode="true"] .pdf-doc {
+  cursor: grab;
+}
+
+.pdf-adapter[data-panning="true"] .pdf-doc {
+  cursor: grabbing;
+}
+
+.pdf-adapter[data-pan-mode="true"] .pdf-page__text,
+.pdf-adapter[data-pan-mode="true"] .pdf-page__text * {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: inherit;
 }

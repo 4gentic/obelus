@@ -75,9 +75,9 @@
 .review-shell__hl {
   --hl-color: var(--ink-soft);
   position: absolute;
-  mix-blend-mode: multiply;
   border-radius: 0;
-  background: color-mix(in srgb, var(--hl-color) 35%, transparent);
+  background: color-mix(in srgb, var(--hl-color) 30%, transparent);
+  pointer-events: none;
 }
 
 .review-shell__hl[data-category="unclear"] {
@@ -110,7 +110,7 @@
 
 .review-shell__hl--draft {
   background: color-mix(in srgb, var(--hl-color) 22%, transparent);
-  outline: 1px dashed color-mix(in srgb, var(--hl-color) 60%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--hl-color) 55%, transparent);
   outline-offset: 0;
 }
 
@@ -119,8 +119,8 @@
    actionable "relocate or delete" affordance; the overlay just fades so
    the stale paint doesn't pretend to be authoritative. */
 .review-shell__hl[data-stale="true"] {
-  background: color-mix(in srgb, var(--hl-color) 12%, transparent);
-  outline: 1px dotted color-mix(in srgb, var(--hl-color) 45%, transparent);
+  background: color-mix(in srgb, var(--hl-color) 14%, transparent);
+  outline: 1px dotted color-mix(in srgb, var(--hl-color) 40%, transparent);
 }
 
 /* Find-in-document overlay. Sits in a sibling layer to the annotation layer
@@ -134,11 +134,11 @@
 
 .review-shell__hl--find {
   --hl-color: var(--hl-unclear);
-  background: color-mix(in srgb, var(--hl-unclear) 45%, transparent);
+  background: color-mix(in srgb, var(--hl-unclear) 42%, transparent);
 }
 
 .review-shell__hl--find-current {
-  background: color-mix(in srgb, var(--hl-unclear) 65%, transparent);
+  background: color-mix(in srgb, var(--hl-unclear) 60%, transparent);
   outline: 1.5px solid var(--rubric);
   outline-offset: 0;
 }
