@@ -109,3 +109,14 @@ jobs:
           projectPath: apps/desktop
           releaseId: ${{ needs.resolve.outputs.id }}
           args: ${{ matrix.args }}
+
+  mark-latest:
+    needs: [resolve, build]
+    if: needs.resolve.outputs.should-build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: gh release edit "$TAG" --latest -R "$REPO"
