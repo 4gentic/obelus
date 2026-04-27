@@ -136,7 +136,6 @@ const ApplyEvent = z.object({
   sessionId: z.string(),
   blocksApplied: z.number().int().nonnegative(),
   blocksFailed: z.number().int().nonnegative(),
-  compileRetries: z.number().int().nonnegative(),
   totalMs: z.number().nonnegative(),
   // True when apply_hunks succeeded; false when it returned an Err. Lets a
   // metrics consumer tell "apply produced 0 blocks" from "apply threw".

@@ -88,10 +88,6 @@ pub async fn apply_hunks(
             "sessionId": session_id,
             "blocksApplied": applied,
             "blocksFailed": failed,
-            // No retry loop wired yet (apply.rs applies once per hunk and
-            // surfaces failures); kept at 0 so the schema is stable and the
-            // field is ready for fix-compile retry instrumentation.
-            "compileRetries": 0,
             "totalMs": total_ms,
             "ok": result.is_ok(),
         });

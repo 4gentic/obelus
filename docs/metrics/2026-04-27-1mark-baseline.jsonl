@@ -1,5 +1,5 @@
 {"at":"2026-04-27T10:43:01.198Z","errorCount":0,"event":"bundle-validated","sessionId":"eccc4d1f-cc05-4043-b13f-1b40b0907e7b","validationMs":16}
-{"anchorHtml":0,"anchorPdf":0,"anchorSource":1,"annotations":1,"at":"2026-04-27T10:43:01.198Z","bytes":7895,"event":"bundle-stats","files":54,"papers":1,"sessionId":"eccc4d1f-cc05-4043-b13f-1b40b0907e7b"}
+{"anchorHtml":0,"anchorPdf":0,"anchorSource":1,"annotations":1,"at":"2026-04-27T10:43:01.198Z","bytes":7895,"effort":"low","event":"bundle-stats","files":54,"model":"sonnet","papers":1,"sessionId":"eccc4d1f-cc05-4043-b13f-1b40b0907e7b"}
 {"at":"2026-04-27T10:43:01.198Z","event":"preflight-rust","preludeMs":1,"sessionId":"eccc4d1f-cc05-4043-b13f-1b40b0907e7b","sha256Ms":5,"totalMs":6}
 {"event":"phase","at":"2026-04-27T10:43:07.572Z","sessionId":"eccc4d1f-cc05-4043-b13f-1b40b0907e7b","name":"<pre-phase>","startedAt":"2026-04-27T10:43:01.059Z","endedAt":"2026-04-27T10:43:07.572Z","durationMs":6513}
 {"event":"phase-tokens","at":"2026-04-27T10:43:07.572Z","sessionId":"eccc4d1f-cc05-4043-b13f-1b40b0907e7b","name":"<pre-phase>","inputTokens":3,"outputTokens":8,"cacheReadTokens":0,"cacheCreateTokens":29670}
