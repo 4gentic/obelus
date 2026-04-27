@@ -16,7 +16,6 @@ async function loadPage(pageIndex: number) {
   const data = readFileSync(fixturePath);
   const doc = await getDocument({
     data: new Uint8Array(data),
-    isEvalSupported: false,
     disableFontFace: true,
     // 0 = errors only; suppresses the harmless standard-font fetch warning
     // (happy-dom rewrites URL resolution in a way pdfjs can't satisfy, and
