@@ -7,6 +7,7 @@ import {
   setPdfTool,
   setPdfZoom,
   usePanCapable,
+  usePdfAutoScale,
   usePdfTool,
   usePdfZoom,
 } from "./pdf-zoom-store";
@@ -17,9 +18,10 @@ interface Props {
 
 export default function PdfZoomControls({ paperId }: Props): JSX.Element {
   const override = usePdfZoom(paperId);
+  const autoScale = usePdfAutoScale(paperId);
   const tool = usePdfTool(paperId);
   const panCapable = usePanCapable(paperId);
-  const effective = override ?? PDF_ZOOM_BASE;
+  const effective = override ?? autoScale ?? PDF_ZOOM_BASE;
   const percent = Math.round((effective / PDF_ZOOM_BASE) * 100);
   const atMin = effective <= PDF_ZOOM_MIN + 0.001;
   const atMax = effective >= PDF_ZOOM_MAX - 0.001;
@@ -31,7 +33,7 @@ export default function PdfZoomControls({ paperId }: Props): JSX.Element {
       <button
         type="button"
         className="btn btn--subtle pdf-zoom__btn"
-        onClick={() => bumpPdfZoom(paperId, PDF_ZOOM_BASE, -1)}
+        onClick={() => bumpPdfZoom(paperId, -1)}
         disabled={atMin}
         aria-label="Zoom out"
         title="Zoom out (⌘−)"
@@ -50,7 +52,7 @@ export default function PdfZoomControls({ paperId }: Props): JSX.Element {
       <button
         type="button"
         className="btn btn--subtle pdf-zoom__btn"
-        onClick={() => bumpPdfZoom(paperId, PDF_ZOOM_BASE, 1)}
+        onClick={() => bumpPdfZoom(paperId, 1)}
         disabled={atMax}
         aria-label="Zoom in"
         title="Zoom in (⌘+)"

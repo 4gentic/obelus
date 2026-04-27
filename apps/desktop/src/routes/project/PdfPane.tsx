@@ -3,7 +3,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { JSX, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFindStore, usePdfFindRectsStore } from "./find-store-context";
-import { usePdfTool, usePdfZoom } from "./pdf-zoom-store";
+import { setPdfAutoScale, usePdfTool, usePdfZoom } from "./pdf-zoom-store";
 import { useReviewStore } from "./store-context";
 
 interface Props {
@@ -73,6 +73,13 @@ export default function PdfPane({ doc, paperId }: Props): JSX.Element {
   );
 
   const panMode = tool === "pan" || spaceHeld;
+  const onAutoScaleChange = useCallback(
+    (scale: number): void => {
+      if (paperId === null) return;
+      setPdfAutoScale(paperId, scale);
+    },
+    [paperId],
+  );
   const documentView = usePdfDocumentView({
     doc,
     annotations,
@@ -84,6 +91,7 @@ export default function PdfPane({ doc, paperId }: Props): JSX.Element {
     highlightClassName: "pdf-hl",
     renderExtraOverlay,
     zoomOverride,
+    onAutoScaleChange,
     panMode,
   });
 

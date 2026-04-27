@@ -69,8 +69,9 @@
   user-select: text;
 }
 
+.pdf-page__text::selection,
 .pdf-page__text ::selection {
-  background: rgb(184 74 46 / 0.28);
+  background: transparent;
   color: transparent;
 }
 

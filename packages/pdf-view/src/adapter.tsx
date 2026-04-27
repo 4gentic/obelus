@@ -70,6 +70,14 @@ type Params = {
    */
   zoomOverride?: number | null;
   /**
+   * Notified whenever the measured auto-fit scale changes. Lets a host store
+   * step zoom relative to the live fit-to-width value instead of a fixed
+   * baseline — without this, "+" from Auto can visibly shrink on wide
+   * columns where autoScale > the baseline. Optional so `apps/web` consumers
+   * can ignore it.
+   */
+  onAutoScaleChange?: (scale: number) => void;
+  /**
    * When true, switch the document into pan mode: cursor becomes grab/grabbing,
    * mousedown-drag scrolls the surrounding `.review-shell__scroll` container
    * instead of starting a text selection, and the text layer is set
@@ -91,6 +99,7 @@ export function usePdfDocumentView({
   highlightClassName = "review-shell__hl",
   renderExtraOverlay,
   zoomOverride = null,
+  onAutoScaleChange,
   panMode = false,
 }: Params): DocumentView {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -99,8 +108,10 @@ export function usePdfDocumentView({
   const pageCount = doc.numPages;
   const scale = zoomOverride ?? autoScale;
 
+  // Auto-fit measurement runs regardless of `zoomOverride` so the host store
+  // always has a current fit-to-width baseline to step from. The render path
+  // (`scale = zoomOverride ?? autoScale`) decides which one to draw with.
   useLayoutEffect(() => {
-    if (zoomOverride !== null) return;
     const el = containerRef.current;
     if (!el) return;
     const measure = (): void => {
@@ -112,7 +123,11 @@ export function usePdfDocumentView({
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [zoomOverride]);
+  }, []);
+
+  useLayoutEffect(() => {
+    onAutoScaleChange?.(autoScale);
+  }, [autoScale, onAutoScaleChange]);
 
   // Per-page slot offsets relative to the nearest positioned ancestor (which
   // is `.review-shell__scroll`, not this adapter's own root — we leave the
