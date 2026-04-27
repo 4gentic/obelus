@@ -35,7 +35,7 @@ const LABELS: Record<EngineName, Labels> = {
     installNote: "Downloads the official Typst release from GitHub (~35 MB).",
   },
   tectonic: {
-    title: "Tectonic (LaTeX)",
+    title: "Tectonic (LaTeX, Beta)",
     description:
       "A managed LaTeX engine. Used as a fallback when latexmk / MacTeX / TeX Live isn't installed. Always runs XeTeX — papers written strictly for pdflatex may not compile cleanly.",
     installNote:
