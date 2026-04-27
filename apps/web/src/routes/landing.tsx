@@ -355,7 +355,7 @@ export default function Landing() {
               <em>The co-author team.</em>
             </h3>
             <p className="who__body">
-              Writer renders LaTeX to an HTML preview; reviewer marks the HTML.
+              Writer renders LaTeX <em>(Beta)</em> to an HTML preview; reviewer marks the HTML.
             </p>
             <p className="who__outcome">
               <em>Outcome:</em> writer accepts diffs hunk by hunk in the desktop app.
@@ -382,8 +382,8 @@ export default function Landing() {
             <dt className="principles__term">Format coverage.</dt>
             <dd className="principles__def">
               PDF on the review side. Markdown <em>(Beta)</em> and HTML <em>(Beta)</em> as well —
-              paired-source or hand-authored. Source destinations: <code>.tex</code>,{" "}
-              <code>.md</code>, <code>.typ</code>, <code>.html</code>.
+              paired-source or hand-authored. Source destinations: <code>.tex</code> <em>(Beta)</em>
+              , <code>.md</code>, <code>.typ</code>, <code>.html</code>.
             </dd>
           </div>
           <div className="principles__row">
@@ -411,7 +411,7 @@ export default function Landing() {
             <dt className="principles__term">Desktop extras.</dt>
             <dd className="principles__def">
               CodeMirror source editor, git-style diff review (hunk by hunk), project desks, managed
-              Typst/Tectonic engines, Claude Code in-app.
+              Typst and Tectonic <em>(Beta)</em> engines, Claude Code in-app.
             </dd>
           </div>
           <div className="principles__row">
@@ -445,7 +445,8 @@ export default function Landing() {
             <dt className="principles__term">Format-agnostic.</dt>
             <dd className="principles__def">
               One review workflow for PDF, Markdown <em>(Beta)</em>, HTML <em>(Beta)</em>, and
-              source in <code>.tex</code> · <code>.md</code> · <code>.typ</code>. No cloud.
+              source in <code>.tex</code> <em>(Beta)</em> · <code>.md</code> · <code>.typ</code>. No
+              cloud.
             </dd>
           </div>
         </dl>
@@ -479,8 +480,9 @@ export default function Landing() {
         <p className="desktop__lead">
           <strong>Four extras the browser can't carry.</strong> A CodeMirror source editor next to
           the rendered paper. A git-style diff review pane that walks Claude's edits hunk by hunk.
-          Managed Typst and Tectonic engines you install on demand, never in the background. And
-          Claude Code itself, running in-app — the loop closes without leaving the desk.
+          Managed Typst and Tectonic <em>(Beta)</em> engines you install on demand, never in the
+          background. And Claude Code itself, running in-app — the loop closes without leaving the
+          desk.
         </p>
         <ul className="desktop__downloads" aria-label="Download options">
           <li>
@@ -527,8 +529,8 @@ export default function Landing() {
           Only useful when you're applying the bundle via Claude Code. Ships{" "}
           <code>/apply-revision</code>, <code>/apply-fix</code>, <code>/write-review</code>, and{" "}
           <code>/fix-compile</code> — a forked-context planner, single-hunk apply, a reviewer's
-          letter, and LaTeX/Typst error recovery. Using a different agent? Skip this: the exported
-          Markdown is self-describing.
+          letter, and LaTeX <em>(Beta)</em> and Typst error recovery. Using a different agent? Skip
+          this: the exported Markdown is self-describing.
         </p>
         <pre className="install__code">
           <code>{"/plugin marketplace add 4gentic/obelus\n/plugin install obelus@4gentic"}</code>
