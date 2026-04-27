@@ -154,8 +154,12 @@ export class MetricsStream {
         if (!pending) continue;
         this.pending.delete(id);
         const durationMs = Math.max(0, atMs - pending.startedAt);
-        if (pending.name === "Task") {
-          const agent = readSubagentType(pending.input);
+        // Key on `subagent_type` rather than the tool name. Different Claude
+        // Code releases have shipped this as `Task` and `Agent`; the input
+        // payload's `subagent_type` is the stable signal for "this is a
+        // subagent invocation, not a leaf tool call".
+        const agent = readSubagentType(pending.input);
+        if (agent !== "") {
           const inputDelta = Math.max(0, this.totals.inputTokens - pending.parentInputTokens);
           const outputDelta = Math.max(0, this.totals.outputTokens - pending.parentOutputTokens);
           const nestedUsage = readNestedTaskUsage(block);

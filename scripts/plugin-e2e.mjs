@@ -90,7 +90,7 @@ const scenarios = [
     id: "2.3",
     name: "revise-markdown-source",
     prompt:
-      "/obelus:apply-revision ./bundle.json — after the plan is written, run /skill apply-fix on the .md plan path it produced so the edits land in sample.md.",
+      "/obelus:apply-revision ./bundle.json — after the plan is written, run /skill apply-fix on the .json plan path it produced so the edits land in sample.md.",
     stage(dir) {
       cpSync(resolve(fixturesDir, "bundle-md.json"), resolve(dir, "bundle.json"));
       cpSync(resolve(fixturesDir, "sample.md"), resolve(dir, "sample.md"));
@@ -101,7 +101,7 @@ const scenarios = [
     id: "2.4",
     name: "revise-html-paired",
     prompt:
-      "/obelus:apply-revision ./bundle.json — after the plan is written, run /skill apply-fix on the .md plan path it produced so the edits land in sample.md.",
+      "/obelus:apply-revision ./bundle.json — after the plan is written, run /skill apply-fix on the .json plan path it produced so the edits land in sample.md.",
     stage(dir) {
       cpSync(resolve(fixturesDir, "bundle-html-paired.json"), resolve(dir, "bundle.json"));
       cpSync(resolve(fixturesDir, "sample.html"), resolve(dir, "sample.html"));
@@ -242,16 +242,21 @@ function assertPlanWritten(result, _dir, workspaceDir) {
   if (!existsSync(workspaceDir)) {
     return { ok: false, reason: "workspace dir not created" };
   }
+  // WS8: plan.json is the contract; the desktop projects the .md from it.
+  // The plugin no longer writes a .md, so the e2e suite (which has no
+  // desktop) only checks the .json. The plugin would only write a .md if
+  // it contract-violated.
   const entries = readdirSync(workspaceDir);
-  const mdPlan = entries.find((e) => e.startsWith("plan-") && e.endsWith(".md"));
   const jsonPlan = entries.find((e) => e.startsWith("plan-") && e.endsWith(".json"));
-  if (!mdPlan) return { ok: false, reason: "no plan-*.md written" };
-  if (!jsonPlan) return { ok: false, reason: "no plan-*.json companion written" };
-  const body = readFileSync(resolve(workspaceDir, mdPlan), "utf8");
-  if (body.length < 200) {
-    return { ok: false, reason: `plan markdown suspiciously short (${body.length} bytes)` };
+  if (!jsonPlan) return { ok: false, reason: "no plan-*.json written" };
+  const stale = entries.filter((e) => e.startsWith("plan-") && e.endsWith(".md"));
+  if (stale.length > 0) {
+    return {
+      ok: false,
+      reason: `plan-*.md written by the skill (WS8 contract violation): ${stale.join(", ")}`,
+    };
   }
-  return { ok: true, reason: `plan written: ${mdPlan}` };
+  return { ok: true, reason: `plan written: ${jsonPlan}` };
 }
 
 function assertMarkdownRoundTrip(result, dir, workspaceDir) {

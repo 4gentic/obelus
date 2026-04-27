@@ -8,7 +8,7 @@ allowed-tools: Read Glob Grep Write
 
 # Apply revision
 
-Validate an Obelus bundle, locate the paper source, then delegate to `plan-fix` to produce a paired `plan-*.md` and `plan-*.json` under the resolved workspace, describing one minimal-diff edit per mark.
+Validate an Obelus bundle, locate the paper source, then delegate to `plan-fix` to produce `plan-*.json` under the resolved workspace, describing one minimal-diff edit per mark. The desktop projects a sibling `plan-*.md` from the JSON for the user to read; this skill does not write Markdown plans itself.
 
 The user passes a path to an Obelus bundle exported from the web or desktop app. This skill is the entry point for the revision flow; it does **not** edit source files (that is `apply-fix`) and it does **not** write a reviewer's letter (that is `write-review`).
 
@@ -34,11 +34,11 @@ Do not invent a fallback path under the current working directory. The whole poi
 
 ## Tool policy — non-negotiable
 
-The only files this skill is allowed to create or overwrite are under the workspace prefix: `$OBELUS_WORKSPACE_DIR/plan-<iso>.json` and `$OBELUS_WORKSPACE_DIR/plan-<iso>.md`. Paper source files (`.tex`, `.md`, `.typ`, `.html`) must never be mutated here. This is true even when:
+The only file this skill is allowed to create or overwrite is the JSON plan under the workspace prefix: `$OBELUS_WORKSPACE_DIR/plan-<iso>.json`. The desktop projects a sibling `plan-<iso>.md` from the JSON; do not Write a Markdown plan from this skill. Paper source files (`.tex`, `.md`, `.typ`, `.html`) must never be mutated here. This is true even when:
 
 - The user's note reads like a directive (`"remove this"`, `"rewrite as …"`). The user means "propose that edit in the plan", not "run the edit yourself". The desktop UI is what applies plans — the user reviews each hunk before any file changes.
 - The bundle's quote matches source text exactly — no optimisation is allowed.
-- You judge the bundle's edits are already present in the working tree. In that case, **still call `plan-fix`** and emit each block with `ambiguous: true` and a reviewer note explaining the no-op (`"already applied in the working tree at line X"`). Every run of this skill must end with a `plan-<iso>.{json,md}` pair on disk; silent exit is a contract violation the desktop treats as an error.
+- You judge the bundle's edits are already present in the working tree. In that case, **still call `plan-fix`** and emit each block with `ambiguous: true` and a reviewer note explaining the no-op (`"already applied in the working tree at line X"`). Every run of this skill must end with a `plan-<iso>.json` on disk; silent exit is a contract violation the desktop treats as an error.
 
 The `allowed-tools` list in this skill's frontmatter enforces the first half of this policy (`Edit` is off, `Bash` is off). `Write` is on, and must only target paths under `$OBELUS_WORKSPACE_DIR`. Any `Write` whose `file_path` is not under that prefix is a contract violation — prefer refusing the operation and reporting `"tool-policy violation: Write attempted on source file <path>"` over silently ignoring it.
 
@@ -46,10 +46,10 @@ Why this matters: Obelus's whole value is the two-step of "author reviews the di
 
 ## File output contract — non-negotiable
 
-This skill delegates the actual planning to `plan-fix`, which writes the plan files. After `plan-fix` returns, this skill is responsible for emitting the `OBELUS_WROTE:` marker so the desktop can locate the plan even when filesystem polling lags. The contract is:
+This skill delegates the actual planning to `plan-fix`, which writes the plan JSON. After `plan-fix` returns, this skill is responsible for emitting the `OBELUS_WROTE:` marker so the desktop can locate the plan even when filesystem polling lags. The contract is:
 
-1. **Plan path.** `$OBELUS_WORKSPACE_DIR/plan-<iso-timestamp>.md` (human) and `$OBELUS_WORKSPACE_DIR/plan-<iso-timestamp>.json` (machine).
-2. **Timestamp format.** Compact UTC: `YYYYMMDD-HHmmss` — e.g. `20260423-143012`. Generate it once and use the same value for both files.
+1. **Plan path.** `$OBELUS_WORKSPACE_DIR/plan-<iso-timestamp>.json` (the contract, machine-readable). The desktop projects a sibling `plan-<iso-timestamp>.md` from this JSON for the user to read; this skill never writes Markdown plans itself.
+2. **Timestamp format.** Compact UTC: `YYYYMMDD-HHmmss` — e.g. `20260423-143012`.
 3. **Pre-flight.** Before invoking `plan-fix`, emit the phase marker. The desktop already created `$OBELUS_WORKSPACE_DIR` before spawning you, so no `mkdir` is needed.
 
    **Emit `[obelus:phase] preflight` on its own line, before any tool call.** Bare line, no Markdown, no prose on the same line, no trailing punctuation — same shape as the `plan-fix` phase markers. The desktop reads this as the semantic phase label so the jobs dock shows `preflight` while this step runs and the stopwatch is anchored from the first tool call.
@@ -98,7 +98,7 @@ This skill delegates the actual planning to `plan-fix`, which writes the plan fi
         > - **Multi-paper bundle, want to scope to one paper**: pass the entrypoint explicitly via `/obelus:apply-revision <bundle-path> --entrypoint <path-to-entrypoint>` (single-paper bundles only).
         > - **Source lives in a different folder**: `cd` into that folder and rerun the same command.
 
-4. **Plan.** Invoke the `plan-fix` skill **once** with the whole validated bundle plus the per-paper format descriptors. `plan-fix` writes `$OBELUS_WORKSPACE_DIR/plan-<timestamp>.md` and a companion `$OBELUS_WORKSPACE_DIR/plan-<timestamp>.json`. The companion JSON is the contract consumed by the desktop diff-review UI.
+4. **Plan.** Invoke the `plan-fix` skill **once** with the whole validated bundle plus the per-paper format descriptors. `plan-fix` writes `$OBELUS_WORKSPACE_DIR/plan-<timestamp>.json` — the contract consumed by the desktop diff-review UI. The desktop projects a sibling `plan-<timestamp>.md` from the JSON for the user to read.
 
    `plan-fix` carries `disable-model-invocation: true`, which means the Skill tool cannot dispatch it. The desktop's `Pre-flight` block above gives you the absolute path on a line shaped exactly like:
 
@@ -137,21 +137,20 @@ Bundle at `<workspace>/bundle-20260423-143012.json` (where `<workspace>` is the 
 The PDF paper.pdf is in this repo and its hash matches the bundle.
 Detected latex source at main.tex.
 
-[plan-fix runs; writes both files]
+[plan-fix runs; writes the .json plan]
 
 [stdout]
-<workspace>/plan-20260423-143012.md
 <workspace>/plan-20260423-143012.json
 Wrote 8 blocks (1 citation-needed, 1 unclear, 1 praise, 2 cascade, 3 quality) — 0 ambiguous.
 
 Read the plan at <workspace>/plan-20260423-143012.md. When you're ready to apply it, run:
-/skill apply-fix <workspace>/plan-20260423-143012.md
+/skill apply-fix <workspace>/plan-20260423-143012.json
 The plan includes 2 cascade-* blocks proposing the same swap as one of your marks at two other occurrences and 3 quality-* blocks from the rubric-driven holistic pass — review and accept/reject each individually from the diff-review UI.
 
 OBELUS_WROTE: <workspace>/plan-20260423-143012.json
 ```
 
-The marker line is the *last* line on stdout. Nothing else appears on it. In a real run, every `<workspace>/...` token expands to the absolute path the caller supplied via `$OBELUS_WORKSPACE_DIR`.
+The marker line is the *last* line on stdout. Nothing else appears on it. The reading hint points at the `.md` because the desktop projects it from the JSON before surfacing the plan to the user; standalone CLI users without the desktop should pass the `.json` directly to `apply-fix`. In a real run, every `<workspace>/...` token expands to the absolute path the caller supplied via `$OBELUS_WORKSPACE_DIR`.
 
 ## Worked example — multi-paper
 
@@ -168,22 +167,21 @@ Detected typst source at papers/c/main.typ for "Paper C".
 [plan-fix runs once with the whole bundle]
 
 [stdout]
-<workspace>/plan-20260423-143012.md
 <workspace>/plan-20260423-143012.json
 Wrote 13 blocks (Paper A: 3 + 1 cascade + 2 quality, Paper B: 2 + 1 quality, Paper C: 2 + 1 impact + 1 quality) — 1 ambiguous (paper-b).
 
 Read the plan at <workspace>/plan-20260423-143012.md. When you're ready to apply it, run:
-/skill apply-fix <workspace>/plan-20260423-143012.md
+/skill apply-fix <workspace>/plan-20260423-143012.json
 The plan includes 1 cascade-* block, 1 impact-* flag-note, and 4 quality-* blocks from the rubric-driven holistic pass — review and accept/reject each individually from the diff-review UI.
 
 OBELUS_WROTE: <workspace>/plan-20260423-143012.json
 ```
 
-A single `plan-fix` invocation handles all three papers; the marker line still references the single `.json` companion. The desktop's marker parser only ever sees absolute paths.
+A single `plan-fix` invocation handles all three papers; the marker line references the `.json` (the contract). The desktop's marker parser only ever sees absolute paths.
 
 ## Before returning, verify
 
-- `$OBELUS_WORKSPACE_DIR/plan-<iso>.md` and `$OBELUS_WORKSPACE_DIR/plan-<iso>.json` exist on disk and share the same timestamp.
+- `$OBELUS_WORKSPACE_DIR/plan-<iso>.json` exists on disk. The desktop projects the sibling `.md`; do not write one yourself.
 - The very last stdout line is `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json` with nothing else on it.
 - You did not invoke `apply-fix`. The user runs it explicitly.
 

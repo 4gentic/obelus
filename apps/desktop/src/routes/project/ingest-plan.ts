@@ -234,20 +234,19 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
       : timestamped;
 
     if (planNames.length === 0 && scannedPlans.length === 0) {
-      // .md plans without a .json companion are a partial-run signal: the
-      // skill wrote the human-readable artifact but skipped the
-      // machine-readable one the desktop ingests. Surfacing this is more
-      // useful than blaming the spawn prompt, which usually did reach the
-      // model — the trouble is downstream of invocation.
+      // After WS8 the .json is the only contract — the desktop projects
+      // the .md from it, so a stray .md with no .json is either a stale
+      // file from an older run or a contract violation from a newer skill.
+      // Either way the diff-review UI has nothing to ingest.
       const orphanedMd = directoryNames.filter((n) => /^plan-.+\.md$/.test(n));
       const dirSummary = directoryNames.join(", ") || "(empty)";
       const headline =
         orphanedMd.length > 0
-          ? `Claude wrote a plan markdown but no .json companion the desktop can ingest.`
+          ? `A plan markdown is on disk, but no .json the desktop can ingest.`
           : `Claude finished without writing a plan file under the project workspace.`;
       const details =
         orphanedMd.length > 0
-          ? `Found .md plan(s) with no .json sibling: ${orphanedMd.join(", ")}. The skill needs to write both files with matching timestamps; check the job log for an OBELUS_WROTE: marker (absent if the skill exited before the json Write call).`
+          ? `Found .md plan(s) with no .json sibling: ${orphanedMd.join(", ")}. The .json is the contract; the desktop projects the .md from it. A stray .md without a .json means either a leftover file from a previous run or the skill aborted before its Write call.`
           : `The session ended cleanly but emitted no \`OBELUS_WROTE:\` marker and left no plan-*.json behind. Possible causes: the model didn't dispatch the skill (look for tool calls hunting for "plan-writer-fast" or "apply-revision" by name in the job log), or the skill aborted before writing. Workspace contents: ${dirSummary}.`;
       throw new Error(`${headline}\n\n${details}`);
     }

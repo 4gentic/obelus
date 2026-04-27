@@ -182,6 +182,14 @@ export function workspaceDelete(projectId: string): Promise<void> {
   return invoke<void>("workspace_delete", { projectId });
 }
 
+// Project a plan-<iso>.json into a sibling plan-<iso>.md. The plan-fix /
+// plan-writer-fast skills only emit the .json (the contract); the .md is a
+// reading aid produced by the desktop so the model never spends time
+// reasoning about a second shape (WS8). Returns the absolute path to the .md.
+export function planRenderMd(projectId: string, planJsonAbsPath: string): Promise<string> {
+  return invoke<string>("plan_render_md", { projectId, planJsonAbsPath });
+}
+
 // Removes every top-level workspace file whose name embeds `paperId`. Used by
 // the per-paper reset flow. Returns the number of files deleted.
 export function workspaceRemovePaperFiles(projectId: string, paperId: string): Promise<number> {

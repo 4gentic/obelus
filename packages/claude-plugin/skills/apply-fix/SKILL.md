@@ -26,7 +26,7 @@ If the spawn invocation does not give you a value for `$OBELUS_WORKSPACE_DIR`, *
 
 ## Arguments
 
-- `<plan-path>` — absolute path to the plan markdown produced by `apply-revision` / `plan-fix`, under `$OBELUS_WORKSPACE_DIR` (e.g. `<workspace>/plan-<iso>.md`).
+- `<plan-path>` — absolute path to the plan file produced by `apply-revision` / `plan-fix` / `plan-writer-fast`, under `$OBELUS_WORKSPACE_DIR`. Either the JSON contract (`<workspace>/plan-<iso>.json`) or the desktop-projected Markdown (`<workspace>/plan-<iso>.md`) is accepted; when given the `.md`, this skill still loads the sibling `.json` for `format`/`entrypoint` and the structured block list.
 - `--dry-run` (optional, default off) — print the patches that *would* be applied, write the summary file, but do not call `Edit` on any source. Useful before a destructive run on a dirty working tree.
 
 ## Path scope
@@ -61,7 +61,7 @@ The user sees the named path in the summary so they can audit the bundle that pr
 
 0. **Verify target paths.** Before any Read/Edit/Write, walk the parsed blocks and check every `file` against the **Path scope** rules above. A single refused block does not abort the run — skip it and continue — but an Edit/Write tool call for a refused path is a bug, never execute one.
 
-1. Read the plan at `<plan-path>`. Parse each `##` block into `{ annotationId, file, startLine, endLine, before, after, ambiguous }`. The `annotationId` is the heading id (the first of the block's `annotationIds` array); a merged block whose diff satisfies several marks carries an `**Affects**` line listing every contributing id — record those for the summary but key the apply on the heading id.
+1. Read the plan at `<plan-path>`. **The JSON is the contract** — when `<plan-path>` ends in `.json`, parse `blocks[]` directly and treat each entry's `annotationIds[0]` as the heading id (record the rest for the summary). When `<plan-path>` ends in `.md`, also `Read` the sibling `.json` next to it and use the JSON's structured block list as ground truth (the `.md` is a projection, not the contract). Each block's working shape is `{ annotationId, file, patch (`@@ -L,N +L,N @@\\n- before\\n+ after\\n`), ambiguous, emptyReason }`.
 
 2. For each block, in order:
    - If the block's `file` failed step 0, skip. Record as refused.
@@ -72,7 +72,7 @@ The user sees the named path in the summary so they can audit the bundle that pr
 
 3. Do not batch edits. One block, one Edit call. If a block fails to apply, record the reason and continue to the next.
 
-4. **Compile verify (Typst only).** Skip this step entirely on `--dry-run`. Otherwise, open the companion `plan-<iso>.json` next to the `.md` plan and read its top-level `format` and `entrypoint` fields. If `format === "typst"`, `entrypoint !== ""`, and at least one block was applied in step 2, run:
+4. **Compile verify (Typst only).** Skip this step entirely on `--dry-run`. Otherwise, read the plan JSON's top-level `format` and `entrypoint` fields (the same JSON loaded in step 1). If `format === "typst"`, `entrypoint !== ""`, and at least one block was applied in step 2, run:
 
    ```
    typst compile <entrypoint> $OBELUS_WORKSPACE_DIR/rendered/<entrypoint-basename>.pdf --root .

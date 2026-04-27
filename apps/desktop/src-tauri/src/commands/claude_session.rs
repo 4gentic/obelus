@@ -363,7 +363,7 @@ pub async fn claude_spawn(
         // gate Bash (the flag's parsing is uncertain), the model sees the
         // policy here and respects it.
         format!(
-            "/obelus:{} {}\nTool policy: Read, Glob, Write only — no Bash, no Grep, no Edit. One turn: read the source windows the prelude lists, Write the .md and .json plans, end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json` (workspace = {}).\n",
+            "/obelus:{} {}\nTool policy: Read, Glob, Write only — no Bash, no Grep, no Edit. One turn: read the source windows the prelude lists, Write the .json plan (the desktop projects the sibling .md), end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json` (workspace = {}).\n",
             skill_name,
             bundle_abs.display(),
             workspace.display(),
@@ -449,6 +449,8 @@ pub async fn claude_spawn(
             "papers": stats.papers,
             "files": stats.files,
             "bytes": stats.bytes,
+            "model": effective_model,
+            "effort": effective_effort,
         });
         metrics::append_event_bestoffer(&workspace, &session_id, &bundle_stats).await;
         let preflight_event = serde_json::json!({

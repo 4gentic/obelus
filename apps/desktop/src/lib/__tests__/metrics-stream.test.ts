@@ -192,7 +192,7 @@ describe("MetricsStream", () => {
     expect(tool.name).toBe("Glob");
   });
 
-  it("emits a task-call (not tool-call) for Task tool with subagent_type", () => {
+  it("emits a task-call (not tool-call) for an Agent tool_use with subagent_type", () => {
     const stream = fresh();
     feed(stream, [
       {
@@ -203,9 +203,9 @@ describe("MetricsStream", () => {
               {
                 type: "tool_use",
                 id: "tu_task",
-                name: "Task",
+                name: "Agent",
                 input: {
-                  subagent_type: "paper-reviewer",
+                  subagent_type: "obelus:paper-reviewer",
                   description: "Stress-test 3 marks",
                 },
               },
@@ -251,7 +251,7 @@ describe("MetricsStream", () => {
     const task = drained.find((e) => e.event === "task-call");
     expect(task).toBeDefined();
     if (task?.event !== "task-call") throw new Error("typeguard");
-    expect(task.agent).toBe("paper-reviewer");
+    expect(task.agent).toBe("obelus:paper-reviewer");
     expect(task.durationMs).toBe(7_900);
     // Task delta = totals at tool_result minus totals at tool_use.
     // Pre-Task totals: 1000 in / 200 out. After: 2500 in / 800 out

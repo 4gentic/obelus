@@ -10,6 +10,7 @@ pub mod fs_scoped;
 pub mod history;
 pub mod latex;
 pub mod metrics;
+pub mod plan_render;
 pub mod preflight;
 pub mod project;
 pub mod project_meta;

@@ -17,6 +17,7 @@ import {
   compileLatex,
   compileTypst,
   type LatexCompiler,
+  planRenderMd,
   workspacePath,
   workspaceReadFile,
 } from "../ipc/commands";
@@ -328,6 +329,28 @@ async function handleExit(
             await markReviewStatus(reviewSessionId, "failed", detail);
             return;
           }
+        }
+      }
+      // WS8: plan.json is the contract; the desktop projects the .md from it
+      // here so the model never spends time reasoning about a second shape.
+      // Best-effort — projection failure must not block ingest, the diff
+      // review UI reads the .json regardless.
+      if (job.obelusWrotePath?.endsWith(".json")) {
+        try {
+          const tProject = performance.now();
+          const mdPath = await planRenderMd(job.projectId, job.obelusWrotePath);
+          console.info("[plan-render]", {
+            sessionId,
+            jsonPath: job.obelusWrotePath,
+            mdPath,
+            ms: Math.round(performance.now() - tProject),
+          });
+        } catch (err) {
+          console.warn("[plan-render]", {
+            sessionId,
+            jsonPath: job.obelusWrotePath,
+            detail: err instanceof Error ? err.message : String(err),
+          });
         }
       }
       const message = await ingestReview(job.projectId, job.reviewSessionId, job.obelusWrotePath);

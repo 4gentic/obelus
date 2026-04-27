@@ -28,6 +28,13 @@ const BundleStatsEvent = z.object({
   papers: z.number().int().nonnegative(),
   files: z.number().int().nonnegative(),
   bytes: z.number().int().nonnegative(),
+  // Model + effort the run actually used. After WS4 the user can pick
+  // non-default values via the Advanced disclosure on the start-review panel;
+  // historical comparisons mix apples and oranges without these stamped per
+  // event. Strings rather than enums so a future model/effort name does not
+  // break replay of older metrics files.
+  model: z.string(),
+  effort: z.string(),
 });
 
 // Emitted by Rust right after the JSON Schema check passes (or, for a
@@ -144,6 +151,21 @@ const ErrorEvent = z.object({
   message: z.string(),
 });
 
+// WS6: per-export count of how many annotations entered the bundle with each
+// anchor kind. `source` means pre-resolution succeeded (or the anchor was
+// already source-keyed at ingest); the plugin can jump straight to the file
+// span. `pdfFallback` / `htmlFallback` mean the plan-fix skill has to fuzzy
+// match the quote at apply time. Tracked per session to measure the success
+// rate of the desktop's pre-resolution pass.
+const AnchorResolutionEvent = z.object({
+  event: z.literal("anchor-resolution"),
+  at: Iso,
+  sessionId: z.string(),
+  source: z.number().int().nonnegative(),
+  pdfFallback: z.number().int().nonnegative(),
+  htmlFallback: z.number().int().nonnegative(),
+});
+
 export const MetricEvent = z.discriminatedUnion("event", [
   BundleStatsEvent,
   BundleValidatedEvent,
@@ -155,6 +177,7 @@ export const MetricEvent = z.discriminatedUnion("event", [
   PlanStatsEvent,
   ApplyEvent,
   ErrorEvent,
+  AnchorResolutionEvent,
 ]);
 
 export type MetricEvent = z.infer<typeof MetricEvent>;

@@ -1,6 +1,8 @@
 # Worked example — plan-writer-fast
 
-One end-to-end example showing the holistic-merge case (one block satisfying multiple marks). The block template and JSON envelope shape come from the main SKILL.md's **Step 4** and **Step 5** sections.
+One end-to-end example showing the holistic-merge case (one block satisfying multiple marks). The JSON envelope shape comes from the main SKILL.md's **Step 4** section.
+
+The desktop projects a sibling `plan-<iso>.md` from the JSON; this skill never writes Markdown itself.
 
 ## Worked example — one merged block satisfying three marks
 
@@ -38,37 +40,7 @@ Input bundle (relevant fields only):
 }
 ```
 
-Block in `$OBELUS_WORKSPACE_DIR/plan-20260423-143012.md`:
-
-```md
-## 1. enhancement — 770e8400-e29b-41d4-a716-446655440003
-
-**Where**: `paper.tex:10-24`
-**Quote**: "Abstract — We propose a new method..."
-**Note**: too long, tighten — keep contribution + result, drop related-work paragraph
-**Affects**: 770e8400-e29b-41d4-a716-446655440003, 550e8400-e29b-41d4-a716-446655440001, 660e8400-e29b-41d4-a716-446655440002
-
-**Change**:
-```diff
-- Abstract
--
-- We propose a new method. Prior work has explored ... [related-work paragraph]. We present
-- a contrastive training objective, achieving state-of-the-art results on three benchmarks.
-+ Abstract
-+
-+ We present a contrastive training objective that closes the Liu et al. (2024) gap and
-+ improves three benchmark scores by 4-7%.
-```
-
-**Why**: replaces the vague claim with the specific contribution (mark ...440001), drops the hyped phrasing (mark ...440002), and tightens the abstract by dropping the related-work paragraph (mark ...440003).
-
-**Reviewer notes**:
-
-**Ambiguous**: false
-**Empty reason**: none
-```
-
-Matching JSON block (the diff string is shown wrapped for readability; emit it as a single JSON string):
+Matching JSON block in `$OBELUS_WORKSPACE_DIR/plan-20260423-143012.json` (the `patch` string is shown wrapped for readability; emit it as a single JSON string):
 
 ```json
 {
@@ -85,3 +57,5 @@ Matching JSON block (the diff string is shown wrapped for readability; emit it a
   "emptyReason": null
 }
 ```
+
+The merged diff replaces the vague claim with the specific contribution (mark `...440001`), drops the hyped phrasing (mark `...440002`), and tightens the abstract by dropping the related-work paragraph (mark `...440003`). The desktop's projection renders an `**Affects**` line listing all three contributing ids in the user-facing `.md`.
