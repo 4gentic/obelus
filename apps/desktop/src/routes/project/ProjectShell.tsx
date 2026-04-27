@@ -15,6 +15,7 @@ import { type PaneWidths, useProjectLayout } from "./layout-store";
 import MarginGutter from "./MarginGutter";
 import { useOpenPaper, useRefreshOpenPaper } from "./OpenPaper";
 import PaneDivider from "./PaneDivider";
+import { bumpPdfZoom, PDF_ZOOM_BASE, setPdfZoom } from "./pdf-zoom-store";
 import QuickOpenPalette from "./QuickOpenPalette";
 import { useQuickOpenStore } from "./quick-open-store-context";
 import ReviewColumn from "./ReviewColumn";
@@ -24,6 +25,7 @@ import { useWorkingTreeDivergence } from "./use-divergence";
 import { useExternalChangeWatcher } from "./use-external-change-watcher";
 import { useLoadRevision } from "./use-load-revision";
 import { usePaperEdits } from "./use-paper-edits";
+import { useProjectPanels } from "./use-project-panels";
 
 export default function ProjectShell(): JSX.Element {
   const { project, repo, rootId, setOpenFilePath } = useProject();
@@ -54,6 +56,7 @@ export default function ProjectShell(): JSX.Element {
   const divergence = useWorkingTreeDivergence(rootId, project.id, currentDraft);
   const findStore = useFindStore();
   const quickOpenStore = useQuickOpenStore();
+  const panels = useProjectPanels(project.id);
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent): void => {
@@ -98,6 +101,57 @@ export default function ProjectShell(): JSX.Element {
         return;
       }
 
+      // ⌘B / ⌘\ — toggle files / review panels. Match VS Code muscle memory.
+      // Skip when the target is an editor/input — typing should not toggle UI.
+      if (
+        (ev.metaKey || ev.ctrlKey) &&
+        !ev.altKey &&
+        !ev.shiftKey &&
+        (ev.key.toLowerCase() === "b" || ev.key === "\\")
+      ) {
+        const t = ev.target as HTMLElement | null;
+        if (t) {
+          const tag = t.tagName;
+          if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable) {
+            return;
+          }
+        }
+        ev.preventDefault();
+        if (ev.key.toLowerCase() === "b") {
+          // Reviewer projects don't ship with the files panel; ignore the
+          // shortcut there so we don't put the layout in an unreachable state.
+          if (project.kind === "writer") panels.toggleFiles();
+        } else {
+          panels.toggleReview();
+        }
+        return;
+      }
+
+      // PDF zoom: ⌘+ / ⌘− / ⌘0. Only fires when a PDF paper is open. The +
+      // key is reached via Shift+= on US layouts; we accept either keysym so a
+      // localised keyboard that puts + on its own key still works. Skip when
+      // the target is an editor/input — the user is typing.
+      if (
+        (ev.metaKey || ev.ctrlKey) &&
+        !ev.altKey &&
+        (ev.key === "=" || ev.key === "+" || ev.key === "-" || ev.key === "0")
+      ) {
+        const t = ev.target as HTMLElement | null;
+        if (t) {
+          const tag = t.tagName;
+          if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable) {
+            return;
+          }
+        }
+        if (openPaper.kind !== "ready") return;
+        const id = openPaper.paper.id;
+        ev.preventDefault();
+        if (ev.key === "0") setPdfZoom(id, null);
+        else if (ev.key === "-") bumpPdfZoom(id, PDF_ZOOM_BASE, -1);
+        else bumpPdfZoom(id, PDF_ZOOM_BASE, 1);
+        return;
+      }
+
       if (ev.key !== "Escape") return;
       const target = ev.target as HTMLElement | null;
       if (target) {
@@ -125,7 +179,7 @@ export default function ProjectShell(): JSX.Element {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [reviewStore, findStore, quickOpenStore]);
+  }, [reviewStore, findStore, quickOpenStore, openPaper, panels, project.kind]);
 
   // Writer-mode MD/HTML papers don't get a `papers` row until their first mark.
   // `ReviewDraft` (mounted in `ReviewColumn`, a sibling subtree of `CenterPane`)
@@ -152,12 +206,32 @@ export default function ProjectShell(): JSX.Element {
     };
   }, [openPaper, repo, project.id, rootId, refreshOpenPaper]);
 
-  const hideLeft = project.kind === "reviewer";
+  const reviewerForcesHidden = project.kind === "reviewer";
+  const hideLeft = reviewerForcesHidden || panels.filesHidden;
+  const hideReview = panels.reviewHidden;
   const noPdf = openPaper.kind === "none";
   const classes = ["project-shell__body"];
   if (noPdf) classes.push("project-shell__body--no-pdf");
   if (hideLeft) classes.push("project-shell__body--no-left");
+  if (hideReview) classes.push("project-shell__body--no-review");
   const bodyClass = classes.join(" ");
+
+  // Auto-show the review pane on selection or mark focus. We track the most
+  // recent "trigger" — either a new draft anchor (sweep-mark) OR a focused
+  // existing annotation (click on a saved highlight) — and unhide on either
+  // null → non-null transition. If the user actively re-hides while a draft
+  // is live, we don't fight them: this only fires on transition.
+  const selectedAnchor = reviewStore((s) => s.selectedAnchor);
+  const focusedAnnotationId = reviewStore((s) => s.focusedAnnotationId);
+  const prevSelectedRef = useRef<typeof selectedAnchor>(null);
+  const prevFocusedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const selectionAppeared = selectedAnchor !== null && prevSelectedRef.current === null;
+    const focusAppeared = focusedAnnotationId !== null && prevFocusedRef.current === null;
+    if (selectionAppeared || focusAppeared) panels.showReview();
+    prevSelectedRef.current = selectedAnchor;
+    prevFocusedRef.current = focusedAnnotationId;
+  }, [selectedAnchor, focusedAnnotationId, panels]);
 
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const [bodyWidth, setBodyWidth] = useState(0);
@@ -192,12 +266,12 @@ export default function ProjectShell(): JSX.Element {
   // until the state clears.
   const dragApplies = !noPdf && bodyWidth >= 1024;
   const showFilesDivider = dragApplies && !hideLeft;
-  const showMarginDivider = dragApplies && bodyWidth >= 1280;
-  const showReviewDivider = dragApplies;
+  const showMarginDivider = dragApplies && bodyWidth >= 1280 && !hideReview;
+  const showReviewDivider = dragApplies && !hideReview;
 
   const bodyStyle: CSSProperties | undefined =
     widths && dragApplies
-      ? { gridTemplateColumns: composeGridColumns({ hideLeft, bodyWidth, widths }) }
+      ? { gridTemplateColumns: composeGridColumns({ hideLeft, hideReview, bodyWidth, widths }) }
       : undefined;
 
   return (
@@ -211,8 +285,17 @@ export default function ProjectShell(): JSX.Element {
       )}
       <EnsureRevisionProvider value={lazyEnsureRevision}>
         <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
-          {project.kind === "writer" ? (
+          {project.kind === "writer" && !hideLeft ? (
             <div className="project-shell__files">
+              <button
+                type="button"
+                className="panel-hide panel-hide--files"
+                onClick={panels.toggleFiles}
+                aria-label="Hide files panel"
+                title="Hide files (⌘B)"
+              >
+                ×
+              </button>
               <FilesColumn />
               {showFilesDivider ? (
                 <PaneDivider
@@ -232,6 +315,28 @@ export default function ProjectShell(): JSX.Element {
             <div className="quick-open-anchor">
               <QuickOpenPalette />
             </div>
+            {hideLeft && !reviewerForcesHidden && (
+              <button
+                type="button"
+                className="panel-rail panel-rail--left"
+                onClick={panels.toggleFiles}
+                aria-label="Show files panel"
+                title="Show files (⌘B)"
+              >
+                <span className="panel-rail__label">files</span>
+              </button>
+            )}
+            {hideReview && (
+              <button
+                type="button"
+                className="panel-rail panel-rail--right"
+                onClick={panels.toggleReview}
+                aria-label="Show review panel"
+                title="Show review (⌘\\)"
+              >
+                <span className="panel-rail__label">review</span>
+              </button>
+            )}
             <CenterPane />
           </main>
           <div className="project-shell__margin">
@@ -248,25 +353,36 @@ export default function ProjectShell(): JSX.Element {
               <MarginGutter />
             </div>
           </div>
-          <div className="project-shell__review">
-            {showReviewDivider ? (
-              <PaneDivider
-                side="review"
-                bodyRef={bodyRef}
-                hideLeft={hideLeft}
-                valueNow={widths?.reviewWidth}
-                onChange={onReviewResize}
-              />
-            ) : null}
-            <div className="project-shell__review-scroll">
-              <ReviewColumn
-                onApply={apply}
-                onRepass={repass}
-                onDiscard={discard}
-                forkInfo={forkInfo}
-              />
+          {!hideReview && (
+            <div className="project-shell__review">
+              {showReviewDivider ? (
+                <PaneDivider
+                  side="review"
+                  bodyRef={bodyRef}
+                  hideLeft={hideLeft}
+                  valueNow={widths?.reviewWidth}
+                  onChange={onReviewResize}
+                />
+              ) : null}
+              <button
+                type="button"
+                className="panel-hide panel-hide--review"
+                onClick={panels.toggleReview}
+                aria-label="Hide review panel"
+                title="Hide review (⌘\\)"
+              >
+                ×
+              </button>
+              <div className="project-shell__review-scroll">
+                <ReviewColumn
+                  onApply={apply}
+                  onRepass={repass}
+                  onDiscard={discard}
+                  forkInfo={forkInfo}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </EnsureRevisionProvider>
     </div>
@@ -275,13 +391,14 @@ export default function ProjectShell(): JSX.Element {
 
 interface ComposeArgs {
   hideLeft: boolean;
+  hideReview: boolean;
   bodyWidth: number;
   widths: PaneWidths;
 }
 
-function composeGridColumns({ hideLeft, bodyWidth, widths }: ComposeArgs): string {
-  const marginPx = bodyWidth >= 1280 ? `${widths.marginWidth}px` : "0";
-  const reviewPx = `${widths.reviewWidth}px`;
+function composeGridColumns({ hideLeft, hideReview, bodyWidth, widths }: ComposeArgs): string {
+  const marginPx = hideReview ? "0" : bodyWidth >= 1280 ? `${widths.marginWidth}px` : "0";
+  const reviewPx = hideReview ? "0" : `${widths.reviewWidth}px`;
   if (hideLeft) return `minmax(0, 1fr) ${marginPx} ${reviewPx}`;
   return `${widths.filesWidth}px minmax(0, 1fr) ${marginPx} ${reviewPx}`;
 }

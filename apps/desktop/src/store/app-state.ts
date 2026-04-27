@@ -30,7 +30,13 @@ type StoreKey =
   | "lastOpenedProjectId"
   | "currentDeskId"
   | "trustedPapers"
-  | "reviewerThoroughness";
+  | "reviewerThoroughness"
+  | "panelsByProject";
+
+export interface ProjectPanelState {
+  filesHidden: boolean;
+  reviewHidden: boolean;
+}
 
 interface StoreShape {
   windowGeometry: WindowGeometry;
@@ -48,6 +54,10 @@ interface StoreShape {
   // written on toggle. The runner maps this to {model, effort} via
   // THOROUGHNESS_SPAWN at spawn time.
   reviewerThoroughness: ReviewerThoroughness;
+  // Per-project panel visibility (files column on the left, review column on
+  // the right). Absent entry → both panels visible (the default). Persisted
+  // so users who hide a panel keep it hidden across restarts.
+  panelsByProject: Record<string, ProjectPanelState>;
 }
 
 let singleton: Promise<Store> | null = null;
@@ -127,4 +137,28 @@ export async function getReviewerThoroughness(): Promise<ReviewerThoroughness | 
 
 export async function setReviewerThoroughness(value: ReviewerThoroughness): Promise<void> {
   await setAppState("reviewerThoroughness", value);
+}
+
+export async function getProjectPanelState(
+  projectId: string,
+): Promise<ProjectPanelState | undefined> {
+  const map = await getAppState("panelsByProject");
+  return map?.[projectId];
+}
+
+export async function setProjectPanelHidden(
+  projectId: string,
+  side: "files" | "review",
+  hidden: boolean,
+): Promise<void> {
+  const existing = (await getAppState("panelsByProject")) ?? {};
+  const current = existing[projectId] ?? { filesHidden: false, reviewHidden: false };
+  const next: ProjectPanelState =
+    side === "files"
+      ? { filesHidden: hidden, reviewHidden: current.reviewHidden }
+      : { filesHidden: current.filesHidden, reviewHidden: hidden };
+  if (next.filesHidden === current.filesHidden && next.reviewHidden === current.reviewHidden) {
+    return;
+  }
+  await setAppState("panelsByProject", { ...existing, [projectId]: next });
 }
