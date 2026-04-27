@@ -30,7 +30,7 @@
     "verify": "pnpm build && pnpm build:desktop-renderer && pnpm lint && pnpm prompts:check && pnpm typecheck && pnpm test && pnpm e2e && pnpm guard:network && pnpm guard:desktop-only && pnpm guard:bundle-size && pnpm guard:schema-emit"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.12",
+    "@biomejs/biome": "2.4.13",
     "tsx": "4.21.0",
     "typescript": "6.0.3"
   },

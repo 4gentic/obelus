@@ -17,3 +17,4 @@ export { findImageTarget, quoteForImage } from "./image";
 export { rectsFromAnchor } from "./rects";
 export { imageElementToSourceAnchor, selectionToSourceAnchor, verifySourceAnchor } from "./source";
 export type { Anchor, Bbox } from "./types";
+export { snapToWordBounds } from "./word-snap";

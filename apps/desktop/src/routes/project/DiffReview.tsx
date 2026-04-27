@@ -156,6 +156,7 @@ export default function DiffReview(props: Props): JSX.Element {
   }, [annotationsById]);
 
   const [activeFile, setActiveFile] = useState<string | null>(() => files[0] ?? null);
+  const fileListRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (files.length === 0) {
@@ -166,6 +167,18 @@ export default function DiffReview(props: Props): JSX.Element {
       setActiveFile(files[0] ?? null);
     }
   }, [files, activeFile]);
+
+  // Keep the active file row visible inside the now-scrollable list. When a
+  // diff has more files than fit in `max-height`, the list scrolls internally
+  // — without this, clicking a file via the hunk header (or activeFile changing
+  // for any other reason) could leave its row offscreen in the list.
+  useEffect(() => {
+    if (activeFile === null) return;
+    const container = fileListRef.current;
+    if (!container) return;
+    const row = container.querySelector<HTMLElement>(`[data-file-row="${CSS.escape(activeFile)}"]`);
+    row?.scrollIntoView({ block: "nearest" });
+  }, [activeFile]);
 
   const focusedHunk = hunks[focusedIndex];
   const visibleHunks = useMemo(() => {
@@ -506,7 +519,11 @@ export default function DiffReview(props: Props): JSX.Element {
             </button>
           </div>
         </div>
-        <nav className="diff-review__files" aria-label="Files with pending review">
+        <nav
+          className="diff-review__files"
+          aria-label="Files with pending review"
+          ref={fileListRef}
+        >
           {files.map((file) => {
             const bucket = grouped.get(file) ?? [];
             const handled = bucket.filter((h) => h.state !== "pending").length;
@@ -517,6 +534,7 @@ export default function DiffReview(props: Props): JSX.Element {
               <button
                 key={file}
                 type="button"
+                data-file-row={file}
                 className={[
                   "diff-review__file-row",
                   isActive ? "diff-review__file-row--on" : "",
