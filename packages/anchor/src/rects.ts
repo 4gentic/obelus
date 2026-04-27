@@ -24,13 +24,20 @@ function sliceItemRect(
   return [x, base.y, w, base.h] as const;
 }
 
+// Vertical inset (top + bottom, fraction of the line-cell). Without it,
+// adjacent line rects touch — the highlight reads as a slab fill instead of
+// per-line marks. ~12% on each side gives a ~24% gap between rows, matching
+// the breathing room a native HTML ::selection gets via line-height padding.
+const LINE_INSET_RATIO = 0.12;
+
 // Groups per-item rects into one rect per visual line by bucketing on the
 // y-baseline. pdfjs gives every item on the same line the same `y` to within
 // sub-pixel precision; we bucket on `round(y)` for safety. When `minLineHeight`
 // is given, body-text lines bump up to it so a paragraph's per-line rects share
 // a uniform height — eliminates the jagged "g made this line taller than the
 // next one" feel. Headers and large-font runs keep their native height because
-// we only enlarge, never shrink.
+// we only enlarge, never shrink. Each rect is then inset symmetrically so
+// adjacent rows don't touch.
 function mergeByLine(rects: ReadonlyArray<Bbox>, minLineHeight?: number): Bbox[] {
   const buckets = new Map<number, { minX: number; maxX: number; y: number; h: number }>();
   for (const [x, y, w, h] of rects) {
@@ -47,8 +54,9 @@ function mergeByLine(rects: ReadonlyArray<Bbox>, minLineHeight?: number): Bbox[]
   return Array.from(buckets.values())
     .sort((a, b) => a.y - b.y)
     .map((b) => {
-      const h = minLineHeight !== undefined && minLineHeight > b.h ? minLineHeight : b.h;
-      return [b.minX, b.y, b.maxX - b.minX, h] as Bbox;
+      const fullH = minLineHeight !== undefined && minLineHeight > b.h ? minLineHeight : b.h;
+      const inset = fullH * LINE_INSET_RATIO;
+      return [b.minX, b.y + inset, b.maxX - b.minX, fullH - inset * 2] as Bbox;
     });
 }
 

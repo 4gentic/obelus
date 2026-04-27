@@ -206,10 +206,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 0 340px;
   }
-  .project-shell__body--no-pdf {
+  .project-shell__body--no-pdf,
+  .project-shell__body--no-review {
     grid-template-columns: 220px minmax(0, 1fr) 0 0;
   }
-  .project-shell__body--no-left.project-shell__body--no-pdf {
+  .project-shell__body--no-left.project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
   .project-shell__margin {
@@ -226,10 +228,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 0 300px;
   }
-  .project-shell__body--no-pdf {
+  .project-shell__body--no-pdf,
+  .project-shell__body--no-review {
     grid-template-columns: 180px minmax(0, 1fr) 0 0;
   }
-  .project-shell__body--no-left.project-shell__body--no-pdf {
+  .project-shell__body--no-left.project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
 }
@@ -242,7 +246,9 @@
     grid-template-columns: minmax(0, 1fr) 0 260px;
   }
   .project-shell__body--no-pdf,
-  .project-shell__body--no-left.project-shell__body--no-pdf {
+  .project-shell__body--no-review,
+  .project-shell__body--no-left.project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
   .files {
@@ -260,10 +266,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 220px minmax(420px, 32%);
   }
-  .project-shell__body--no-pdf {
+  .project-shell__body--no-pdf,
+  .project-shell__body--no-review {
     grid-template-columns: 220px minmax(0, 1fr) 0 0;
   }
-  .project-shell__body--no-left.project-shell__body--no-pdf {
+  .project-shell__body--no-left.project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
 }
@@ -275,10 +283,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 240px minmax(480px, 36%);
   }
-  .project-shell__body--no-pdf {
+  .project-shell__body--no-pdf,
+  .project-shell__body--no-review {
     grid-template-columns: 240px minmax(0, 1fr) 0 0;
   }
-  .project-shell__body--no-left.project-shell__body--no-pdf {
+  .project-shell__body--no-left.project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
 }
