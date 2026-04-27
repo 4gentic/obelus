@@ -29,7 +29,7 @@
     "@obelus/review-shell": "workspace:*",
     "@obelus/review-store": "workspace:*",
     "dexie": "4.4.2",
-    "pdfjs-dist": "5.6.205",
+    "pdfjs-dist": "5.7.284",
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "react-router-dom": "7.14.2",
