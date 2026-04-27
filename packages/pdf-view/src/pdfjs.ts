@@ -32,7 +32,6 @@ export async function loadDocument(data: ArrayBuffer): Promise<PDFDocumentProxy>
     cMapUrl: `${base}cmaps/`,
     cMapPacked: true,
     standardFontDataUrl: `${base}standard_fonts/`,
-    isEvalSupported: false,
     verbosity: 0,
   });
   return task.promise;

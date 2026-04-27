@@ -10,16 +10,41 @@ import SelectionListener from "./SelectionListener";
 
 const BASE_SCALE = 1.25;
 const SAFETY_MIN_SCALE = 0.25;
+const FIT_MAX_SCALE = 2;
 const PDF_POINT_WIDTH = 612;
+
+// Render-time padding around stored rects so highlights cover the visual
+// line-box (cap-line + leading + descender) the way Acrobat does, not just the
+// glyph bounding box pdfjs reports. mergeByLine already extends each rect to
+// the page's median baseline-to-baseline distance, so these pads only need to
+// extend a touch further to make adjacent rects abut without seam. Overlap on
+// translucent fills produces a darker double-stripe; aim for tile, not stack.
+const HL_PAD_TOP = 0.1;
+const HL_PAD_BOTTOM = 0.14;
+
+function hlStyle(x: number, y: number, w: number, h: number, s: number) {
+  const padT = h * HL_PAD_TOP;
+  const padB = h * HL_PAD_BOTTOM;
+  return {
+    left: x * s,
+    top: (y - padT) * s,
+    width: w * s,
+    height: (h + padT + padB) * s,
+  };
+}
 
 // The adapter's inner clientWidth already excludes the scroll container's
 // right-padding (which reserves the 220px gutter on desktop). At the mobile
 // breakpoint the padding shrinks, so the adapter picks up the larger width
 // automatically without any knowledge of the layout mode.
+// Auto-fit grows the PDF to fill the column up to FIT_MAX_SCALE. Previously
+// capped at BASE_SCALE (125%), which left visible empty gutters on wider
+// screens. Manual zoom still exceeds this through `zoomOverride`, clamped
+// independently in pdf-zoom-store.
 function pickScale(columnWidth: number): number {
   if (columnWidth <= 0) return SAFETY_MIN_SCALE;
   const fit = columnWidth / PDF_POINT_WIDTH;
-  return Math.max(SAFETY_MIN_SCALE, Math.min(BASE_SCALE, fit));
+  return Math.max(SAFETY_MIN_SCALE, Math.min(FIT_MAX_SCALE, fit));
 }
 
 type Params = {
@@ -38,6 +63,27 @@ type Params = {
   highlightClassName?: string;
   /** Extra overlay injected into each page (e.g. find-match highlights). */
   renderExtraOverlay?: (pageIndex: number, scale: number) => ReactNode;
+  /**
+   * Manual zoom override. When non-null, replaces the auto-fit scale and the
+   * ResizeObserver no longer drives `scale`. Null (the default) keeps the
+   * existing fit-to-width behaviour. Caller is responsible for clamping.
+   */
+  zoomOverride?: number | null;
+  /**
+   * Notified whenever the measured auto-fit scale changes. Lets a host store
+   * step zoom relative to the live fit-to-width value instead of a fixed
+   * baseline — without this, "+" from Auto can visibly shrink on wide
+   * columns where autoScale > the baseline. Optional so `apps/web` consumers
+   * can ignore it.
+   */
+  onAutoScaleChange?: (scale: number) => void;
+  /**
+   * When true, switch the document into pan mode: cursor becomes grab/grabbing,
+   * mousedown-drag scrolls the surrounding `.review-shell__scroll` container
+   * instead of starting a text selection, and the text layer is set
+   * non-selectable so accidental blue-painting never appears mid-pan.
+   */
+  panMode?: boolean;
 };
 
 type PageRect = { top: number; left: number };
@@ -52,25 +98,36 @@ export function usePdfDocumentView({
   onFocusMark,
   highlightClassName = "review-shell__hl",
   renderExtraOverlay,
+  zoomOverride = null,
+  onAutoScaleChange,
+  panMode = false,
 }: Params): DocumentView {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(BASE_SCALE);
+  const [autoScale, setAutoScale] = useState(BASE_SCALE);
   const [pageRects, setPageRects] = useState<PageRect[]>([]);
   const pageCount = doc.numPages;
+  const scale = zoomOverride ?? autoScale;
 
+  // Auto-fit measurement runs regardless of `zoomOverride` so the host store
+  // always has a current fit-to-width baseline to step from. The render path
+  // (`scale = zoomOverride ?? autoScale`) decides which one to draw with.
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const measure = (): void => {
       const w = el.clientWidth;
       const next = pickScale(w);
-      setScale((prev) => (Math.abs(prev - next) < 0.01 ? prev : next));
+      setAutoScale((prev) => (Math.abs(prev - next) < 0.01 ? prev : next));
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  useLayoutEffect(() => {
+    onAutoScaleChange?.(autoScale);
+  }, [autoScale, onAutoScaleChange]);
 
   // Per-page slot offsets relative to the nearest positioned ancestor (which
   // is `.review-shell__scroll`, not this adapter's own root — we leave the
@@ -185,7 +242,7 @@ export function usePdfDocumentView({
               className={cls}
               data-category={row.category}
               data-focused={focusedId === row.id ? "true" : undefined}
-              style={{ left: x * s, top: y * s, width: w * s, height: h * s }}
+              style={hlStyle(x, y, w, h, s)}
             />
           );
         });
@@ -203,7 +260,7 @@ export function usePdfDocumentView({
                   key={`draft-${pageIndex}-${x}-${y}`}
                   className={draftCls}
                   data-category={draftCategory ?? undefined}
-                  style={{ left: x * s, top: y * s, width: w * s, height: h * s }}
+                  style={hlStyle(x, y, w, h, s)}
                 />
               );
             });
@@ -257,8 +314,13 @@ export function usePdfDocumentView({
   const content = (
     // biome-ignore lint/a11y/useKeyWithClickEvents: event delegation for annotation hit-testing; keyboard path is the margin notes list.
     // biome-ignore lint/a11y/noStaticElementInteractions: event delegation for hit-test; static div wraps a PDF canvas, not a semantic control.
-    <div ref={containerRef} className="pdf-adapter" onClick={onHitTest}>
-      <SelectionListener onAnchor={handleAnchor}>
+    <div
+      ref={containerRef}
+      className="pdf-adapter"
+      data-pan-mode={panMode ? "true" : undefined}
+      onClick={onHitTest}
+    >
+      <SelectionListener onAnchor={handleAnchor} panMode={panMode}>
         <PdfDocument doc={doc} scale={scale} renderPageOverlay={renderPageOverlay} />
       </SelectionListener>
     </div>

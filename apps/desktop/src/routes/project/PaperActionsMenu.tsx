@@ -66,20 +66,24 @@ export default function PaperActionsMenu({ paper }: PaperActionsMenuProps): JSX.
     function onKey(e: KeyboardEvent): void {
       if (e.key === "Escape") setOpen(false);
     }
-    function onScrollOrResize(): void {
-      reposition();
+    // Any scroll or resize closes the menu — Mac-native behaviour, and it
+    // sidesteps the previous reposition complexity that left the popover
+    // in a stuck state after scrolling with marks present. The user can
+    // reopen with one click.
+    function close(): void {
+      setOpen(false);
     }
     document.addEventListener("mousedown", onClick);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("resize", onScrollOrResize);
-    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
     return () => {
       document.removeEventListener("mousedown", onClick);
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("resize", onScrollOrResize);
-      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
     };
-  }, [open, reposition]);
+  }, [open]);
 
   const onExport = useCallback(async () => {
     setOpen(false);

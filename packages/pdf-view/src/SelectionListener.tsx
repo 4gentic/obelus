@@ -16,6 +16,7 @@ import {
   planPage,
   resolveEndpointToAnchor,
   snapshotEndpoint,
+  snapToWordBounds,
 } from "@obelus/anchor";
 import type { TextItem } from "pdfjs-dist/types/src/display/api";
 import type { JSX } from "react";
@@ -28,6 +29,12 @@ type Props = {
     quote: string,
     itemsByPage: ReadonlyMap<number, ReadonlyArray<TextItem>>,
   ) => void;
+  /**
+   * When true, mousedown-drag pans the surrounding `.review-shell__scroll`
+   * container instead of starting a text selection. Toggled by the host (the
+   * desktop app's tool toggle, or its held-Space override).
+   */
+  panMode?: boolean;
   children: ReactNode;
 };
 
@@ -164,7 +171,11 @@ function snapshotPage(
   return { pageIndex, firstIntersectedItem: first, lastIntersectedItem: last };
 }
 
-export default function SelectionListener({ onAnchor, children }: Props): JSX.Element {
+export default function SelectionListener({
+  onAnchor,
+  panMode = false,
+  children,
+}: Props): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
   // The quote we computed geometrically from the user's drag — what they
   // actually selected. The native pdf.js Range gets this wrong (its boundaries
@@ -190,7 +201,66 @@ export default function SelectionListener({ onAnchor, children }: Props): JSX.El
     return () => document.removeEventListener("copy", onCopy);
   }, []);
 
+  // Pan-mode handler: a separate effect so its lifecycle is keyed on `panMode`
+  // alone, and the selection effect doesn't churn its quoteRef on tool toggles.
+  // We attach mousedown to the host (so click-outside doesn't pan), but
+  // mousemove/mouseup at the document level so a drag that leaves the host
+  // doesn't strand the user mid-pan.
   useEffect(() => {
+    if (!panMode) return;
+    const host = hostRef.current;
+    if (!host) return;
+    const adapter = host.closest<HTMLElement>(".pdf-adapter");
+    const scroll = host.closest<HTMLElement>(".review-shell__scroll");
+    if (!scroll) return;
+
+    let active = false;
+    let originX = 0;
+    let originY = 0;
+    let scrollLeft0 = 0;
+    let scrollTop0 = 0;
+
+    const onMove = (ev: MouseEvent): void => {
+      if (!active) return;
+      const dx = ev.clientX - originX;
+      const dy = ev.clientY - originY;
+      scroll.scrollLeft = scrollLeft0 - dx;
+      scroll.scrollTop = scrollTop0 - dy;
+    };
+    const onUp = (): void => {
+      if (!active) return;
+      active = false;
+      adapter?.removeAttribute("data-panning");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    const onDown = (ev: MouseEvent): void => {
+      if (!(ev.target instanceof Node) || !host.contains(ev.target)) return;
+      // Suppress text-selection caret placement and clear any prior selection
+      // so the blue paint doesn't appear under the hand.
+      ev.preventDefault();
+      window.getSelection()?.removeAllRanges();
+      active = true;
+      originX = ev.clientX;
+      originY = ev.clientY;
+      scrollLeft0 = scroll.scrollLeft;
+      scrollTop0 = scroll.scrollTop;
+      adapter?.setAttribute("data-panning", "true");
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    };
+
+    host.addEventListener("mousedown", onDown);
+    return () => {
+      host.removeEventListener("mousedown", onDown);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      adapter?.removeAttribute("data-panning");
+    };
+  }, [panMode]);
+
+  useEffect(() => {
+    if (panMode) return;
     const host = hostRef.current;
     if (!host) return;
 
@@ -262,8 +332,14 @@ export default function SelectionListener({ onAnchor, children }: Props): JSX.El
         if (!items) continue;
         const entry = planPage(startEp, endEp, snap, items.length);
         if (!entry) continue;
-        const anchor = resolveEndpointToAnchor(entry, items);
-        if (anchor) resolved.push({ anchor, items });
+        const raw = resolveEndpointToAnchor(entry, items);
+        if (!raw) continue;
+        // Word-snap only when the user actually dragged. Double-click word
+        // selection (didDrag === false) already lands on word bounds via the
+        // browser's native expansion — touching that path would extend a
+        // single-word selection into surrounding words on a hyphen.
+        const anchor = didDrag ? snapToWordBounds(raw, items) : raw;
+        resolved.push({ anchor, items });
       }
       if (resolved.length === 0) return;
       const itemsByPage = new Map<number, ReadonlyArray<TextItem>>();
@@ -285,7 +361,7 @@ export default function SelectionListener({ onAnchor, children }: Props): JSX.El
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("mouseup", handler);
     };
-  }, [onAnchor]);
+  }, [onAnchor, panMode]);
 
   return (
     <div ref={hostRef} className="selection-listener">
