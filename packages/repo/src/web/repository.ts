@@ -52,6 +52,7 @@ const reviewSessionsStub: ReviewSessionsRepo = {
 const diffHunksStub: DiffHunksRepo = {
   listForSession: () => Promise.reject(new NotSupportedError("diffHunks")),
   upsertMany: () => Promise.reject(new NotSupportedError("diffHunks")),
+  appendMany: () => Promise.reject(new NotSupportedError("diffHunks")),
   setState: () => Promise.reject(new NotSupportedError("diffHunks")),
   setModifiedPatch: () => Promise.reject(new NotSupportedError("diffHunks")),
   setNote: () => Promise.reject(new NotSupportedError("diffHunks")),

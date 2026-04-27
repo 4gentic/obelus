@@ -29,6 +29,7 @@ import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
 import { createReviewProgressStore } from "./review-progress-store";
 import {
+  type DeepReviewOptions,
   ReviewRunnerContext,
   type ReviewRunnerMode,
   type RunCounts,
@@ -415,8 +416,67 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
     await claudeCancel(active.claudeSessionId);
   }, [activePaperId]);
 
+  const startDeepReview = useCallback(
+    async (opts: DeepReviewOptions): Promise<void> => {
+      const startedAt = Date.now();
+      try {
+        const session = await repo.reviewSessions.get(opts.reviewSessionId);
+        if (!session) throw new Error(`review session ${opts.reviewSessionId} not found`);
+        const paper = await repo.papers.get(opts.paperId);
+
+        const [overrides, dispatchPick] = await Promise.all([
+          loadClaudeOverrides(),
+          getReviewDispatchPick(),
+        ]);
+        const effectiveModel: string | null = opts.model ?? dispatchPick?.model ?? overrides.model;
+        const effectiveEffort: string | null =
+          opts.effort ?? dispatchPick?.effort ?? overrides.effort;
+
+        const claudeSessionId = await claudeSpawn({
+          rootId,
+          projectId: project.id,
+          bundleWorkspaceRelPath: opts.planWorkspaceRelPath,
+          model: effectiveModel,
+          effort: effectiveEffort,
+          mode: "deep-review",
+        });
+        await repo.reviewSessions.setClaudeSessionId(opts.reviewSessionId, claudeSessionId);
+
+        useJobsStore.getState().register({
+          claudeSessionId,
+          projectId: project.id,
+          projectLabel: project.label,
+          rootId,
+          kind: "review",
+          startedAt,
+          reviewSessionId: opts.reviewSessionId,
+          paperId: opts.paperId,
+          ...(paper?.title ? { paperTitle: paper.title } : {}),
+        });
+        console.info("[deep-review-spawn]", {
+          reviewSessionId: opts.reviewSessionId,
+          claudeSessionId,
+          planPath: opts.planWorkspaceRelPath,
+          model: effectiveModel,
+          effort: effectiveEffort,
+        });
+      } catch (err) {
+        const detail =
+          err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+        const message = `Could not start deep review: ${detail}`;
+        console.warn("[deep-review-start]", {
+          reviewSessionId: opts.reviewSessionId,
+          paperId: opts.paperId,
+          detail,
+        });
+        setLocal({ kind: "error", paperId: opts.paperId, message });
+      }
+    },
+    [repo, project.id, project.label, rootId],
+  );
+
   return (
-    <ReviewRunnerContext.Provider value={{ status, start, cancel, progressStore }}>
+    <ReviewRunnerContext.Provider value={{ status, start, startDeepReview, cancel, progressStore }}>
       {children}
     </ReviewRunnerContext.Provider>
   );

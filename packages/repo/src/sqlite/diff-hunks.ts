@@ -88,6 +88,32 @@ const SELECT = `SELECT id, session_id, annotation_ids_json, file, category, patc
          reviewer_notes, ordinal, apply_failure_json
   FROM diff_hunks`;
 
+function insertStmt(sessionId: string, r: DiffHunkRow): TxStmt {
+  return {
+    sql: `INSERT INTO diff_hunks
+            (id, session_id, annotation_ids_json, file, category, patch,
+             modified_patch_text, state, ambiguous, empty_reason, note_text,
+             reviewer_notes, ordinal, apply_failure_json)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+    params: [
+      r.id,
+      sessionId,
+      JSON.stringify(r.annotationIds),
+      r.file,
+      r.category,
+      r.patch,
+      r.modifiedPatchText,
+      r.state,
+      r.ambiguous ? 1 : 0,
+      r.emptyReason,
+      r.noteText,
+      r.reviewerNotes,
+      r.ordinal,
+      r.applyFailure === null ? null : JSON.stringify(r.applyFailure),
+    ],
+  };
+}
+
 export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
   return {
     async listForSession(sessionId: string): Promise<DiffHunkRow[]> {
@@ -103,30 +129,14 @@ export function buildDiffHunksRepo(db: Database): DiffHunksRepo {
         { sql: "DELETE FROM diff_hunks WHERE session_id = $1", params: [sessionId] },
       ];
       for (const r of rows) {
-        stmts.push({
-          sql: `INSERT INTO diff_hunks
-                  (id, session_id, annotation_ids_json, file, category, patch,
-                   modified_patch_text, state, ambiguous, empty_reason, note_text,
-                   reviewer_notes, ordinal, apply_failure_json)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-          params: [
-            r.id,
-            sessionId,
-            JSON.stringify(r.annotationIds),
-            r.file,
-            r.category,
-            r.patch,
-            r.modifiedPatchText,
-            r.state,
-            r.ambiguous ? 1 : 0,
-            r.emptyReason,
-            r.noteText,
-            r.reviewerNotes,
-            r.ordinal,
-            r.applyFailure === null ? null : JSON.stringify(r.applyFailure),
-          ],
-        });
+        stmts.push(insertStmt(sessionId, r));
       }
+      await dbTxBatch(stmts);
+    },
+
+    async appendMany(sessionId: string, rows: ReadonlyArray<DiffHunkRow>): Promise<void> {
+      if (rows.length === 0) return;
+      const stmts: TxStmt[] = rows.map((r) => insertStmt(sessionId, r));
       await dbTxBatch(stmts);
     },
 

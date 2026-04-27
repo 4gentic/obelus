@@ -261,6 +261,9 @@ fn claude_command(
 pub async fn claude_spawn(
     root_id: String,
     project_id: String,
+    // For "writer-fast" / "rigorous", this is the workspace-relative path to
+    // the bundle JSON. For "deep-review", it is the workspace-relative path to
+    // an already-written `plan-<iso>.json` the deep-review skill should read.
     bundle_workspace_rel_path: String,
     extra_prompt_body: Option<String>,
     model: Option<String>,
@@ -283,51 +286,56 @@ pub async fn claude_spawn(
         .resolve("plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
 
-    // Schema-validate the bundle before doing any other work. The model used
-    // to do this in the apply-revision skill by reading the schema and the
-    // bundle and reasoning about them; that's a deterministic check, so it
-    // belongs here. A failure aborts the spawn — no session id, no metrics
-    // row — and the desktop surfaces the first few errors verbatim.
-    let validation_started = std::time::Instant::now();
-    let bundle_value: serde_json::Value = match tokio::fs::read(&bundle_abs).await {
-        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| {
-            AppError::Other(format!("bundle parse failed at {}: {e}", bundle_abs.display()))
-        })?,
-        Err(e) => {
-            return Err(AppError::Other(format!(
-                "bundle read failed at {}: {e}",
-                bundle_abs.display()
-            )));
-        }
-    };
-    if let Err(errors) = preflight::validate_bundle_against_schema(&bundle_value, &plugin_dir) {
-        eprintln!(
-            "[claude-session] bundle validation failed bundle={} errors={:?}",
-            bundle_abs.display(),
-            errors,
-        );
-        return Err(AppError::Other(format!(
-            "bundle does not match schema: {}",
-            errors.join("; ")
-        )));
-    }
-    let validation_ms = validation_started.elapsed().as_millis();
-
-    // `mode` switches the orchestrator: writer-fast routes to the one-turn
-    // plan-writer-fast skill on Haiku (no subagent, no impact / coherence
-    // sweeps); any other value (including `None` and the explicit `rigorous`)
-    // falls through to apply-revision → plan-fix on Sonnet — the existing
-    // structural-review path. The skill name picked here is the routing
-    // decision; both skills emit the same OBELUS_WROTE marker so the desktop's
-    // ingest path is identical for both.
+    // `mode` switches the orchestrator. writer-fast → one-turn plan-writer-fast
+    // skill on Haiku (no subagent, no impact / coherence sweeps). deep-review →
+    // the user-invocable deep-review skill, which reads an already-written
+    // rigorous plan and emits additional `quality-*` blocks. Anything else
+    // (including `None` and the explicit `rigorous`) falls through to
+    // apply-revision → plan-fix on Sonnet — the existing structural-review
+    // path. All three skills emit the same OBELUS_WROTE marker so the
+    // desktop's ingest path is identical.
     let writer_fast = matches!(mode.as_deref(), Some("writer-fast"));
+    let deep_review = matches!(mode.as_deref(), Some("deep-review"));
     if let Some(other) = mode.as_deref() {
-        if other != "writer-fast" && other != "rigorous" {
+        if other != "writer-fast" && other != "rigorous" && other != "deep-review" {
             eprintln!(
                 "[claude-session] unknown mode {other:?}; falling through to apply-revision",
             );
         }
     }
+
+    // Schema-validate the bundle before doing any other work — but only when
+    // the workspace path actually points at a bundle. For deep-review the path
+    // is a plan JSON, not a bundle, and validating it against the bundle
+    // schema would error out a perfectly valid invocation.
+    let validation_ms: u128 = if deep_review {
+        0
+    } else {
+        let validation_started = std::time::Instant::now();
+        let bundle_value: serde_json::Value = match tokio::fs::read(&bundle_abs).await {
+            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| {
+                AppError::Other(format!("bundle parse failed at {}: {e}", bundle_abs.display()))
+            })?,
+            Err(e) => {
+                return Err(AppError::Other(format!(
+                    "bundle read failed at {}: {e}",
+                    bundle_abs.display()
+                )));
+            }
+        };
+        if let Err(errors) = preflight::validate_bundle_against_schema(&bundle_value, &plugin_dir) {
+            eprintln!(
+                "[claude-session] bundle validation failed bundle={} errors={:?}",
+                bundle_abs.display(),
+                errors,
+            );
+            return Err(AppError::Other(format!(
+                "bundle does not match schema: {}",
+                errors.join("; ")
+            )));
+        }
+        validation_started.elapsed().as_millis()
+    };
 
     // `extra_prompt_body` is supplementary context (prior drafts, indications,
     // per-pass notes) appended after the skill invocation — never the whole
@@ -344,6 +352,8 @@ pub async fn claude_spawn(
     // $OBELUS_WORKSPACE_DIR; it doesn't need the tool-policy hammer.
     let skill_name = if writer_fast {
         "plan-writer-fast"
+    } else if deep_review {
+        "deep-review"
     } else {
         "apply-revision"
     };
@@ -368,6 +378,20 @@ pub async fn claude_spawn(
             bundle_abs.display(),
             workspace.display(),
         )
+    } else if deep_review {
+        // deep-review takes a plan path, not a bundle path, and writes a sibling
+        // `plan-<original-iso>-deep.json` under the same workspace. Its
+        // frontmatter allows Read / Glob / Grep / Write only — Edit is off, the
+        // skill never mutates source. The Rust-side prelude is bundle-shaped
+        // (anchor histograms, locator windows, whole-paper read list), so we
+        // skip it here; the deep-review skill reads the original plan + the
+        // bundle the plan points at on its own.
+        format!(
+            "/obelus:{} {}\nTool policy for this run: Read, Glob, Grep, Write only — no Edit, no Bash. Write only inside $OBELUS_WORKSPACE_DIR ({}). The skill must end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<original-iso>-deep.json`.\n",
+            skill_name,
+            bundle_abs.display(),
+            workspace.display(),
+        )
     } else {
         format!(
             "/obelus:{} {}\nTool policy for this run: write only inside $OBELUS_WORKSPACE_DIR ({}). Do NOT use Edit, Write, or any tool that mutates a source file under the project working tree — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json`.\n",
@@ -379,15 +403,19 @@ pub async fn claude_spawn(
 
     // The prelude carries pre-computed metadata the skill would otherwise
     // re-derive turn by turn (format, entrypoint, anchor histogram, source
-    // windows, rubric presence). Both SKILL.md files trust it as ground
-    // truth; missing prelude (corrupt bundle, etc.) falls back to the skill's
-    // host-less validation path.
-    let mode_kind = if writer_fast {
-        preflight::Mode::WriterFast
+    // windows, rubric presence). Both bundle-shaped SKILL.md files trust it as
+    // ground truth; missing prelude (corrupt bundle, etc.) falls back to the
+    // skill's host-less validation path. deep-review takes a plan, not a
+    // bundle, so the bundle-shaped prelude does not apply — the skill reads
+    // the original plan and the bundle it references itself.
+    let metrics_seed: Option<(preflight::BundleStats, preflight::PreludeTimings)> = if deep_review {
+        None
     } else {
-        preflight::Mode::Rigorous
-    };
-    let metrics_seed: Option<(preflight::BundleStats, preflight::PreludeTimings)> =
+        let mode_kind = if writer_fast {
+            preflight::Mode::WriterFast
+        } else {
+            preflight::Mode::Rigorous
+        };
         match preflight::build_prelude_with_metrics(&bundle_abs, &root, &plugin_dir, mode_kind) {
             Some((prelude, stats, timings)) => {
                 base.push('\n');
@@ -398,7 +426,8 @@ pub async fn claude_spawn(
                 Some((stats, timings))
             }
             None => None,
-        };
+        }
+    };
 
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 

@@ -117,7 +117,7 @@ This skill delegates the actual planning to `plan-fix`, which writes the plan JS
    > Read the plan at `<path>`. When you're ready to apply it, run:
    > `/skill apply-fix <path>`
 
-   If `plan-fix` emitted any `cascade-*`, `impact-*`, or `quality-*` blocks, add one sentence naming them: the plan may include `cascade-*` blocks proposing the same swap at other occurrences, `impact-*` flag-notes at downstream sites that may need author reconsideration, and `quality-*` blocks from the rubric-driven holistic pass — the user can accept, reject, or ignore each individually from the diff-review UI. Do not invoke `apply-fix` yourself. It is user-triggered by design.
+   If `plan-fix` emitted any `cascade-*` or `impact-*` blocks, add one sentence naming them: the plan may include `cascade-*` blocks proposing the same swap at other occurrences and `impact-*` flag-notes at downstream sites that may need author reconsideration — the user can accept, reject, or ignore each individually from the diff-review UI. If you want a holistic second-pair-of-eyes review beyond your marks, the desktop's plan-review panel has a Run deep review affordance. Do not invoke `apply-fix` yourself. It is user-triggered by design.
 
 ## Refusals
 
@@ -141,11 +141,11 @@ Detected latex source at main.tex.
 
 [stdout]
 <workspace>/plan-20260423-143012.json
-Wrote 8 blocks (1 citation-needed, 1 unclear, 1 praise, 2 cascade, 3 quality) — 0 ambiguous.
+Wrote 5 blocks (1 citation-needed, 1 unclear, 1 praise, 2 cascade) — 0 ambiguous.
 
 Read the plan at <workspace>/plan-20260423-143012.md. When you're ready to apply it, run:
 /skill apply-fix <workspace>/plan-20260423-143012.json
-The plan includes 2 cascade-* blocks proposing the same swap as one of your marks at two other occurrences and 3 quality-* blocks from the rubric-driven holistic pass — review and accept/reject each individually from the diff-review UI.
+The plan includes 2 cascade-* blocks proposing the same swap as one of your marks at two other occurrences — review and accept/reject each individually from the diff-review UI. If you want a holistic second-pair-of-eyes review beyond your marks, the desktop's plan-review panel has a Run deep review affordance.
 
 OBELUS_WROTE: <workspace>/plan-20260423-143012.json
 ```
@@ -168,11 +168,11 @@ Detected typst source at papers/c/main.typ for "Paper C".
 
 [stdout]
 <workspace>/plan-20260423-143012.json
-Wrote 13 blocks (Paper A: 3 + 1 cascade + 2 quality, Paper B: 2 + 1 quality, Paper C: 2 + 1 impact + 1 quality) — 1 ambiguous (paper-b).
+Wrote 9 blocks (Paper A: 3 + 1 cascade, Paper B: 2, Paper C: 2 + 1 impact) — 1 ambiguous (paper-b).
 
 Read the plan at <workspace>/plan-20260423-143012.md. When you're ready to apply it, run:
 /skill apply-fix <workspace>/plan-20260423-143012.json
-The plan includes 1 cascade-* block, 1 impact-* flag-note, and 4 quality-* blocks from the rubric-driven holistic pass — review and accept/reject each individually from the diff-review UI.
+The plan includes 1 cascade-* block and 1 impact-* flag-note — review and accept/reject each individually from the diff-review UI. If you want a holistic second-pair-of-eyes review beyond your marks, the desktop's plan-review panel has a Run deep review affordance.
 
 OBELUS_WROTE: <workspace>/plan-20260423-143012.json
 ```

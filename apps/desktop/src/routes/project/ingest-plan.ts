@@ -76,6 +76,12 @@ export interface IngestPlanResult {
   synthesisedKept: number;
   scannedPlans: string[];
   hasSources: boolean;
+  // True iff this ingest appended to existing rows (deep-review plan riding
+  // on top of an already-ingested rigorous plan) rather than replacing them.
+  additive: boolean;
+  // Number of hunks that were already in the session before this ingest. Zero
+  // for non-additive runs; the count of pre-deep-review rows otherwise.
+  existingHunkCount: number;
 }
 
 // Synthesised blocks carry IDs the planner invents (they have no row in the
@@ -147,6 +153,15 @@ export function partitionPlanBlocks<T extends PlanBlockLike>(
 function basename(p: string): string {
   const slash = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
   return slash < 0 ? p : p.slice(slash + 1);
+}
+
+// Deep-review plans land alongside the original rigorous plan with a `-deep`
+// suffix before the `.json` extension. The desktop ingests them additively:
+// the original plan's hunks must survive while the new `quality-*` blocks land
+// on top. Centralised here so the filename convention is the only signal that
+// drives mode detection on the desktop side.
+export function isDeepReviewPlanName(name: string): boolean {
+  return /-deep\.json$/.test(name);
 }
 
 function toWorkspaceRel(workspaceAbs: string, hintPath: string): string | null {
@@ -224,7 +239,10 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     // Timestamped plans first (newest → oldest), then the bare fallback. A
     // plain lex sort would put `plan.json` ahead of `plan-<iso>.json` after
     // reverse because `-` < `.`, which lets a stale bare plan shadow the
-    // current timestamped one.
+    // current timestamped one. The deep-review suffix sorts later than the
+    // bare timestamped sibling on a reverse-lex sort (`-deep.json` > `.json`),
+    // which is what we want: when a deep-review plan and its parent rigorous
+    // plan are both on disk, the deep-review one is picked first.
     const timestamped = directoryNames
       .filter((n) => /^plan-.+\.json$/.test(n))
       .sort()
@@ -298,6 +316,23 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     synthesisedKept,
   } = partitionPlanBlocks(picked.plan.blocks, knownAnnotationIds);
 
+  // Deep-review plans append to the existing session's hunks instead of
+  // replacing them. The original rigorous plan's blocks must survive — the
+  // new `quality-*` blocks land alongside them in the diff-review UI. The
+  // deep-review SKILL guards against duplicate ids inside its own output;
+  // the desktop just preserves the original rows. If a deep-review plan
+  // arrives without an underlying rigorous plan in the session, surface a
+  // clear error: the deep-review depends on the prior rigorous plan being
+  // already ingested (its `bundleId` is what they share).
+  const isDeep = isDeepReviewPlanName(picked.name);
+  const existingHunks = isDeep ? await repo.diffHunks.listForSession(sessionId) : [];
+  if (isDeep && existingHunks.length === 0) {
+    throw new Error(
+      `deep-review plan ${picked.name} has no underlying rigorous plan in session ${sessionId}; ingest the rigorous plan first`,
+    );
+  }
+  const ordinalBase = isDeep ? existingHunks.reduce((n, h) => Math.max(n, h.ordinal), -1) + 1 : 0;
+
   const rows: DiffHunkRow[] = keptBlocks.map((b, i) => ({
     id: crypto.randomUUID(),
     sessionId,
@@ -311,11 +346,15 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     emptyReason: b.emptyReason,
     noteText: "",
     reviewerNotes: b.reviewerNotes,
-    ordinal: i,
+    ordinal: ordinalBase + i,
     applyFailure: null,
   }));
 
-  await repo.diffHunks.upsertMany(sessionId, rows);
+  if (isDeep) {
+    await repo.diffHunks.appendMany(sessionId, rows);
+  } else {
+    await repo.diffHunks.upsertMany(sessionId, rows);
+  }
 
   const ambiguousCount = keptBlocks.reduce((n, b) => n + (b.ambiguous ? 1 : 0), 0);
   const multiMarkDiffs = keptBlocks.reduce((n, b) => n + (b.annotationIds.length > 1 ? 1 : 0), 0);
@@ -324,8 +363,10 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   console.info("[ingest-plan]", {
     sessionId,
     planPath: picked.name,
+    additive: isDeep,
     blockCount: picked.plan.blocks.length,
     hunkCount: rows.length,
+    existingHunkCount: existingHunks.length,
     ambiguousCount,
     multiMarkDiffs,
     emptyByReason,
@@ -346,6 +387,8 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     synthesisedKept,
     scannedPlans,
     hasSources,
+    additive: isDeep,
+    existingHunkCount: existingHunks.length,
   };
 }
 

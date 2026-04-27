@@ -1,7 +1,8 @@
+import { PlanFileSchema } from "@obelus/claude-sidecar";
 import type { AnnotationRow, DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fsReadFile } from "../../ipc/commands";
+import { fsReadFile, workspaceReadDir, workspaceReadFile } from "../../ipc/commands";
 import { type CompileStatus, recount } from "../../lib/diff-store";
 import { type PhaseEntry, useJobsStore } from "../../lib/jobs-store";
 import { paperHasSources } from "../../lib/paper-has-sources";
@@ -10,6 +11,7 @@ import { useKeyNav } from "../../lib/use-key-nav";
 import { useProject } from "./context";
 import { useDiffStore } from "./diff-store-context";
 import HunkBlock from "./HunkBlock";
+import { isDeepReviewPlanName } from "./ingest-plan";
 import { markLocationLabel } from "./mark-location-label";
 import { usePaperId } from "./OpenPaper";
 import { useReviewProgress, useReviewRunner } from "./review-runner-context";
@@ -315,6 +317,19 @@ export default function DiffReview(props: Props): JSX.Element {
     { enabled: modeless && hunks.length > 0 },
   );
 
+  const deepReview = useDeepReviewAvailability(project.id, sessionId);
+  const onRunDeep = useCallback(
+    (planRelPath: string): void => {
+      if (activePaperId === null || sessionId === null) return;
+      void runner.startDeepReview({
+        reviewSessionId: sessionId,
+        paperId: activePaperId,
+        planWorkspaceRelPath: planRelPath,
+      });
+    },
+    [activePaperId, sessionId, runner],
+  );
+
   if (
     hunks.length === 0 &&
     (runner.status.kind === "working" ||
@@ -402,6 +417,13 @@ export default function DiffReview(props: Props): JSX.Element {
     applyStatus.kind !== "applied" &&
     applyStatus.kind !== "partial" &&
     !runnerBusy;
+  const canRunDeep =
+    deepReview.kind === "ready" &&
+    activePaperId !== null &&
+    !runnerBusy &&
+    applyStatus.kind !== "applying" &&
+    applyStatus.kind !== "applied" &&
+    applyStatus.kind !== "partial";
 
   return (
     <div className="diff-review">
@@ -447,6 +469,17 @@ export default function DiffReview(props: Props): JSX.Element {
             >
               reject all
             </button>
+            {deepReview.kind === "ready" && (
+              <button
+                type="button"
+                className="btn btn--subtle"
+                disabled={!canRunDeep}
+                onClick={() => onRunDeep(deepReview.planRelPath)}
+                title="Holistic second-pair-of-eyes pass beyond your marks."
+              >
+                Run deep review
+              </button>
+            )}
             <button
               type="button"
               className="btn"
@@ -765,4 +798,109 @@ function shortCompileLabel(rel: string): string {
 function firstLine(s: string): string {
   const nl = s.indexOf("\n");
   return nl === -1 ? s : s.slice(0, nl);
+}
+
+// Whether a "Run deep review" affordance can be offered for the current
+// session. The button is offered only when:
+// - the session has an ingested rigorous plan in the workspace (we find it by
+//   bundleId match);
+// - no deep-review plan has been ingested yet for this session (no `*-deep.json`
+//   exists with a matching bundleId).
+// Re-runs whenever the sessionId changes; cheap because the workspace scan
+// is bounded to plan-shaped filenames.
+type DeepReviewAvailability =
+  | { kind: "loading" }
+  | { kind: "unavailable"; reason: string }
+  | { kind: "ready"; planRelPath: string };
+
+function basenameNoExt(p: string): string {
+  const slash = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+  return slash < 0 ? p : p.slice(slash + 1);
+}
+
+function useDeepReviewAvailability(
+  projectId: string,
+  sessionId: string | null,
+): DeepReviewAvailability {
+  const [state, setState] = useState<DeepReviewAvailability>({ kind: "loading" });
+  const { repo } = useProject();
+
+  const rescan = useCallback((): (() => void) => {
+    if (sessionId === null) {
+      setState({ kind: "unavailable", reason: "no-session" });
+      return () => {};
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const session = await repo.reviewSessions.get(sessionId);
+        if (cancelled) return;
+        if (!session) {
+          setState({ kind: "unavailable", reason: "session-gone" });
+          return;
+        }
+        const sessionBundleBasename = basenameNoExt(session.bundleId);
+        const entries = await workspaceReadDir(projectId, ".").catch(() => []);
+        if (cancelled) return;
+        const planNames = entries.map((e) => e.name).filter((n) => /^plan-.+\.json$/.test(n));
+        let originalPlan: string | null = null;
+        let deepPlan: string | null = null;
+        for (const name of planNames) {
+          try {
+            const buffer = await workspaceReadFile(projectId, name);
+            const text = new TextDecoder().decode(new Uint8Array(buffer));
+            const plan = PlanFileSchema.safeParse(JSON.parse(text));
+            if (!plan.success) continue;
+            if (basenameNoExt(plan.data.bundleId) !== sessionBundleBasename) continue;
+            if (isDeepReviewPlanName(name)) {
+              if (deepPlan === null || name > deepPlan) deepPlan = name;
+            } else if (originalPlan === null || name > originalPlan) {
+              originalPlan = name;
+            }
+          } catch {
+            // Unreadable plan files do not block the affordance — they just
+            // don't qualify as the original plan we'd hand to the skill.
+          }
+        }
+        if (cancelled) return;
+        if (originalPlan === null) {
+          setState({ kind: "unavailable", reason: "no-rigorous-plan" });
+          return;
+        }
+        if (deepPlan !== null) {
+          setState({ kind: "unavailable", reason: "deep-review-already-run" });
+          return;
+        }
+        setState({ kind: "ready", planRelPath: originalPlan });
+      } catch (err) {
+        if (cancelled) return;
+        const detail = err instanceof Error ? err.message : String(err);
+        setState({ kind: "unavailable", reason: `scan-failed: ${detail}` });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, sessionId, repo]);
+
+  // Initial scan whenever sessionId / projectId changes.
+  useEffect(() => {
+    const cancel = rescan();
+    return cancel;
+  }, [rescan]);
+
+  // Re-scan whenever the jobs store ticks. A deep-review run completing is
+  // the case that flips this hook from "ready" to "unavailable" (the new
+  // `-deep.json` is now on disk). A simple subscription with no selector
+  // catches every mutation; we re-scan once per tick.
+  useEffect(() => {
+    const unsubscribe = useJobsStore.subscribe(() => {
+      rescan();
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [rescan]);
+
+  return state;
 }

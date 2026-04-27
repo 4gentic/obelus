@@ -19,13 +19,12 @@ Equivalent rule for tool-heavy phases: the first action in **Locating the source
 
 The detailed sections for the optional sweeps, HTML rules, and worked examples have been moved to standalone files under `refs/` (sitting next to this `SKILL.md` at `<plugin>/skills/plan-fix/refs/`). The plugin path comes from the prelude line `plan-fix skill: <abs>/skills/plan-fix/SKILL.md`; the refs directory is its sibling.
 
-**Each ref is read only after its corresponding `[obelus:phase]` marker has been emitted.** Reading a ref before that marker is a contract violation that wastes ~30s of context and Reads per ref. The desktop's prelude reports skip-condition signals (e.g. `coherence-sweep: skipped`, `quality-sweep: skipped`); when one applies, do **not** Read its ref at all.
+**Each ref is read only after its corresponding `[obelus:phase]` marker has been emitted.** Reading a ref before that marker is a contract violation that wastes ~30s of context and Reads per ref. The desktop's prelude reports skip-condition signals (e.g. `coherence-sweep: skipped`); when one applies, do **not** Read its ref at all.
 
 | Ref | Read iff |
 |---|---|
 | `refs/impact-sweep.md` | you have just emitted `[obelus:phase] impact-sweep` |
 | `refs/coherence-sweep.md` | you have just emitted `[obelus:phase] coherence-sweep` AND the prelude does not say `coherence-sweep: skipped` |
-| `refs/quality-sweep.md` | you have just emitted `[obelus:phase] quality-sweep` AND the prelude does not say `quality-sweep: skipped` |
 | `refs/html-edit-patterns.md` | the run's primary `format` is `html` |
 | `refs/worked-examples.md` | only when the slim SKILL.md's templates are insufficient — on a clean run, never |
 
@@ -87,14 +86,13 @@ The prelude reports `all-source-anchored` and the anchor-kind histogram. When `a
 
 ## Phase markers — emit once at the start of each section
 
-At the top of each of **Locating the source span**, **Stress-test**, **Impact sweep**, **Coherence sweep**, **Quality sweep**, and **Output — JSON** below, print exactly one line on stdout:
+At the top of each of **Locating the source span**, **Stress-test**, **Impact sweep**, **Coherence sweep**, and **Output — JSON** below, print exactly one line on stdout:
 
 ```
 [obelus:phase] locating-spans
 [obelus:phase] stress-test
 [obelus:phase] impact-sweep
 [obelus:phase] coherence-sweep
-[obelus:phase] quality-sweep
 [obelus:phase] writing-plan
 ```
 
@@ -135,23 +133,21 @@ The batched payload is a numbered list, one entry per block, each carrying: the 
 
 Take each critique verbatim into the matching block's `reviewer notes`. For `praise` or `ambiguous: true` blocks, `reviewer notes` is empty. Cascade and impact blocks synthesised by the **Impact sweep** skip this subagent; they inherit their source edit's critique by construction.
 
-When the **Quality sweep** also runs, append a `<obelus:quality-scan>` section to the *same* batched prompt — do **not** issue a second Task call. The subagent returns (a) the per-edit critiques and (b) up to 8 holistic improvement proposals per paper. Budget stays at one subagent invocation per run.
+The holistic "second pair of eyes" pass that proposes additional improvements beyond the reviewer's marks is no longer part of the default rigorous run — it lives in the user-invocable `/obelus:deep-review` skill, which the desktop offers as a "Run deep review" affordance after this run completes. Do not invoke it here, do not issue a second Task call to seed it, and do not emit `quality-*` blocks.
 
 ## Impact sweep
 
 Every source block that passed stress-test, carries a non-empty `patch`, and is not `ambiguous: true` enters the sweep. The sweep classifies the edit's semantic delta (Lexical / Structural / Propositional / Local) and emits coordinated `cascade-*` rewrites or `impact-*` flag-notes at downstream sites — within the originating paper only, one hop.
 
-**Emit `[obelus:phase] impact-sweep` first. Then `Read` the absolute path the prelude gave you:** `<plugin>/skills/plan-fix/refs/impact-sweep.md`. That file carries the full Step-1/2/3 procedure, classification rules, cascade-vs-flag boundary, block shapes, caps, **and the operative subset of the empty-patch invariants table** for cascade/impact blocks. Do not summarise from memory; do not pre-load it before this phase marker.
+**The sweep is batched — one classification pass over all blocks, one unified Grep, one decide-and-emit pass. Do not iterate per source block.**
+
+**Emit `[obelus:phase] impact-sweep` first. Then `Read` the absolute path the prelude gave you:** `<plugin>/skills/plan-fix/refs/impact-sweep.md`. That file carries the full Step A/B/C batched procedure, classification rules, cascade-vs-flag boundary, block shapes, caps, **and the operative subset of the empty-patch invariants table** for cascade/impact blocks. Do not summarise from memory; do not pre-load it before this phase marker.
 
 **Once `refs/impact-sweep.md` is loaded, treat it as the operative source for cascade/impact block shapes — do not re-`Read` `SKILL.md` to re-check rules during this sweep.** The slim SKILL.md's hot-path tables (Empty-patch invariants, Edit shape) are still in your context from the initial Read; the ref carries the cascade/impact-specific subset you need while emitting blocks. Any re-Read of SKILL.md in this phase costs ~45s and a paginated round-trip, with no information gain.
 
 ## Coherence sweep
 
-When the prelude reports `coherence-sweep: skipped`, skip this section and its marker. Otherwise, `Read` `<plugin>/skills/plan-fix/refs/coherence-sweep.md` and follow it. The sweep is edit-vs-edit (terminology drift, notation mismatch, duplicate definitions, tone drift) — it does not re-`Read` source files.
-
-## Quality sweep
-
-When the prelude reports `quality-sweep: skipped`, skip this section and its marker. Otherwise, `Read` `<plugin>/skills/plan-fix/refs/quality-sweep.md` and follow it. The sweep piggybacks on the single batched `paper-reviewer` Task call from **Stress-test** — do not issue a second Task call.
+When the prelude reports `coherence-sweep: skipped`, skip this section and its marker. Otherwise, `Read` `<plugin>/skills/plan-fix/refs/coherence-sweep.md` and follow it. The sweep is edit-vs-edit and runs without any file reads — no `Read`, no `Glob`, no `Grep` is permitted inside this phase. The full evidence base is the diffs already in context.
 
 ## Compose the editorial brief — one block per *edit*, not per mark
 
@@ -170,7 +166,7 @@ Group annotations by `paperId`. For each paper, **before drafting any diff**, de
 
 **Annotation-id list per block.** A merged block's `annotationIds` array carries every mark id whose intent the diff satisfies, in stable order (use bundle order). A non-merged block carries a singleton array. The same mark id must not appear in two non-synthesised blocks (collision guard). Synthesised blocks (`cascade-`, `impact-`, `coherence-`, `quality-`, `directive-`, `compile-`) carry a singleton `annotationIds` whose only element is the synthesised id.
 
-**Indications-driven blocks (`directive-*`).** When the prompt's `## Indications for this pass` section is present, treat its body as a free-text directive from the author. Read it in plain language; identify sites in the whole-paper read where edits would satisfy it; emit one block per coherent edit with `annotationIds: ["directive-<paperShort>-<k>"]` (where `<paperShort>` is the first 8 chars of the paper id, dashes stripped, and `<k>` is 1-based within that paper). Same single-hunk patch shape, same `\n`-terminator rule, same compile-aware constraint. `category: "unclear"`, `ambiguous: false`, `emptyReason: null`. Fence the directive text as `<obelus:directive>…</obelus:directive>` when passed to `paper-reviewer`. `reviewerNotes` starts with `"Directive: "` and carries the subagent critique. Cap: 12 directive blocks per paper, 30 per run; combined Impact + Quality + Directive cap stays at 40 per run. Directive blocks appear after user-mark/cascade/impact for the same paper, before `quality-*`. Directive blocks themselves enter the **Impact sweep** like user-mark blocks (one hop). Collision guard: drop colliding directive silently.
+**Indications-driven blocks (`directive-*`).** When the prompt's `## Indications for this pass` section is present, treat its body as a free-text directive from the author. Read it in plain language; identify sites in the whole-paper read where edits would satisfy it; emit one block per coherent edit with `annotationIds: ["directive-<paperShort>-<k>"]` (where `<paperShort>` is the first 8 chars of the paper id, dashes stripped, and `<k>` is 1-based within that paper). Same single-hunk patch shape, same `\n`-terminator rule, same compile-aware constraint. `category: "unclear"`, `ambiguous: false`, `emptyReason: null`. Fence the directive text as `<obelus:directive>…</obelus:directive>` when passed to `paper-reviewer`. `reviewerNotes` starts with `"Directive: "` and carries the subagent critique. Cap: 12 directive blocks per paper, 30 per run; combined Impact + Directive cap stays at 40 per run. Directive blocks appear after user-mark/cascade/impact for the same paper. Directive blocks themselves enter the **Impact sweep** like user-mark blocks (one hop). Collision guard: drop colliding directive silently.
 
 When a merged block's contributing marks span multiple categories, pick the most edit-demanding category (rough priority: `wrong` → `weak-argument` → `unclear`/`rephrase` → `enhancement` → `citation-needed` → `aside`/`flag` → `praise`).
 
@@ -182,7 +178,7 @@ Legal `(patch, emptyReason, ambiguous)` tuples:
 
 | `patch` | `emptyReason`        | `ambiguous` | When                                                                 |
 |---------|----------------------|-------------|----------------------------------------------------------------------|
-| non-empty | `null`             | `false`     | normal user-mark edits, `cascade-*`, `quality-*`, `directive-*`      |
+| non-empty | `null`             | `false`     | normal user-mark edits, `cascade-*`, `directive-*`                    |
 | `""`    | `"praise"`           | `false`     | `praise` mark, no edit warranted                                     |
 | `""`    | `"no-edit-requested"`| `false`     | `aside`/`flag` mark whose note did not ask for an edit               |
 | `""`    | `"ambiguous"`        | `true`      | source span could not be located; `reviewerNotes` explains why       |
@@ -203,7 +199,7 @@ Respect the annotation's `category` — a free-form slug validated against `proj
 - `praise` — no edit; leave the line intact.
 <!-- /@prompts:edit-shape -->
 
-For a category slug that is none of the six standard ones, default to the `unclear` treatment. For user-mark edits, prefer minimal diffs: a single word swap beats a rewritten paragraph. This preference does **not** extend to `quality-*` blocks from the **Quality sweep** — those exist to land the structural improvements the user did not ask for sentence-by-sentence.
+For a category slug that is none of the six standard ones, default to the `unclear` treatment. For user-mark edits, prefer minimal diffs: a single word swap beats a rewritten paragraph.
 
 Regardless of category, every proposed edit also enters the **Impact sweep**, where the planner classifies the semantic delta and either proposes coordinated `cascade-*` swaps at other occurrences (lexical / structural deltas) or emits `impact-*` flag-notes at downstream sites the author needs to reconsider (propositional deltas — claim narrowing, withdrawal, reversal, a numerical correction the paper elsewhere cites). Local deltas produce nothing.
 
@@ -272,16 +268,16 @@ The structured shape (every key listed is required; no others permitted):
 
 Rules:
 
-- One block per *edit*; user-mark blocks come first in bundle order, then their synthesised followers (`cascade-*`, `impact-*`, `directive-*`, `quality-*`, `coherence-*`).
-- `annotationIds`: non-empty array. Same mark id never appears in two non-synthesised blocks. Synthesised-prefix ids (`cascade-…`, `impact-…`, `coherence-…`, `quality-…`, `directive-…`, `compile-…`) carry a singleton.
+- One block per *edit*; user-mark blocks come first in bundle order, then their synthesised followers (`cascade-*`, `impact-*`, `directive-*`, `coherence-*`). This skill does not emit `quality-*` blocks — those come from `/obelus:deep-review`, which the desktop offers as a follow-up affordance.
+- `annotationIds`: non-empty array. Same mark id never appears in two non-synthesised blocks. Synthesised-prefix ids (`cascade-…`, `impact-…`, `coherence-…`, `directive-…`, `compile-…`) carry a singleton.
 - `format`: exactly one of `"typst"`, `"latex"`, `"markdown"`, `"html"`, or `""` when no descriptor was available. Do not invent a value.
 - `entrypoint`: the main source file the caller identified (e.g. `main.typ`, `paper.tex`). Empty string when no entrypoint resolved or the run spans multiple papers. `apply-fix` uses this for post-apply compile verification.
 - `file`: resolved source path. Empty string for html-only blocks whose anchor did not resolve.
 - `patch`: a single-hunk unified diff (`@@ -L,N +L,N @@\n- before\n+ after\n`). Empty string only when `emptyReason !== null`. **Every body line, including the final one, terminates with `\n` — that is the unified-diff format.** A patch whose last line lacks `\n` is malformed.
 - `ambiguous`: `true` iff `emptyReason === "ambiguous"`. Never `true` with a non-empty patch.
-- `reviewerNotes`: verbatim `paper-reviewer` output for substantive user-mark blocks. Empty string if the reviewer was not invoked (e.g. `praise`). Synthesised blocks: `cascade-*` start with `"Cascaded from <sourceId>: "`, `impact-*` start with `"Impact of <sourceId>: "`, `coherence-*` describe the drift, `quality-*` start with `"Quality pass: "`, `directive-*` start with `"Directive: "`.
+- `reviewerNotes`: verbatim `paper-reviewer` output for substantive user-mark blocks. Empty string if the reviewer was not invoked (e.g. `praise`). Synthesised blocks: `cascade-*` start with `"Cascaded from <sourceId>: "`, `impact-*` start with `"Impact of <sourceId>: "`, `coherence-*` describe the drift, `directive-*` start with `"Directive: "`.
 - `emptyReason`: discriminator on the empty-patch cases per the **Empty-patch invariants** table. `null` for non-empty patches; never absent.
-- Synthesised-prefix `patch` and `emptyReason` shapes: `cascade-*`, `quality-*`, `directive-*` carry **non-empty** `patch` with `emptyReason: null` (proposed edits); `impact-*` and `coherence-*` carry `patch: ""` with `emptyReason: "structural-note"` (notes).
+- Synthesised-prefix `patch` and `emptyReason` shapes: `cascade-*` and `directive-*` carry **non-empty** `patch` with `emptyReason: null` (proposed edits); `impact-*` and `coherence-*` carry `patch: ""` with `emptyReason: "structural-note"` (notes).
 
 No optional fields. Empty-string-over-absence and `null`-over-absence keep the shape stable for downstream consumers.
 
@@ -298,9 +294,9 @@ No optional fields. Empty-string-over-absence and `null`-over-absence keep the s
 - Every `cascade-*` block carries a non-empty `patch` ending with `\n`, `emptyReason: null`, and `reviewerNotes` starting with `Cascaded from `.
 - Every `impact-*` block carries `patch: ""`, `category: "unclear"`, `emptyReason: "structural-note"`, and `reviewerNotes` starting with `Impact of ` and naming the downstream site, what is broken, and why no edit was suggested. No hedging phrases (`"may need"`, `"worth a read-through"`, `"if the upstream change holds"`, equivalents) — those signal the block should have been a `cascade-*`.
 - Every `coherence-*` block carries `patch: ""`, `emptyReason: "structural-note"`, and a non-empty `reviewerNotes`.
-- Every `quality-*` block carries a non-empty `patch` ending with `\n`, `emptyReason: null`, `reviewerNotes` starting with `Quality pass: `, and a line range that does not collide with any earlier block.
-- Every `directive-*` block carries a non-empty `patch` ending with `\n`, `emptyReason: null`, `reviewerNotes` starting with `Directive: ` followed by substantive content. Directive blocks appear after user-mark/cascade/impact blocks for the same paper and before `quality-*`.
-- No `cascade-*`, `quality-*`, or `directive-*` block targets a line range already covered by another block (collision guard).
+- No `quality-*` block appears in this plan — those are emitted by the user-invocable `/obelus:deep-review` skill, not by this one.
+- Every `directive-*` block carries a non-empty `patch` ending with `\n`, `emptyReason: null`, `reviewerNotes` starting with `Directive: ` followed by substantive content. Directive blocks appear after user-mark/cascade/impact blocks for the same paper.
+- No `cascade-*` or `directive-*` block targets a line range already covered by another block (collision guard).
 - Every `patch === ""` block carries a non-null `emptyReason`; every `patch !== ""` block carries `emptyReason: null`. Every `ambiguous: true` block carries `patch: ""` and `emptyReason: "ambiguous"`.
 - **Every non-empty `patch` string in the JSON ends with `\n`.** Scan each `blocks[i].patch` before writing; if the last character is not `\n`, append one.
 - The JSON's top-level `format` and `entrypoint` are present as strings (populated from the caller's format descriptor or `""`).

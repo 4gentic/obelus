@@ -582,8 +582,11 @@ async function ingestReview(
   // as a zombie "Plan loaded but no hunks were produced" card that the user
   // has to dismiss manually. Transition straight to 'discarded' so the Diff
   // tab stays clean. Annotations (marks) are persisted separately and are
-  // unaffected by this status change.
-  const autoDiscarded = result.hunkCount === 0;
+  // unaffected by this status change. Additive ingests (deep-review on top
+  // of an existing rigorous plan) never auto-discard — the underlying
+  // rigorous plan already supplies hunks, even when the deep-review run
+  // proposes zero new ones.
+  const autoDiscarded = !result.additive && result.hunkCount === 0;
   if (autoDiscarded) {
     await repo.reviewSessions.setStatus(
       reviewSessionId,
@@ -599,6 +602,8 @@ async function ingestReview(
     planPath: result.planPath,
     planBundleId: result.planBundleId,
     sessionBundleId: result.sessionBundleId,
+    additive: result.additive,
+    existingHunkCount: result.existingHunkCount,
     blockCount: result.blockCount,
     hunkCount: result.hunkCount,
     synthesisedKept: result.synthesisedKept,
@@ -612,6 +617,12 @@ async function ingestReview(
     throw new Error(
       `plan referenced ${result.droppedForUnknownAnnotation.length} unknown annotation(s) and produced no hunks for this session`,
     );
+  }
+  if (result.additive) {
+    if (result.hunkCount === 0) {
+      return "Deep review complete. Nothing additional to propose.";
+    }
+    return `Deep review ready. ${result.hunkCount} additional change${result.hunkCount === 1 ? "" : "s"} proposed.`;
   }
   if (!result.hasSources) {
     if (result.hunkCount === 0) {

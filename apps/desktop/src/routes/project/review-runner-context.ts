@@ -52,9 +52,22 @@ export interface RunOptions {
   effort?: ReviewRunnerEffortChoice;
 }
 
+// Inputs for a deep-review run on top of an already-ingested rigorous plan.
+// Same dispatch picker as a regular review; the bundleId comes from the
+// existing review session row, and the plan path is resolved from the
+// workspace by filename match.
+export interface DeepReviewOptions {
+  reviewSessionId: string;
+  paperId: string;
+  planWorkspaceRelPath: string;
+  model?: ReviewRunnerModelChoice;
+  effort?: ReviewRunnerEffortChoice;
+}
+
 export interface ReviewRunnerContextValue {
   status: RunStatus;
   start: (opts?: RunOptions) => Promise<void>;
+  startDeepReview: (opts: DeepReviewOptions) => Promise<void>;
   cancel: () => Promise<void>;
   progressStore: ReviewProgressStore;
 }
