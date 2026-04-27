@@ -1,13 +1,16 @@
 import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
+import { useJobsStore } from "../../lib/jobs-store";
+import { DEFAULT_THOROUGHNESS, type ReviewerThoroughness } from "../../lib/reviewer-thoroughness";
 import { splitHeadline } from "../../lib/split-headline";
-import ClaudeChip from "./ClaudeChip";
+import { getReviewerThoroughness, setReviewerThoroughness } from "../../store/app-state";
 import { useProject } from "./context";
 import { useEnsureRevision } from "./ensure-revision-context";
 import { useIsPaperOpen, usePaperId } from "./OpenPaper";
 import { type ReviewRunnerMode, useReviewRunner } from "./review-runner-context";
 import { useReviewStore } from "./store-context";
+import ThoroughnessToggle from "./ThoroughnessToggle";
 import { useInlineConfirm } from "./use-inline-confirm";
 import { descendantsOf, usePaperEdits } from "./use-paper-edits";
 
@@ -35,6 +38,7 @@ export default function StartReviewButton(): JSX.Element {
       annotationCount={annotations.length}
       statusKind={status.kind}
       statusMessage={status.kind === "done" || status.kind === "error" ? status.message : null}
+      claudeSessionId={status.kind === "running" ? status.claudeSessionId : null}
       onStart={start}
       onCancel={cancel}
       repo={repo}
@@ -49,6 +53,7 @@ interface WriterStartReviewProps {
   annotationCount: number;
   statusKind: "idle" | "working" | "running" | "ingesting" | "done" | "error";
   statusMessage: string | null;
+  claudeSessionId: string | null;
   onStart: (opts: {
     paperId: string;
     indications?: string;
@@ -68,6 +73,7 @@ function WriterStartReview({
   annotationCount,
   statusKind,
   statusMessage,
+  claudeSessionId,
   onStart,
   onCancel,
   repo,
@@ -76,30 +82,45 @@ function WriterStartReview({
   const confirm = useInlineConfirm();
   const [indications, setIndications] = useState("");
   const [mode, setMode] = useState<ReviewRunnerMode>("writer-fast");
+  const [thoroughness, setThoroughnessState] = useState<ReviewerThoroughness>(DEFAULT_THOROUGHNESS);
 
   // Hydrate the textarea + mode selector with the last-used values for this
   // paper so the user's running guidance survives navigation. A change to
-  // paperId (user switched variants) reloads independently.
+  // paperId (user switched variants) reloads independently. The thoroughness
+  // toggle is cross-session (app-state.json), not per-paper, so it loads on
+  // mount alongside the per-paper values.
   useEffect(() => {
     let cancelled = false;
     if (!paperId) {
       setIndications("");
       setMode("writer-fast");
-      return;
+      void getReviewerThoroughness().then((stored) => {
+        if (!cancelled) setThoroughnessState(stored ?? DEFAULT_THOROUGHNESS);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
     void (async () => {
-      const [persistedIndications, persistedMode] = await Promise.all([
+      const [persistedIndications, persistedMode, storedThoroughness] = await Promise.all([
         repo.settings.get(INDICATIONS_KEY(paperId), IndicationsSchema),
         repo.settings.get(MODE_KEY(paperId), ModeSchema),
+        getReviewerThoroughness(),
       ]);
       if (cancelled) return;
       setIndications(persistedIndications ?? "");
       setMode(persistedMode ?? "writer-fast");
+      setThoroughnessState(storedThoroughness ?? DEFAULT_THOROUGHNESS);
     })();
     return () => {
       cancelled = true;
     };
   }, [paperId, repo]);
+
+  const updateThoroughness = useCallback((next: ReviewerThoroughness) => {
+    setThoroughnessState(next);
+    void setReviewerThoroughness(next);
+  }, []);
 
   const current = edits.live.find((e) => e.id === edits.currentDraftId) ?? edits.head ?? null;
   const isOnTip = !current || current.id === edits.head?.id;
@@ -207,7 +228,14 @@ function WriterStartReview({
       )}
       {statusKind !== "running" ? (
         <div className="review-column__launch">
-          {isPaperOpen ? <ClaudeChip /> : null}
+          {isPaperOpen ? (
+            <ThoroughnessToggle
+              value={thoroughness}
+              onChange={updateThoroughness}
+              disabled={modeDisabled}
+              name={paperId ? `thoroughness-${paperId}` : "thoroughness"}
+            />
+          ) : null}
           <button
             type="button"
             className={
@@ -227,9 +255,12 @@ function WriterStartReview({
           </button>
         </div>
       ) : (
-        <button type="button" className="btn btn--subtle" onClick={() => void onCancel()}>
-          Cancel
-        </button>
+        <>
+          {claudeSessionId !== null && <PhaseProgressStrip claudeSessionId={claudeSessionId} />}
+          <button type="button" className="btn btn--subtle" onClick={() => void onCancel()}>
+            Cancel
+          </button>
+        </>
       )}
       {isPaperOpen && statusKind !== "running" && (
         <label className="review-column__notes">
@@ -259,6 +290,35 @@ function WriterStartReview({
         <StatusMessage message={statusMessage} />
       )}
     </div>
+  );
+}
+
+// WS3 progress strip: minimal "<phase> · MM:SS" line that ticks every second
+// while a review run is active. Phase comes from the jobs store (driven by the
+// stdout listener); elapsed is computed against the phase's started-at, with a
+// fallback to the job's startedAt when no phase has fired yet.
+function PhaseProgressStrip({ claudeSessionId }: { claudeSessionId: string }): JSX.Element | null {
+  const status = useJobsStore((s) => s.jobs[claudeSessionId]?.status);
+  const job = useJobsStore((s) => s.jobs[claudeSessionId]);
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    if (status !== "running" && status !== "ingesting") return;
+    const id = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(id);
+  }, [status]);
+
+  if (!job) return null;
+  const phaseLabel = job.phase || "starting";
+  const lastPhase = job.phaseHistory[job.phaseHistory.length - 1];
+  const phaseStartedAt = lastPhase?.at ?? job.startedAt;
+  const elapsed = Math.max(0, Math.floor((now - phaseStartedAt) / 1_000));
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+  const ss = String(elapsed % 60).padStart(2, "0");
+  return (
+    <p className="review-column__hint" aria-live="polite">
+      {phaseLabel} · {mm}:{ss}
+    </p>
   );
 }
 

@@ -9,11 +9,14 @@ export {
   pickLatestWriteupName,
 } from "./plan";
 
-export type ClaudeSpawnMode = "writer-fast" | "rigorous";
+export type ClaudeSpawnMode = "writer-fast" | "rigorous" | "deep-review";
 
 export interface ClaudeSpawnInput {
   rootId: string;
   projectId: string;
+  // For "writer-fast" / "rigorous", this is the workspace-relative path to the
+  // bundle JSON. For "deep-review", it is the workspace-relative path to the
+  // already-emitted plan JSON the deep-review skill should read.
   bundleWorkspaceRelPath: string;
   extraPromptBody?: string;
   model?: string | null;
@@ -21,6 +24,8 @@ export interface ClaudeSpawnInput {
   // "writer-fast" routes to the one-turn plan-writer-fast skill on Haiku.
   // "rigorous" (default) routes to apply-revision → plan-fix on Sonnet — the
   // existing path with stress-test, impact, and coherence sweeps.
+  // "deep-review" routes to the user-invocable deep-review skill, which reads
+  // an already-written rigorous plan and emits additional `quality-*` blocks.
   mode?: ClaudeSpawnMode;
 }
 

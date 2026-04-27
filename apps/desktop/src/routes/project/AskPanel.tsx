@@ -10,7 +10,6 @@ import {
   parseStreamLine,
 } from "@obelus/claude-sidecar";
 import { type JSX, useEffect, useRef, useState } from "react";
-import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { useAskStore } from "./ask-store-context";
 import { buildAskPrompt } from "./build-ask-prompt";
 import { useProject } from "./context";
@@ -143,13 +142,12 @@ export default function AskPanel(): JSX.Element {
 
     try {
       await askStore.getState().appendUser(question);
-      const overrides = await loadClaudeOverrides();
       const claudeSessionId = await claudeAsk({
         rootId,
         projectId: project.id,
         promptBody,
-        model: overrides.model,
-        effort: overrides.effort,
+        model: null,
+        effort: null,
       });
       await askStore.getState().startAssistant(claudeSessionId);
     } catch (err) {

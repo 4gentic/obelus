@@ -32,9 +32,20 @@ export interface RunOptions {
   mode?: ReviewRunnerMode;
 }
 
+// Inputs for a deep-review run on top of an already-ingested rigorous plan.
+// The bundleId comes from the existing review session row, and the plan path
+// is resolved from the workspace by filename match. Model/effort are picked
+// from the persisted reviewer-thoroughness toggle inside the runner.
+export interface DeepReviewOptions {
+  reviewSessionId: string;
+  paperId: string;
+  planWorkspaceRelPath: string;
+}
+
 export interface ReviewRunnerContextValue {
   status: RunStatus;
   start: (opts?: RunOptions) => Promise<void>;
+  startDeepReview: (opts: DeepReviewOptions) => Promise<void>;
   cancel: () => Promise<void>;
   progressStore: ReviewProgressStore;
 }

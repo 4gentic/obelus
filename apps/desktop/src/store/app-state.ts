@@ -1,5 +1,6 @@
 import { Store } from "@tauri-apps/plugin-store";
 import type { ClaudeStatus } from "../ipc/commands";
+import type { ReviewerThoroughness } from "../lib/reviewer-thoroughness";
 
 const STORE_PATH = "app-state.json";
 
@@ -20,13 +21,16 @@ export interface WizardCheckpoint {
   seenOnce: boolean;
 }
 
+const REVIEWER_THOROUGHNESS_VALUES: ReadonlyArray<ReviewerThoroughness> = ["normal", "deep"];
+
 type StoreKey =
   | "windowGeometry"
   | "wizard"
   | "claudeDetectCache"
   | "lastOpenedProjectId"
   | "currentDeskId"
-  | "trustedPapers";
+  | "trustedPapers"
+  | "reviewerThoroughness";
 
 interface StoreShape {
   windowGeometry: WindowGeometry;
@@ -40,6 +44,10 @@ interface StoreShape {
   // migration can attach metadata (granted-at, host allow-list) without
   // churning the storage key.
   trustedPapers: Record<string, true>;
+  // Cross-session reviewer thoroughness ("normal" or "deep"). Read on mount,
+  // written on toggle. The runner maps this to {model, effort} via
+  // THOROUGHNESS_SPAWN at spawn time.
+  reviewerThoroughness: ReviewerThoroughness;
 }
 
 let singleton: Promise<Store> | null = null;
@@ -102,4 +110,21 @@ export async function untrustPapers(paperIds: ReadonlyArray<string>): Promise<vo
   }
   if (!changed) return;
   await setAppState("trustedPapers", next);
+}
+
+function isReviewerThoroughness(value: unknown): value is ReviewerThoroughness {
+  return (
+    typeof value === "string" &&
+    (REVIEWER_THOROUGHNESS_VALUES as ReadonlyArray<string>).includes(value)
+  );
+}
+
+export async function getReviewerThoroughness(): Promise<ReviewerThoroughness | undefined> {
+  const raw = await getAppState("reviewerThoroughness");
+  if (!isReviewerThoroughness(raw)) return undefined;
+  return raw;
+}
+
+export async function setReviewerThoroughness(value: ReviewerThoroughness): Promise<void> {
+  await setAppState("reviewerThoroughness", value);
 }

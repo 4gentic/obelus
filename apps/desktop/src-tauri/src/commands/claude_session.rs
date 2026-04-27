@@ -1,4 +1,5 @@
 use crate::commands::claude::resolve_claude_path;
+use crate::commands::metrics;
 use crate::commands::preflight;
 use crate::commands::workspace::workspace_dir_for;
 use crate::error::{AppError, AppResult};
@@ -173,18 +174,48 @@ async fn spawn_streaming(
     Ok(session_str)
 }
 
-// Hard-coded model + effort for the dispatch / locate / minimal-diff-composition
+// Default model + effort for the dispatch / locate / minimal-diff-composition
 // skills (apply-revision, plan-writer-fast, write-review, fix-compile). The
 // in-code comments at each call site already classify these as "not reasoning"
 // — Sonnet matches Opus quality at ~2× throughput, and `--effort high` produces
 // 38K+ character single-turn thinking blocks (minutes of wall-clock) for work
-// that doesn't reward extended thinking. Held hard-coded rather than
-// user-overridable: footgun if exposed via Settings, and the user has no
-// signal that would let them pick a better value than the workflow's author.
-// Free-form `claude_ask` still respects the user's `claude.model` /
-// `claude.effort` settings — that's reasoning territory, the user's call.
-const DISPATCH_MODEL: Option<&str> = Some("sonnet");
-const DISPATCH_EFFORT: Option<&str> = Some("low");
+// that doesn't reward extended thinking. The user can override both via the
+// "Advanced" disclosure on the start-review panel; without an override these
+// defaults apply.
+const DEFAULT_DISPATCH_MODEL: &str = "sonnet";
+const DEFAULT_DISPATCH_EFFORT: &str = "low";
+
+const ALLOWED_MODELS: &[&str] = &["sonnet", "opus", "haiku"];
+// The UI surfaces only "low" / "high" via THOROUGHNESS_SPAWN; "medium",
+// "xhigh", and "max" sit here for a future CLI-override path. Adding a UI
+// affordance for any of them needs an explicit wall-clock review — `max`
+// produces minutes-long thinking blocks for dispatch / locate work that
+// does not benefit from extended reasoning.
+const ALLOWED_EFFORTS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+
+fn validate_model(value: Option<&str>) -> AppResult<&str> {
+    let v = value.unwrap_or(DEFAULT_DISPATCH_MODEL);
+    if ALLOWED_MODELS.contains(&v) {
+        Ok(v)
+    } else {
+        Err(AppError::Other(format!(
+            "invalid model {v:?}; allowed: {}",
+            ALLOWED_MODELS.join(", ")
+        )))
+    }
+}
+
+fn validate_effort(value: Option<&str>) -> AppResult<&str> {
+    let v = value.unwrap_or(DEFAULT_DISPATCH_EFFORT);
+    if ALLOWED_EFFORTS.contains(&v) {
+        Ok(v)
+    } else {
+        Err(AppError::Other(format!(
+            "invalid effort {v:?}; allowed: {}",
+            ALLOWED_EFFORTS.join(", ")
+        )))
+    }
+}
 
 fn claude_command(
     claude: &Path,
@@ -235,6 +266,9 @@ fn claude_command(
 pub async fn claude_spawn(
     root_id: String,
     project_id: String,
+    // For "writer-fast" / "rigorous", this is the workspace-relative path to
+    // the bundle JSON. For "deep-review", it is the workspace-relative path to
+    // an already-written `plan-<iso>.json` the deep-review skill should read.
     bundle_workspace_rel_path: String,
     extra_prompt_body: Option<String>,
     model: Option<String>,
@@ -257,21 +291,56 @@ pub async fn claude_spawn(
         .resolve("plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
 
-    // `mode` switches the orchestrator: writer-fast routes to the one-turn
-    // plan-writer-fast skill on Haiku (no subagent, no impact / coherence
-    // sweeps); any other value (including `None` and the explicit `rigorous`)
-    // falls through to apply-revision → plan-fix on Sonnet — the existing
-    // structural-review path. The skill name picked here is the routing
-    // decision; both skills emit the same OBELUS_WROTE marker so the desktop's
-    // ingest path is identical for both.
+    // `mode` switches the orchestrator. writer-fast → one-turn plan-writer-fast
+    // skill on Haiku (no subagent, no impact / coherence sweeps). deep-review →
+    // the user-invocable deep-review skill, which reads an already-written
+    // rigorous plan and emits additional `quality-*` blocks. Anything else
+    // (including `None` and the explicit `rigorous`) falls through to
+    // apply-revision → plan-fix on Sonnet — the existing structural-review
+    // path. All three skills emit the same OBELUS_WROTE marker so the
+    // desktop's ingest path is identical.
     let writer_fast = matches!(mode.as_deref(), Some("writer-fast"));
+    let deep_review = matches!(mode.as_deref(), Some("deep-review"));
     if let Some(other) = mode.as_deref() {
-        if other != "writer-fast" && other != "rigorous" {
+        if other != "writer-fast" && other != "rigorous" && other != "deep-review" {
             eprintln!(
                 "[claude-session] unknown mode {other:?}; falling through to apply-revision",
             );
         }
     }
+
+    // Schema-validate the bundle before doing any other work — but only when
+    // the workspace path actually points at a bundle. For deep-review the path
+    // is a plan JSON, not a bundle, and validating it against the bundle
+    // schema would error out a perfectly valid invocation.
+    let validation_ms: u128 = if deep_review {
+        0
+    } else {
+        let validation_started = std::time::Instant::now();
+        let bundle_value: serde_json::Value = match tokio::fs::read(&bundle_abs).await {
+            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| {
+                AppError::Other(format!("bundle parse failed at {}: {e}", bundle_abs.display()))
+            })?,
+            Err(e) => {
+                return Err(AppError::Other(format!(
+                    "bundle read failed at {}: {e}",
+                    bundle_abs.display()
+                )));
+            }
+        };
+        if let Err(errors) = preflight::validate_bundle_against_schema(&bundle_value, &plugin_dir) {
+            eprintln!(
+                "[claude-session] bundle validation failed bundle={} errors={:?}",
+                bundle_abs.display(),
+                errors,
+            );
+            return Err(AppError::Other(format!(
+                "bundle does not match schema: {}",
+                errors.join("; ")
+            )));
+        }
+        validation_started.elapsed().as_millis()
+    };
 
     // `extra_prompt_body` is supplementary context (prior drafts, indications,
     // per-pass notes) appended after the skill invocation — never the whole
@@ -288,6 +357,8 @@ pub async fn claude_spawn(
     // $OBELUS_WORKSPACE_DIR; it doesn't need the tool-policy hammer.
     let skill_name = if writer_fast {
         "plan-writer-fast"
+    } else if deep_review {
+        "deep-review"
     } else {
         "apply-revision"
     };
@@ -307,7 +378,21 @@ pub async fn claude_spawn(
         // gate Bash (the flag's parsing is uncertain), the model sees the
         // policy here and respects it.
         format!(
-            "/obelus:{} {}\nTool policy: Read, Glob, Write only — no Bash, no Grep, no Edit. One turn: read the source windows the prelude lists, Write the .md and .json plans, end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json` (workspace = {}).\n",
+            "/obelus:{} {}\nTool policy: Read, Glob, Write only — no Bash, no Grep, no Edit. One turn: read the source windows the prelude lists, Write the .json plan (the desktop projects the sibling .md), end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso>.json` (workspace = {}).\n",
+            skill_name,
+            bundle_abs.display(),
+            workspace.display(),
+        )
+    } else if deep_review {
+        // deep-review takes a plan path, not a bundle path, and writes a sibling
+        // `plan-<original-iso>-deep.json` under the same workspace. Its
+        // frontmatter allows Read / Glob / Grep / Write only — Edit is off, the
+        // skill never mutates source. The Rust-side prelude is bundle-shaped
+        // (anchor histograms, locator windows, whole-paper read list), so we
+        // skip it here; the deep-review skill reads the original plan + the
+        // bundle the plan points at on its own.
+        format!(
+            "/obelus:{} {}\nTool policy for this run: Read, Glob, Grep, Write only — no Edit, no Bash. Write only inside $OBELUS_WORKSPACE_DIR ({}). The skill must end with `OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<original-iso>-deep.json`.\n",
             skill_name,
             bundle_abs.display(),
             workspace.display(),
@@ -323,43 +408,97 @@ pub async fn claude_spawn(
 
     // The prelude carries pre-computed metadata the skill would otherwise
     // re-derive turn by turn (format, entrypoint, anchor histogram, source
-    // windows, rubric presence). Both SKILL.md files trust it as ground
-    // truth; missing prelude (corrupt bundle, etc.) falls back to the skill's
-    // host-less validation path.
-    let mode_kind = if writer_fast {
-        preflight::Mode::WriterFast
+    // windows, rubric presence). Both bundle-shaped SKILL.md files trust it as
+    // ground truth; missing prelude (corrupt bundle, etc.) falls back to the
+    // skill's host-less validation path. deep-review takes a plan, not a
+    // bundle, so the bundle-shaped prelude does not apply — the skill reads
+    // the original plan and the bundle it references itself.
+    let metrics_seed: Option<(preflight::BundleStats, preflight::PreludeTimings)> = if deep_review {
+        None
     } else {
-        preflight::Mode::Rigorous
-    };
-    if let Some(prelude) = preflight::build_prelude(&bundle_abs, &root, &plugin_dir, mode_kind) {
-        base.push('\n');
-        base.push_str(&prelude);
-        if !base.ends_with('\n') {
-            base.push('\n');
+        let mode_kind = if writer_fast {
+            preflight::Mode::WriterFast
+        } else {
+            preflight::Mode::Rigorous
+        };
+        match preflight::build_prelude_with_metrics(&bundle_abs, &root, &plugin_dir, mode_kind) {
+            Some((prelude, stats, timings)) => {
+                base.push('\n');
+                base.push_str(&prelude);
+                if !base.ends_with('\n') {
+                    base.push('\n');
+                }
+                Some((stats, timings))
+            }
+            None => None,
         }
-    }
+    };
 
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 
-    // Sonnet + low effort, hard-coded — see DISPATCH_MODEL / DISPATCH_EFFORT
-    // above. apply-revision + plan-fix are dispatch, location, and minimal-diff
-    // composition; plan-writer-fast is a single-turn drafter. Neither benefits
-    // from Opus or extended thinking — both just inflate wall-clock. The user's
-    // `claude.model` / `claude.effort` settings are intentionally ignored on
-    // this path; free-form `claude_ask` is where user picks land.
-    let _ = model;
-    let _ = effort;
-    // Boundary log: confirm DISPATCH_MODEL reaches argv. Routed through stderr
-    // so the existing `[claude-stderr]` listener surfaces it in devtools.
+    // The dispatch / locate / minimal-diff-composition skills default to
+    // sonnet/low (see DEFAULT_DISPATCH_*). The Advanced disclosure on the
+    // start-review panel can override either; the values arrive here through
+    // the Tauri boundary and are validated against the allow-list.
+    let effective_model = validate_model(model.as_deref())?;
+    let effective_effort = validate_effort(effort.as_deref())?;
     eprintln!(
-        "[claude-session] spawn-model rootId={} requested={:?} effective={:?} mode={:?}",
-        root_id, model, DISPATCH_MODEL, mode
+        "[claude-session] spawn-model rootId={} requested={:?} effective={:?}/{:?} mode={:?}",
+        root_id,
+        model,
+        effective_model,
+        effective_effort,
+        mode,
     );
-    let mut cmd =
-        claude_command(&claude, &root, &workspace, DISPATCH_MODEL, DISPATCH_EFFORT);
+    let mut cmd = claude_command(
+        &claude,
+        &root,
+        &workspace,
+        Some(effective_model),
+        Some(effective_effort),
+    );
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
-    spawn_streaming(cmd, prompt, app, &state).await
+    let session_id = spawn_streaming(cmd, prompt, app, &state).await?;
+
+    let now = crate::commands::time::now_iso_millis();
+    let validated_event = serde_json::json!({
+        "event": "bundle-validated",
+        "at": now,
+        "sessionId": session_id,
+        "validationMs": validation_ms,
+        "errorCount": 0,
+    });
+    metrics::append_event_bestoffer(&workspace, &session_id, &validated_event).await;
+
+    if let Some((stats, timings)) = metrics_seed {
+        let bundle_stats = serde_json::json!({
+            "event": "bundle-stats",
+            "at": now,
+            "sessionId": session_id,
+            "annotations": stats.annotations,
+            "anchorSource": stats.anchor_source,
+            "anchorPdf": stats.anchor_pdf,
+            "anchorHtml": stats.anchor_html,
+            "papers": stats.papers,
+            "files": stats.files,
+            "bytes": stats.bytes,
+            "model": effective_model,
+            "effort": effective_effort,
+        });
+        metrics::append_event_bestoffer(&workspace, &session_id, &bundle_stats).await;
+        let preflight_event = serde_json::json!({
+            "event": "preflight-rust",
+            "at": now,
+            "sessionId": session_id,
+            "preludeMs": timings.prelude_ms,
+            "sha256Ms": timings.sha256_ms,
+            "totalMs": timings.total_ms,
+        });
+        metrics::append_event_bestoffer(&workspace, &session_id, &preflight_event).await;
+    }
+
+    Ok(session_id)
 }
 
 #[tauri::command]
@@ -406,13 +545,18 @@ pub async fn claude_draft_writeup(
     }
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 
-    // write-review is composition (500–1500 words of reviewer voice), not
-    // reasoning. Hard-coded Sonnet + low effort — see DISPATCH_MODEL /
-    // DISPATCH_EFFORT above.
-    let _ = model;
-    let _ = effort;
-    let mut cmd =
-        claude_command(&claude, &root, &workspace, DISPATCH_MODEL, DISPATCH_EFFORT);
+    // write-review is composition (500–1500 words of reviewer voice). The
+    // user-facing Advanced picker on the start-review panel feeds through
+    // here too; defaults sit at sonnet/low when nothing was selected.
+    let effective_model = validate_model(model.as_deref())?;
+    let effective_effort = validate_effort(effort.as_deref())?;
+    let mut cmd = claude_command(
+        &claude,
+        &root,
+        &workspace,
+        Some(effective_model),
+        Some(effective_effort),
+    );
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await
@@ -452,13 +596,17 @@ pub async fn claude_fix_compile(
         paper_id,
     );
 
-    // fix-compile is dispatch and minimal-diff edit composition — not
-    // reasoning. Hard-coded Sonnet + low effort — see DISPATCH_MODEL /
-    // DISPATCH_EFFORT above.
-    let _ = model;
-    let _ = effort;
-    let mut cmd =
-        claude_command(&claude, &root, &workspace, DISPATCH_MODEL, DISPATCH_EFFORT);
+    // fix-compile is dispatch and minimal-diff edit composition. Same picker
+    // as claude_spawn / claude_draft_writeup; defaults to sonnet/low.
+    let effective_model = validate_model(model.as_deref())?;
+    let effective_effort = validate_effort(effort.as_deref())?;
+    let mut cmd = claude_command(
+        &claude,
+        &root,
+        &workspace,
+        Some(effective_model),
+        Some(effective_effort),
+    );
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await

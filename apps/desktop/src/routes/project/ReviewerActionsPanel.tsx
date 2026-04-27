@@ -5,9 +5,7 @@ import type { JSX, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { readClaudeStatus } from "../../boot/detect";
 import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
-import { useClaudeConfig } from "../../lib/use-claude-defaults";
 import { exportBundleForPaper, exportMdBundleForPaper } from "./build-bundle";
-import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
 import RubricPanel from "./RubricPanel";
@@ -290,7 +288,6 @@ export default function ReviewerActionsPanel(): JSX.Element {
     <section className="reviewer-actions" aria-label="Review">
       <header className="reviewer-actions__head">
         <h2 className="reviewer-actions__heading">Reviewer's letter</h2>
-        <div className="reviewer-actions__head-tools">{claudeReady ? <ClaudeChip /> : null}</div>
       </header>
       <RubricPanel paper={paperRowForRubric} />
       <p className="reviewer-actions__hint">
@@ -413,14 +410,6 @@ function ClaudeAction({
   const toolEvents = progressStore((s) => s.toolEvents);
   const assistantChars = progressStore((s) => s.assistantChars);
   const transcript = writeupStore((s) => s.transcript);
-  // Surface the implicit sonnet default the desktop applies to write-review
-  // when the user hasn't picked a model. The CLI default still wins for ask
-  // and apply-revision; only this surface biases towards sonnet.
-  const claudeConfig = useClaudeConfig();
-  const writeReviewModelHint =
-    claudeConfig.model === null
-      ? "Defaults to Sonnet for write-up — pick a different model in the chip above."
-      : null;
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const transcriptRef = useRef<HTMLPreElement | null>(null);
 
@@ -453,10 +442,6 @@ function ClaudeAction({
         {streaming ? <span className="reviewer-actions__pulse" aria-hidden="true" /> : null}
         <span className="reviewer-actions__claude-label">{phaseLabel}</span>
       </div>
-
-      {writeReviewModelHint && !streaming ? (
-        <p className="reviewer-actions__model-hint">{writeReviewModelHint}</p>
-      ) : null}
 
       {streaming ? (
         <div className="reviewer-actions__progress-row">
