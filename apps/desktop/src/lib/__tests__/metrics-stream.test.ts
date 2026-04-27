@@ -192,7 +192,15 @@ describe("MetricsStream", () => {
     expect(tool.name).toBe("Glob");
   });
 
-  it("task-call uses toolUseResult.usage when present", () => {
+  it("task-call uses tool_use_result.usage when present (live wire shape)", () => {
+    // Fixture matches the actual wire shape captured from
+    // `claude --print --output-format stream-json --include-partial-messages`:
+    // the user event that closes a Task tool_use carries a sibling
+    // `tool_use_result` (snake_case) field with `usage`, `agentType`,
+    // `totalTokens`, etc. The persisted on-disk transcript at
+    // ~/.claude/projects/<sid>.jsonl uses camelCase `toolUseResult` for the
+    // same payload — we accept both, but the live spawn only ever sees the
+    // snake_case form.
     const stream = fresh();
     feed(stream, [
       {
@@ -203,10 +211,11 @@ describe("MetricsStream", () => {
               {
                 type: "tool_use",
                 id: "tu_task_tur",
-                name: "Task",
+                name: "Agent",
                 input: {
                   subagent_type: "obelus:paper-reviewer",
-                  description: "Stress-test 3 marks",
+                  description: "Stress-test 6 plan blocks",
+                  prompt: "...",
                 },
               },
             ],
@@ -220,18 +229,28 @@ describe("MetricsStream", () => {
         line: asJsonl({
           type: "user",
           message: {
-            content: [{ type: "tool_result", tool_use_id: "tu_task_tur", content: "..." }],
+            content: [
+              {
+                tool_use_id: "tu_task_tur",
+                type: "tool_result",
+                content: [{ type: "text", text: "**489230f0** — ..." }],
+              },
+            ],
           },
-          toolUseResult: {
+          tool_use_result: {
             status: "completed",
+            prompt: "...",
+            agentId: "a14cdac215f732793",
             agentType: "obelus:paper-reviewer",
-            totalDurationMs: 121962,
-            totalTokens: 33929,
+            content: [{ type: "text", text: "**489230f0** — ..." }],
+            totalDurationMs: 23518,
+            totalTokens: 11096,
+            totalToolUseCount: 0,
             usage: {
-              input_tokens: 4500,
-              output_tokens: 1200,
-              cache_read_input_tokens: 31528,
-              cache_creation_input_tokens: 1251,
+              input_tokens: 3,
+              cache_creation_input_tokens: 10510,
+              cache_read_input_tokens: 0,
+              output_tokens: 583,
             },
           },
         }),
@@ -241,11 +260,53 @@ describe("MetricsStream", () => {
     const task = drained.find((e) => e.event === "task-call");
     if (task?.event !== "task-call") throw new Error("typeguard");
     expect(task.agent).toBe("obelus:paper-reviewer");
-    expect(task.inputTokens).toBe(4_500);
-    expect(task.outputTokens).toBe(1_200);
+    expect(task.inputTokens).toBe(3);
+    expect(task.outputTokens).toBe(583);
   });
 
-  it("task-call agent name comes from toolUseResult.agentType when subagent_type input is missing", () => {
+  it("task-call also accepts the camelCase toolUseResult shape (on-disk transcript)", () => {
+    const stream = fresh();
+    feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "tu_task_camel",
+                name: "Agent",
+                input: { subagent_type: "obelus:paper-reviewer" },
+              },
+            ],
+          },
+        }),
+        at: startedAt + 100,
+      },
+    ]);
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "user",
+          message: {
+            content: [{ type: "tool_result", tool_use_id: "tu_task_camel", content: "..." }],
+          },
+          toolUseResult: {
+            status: "completed",
+            agentType: "obelus:paper-reviewer",
+            usage: { input_tokens: 7, output_tokens: 42 },
+          },
+        }),
+        at: startedAt + 8_000,
+      },
+    ]);
+    const task = drained.find((e) => e.event === "task-call");
+    if (task?.event !== "task-call") throw new Error("typeguard");
+    expect(task.inputTokens).toBe(7);
+    expect(task.outputTokens).toBe(42);
+  });
+
+  it("task-call agent name comes from tool_use_result.agentType when subagent_type input is missing", () => {
     const stream = fresh();
     feed(stream, [
       {
@@ -258,8 +319,8 @@ describe("MetricsStream", () => {
                 id: "tu_task_no_subagent",
                 name: "Task",
                 // Newer Claude Code releases sometimes drop subagent_type from
-                // the tool_use input; the user event's toolUseResult.agentType
-                // is the fallback signal.
+                // the tool_use input; the user event's tool_use_result
+                // .agentType is the fallback signal.
                 input: { description: "Stress-test 3 marks" },
               },
             ],
@@ -275,7 +336,7 @@ describe("MetricsStream", () => {
           message: {
             content: [{ type: "tool_result", tool_use_id: "tu_task_no_subagent", content: "..." }],
           },
-          toolUseResult: {
+          tool_use_result: {
             status: "completed",
             agentType: "obelus:cascade-judge",
             usage: { input_tokens: 100, output_tokens: 50 },
@@ -292,7 +353,7 @@ describe("MetricsStream", () => {
     expect(task.outputTokens).toBe(50);
   });
 
-  it("task-call falls back to parent-turn delta when no toolUseResult", () => {
+  it("task-call falls back to parent-turn delta when no tool_use_result", () => {
     const stream = fresh();
     feed(stream, [
       {
@@ -441,6 +502,173 @@ describe("MetricsStream", () => {
     expect(alphaTokens.outputTokens).toBe(55);
     expect(alphaTokens.cacheReadTokens).toBe(25);
     expect(alphaTokens.cacheCreateTokens).toBe(10);
+  });
+
+  it("synthesizes writing-plan when the model writes plan-*.json without a marker", () => {
+    const stream = fresh();
+    // Model emits coherence-sweep marker, does some thinking, then writes the
+    // plan JSON without ever emitting `[obelus:phase] writing-plan`.
+    feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: { content: [{ type: "text", text: "[obelus:phase] coherence-sweep" }] },
+        }),
+        at: startedAt + 1_000,
+      },
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: { content: [{ type: "text", text: "Composing the plan..." }] },
+        }),
+        at: startedAt + 60_000,
+      },
+    ]);
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "tu_write_plan",
+                name: "Write",
+                input: {
+                  file_path: "/<workspace>/projects/<id>/plan-20260427-172800.json",
+                  content: "{}",
+                },
+              },
+            ],
+          },
+        }),
+        at: startedAt + 90_000,
+      },
+    ]);
+
+    const phaseEvents = drained.filter((e) => e.event === "phase");
+    expect(phaseEvents).toHaveLength(1);
+    const closed = phaseEvents[0];
+    if (closed?.event !== "phase") throw new Error("typeguard");
+    expect(closed.name).toBe("coherence-sweep");
+    expect(closed.durationMs).toBe(89_000);
+
+    // Finalize to verify writing-plan opened with the Write timestamp.
+    stream.finalize(startedAt + 92_000, isoFromMs(startedAt + 92_000));
+    const final = stream.drain();
+    const writingPlan = final.find((e) => e.event === "phase" && e.name === "writing-plan");
+    if (writingPlan?.event !== "phase") throw new Error("typeguard");
+    expect(writingPlan.durationMs).toBe(2_000);
+  });
+
+  it("does not synthesize writing-plan when the model already emitted the marker", () => {
+    const stream = fresh();
+    feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: { content: [{ type: "text", text: "[obelus:phase] writing-plan" }] },
+        }),
+        at: startedAt + 1_000,
+      },
+    ]);
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "tu_write_plan_honest",
+                name: "Write",
+                input: {
+                  file_path: "/<workspace>/plan-20260427-172800.json",
+                  content: "{}",
+                },
+              },
+            ],
+          },
+        }),
+        at: startedAt + 5_000,
+      },
+    ]);
+    // No new phase events between the marker and the Write — the synthetic
+    // transition guards on `phase.name !== "writing-plan"`.
+    expect(drained.filter((e) => e.event === "phase")).toHaveLength(0);
+  });
+
+  it("does not synthesize writing-plan for a non-plan Write", () => {
+    const stream = fresh();
+    feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: { content: [{ type: "text", text: "[obelus:phase] coherence-sweep" }] },
+        }),
+        at: startedAt + 1_000,
+      },
+    ]);
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "tu_write_other",
+                name: "Write",
+                input: {
+                  file_path: "/<workspace>/notes.md",
+                  content: "...",
+                },
+              },
+            ],
+          },
+        }),
+        at: startedAt + 5_000,
+      },
+    ]);
+    expect(drained.filter((e) => e.event === "phase")).toHaveLength(0);
+  });
+
+  it("synthesizes writing-plan for the deep-review variant plan-*-deep.json", () => {
+    const stream = fresh();
+    feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: { content: [{ type: "text", text: "[obelus:phase] coherence-sweep" }] },
+        }),
+        at: startedAt + 1_000,
+      },
+    ]);
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "tu_write_deep",
+                name: "Write",
+                input: {
+                  file_path: "/<workspace>/plan-20260427-172800-deep.json",
+                  content: "{}",
+                },
+              },
+            ],
+          },
+        }),
+        at: startedAt + 5_000,
+      },
+    ]);
+    const phaseEvents = drained.filter((e) => e.event === "phase");
+    expect(phaseEvents).toHaveLength(1);
+    if (phaseEvents[0]?.event !== "phase") throw new Error("typeguard");
+    expect(phaseEvents[0].name).toBe("coherence-sweep");
   });
 
   it("ignores unmatched tool_result blocks (e.g. duplicates)", () => {

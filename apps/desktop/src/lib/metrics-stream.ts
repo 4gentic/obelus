@@ -26,6 +26,11 @@ const PHASE_MARKER_RE = /\[obelus:phase\]\s+(\S+)/;
 // [obelus:phase]" from the real phases the skill committed to.
 export const PRE_PHASE_NAME = "<pre-phase>";
 
+// `plan-fix` and `deep-review` skills both write `plan-<ISO>.json` (deep-review
+// suffixes `-deep`). Matches the basename produced by those Write tool_use
+// inputs.
+const PLAN_OUTPUT_RE = /\/plan-\d{8}-\d{6}(?:-deep)?\.json$/;
+
 interface PendingToolUse {
   id: string;
   name: string;
@@ -132,6 +137,27 @@ export class MetricsStream {
         const id = typeof block.id === "string" ? block.id : null;
         const name = typeof block.name === "string" ? block.name : null;
         if (!id || !name) continue;
+        // The model sometimes collapses `coherence-sweep` straight into the
+        // plan Write without emitting `[obelus:phase] writing-plan` first,
+        // attributing the compose-then-Write window to the previous phase.
+        // Synthesize the transition at the moment the Write fires so the
+        // attribution matches what actually happened.
+        if (
+          name === "Write" &&
+          this.phase.name !== "writing-plan" &&
+          isPlanOutputWrite(block.input)
+        ) {
+          this.closePhase(atMs, atIso);
+          this.phase = {
+            name: "writing-plan",
+            startedAt: atMs,
+            startedAtIso: atIso,
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreateTokens: 0,
+          };
+        }
         this.pending.set(id, {
           id,
           name,
@@ -164,8 +190,7 @@ export class MetricsStream {
         if (agent !== "") {
           const inputDelta = Math.max(0, this.totals.inputTokens - pending.parentInputTokens);
           const outputDelta = Math.max(0, this.totals.outputTokens - pending.parentOutputTokens);
-          const usage = tur?.usage ??
-            readNestedTaskUsage(block) ?? { input: inputDelta, output: outputDelta };
+          const usage = tur?.usage ?? { input: inputDelta, output: outputDelta };
           this.emitted.push({
             event: "task-call",
             at: atIso,
@@ -274,12 +299,23 @@ function readSubagentType(input: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-// Top-level on user events with Task tool_result; sibling of `message`.
+function isPlanOutputWrite(input: unknown): boolean {
+  if (!input || typeof input !== "object") return false;
+  const path = (input as Record<string, unknown>).file_path;
+  return typeof path === "string" && PLAN_OUTPUT_RE.test(path);
+}
+
+// On user events that close a Task tool_use, the subagent's session totals
+// land in a sibling field of `message`. The live wire stream-json
+// (`--output-format stream-json`) uses snake_case `tool_use_result`; the
+// persisted `~/.claude/projects/<sid>.jsonl` transcript uses camelCase
+// `toolUseResult`. Both shapes carry the same keys inside (`usage`,
+// `agentType`, `totalTokens`, …).
 function readToolUseResult(parsed: ParsedStreamEvent): {
   usage: { input: number; output: number } | null;
   agentType: string | null;
 } | null {
-  const tur = parsed.raw.toolUseResult;
+  const tur = parsed.raw.tool_use_result ?? parsed.raw.toolUseResult;
   if (!tur || typeof tur !== "object") return null;
   const t = tur as Record<string, unknown>;
   const usage = t.usage;
@@ -290,32 +326,4 @@ function readToolUseResult(parsed: ParsedStreamEvent): {
   }
   const agent = typeof t.agentType === "string" ? t.agentType : null;
   return { usage: parsedUsage, agentType: agent };
-}
-
-// Some Claude Code releases include an `usage` object inside the tool_result
-// payload for Task calls (the subagent's own session totals). Pull it if the
-// runtime supplies it; otherwise the caller falls back to the parent-turn
-// delta.
-function readNestedTaskUsage(
-  block: Record<string, unknown>,
-): { input: number; output: number } | null {
-  const content = block.content;
-  if (!content) return null;
-  if (Array.isArray(content)) {
-    for (const entry of content) {
-      if (!entry || typeof entry !== "object") continue;
-      const usage = (entry as Record<string, unknown>).usage;
-      if (usage && typeof usage === "object") {
-        const u = usage as Record<string, unknown>;
-        return { input: numberAt(u, "input_tokens"), output: numberAt(u, "output_tokens") };
-      }
-    }
-  } else if (typeof content === "object") {
-    const usage = (content as Record<string, unknown>).usage;
-    if (usage && typeof usage === "object") {
-      const u = usage as Record<string, unknown>;
-      return { input: numberAt(u, "input_tokens"), output: numberAt(u, "output_tokens") };
-    }
-  }
-  return null;
 }
