@@ -133,7 +133,19 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
     s.pendingExternalReload?.relPath === relPath ? s.pendingExternalReload : null,
   );
   const locked = useSourceLocked();
-  const [load, setLoad] = useState<LoadState>({ kind: "loading" });
+  // Seed `load` from `hasEntry`. If we always started at "loading", the first
+  // render of a SourcePane mounted onto an already-hydrated buffer would
+  // return the no-host "Loading…" branch (line below) — the view-mount
+  // effect then runs against `hostRef.current = null` and never re-fires,
+  // because none of its deps (`hasEntry`, `relPath`, `externalVersion`,
+  // `buffers`, `editableCompartment`) change when the load effect later
+  // flips load → "ready". Symptom: editor never appears on first click,
+  // user has to click another file and back to force a fresh mount that
+  // happens to win the race. Initializing here makes the host div present
+  // on commit #1 in the warm-buffer case.
+  const [load, setLoad] = useState<LoadState>(() =>
+    hasEntry ? { kind: "ready" } : { kind: "loading" },
+  );
   // Bumped by the "retry" button so a transient read failure can be re-tried
   // on demand without remounting the pane.
   const [retryTick, setRetryTick] = useState(0);
@@ -230,9 +242,11 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
   useEffect(() => {
     buffers.getState().setCurrentPath(relPath);
     if (hasEntry) {
+      console.info("[source-load]", { relPath, phase: "enter", hasEntry: true, action: "ready" });
       setLoad({ kind: "ready" });
       return;
     }
+    console.info("[source-load]", { relPath, phase: "enter", hasEntry: false, action: "read" });
     let cancelled = false;
     setLoad({ kind: "loading" });
     void (async () => {
@@ -243,6 +257,7 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
           buffers.getState().hydrate(relPath, text);
           setHadInvalidBytes(bad);
           setLoad({ kind: "ready" });
+          console.info("[source-load]", { relPath, phase: "hydrated", bytes: text.length });
         }
       } catch (err) {
         if (cancelled) return;
@@ -268,7 +283,18 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
     // per-keystroke setText churn out of this effect's deps.
     if (!hasEntry) return;
     const host = hostRef.current;
-    if (!host) return;
+    if (!host) {
+      // Race: the load effect just hydrated the buffer (so `hasEntry` flipped
+      // and this effect re-fired) but the same render that flipped `hasEntry`
+      // also swaps SourcePane's return tree from "Loading…" to the source-pane
+      // wrapper that owns the host div. If React re-runs effects before the
+      // commit publishes the new DOM, hostRef is briefly null. Logged so the
+      // bug report has receipts; the next dep change (or the user's next file
+      // click with `key={openFilePath}` in CenterPane) re-fires this effect
+      // with the host present.
+      console.warn("[source-load]", { relPath, phase: "view-mount", host: null });
+      return;
+    }
     // Remount the editor when the buffer is replaced from disk (e.g. after
     // apply-hunks). `externalVersion` is read so biome keeps it in the deps.
     void externalVersion;

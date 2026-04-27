@@ -1,14 +1,29 @@
 import type { JSX } from "react";
 import { useState } from "react";
-import { compileLatex, type LatexCompiler } from "../../ipc/commands";
 import { useProject } from "./context";
 import { kickFixCompile } from "./kick-fix-compile";
 import SourcePane from "./SourcePane";
 import { useCompanionPaperId } from "./use-companion-paper";
 
+// Structural shape both `compileTypst` and `compileLatex` already satisfy.
+// The desktop's LaTeX report carries an extra `engine` field that we don't
+// need here; widening to the shared subset keeps CompilePane decoupled from
+// either compiler's full report type.
+export interface CompileReport {
+  outputRelPath: string;
+  stderr: string;
+}
+
 interface Props {
   rootId: string;
   relPath: string;
+  label: string;
+  compile: (rootId: string, relPath: string) => Promise<CompileReport>;
+  // Forwarded to the fix-compile bundle's `compiler` enum so the plugin
+  // routes the error to the right repair skill. Wrong values are filtered
+  // upstream (`kick-fix-compile.ts:supportedCompiler`); we don't validate
+  // here.
+  compilerToken: "typst" | "latexmk";
 }
 
 type CompileState =
@@ -18,25 +33,25 @@ type CompileState =
   | { kind: "error"; message: string }
   | { kind: "fixing" };
 
-// latexmk on PATH wins inside `compile_latex` if MacTeX/TeX Live is installed;
-// otherwise the Rust resolver falls back to the managed Tectonic. Either way
-// the compiler token stays "latexmk" so the fix-compile bundle's `compiler`
-// enum value matches what the auto-compile flow uses.
-const DEFAULT_COMPILER: LatexCompiler = "latexmk";
-
-export default function LatexPane({ rootId, relPath }: Props): JSX.Element {
+export default function CompilePane({
+  rootId,
+  relPath,
+  label,
+  compile,
+  compilerToken,
+}: Props): JSX.Element {
   const { repo, project, setOpenFilePath } = useProject();
   const [state, setState] = useState<CompileState>({ kind: "idle" });
   // Compile itself does not require a paper — that's the point of this
   // component on a freshly-cloned repo. Fix-with-AI does, because the
-  // compile-error bundle is keyed on a paperId; we resolve the companion
+  // compile-error bundle is keyed on a paperId; resolve the companion
   // best-effort and just hide the button when nothing matches.
   const fixPaperId = useCompanionPaperId(repo, project.id, relPath);
 
   const run = async (): Promise<void> => {
     setState({ kind: "compiling" });
     try {
-      const report = await compileLatex(rootId, relPath, DEFAULT_COMPILER);
+      const report = await compile(rootId, relPath);
       setState({
         kind: "done",
         outputRelPath: report.outputRelPath,
@@ -69,7 +84,13 @@ export default function LatexPane({ rootId, relPath }: Props): JSX.Element {
         projectLabel: project.label,
         paperId: fixPaperId,
         originSessionId: null,
-        compiler: DEFAULT_COMPILER,
+        compiler: compilerToken,
+        // The user clicked Fix-with-AI while looking at `relPath`; `relPath`
+        // is the compile that's failing; `relPath` is what the skill should
+        // repair. We deliberately do NOT read `paperBuild.mainRelPath` —
+        // that value has been observed to drift to unrelated paths (e.g. a
+        // markdown file in a sibling directory) and would mis-target the
+        // repair.
         mainRelPath: relPath,
         stderr: errorMessage,
         trigger: "manual",
@@ -93,7 +114,7 @@ export default function LatexPane({ rootId, relPath }: Props): JSX.Element {
   return (
     <div className="compile-pane">
       <header className="compile-pane__head">
-        <span className="compile-pane__label">LaTeX source</span>
+        <span className="compile-pane__label">{label}</span>
         <div className="compile-pane__actions">
           {state.kind === "error" && fixPaperId !== null && (
             <button

@@ -1,20 +1,48 @@
 import type { ClassifyResult } from "@obelus/html-view";
 import type { PaperRow } from "@obelus/repo";
 import type { JSX } from "react";
+import { compileLatex, compileTypst } from "../../ipc/commands";
 import { usePaperTrust } from "../../store/use-paper-trust";
 import { useBuffersStore } from "./buffers-store-context";
+import CompilePane, { type CompileReport } from "./CompilePane";
 import { useProject } from "./context";
 import HtmlReviewSurface from "./HtmlReviewSurface";
-import LatexPane from "./LatexPane";
 import MdReviewSurface from "./MdReviewSurface";
 import { useOpenPaper } from "./OpenPaper";
 import { extensionOf, SOURCE_EXTS } from "./openable";
 import PaperActionsMenu from "./PaperActionsMenu";
 import PdfPane from "./PdfPane";
 import SourcePane from "./SourcePane";
-import TypstPane from "./TypstPane";
 import UnsupportedPane from "./UnsupportedPane";
 import { useAssetResolver } from "./use-asset-resolver";
+
+// Extension-keyed config for files that route through CompilePane (source +
+// "Compile → PDF" header). The `compile` adapter normalizes the per-engine
+// IPC report (LaTeX adds `engine`, Typst doesn't) down to the structural
+// `CompileReport` CompilePane uses.
+const COMPILE_DISPATCH: Record<
+  string,
+  {
+    label: string;
+    compile: (rootId: string, relPath: string) => Promise<CompileReport>;
+    compilerToken: "typst" | "latexmk";
+  }
+> = {
+  typ: {
+    label: "Typst source",
+    compile: compileTypst,
+    compilerToken: "typst",
+  },
+  tex: {
+    label: "LaTeX source",
+    // latexmk on PATH wins inside `compile_latex` if MacTeX/TeX Live is
+    // installed; otherwise the Rust resolver falls back to managed Tectonic.
+    // Either way the compiler token stays "latexmk" so the fix-compile
+    // bundle's `compiler` enum value matches the auto-compile flow's.
+    compile: (rootId, relPath) => compileLatex(rootId, relPath, "latexmk"),
+    compilerToken: "latexmk",
+  },
+};
 
 // True for files that route through `SourcePane`, which hydrates a buffer
 // and exposes an editable dirty/save cycle. MD under a reviewer project
@@ -130,8 +158,16 @@ export default function CenterPane(): JSX.Element {
       }
       return <UnsupportedPane path={openFilePath} />;
     }
-    if (ext === "typ") return <TypstPane rootId={rootId} relPath={openFilePath} />;
-    if (ext === "tex") return <LatexPane rootId={rootId} relPath={openFilePath} />;
+    const compileCfg = COMPILE_DISPATCH[ext];
+    if (compileCfg) {
+      // `key` forces a clean remount per file switch — both CompilePane's
+      // local compile state and SourcePane's editor are reseeded, which
+      // also closes the open-on-first-click race window where stale
+      // "Loading…" renders from a prior file held the host div null.
+      return (
+        <CompilePane key={openFilePath} rootId={rootId} relPath={openFilePath} {...compileCfg} />
+      );
+    }
     // Reviewer-mode MD: skip the Source editor entirely and mount the
     // review surface directly. Writer-mode MD falls through to SourcePane,
     // whose Preview tab mounts the same review surface — writers edit and
@@ -187,7 +223,9 @@ export default function CenterPane(): JSX.Element {
         );
       }
     }
-    if (SOURCE_EXTS.has(ext)) return <SourcePane rootId={rootId} relPath={openFilePath} />;
+    if (SOURCE_EXTS.has(ext)) {
+      return <SourcePane key={openFilePath} rootId={rootId} relPath={openFilePath} />;
+    }
     return <UnsupportedPane path={openFilePath} />;
   })();
 
