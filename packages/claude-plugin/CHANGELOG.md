@@ -2,6 +2,13 @@
 
 All notable changes to the Obelus Claude Code plugin are documented here. This file is generated from Conventional Commits touching `packages/claude-plugin/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10](https://github.com/4gentic/obelus/compare/plugin-v0.1.9...plugin-v0.1.10) (2026-04-27)
+
+
+### Refactor
+
+* **plugin:** rigorous-mode measurement, prompts, and Normal/Deep toggle ([#88](https://github.com/4gentic/obelus/issues/88)) ([5abc594](https://github.com/4gentic/obelus/commit/5abc594857290edc4499efc968c10a210d3e5cd5))
+
 ## [0.1.9](https://github.com/4gentic/obelus/compare/plugin-v0.1.8...plugin-v0.1.9) (2026-04-26)
 
 
