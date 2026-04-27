@@ -16,6 +16,7 @@ import {
 } from "../../lib/bundle-sources";
 import { useJobsStore } from "../../lib/jobs-store";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
+import { getReviewDispatchPick } from "../../store/app-state";
 import { useBuffersStore } from "./buffers-store-context";
 import {
   exportBundleForPaper,
@@ -269,14 +270,26 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           bytes: bytes.byteLength,
         });
 
-        const overrides = await loadClaudeOverrides();
+        const [overrides, dispatchPick] = await Promise.all([
+          loadClaudeOverrides(),
+          getReviewDispatchPick(),
+        ]);
+        // Resolution order: per-call opts (the StartReviewButton picker passes
+        // these explicitly) → cross-session app-state pick (set by the same
+        // picker on prior runs, also used by the repass flow that doesn't go
+        // through the picker) → chip overrides (legacy free-form Claude
+        // settings, kept for back-compat with users who already set them).
+        // When all are absent, Rust applies sonnet/low.
+        const effectiveModel: string | null = opts.model ?? dispatchPick?.model ?? overrides.model;
+        const effectiveEffort: string | null =
+          opts.effort ?? dispatchPick?.effort ?? overrides.effort;
 
         const session = await repo.reviewSessions.create({
           projectId: project.id,
           paperId,
           bundleId: filename,
-          model: overrides.model,
-          effort: overrides.effort,
+          model: effectiveModel,
+          effort: effectiveEffort,
         });
         createdSessionId = session.id;
         // Snapshot the paper's source files now, so on exit we can tell
@@ -327,8 +340,11 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           reviewSessionId: session.id,
           overridesModel: overrides.model,
           overridesEffort: overrides.effort,
+          perSpawnModel: opts.model ?? null,
+          perSpawnEffort: opts.effort ?? null,
+          effectiveModel,
+          effectiveEffort,
           mode,
-          resolvedFromOverride: overrides.model !== null,
         });
         const tSpawn = performance.now();
         const claudeSessionId = await claudeSpawn({
@@ -336,8 +352,8 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           projectId: project.id,
           bundleWorkspaceRelPath: filename,
           ...(combinedExtra !== "" ? { extraPromptBody: combinedExtra } : {}),
-          model: overrides.model,
-          effort: overrides.effort,
+          model: effectiveModel,
+          effort: effectiveEffort,
           mode,
         });
         console.info("[write-perf]", {

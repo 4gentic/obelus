@@ -1,18 +1,45 @@
 import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
+import { useJobsStore } from "../../lib/jobs-store";
 import { splitHeadline } from "../../lib/split-headline";
+import {
+  getReviewDispatchPick,
+  type ReviewDispatchPick,
+  setReviewDispatchPick,
+} from "../../store/app-state";
 import ClaudeChip from "./ClaudeChip";
 import { useProject } from "./context";
 import { useEnsureRevision } from "./ensure-revision-context";
 import { useIsPaperOpen, usePaperId } from "./OpenPaper";
-import { type ReviewRunnerMode, useReviewRunner } from "./review-runner-context";
+import {
+  REVIEW_RUNNER_EFFORT_CHOICES,
+  REVIEW_RUNNER_MODEL_CHOICES,
+  type ReviewRunnerEffortChoice,
+  type ReviewRunnerMode,
+  type ReviewRunnerModelChoice,
+  useReviewRunner,
+} from "./review-runner-context";
 import { useReviewStore } from "./store-context";
 import { useInlineConfirm } from "./use-inline-confirm";
 import { descendantsOf, usePaperEdits } from "./use-paper-edits";
 
 const IndicationsSchema = z.string();
 const ModeSchema = z.enum(["writer-fast", "rigorous"]);
+
+const DEFAULT_DISPATCH_PICK: ReviewDispatchPick = { model: "sonnet", effort: "low" };
+
+const MODEL_LABEL: Record<ReviewRunnerModelChoice, string> = {
+  sonnet: "Sonnet",
+  opus: "Opus",
+  haiku: "Haiku",
+};
+
+const EFFORT_LABEL: Record<ReviewRunnerEffortChoice, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+};
 
 export default function StartReviewButton(): JSX.Element {
   const { project, repo } = useProject();
@@ -35,6 +62,7 @@ export default function StartReviewButton(): JSX.Element {
       annotationCount={annotations.length}
       statusKind={status.kind}
       statusMessage={status.kind === "done" || status.kind === "error" ? status.message : null}
+      claudeSessionId={status.kind === "running" ? status.claudeSessionId : null}
       onStart={start}
       onCancel={cancel}
       repo={repo}
@@ -49,10 +77,13 @@ interface WriterStartReviewProps {
   annotationCount: number;
   statusKind: "idle" | "working" | "running" | "ingesting" | "done" | "error";
   statusMessage: string | null;
+  claudeSessionId: string | null;
   onStart: (opts: {
     paperId: string;
     indications?: string;
     mode?: ReviewRunnerMode;
+    model?: ReviewRunnerModelChoice;
+    effort?: ReviewRunnerEffortChoice;
   }) => Promise<void>;
   onCancel: () => Promise<void>;
   repo: import("@obelus/repo").Repository;
@@ -68,6 +99,7 @@ function WriterStartReview({
   annotationCount,
   statusKind,
   statusMessage,
+  claudeSessionId,
   onStart,
   onCancel,
   repo,
@@ -76,30 +108,48 @@ function WriterStartReview({
   const confirm = useInlineConfirm();
   const [indications, setIndications] = useState("");
   const [mode, setMode] = useState<ReviewRunnerMode>("writer-fast");
+  const [dispatchPick, setDispatchPick] = useState<ReviewDispatchPick>(DEFAULT_DISPATCH_PICK);
 
   // Hydrate the textarea + mode selector with the last-used values for this
   // paper so the user's running guidance survives navigation. A change to
-  // paperId (user switched variants) reloads independently.
+  // paperId (user switched variants) reloads independently. The dispatch
+  // pick is cross-session (app-state.json), not per-paper, so it loads on
+  // mount alongside the per-paper values.
   useEffect(() => {
     let cancelled = false;
     if (!paperId) {
       setIndications("");
       setMode("writer-fast");
-      return;
+      void getReviewDispatchPick().then((stored) => {
+        if (!cancelled) setDispatchPick(stored ?? DEFAULT_DISPATCH_PICK);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
     void (async () => {
-      const [persistedIndications, persistedMode] = await Promise.all([
+      const [persistedIndications, persistedMode, storedPick] = await Promise.all([
         repo.settings.get(INDICATIONS_KEY(paperId), IndicationsSchema),
         repo.settings.get(MODE_KEY(paperId), ModeSchema),
+        getReviewDispatchPick(),
       ]);
       if (cancelled) return;
       setIndications(persistedIndications ?? "");
       setMode(persistedMode ?? "writer-fast");
+      setDispatchPick(storedPick ?? DEFAULT_DISPATCH_PICK);
     })();
     return () => {
       cancelled = true;
     };
   }, [paperId, repo]);
+
+  const updateDispatchPick = useCallback((patch: Partial<ReviewDispatchPick>) => {
+    setDispatchPick((prev) => {
+      const next: ReviewDispatchPick = { ...prev, ...patch };
+      void setReviewDispatchPick(next);
+      return next;
+    });
+  }, []);
 
   const current = edits.live.find((e) => e.id === edits.currentDraftId) ?? edits.head ?? null;
   const isOnTip = !current || current.id === edits.head?.id;
@@ -138,6 +188,8 @@ function WriterStartReview({
     await onStart({
       paperId: effectivePaperId,
       mode,
+      model: dispatchPick.model,
+      effort: dispatchPick.effort,
       ...(trimmedIndications !== "" ? { indications: trimmedIndications } : {}),
     });
   }, [
@@ -152,6 +204,8 @@ function WriterStartReview({
     edits.refresh,
     trimmedIndications,
     mode,
+    dispatchPick.model,
+    dispatchPick.effort,
   ]);
 
   const label = (() => {
@@ -227,9 +281,12 @@ function WriterStartReview({
           </button>
         </div>
       ) : (
-        <button type="button" className="btn btn--subtle" onClick={() => void onCancel()}>
-          Cancel
-        </button>
+        <>
+          {claudeSessionId !== null && <PhaseProgressStrip claudeSessionId={claudeSessionId} />}
+          <button type="button" className="btn btn--subtle" onClick={() => void onCancel()}>
+            Cancel
+          </button>
+        </>
       )}
       {isPaperOpen && statusKind !== "running" && (
         <label className="review-column__notes">
@@ -243,6 +300,47 @@ function WriterStartReview({
             disabled={modeDisabled}
           />
         </label>
+      )}
+      {isPaperOpen && statusKind !== "running" && (
+        <details className="review-column__advanced">
+          <summary>Advanced</summary>
+          <div className="review-column__advanced-grid">
+            <label className="review-column__advanced-field">
+              <span className="review-column__advanced-label">Model</span>
+              <select
+                className="review-column__advanced-input"
+                value={dispatchPick.model}
+                onChange={(event) =>
+                  updateDispatchPick({ model: event.target.value as ReviewRunnerModelChoice })
+                }
+                disabled={modeDisabled}
+              >
+                {REVIEW_RUNNER_MODEL_CHOICES.map((value) => (
+                  <option key={value} value={value}>
+                    {MODEL_LABEL[value]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="review-column__advanced-field">
+              <span className="review-column__advanced-label">Effort</span>
+              <select
+                className="review-column__advanced-input"
+                value={dispatchPick.effort}
+                onChange={(event) =>
+                  updateDispatchPick({ effort: event.target.value as ReviewRunnerEffortChoice })
+                }
+                disabled={modeDisabled}
+              >
+                {REVIEW_RUNNER_EFFORT_CHOICES.map((value) => (
+                  <option key={value} value={value}>
+                    {EFFORT_LABEL[value]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </details>
       )}
       {!isPaperOpen && <p className="review-column__hint">Open a paper to start a review.</p>}
       {isPaperOpen &&
@@ -259,6 +357,34 @@ function WriterStartReview({
         <StatusMessage message={statusMessage} />
       )}
     </div>
+  );
+}
+
+// WS3 progress strip: minimal "<phase> · MM:SS" line that ticks every second
+// while a review run is active. Phase comes from the jobs store (driven by the
+// stdout listener); elapsed is computed against the phase's started-at, with a
+// fallback to the job's startedAt when no phase has fired yet.
+function PhaseProgressStrip({ claudeSessionId }: { claudeSessionId: string }): JSX.Element | null {
+  const job = useJobsStore((s) => s.jobs[claudeSessionId]);
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    if (!job || (job.status !== "running" && job.status !== "ingesting")) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(id);
+  }, [job]);
+
+  if (!job) return null;
+  const phaseLabel = job.phase || "starting";
+  const lastPhase = job.phaseHistory[job.phaseHistory.length - 1];
+  const phaseStartedAt = lastPhase?.at ?? job.startedAt;
+  const elapsed = Math.max(0, Math.floor((now - phaseStartedAt) / 1_000));
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+  const ss = String(elapsed % 60).padStart(2, "0");
+  return (
+    <p className="review-column__hint" aria-live="polite">
+      {phaseLabel} · {mm}:{ss}
+    </p>
   );
 }
 

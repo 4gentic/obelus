@@ -1,4 +1,5 @@
 use crate::commands::claude::resolve_claude_path;
+use crate::commands::metrics;
 use crate::commands::preflight;
 use crate::commands::workspace::workspace_dir_for;
 use crate::error::{AppError, AppResult};
@@ -173,18 +174,43 @@ async fn spawn_streaming(
     Ok(session_str)
 }
 
-// Hard-coded model + effort for the dispatch / locate / minimal-diff-composition
+// Default model + effort for the dispatch / locate / minimal-diff-composition
 // skills (apply-revision, plan-writer-fast, write-review, fix-compile). The
 // in-code comments at each call site already classify these as "not reasoning"
 // — Sonnet matches Opus quality at ~2× throughput, and `--effort high` produces
 // 38K+ character single-turn thinking blocks (minutes of wall-clock) for work
-// that doesn't reward extended thinking. Held hard-coded rather than
-// user-overridable: footgun if exposed via Settings, and the user has no
-// signal that would let them pick a better value than the workflow's author.
-// Free-form `claude_ask` still respects the user's `claude.model` /
-// `claude.effort` settings — that's reasoning territory, the user's call.
-const DISPATCH_MODEL: Option<&str> = Some("sonnet");
-const DISPATCH_EFFORT: Option<&str> = Some("low");
+// that doesn't reward extended thinking. The user can override both via the
+// "Advanced" disclosure on the start-review panel; without an override these
+// defaults apply.
+const DEFAULT_DISPATCH_MODEL: &str = "sonnet";
+const DEFAULT_DISPATCH_EFFORT: &str = "low";
+
+const ALLOWED_MODELS: &[&str] = &["sonnet", "opus", "haiku"];
+const ALLOWED_EFFORTS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+
+fn validate_model(value: Option<&str>) -> AppResult<&str> {
+    let v = value.unwrap_or(DEFAULT_DISPATCH_MODEL);
+    if ALLOWED_MODELS.contains(&v) {
+        Ok(v)
+    } else {
+        Err(AppError::Other(format!(
+            "invalid model {v:?}; allowed: {}",
+            ALLOWED_MODELS.join(", ")
+        )))
+    }
+}
+
+fn validate_effort(value: Option<&str>) -> AppResult<&str> {
+    let v = value.unwrap_or(DEFAULT_DISPATCH_EFFORT);
+    if ALLOWED_EFFORTS.contains(&v) {
+        Ok(v)
+    } else {
+        Err(AppError::Other(format!(
+            "invalid effort {v:?}; allowed: {}",
+            ALLOWED_EFFORTS.join(", ")
+        )))
+    }
+}
 
 fn claude_command(
     claude: &Path,
@@ -256,6 +282,36 @@ pub async fn claude_spawn(
         .path()
         .resolve("plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
+
+    // Schema-validate the bundle before doing any other work. The model used
+    // to do this in the apply-revision skill by reading the schema and the
+    // bundle and reasoning about them; that's a deterministic check, so it
+    // belongs here. A failure aborts the spawn — no session id, no metrics
+    // row — and the desktop surfaces the first few errors verbatim.
+    let validation_started = std::time::Instant::now();
+    let bundle_value: serde_json::Value = match tokio::fs::read(&bundle_abs).await {
+        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| {
+            AppError::Other(format!("bundle parse failed at {}: {e}", bundle_abs.display()))
+        })?,
+        Err(e) => {
+            return Err(AppError::Other(format!(
+                "bundle read failed at {}: {e}",
+                bundle_abs.display()
+            )));
+        }
+    };
+    if let Err(errors) = preflight::validate_bundle_against_schema(&bundle_value, &plugin_dir) {
+        eprintln!(
+            "[claude-session] bundle validation failed bundle={} errors={:?}",
+            bundle_abs.display(),
+            errors,
+        );
+        return Err(AppError::Other(format!(
+            "bundle does not match schema: {}",
+            errors.join("; ")
+        )));
+    }
+    let validation_ms = validation_started.elapsed().as_millis();
 
     // `mode` switches the orchestrator: writer-fast routes to the one-turn
     // plan-writer-fast skill on Haiku (no subagent, no impact / coherence
@@ -331,35 +387,82 @@ pub async fn claude_spawn(
     } else {
         preflight::Mode::Rigorous
     };
-    if let Some(prelude) = preflight::build_prelude(&bundle_abs, &root, &plugin_dir, mode_kind) {
-        base.push('\n');
-        base.push_str(&prelude);
-        if !base.ends_with('\n') {
-            base.push('\n');
-        }
-    }
+    let metrics_seed: Option<(preflight::BundleStats, preflight::PreludeTimings)> =
+        match preflight::build_prelude_with_metrics(&bundle_abs, &root, &plugin_dir, mode_kind) {
+            Some((prelude, stats, timings)) => {
+                base.push('\n');
+                base.push_str(&prelude);
+                if !base.ends_with('\n') {
+                    base.push('\n');
+                }
+                Some((stats, timings))
+            }
+            None => None,
+        };
 
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 
-    // Sonnet + low effort, hard-coded — see DISPATCH_MODEL / DISPATCH_EFFORT
-    // above. apply-revision + plan-fix are dispatch, location, and minimal-diff
-    // composition; plan-writer-fast is a single-turn drafter. Neither benefits
-    // from Opus or extended thinking — both just inflate wall-clock. The user's
-    // `claude.model` / `claude.effort` settings are intentionally ignored on
-    // this path; free-form `claude_ask` is where user picks land.
-    let _ = model;
-    let _ = effort;
-    // Boundary log: confirm DISPATCH_MODEL reaches argv. Routed through stderr
-    // so the existing `[claude-stderr]` listener surfaces it in devtools.
+    // The dispatch / locate / minimal-diff-composition skills default to
+    // sonnet/low (see DEFAULT_DISPATCH_*). The Advanced disclosure on the
+    // start-review panel can override either; the values arrive here through
+    // the Tauri boundary and are validated against the allow-list.
+    let effective_model = validate_model(model.as_deref())?;
+    let effective_effort = validate_effort(effort.as_deref())?;
     eprintln!(
-        "[claude-session] spawn-model rootId={} requested={:?} effective={:?} mode={:?}",
-        root_id, model, DISPATCH_MODEL, mode
+        "[claude-session] spawn-model rootId={} requested={:?} effective={:?}/{:?} mode={:?}",
+        root_id,
+        model,
+        effective_model,
+        effective_effort,
+        mode,
     );
-    let mut cmd =
-        claude_command(&claude, &root, &workspace, DISPATCH_MODEL, DISPATCH_EFFORT);
+    let mut cmd = claude_command(
+        &claude,
+        &root,
+        &workspace,
+        Some(effective_model),
+        Some(effective_effort),
+    );
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
-    spawn_streaming(cmd, prompt, app, &state).await
+    let session_id = spawn_streaming(cmd, prompt, app, &state).await?;
+
+    let now = metrics::now_iso();
+    let validated_event = serde_json::json!({
+        "event": "bundle-validated",
+        "at": now,
+        "sessionId": session_id,
+        "validationMs": validation_ms,
+        "errorCount": 0,
+    });
+    metrics::append_event_bestoffer(&workspace, &session_id, &validated_event).await;
+
+    if let Some((stats, timings)) = metrics_seed {
+        let bundle_stats = serde_json::json!({
+            "event": "bundle-stats",
+            "at": now,
+            "sessionId": session_id,
+            "annotations": stats.annotations,
+            "anchorSource": stats.anchor_source,
+            "anchorPdf": stats.anchor_pdf,
+            "anchorHtml": stats.anchor_html,
+            "papers": stats.papers,
+            "files": stats.files,
+            "bytes": stats.bytes,
+        });
+        metrics::append_event_bestoffer(&workspace, &session_id, &bundle_stats).await;
+        let preflight_event = serde_json::json!({
+            "event": "preflight-rust",
+            "at": now,
+            "sessionId": session_id,
+            "preludeMs": timings.prelude_ms,
+            "sha256Ms": timings.sha256_ms,
+            "totalMs": timings.total_ms,
+        });
+        metrics::append_event_bestoffer(&workspace, &session_id, &preflight_event).await;
+    }
+
+    Ok(session_id)
 }
 
 #[tauri::command]
@@ -406,13 +509,18 @@ pub async fn claude_draft_writeup(
     }
     let prompt = append_extra_prompt_body(base, extra_prompt_body.as_ref());
 
-    // write-review is composition (500–1500 words of reviewer voice), not
-    // reasoning. Hard-coded Sonnet + low effort — see DISPATCH_MODEL /
-    // DISPATCH_EFFORT above.
-    let _ = model;
-    let _ = effort;
-    let mut cmd =
-        claude_command(&claude, &root, &workspace, DISPATCH_MODEL, DISPATCH_EFFORT);
+    // write-review is composition (500–1500 words of reviewer voice). The
+    // user-facing Advanced picker on the start-review panel feeds through
+    // here too; defaults sit at sonnet/low when nothing was selected.
+    let effective_model = validate_model(model.as_deref())?;
+    let effective_effort = validate_effort(effort.as_deref())?;
+    let mut cmd = claude_command(
+        &claude,
+        &root,
+        &workspace,
+        Some(effective_model),
+        Some(effective_effort),
+    );
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await
@@ -452,13 +560,17 @@ pub async fn claude_fix_compile(
         paper_id,
     );
 
-    // fix-compile is dispatch and minimal-diff edit composition — not
-    // reasoning. Hard-coded Sonnet + low effort — see DISPATCH_MODEL /
-    // DISPATCH_EFFORT above.
-    let _ = model;
-    let _ = effort;
-    let mut cmd =
-        claude_command(&claude, &root, &workspace, DISPATCH_MODEL, DISPATCH_EFFORT);
+    // fix-compile is dispatch and minimal-diff edit composition. Same picker
+    // as claude_spawn / claude_draft_writeup; defaults to sonnet/low.
+    let effective_model = validate_model(model.as_deref())?;
+    let effective_effort = validate_effort(effort.as_deref())?;
+    let mut cmd = claude_command(
+        &claude,
+        &root,
+        &workspace,
+        Some(effective_model),
+        Some(effective_effort),
+    );
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
     spawn_streaming(cmd, prompt, app, &state).await

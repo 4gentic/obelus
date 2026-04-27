@@ -20,13 +20,29 @@ export interface WizardCheckpoint {
   seenOnce: boolean;
 }
 
+// Per-spawn dispatch override for the start-review panel's Advanced
+// disclosure. Kept narrow so a future picker that ships more values doesn't
+// silently widen the persisted shape: the read path validates against the
+// allow-list before handing the value to the runner.
+export type StoredReviewModel = "sonnet" | "opus" | "haiku";
+export type StoredReviewEffort = "low" | "medium" | "high";
+
+export interface ReviewDispatchPick {
+  model: StoredReviewModel;
+  effort: StoredReviewEffort;
+}
+
+const REVIEW_MODEL_VALUES: ReadonlyArray<StoredReviewModel> = ["sonnet", "opus", "haiku"];
+const REVIEW_EFFORT_VALUES: ReadonlyArray<StoredReviewEffort> = ["low", "medium", "high"];
+
 type StoreKey =
   | "windowGeometry"
   | "wizard"
   | "claudeDetectCache"
   | "lastOpenedProjectId"
   | "currentDeskId"
-  | "trustedPapers";
+  | "trustedPapers"
+  | "reviewDispatchPick";
 
 interface StoreShape {
   windowGeometry: WindowGeometry;
@@ -40,6 +56,9 @@ interface StoreShape {
   // migration can attach metadata (granted-at, host allow-list) without
   // churning the storage key.
   trustedPapers: Record<string, true>;
+  // Cross-session model + effort the start-review panel's Advanced
+  // disclosure last set. Read on mount, written on change.
+  reviewDispatchPick: ReviewDispatchPick;
 }
 
 let singleton: Promise<Store> | null = null;
@@ -102,4 +121,33 @@ export async function untrustPapers(paperIds: ReadonlyArray<string>): Promise<vo
   }
   if (!changed) return;
   await setAppState("trustedPapers", next);
+}
+
+// Coerce a persisted reviewDispatchPick to its narrow shape. A user (or a
+// rogue migration) could land arbitrary text in app-state.json; reads
+// validate before handing the value to the runner so an invalid persisted
+// pick falls back to the default rather than reaching the Tauri boundary.
+function isStoredModel(value: unknown): value is StoredReviewModel {
+  return (
+    typeof value === "string" && (REVIEW_MODEL_VALUES as ReadonlyArray<string>).includes(value)
+  );
+}
+function isStoredEffort(value: unknown): value is StoredReviewEffort {
+  return (
+    typeof value === "string" && (REVIEW_EFFORT_VALUES as ReadonlyArray<string>).includes(value)
+  );
+}
+
+export async function getReviewDispatchPick(): Promise<ReviewDispatchPick | undefined> {
+  const raw = await getAppState("reviewDispatchPick");
+  if (!raw) return undefined;
+  const candidate = raw as { model?: unknown; effort?: unknown };
+  if (!isStoredModel(candidate.model) || !isStoredEffort(candidate.effort)) {
+    return undefined;
+  }
+  return { model: candidate.model, effort: candidate.effort };
+}
+
+export async function setReviewDispatchPick(pick: ReviewDispatchPick): Promise<void> {
+  await setAppState("reviewDispatchPick", pick);
 }
