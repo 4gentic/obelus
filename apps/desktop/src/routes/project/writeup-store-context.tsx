@@ -19,7 +19,6 @@ import {
 import { workspaceWriteText } from "../../ipc/commands";
 import { useJobsStore } from "../../lib/jobs-store";
 import { getRepository } from "../../lib/repo";
-import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { createWriteUpStore, type WriteUpStore } from "../../lib/writeup-store";
 import { exportBundleForPaper } from "./build-bundle";
 import { useProject } from "./context";
@@ -156,7 +155,6 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
           rubricWorkspaceRelPath = `rubric-${paperId}.md`;
           await workspaceWriteText(project.id, rubricWorkspaceRelPath, paper.rubric.body);
         }
-        const overrides = await loadClaudeOverrides();
         progressStore.getState().start();
         const claudeSessionId = await claudeDraftWriteup({
           rootId,
@@ -165,8 +163,8 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
           paperId,
           paperTitle,
           ...(rubricWorkspaceRelPath !== undefined ? { rubricWorkspaceRelPath } : {}),
-          model: overrides.model,
-          effort: overrides.effort,
+          model: null,
+          effort: null,
         });
         await store.getState().load(project.id, paperId);
         store.getState().startDrafting(claudeSessionId);

@@ -2,44 +2,20 @@ import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { useJobsStore } from "../../lib/jobs-store";
+import { DEFAULT_THOROUGHNESS, type ReviewerThoroughness } from "../../lib/reviewer-thoroughness";
 import { splitHeadline } from "../../lib/split-headline";
-import {
-  getReviewDispatchPick,
-  type ReviewDispatchPick,
-  setReviewDispatchPick,
-} from "../../store/app-state";
-import ClaudeChip from "./ClaudeChip";
+import { getReviewerThoroughness, setReviewerThoroughness } from "../../store/app-state";
 import { useProject } from "./context";
 import { useEnsureRevision } from "./ensure-revision-context";
 import { useIsPaperOpen, usePaperId } from "./OpenPaper";
-import {
-  REVIEW_RUNNER_EFFORT_CHOICES,
-  REVIEW_RUNNER_MODEL_CHOICES,
-  type ReviewRunnerEffortChoice,
-  type ReviewRunnerMode,
-  type ReviewRunnerModelChoice,
-  useReviewRunner,
-} from "./review-runner-context";
+import { type ReviewRunnerMode, useReviewRunner } from "./review-runner-context";
 import { useReviewStore } from "./store-context";
+import ThoroughnessToggle from "./ThoroughnessToggle";
 import { useInlineConfirm } from "./use-inline-confirm";
 import { descendantsOf, usePaperEdits } from "./use-paper-edits";
 
 const IndicationsSchema = z.string();
 const ModeSchema = z.enum(["writer-fast", "rigorous"]);
-
-const DEFAULT_DISPATCH_PICK: ReviewDispatchPick = { model: "sonnet", effort: "low" };
-
-const MODEL_LABEL: Record<ReviewRunnerModelChoice, string> = {
-  sonnet: "Sonnet",
-  opus: "Opus",
-  haiku: "Haiku",
-};
-
-const EFFORT_LABEL: Record<ReviewRunnerEffortChoice, string> = {
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-};
 
 export default function StartReviewButton(): JSX.Element {
   const { project, repo } = useProject();
@@ -82,8 +58,6 @@ interface WriterStartReviewProps {
     paperId: string;
     indications?: string;
     mode?: ReviewRunnerMode;
-    model?: ReviewRunnerModelChoice;
-    effort?: ReviewRunnerEffortChoice;
   }) => Promise<void>;
   onCancel: () => Promise<void>;
   repo: import("@obelus/repo").Repository;
@@ -108,47 +82,44 @@ function WriterStartReview({
   const confirm = useInlineConfirm();
   const [indications, setIndications] = useState("");
   const [mode, setMode] = useState<ReviewRunnerMode>("writer-fast");
-  const [dispatchPick, setDispatchPick] = useState<ReviewDispatchPick>(DEFAULT_DISPATCH_PICK);
+  const [thoroughness, setThoroughnessState] = useState<ReviewerThoroughness>(DEFAULT_THOROUGHNESS);
 
   // Hydrate the textarea + mode selector with the last-used values for this
   // paper so the user's running guidance survives navigation. A change to
-  // paperId (user switched variants) reloads independently. The dispatch
-  // pick is cross-session (app-state.json), not per-paper, so it loads on
+  // paperId (user switched variants) reloads independently. The thoroughness
+  // toggle is cross-session (app-state.json), not per-paper, so it loads on
   // mount alongside the per-paper values.
   useEffect(() => {
     let cancelled = false;
     if (!paperId) {
       setIndications("");
       setMode("writer-fast");
-      void getReviewDispatchPick().then((stored) => {
-        if (!cancelled) setDispatchPick(stored ?? DEFAULT_DISPATCH_PICK);
+      void getReviewerThoroughness().then((stored) => {
+        if (!cancelled) setThoroughnessState(stored ?? DEFAULT_THOROUGHNESS);
       });
       return () => {
         cancelled = true;
       };
     }
     void (async () => {
-      const [persistedIndications, persistedMode, storedPick] = await Promise.all([
+      const [persistedIndications, persistedMode, storedThoroughness] = await Promise.all([
         repo.settings.get(INDICATIONS_KEY(paperId), IndicationsSchema),
         repo.settings.get(MODE_KEY(paperId), ModeSchema),
-        getReviewDispatchPick(),
+        getReviewerThoroughness(),
       ]);
       if (cancelled) return;
       setIndications(persistedIndications ?? "");
       setMode(persistedMode ?? "writer-fast");
-      setDispatchPick(storedPick ?? DEFAULT_DISPATCH_PICK);
+      setThoroughnessState(storedThoroughness ?? DEFAULT_THOROUGHNESS);
     })();
     return () => {
       cancelled = true;
     };
   }, [paperId, repo]);
 
-  const updateDispatchPick = useCallback((patch: Partial<ReviewDispatchPick>) => {
-    setDispatchPick((prev) => {
-      const next: ReviewDispatchPick = { ...prev, ...patch };
-      void setReviewDispatchPick(next);
-      return next;
-    });
+  const updateThoroughness = useCallback((next: ReviewerThoroughness) => {
+    setThoroughnessState(next);
+    void setReviewerThoroughness(next);
   }, []);
 
   const current = edits.live.find((e) => e.id === edits.currentDraftId) ?? edits.head ?? null;
@@ -188,8 +159,6 @@ function WriterStartReview({
     await onStart({
       paperId: effectivePaperId,
       mode,
-      model: dispatchPick.model,
-      effort: dispatchPick.effort,
       ...(trimmedIndications !== "" ? { indications: trimmedIndications } : {}),
     });
   }, [
@@ -204,8 +173,6 @@ function WriterStartReview({
     edits.refresh,
     trimmedIndications,
     mode,
-    dispatchPick.model,
-    dispatchPick.effort,
   ]);
 
   const label = (() => {
@@ -261,7 +228,14 @@ function WriterStartReview({
       )}
       {statusKind !== "running" ? (
         <div className="review-column__launch">
-          {isPaperOpen ? <ClaudeChip /> : null}
+          {isPaperOpen ? (
+            <ThoroughnessToggle
+              value={thoroughness}
+              onChange={updateThoroughness}
+              disabled={modeDisabled}
+              name={paperId ? `thoroughness-${paperId}` : "thoroughness"}
+            />
+          ) : null}
           <button
             type="button"
             className={
@@ -300,47 +274,6 @@ function WriterStartReview({
             disabled={modeDisabled}
           />
         </label>
-      )}
-      {isPaperOpen && statusKind !== "running" && (
-        <details className="review-column__advanced">
-          <summary>Advanced</summary>
-          <div className="review-column__advanced-grid">
-            <label className="review-column__advanced-field">
-              <span className="review-column__advanced-label">Model</span>
-              <select
-                className="review-column__advanced-input"
-                value={dispatchPick.model}
-                onChange={(event) =>
-                  updateDispatchPick({ model: event.target.value as ReviewRunnerModelChoice })
-                }
-                disabled={modeDisabled}
-              >
-                {REVIEW_RUNNER_MODEL_CHOICES.map((value) => (
-                  <option key={value} value={value}>
-                    {MODEL_LABEL[value]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="review-column__advanced-field">
-              <span className="review-column__advanced-label">Effort</span>
-              <select
-                className="review-column__advanced-input"
-                value={dispatchPick.effort}
-                onChange={(event) =>
-                  updateDispatchPick({ effort: event.target.value as ReviewRunnerEffortChoice })
-                }
-                disabled={modeDisabled}
-              >
-                {REVIEW_RUNNER_EFFORT_CHOICES.map((value) => (
-                  <option key={value} value={value}>
-                    {EFFORT_LABEL[value]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </details>
       )}
       {!isPaperOpen && <p className="review-column__hint">Open a paper to start a review.</p>}
       {isPaperOpen &&

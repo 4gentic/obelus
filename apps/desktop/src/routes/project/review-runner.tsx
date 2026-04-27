@@ -16,8 +16,8 @@ import {
 } from "../../lib/bundle-sources";
 import { useJobsStore } from "../../lib/jobs-store";
 import { appendMetric, nowIso } from "../../lib/metrics";
-import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
-import { getReviewDispatchPick } from "../../store/app-state";
+import { DEFAULT_THOROUGHNESS, THOROUGHNESS_SPAWN } from "../../lib/reviewer-thoroughness";
+import { getReviewerThoroughness } from "../../store/app-state";
 import { useBuffersStore } from "./buffers-store-context";
 import {
   exportBundleForPaper,
@@ -272,19 +272,10 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           bytes: bytes.byteLength,
         });
 
-        const [overrides, dispatchPick] = await Promise.all([
-          loadClaudeOverrides(),
-          getReviewDispatchPick(),
-        ]);
-        // Resolution order: per-call opts (the StartReviewButton picker passes
-        // these explicitly) → cross-session app-state pick (set by the same
-        // picker on prior runs, also used by the repass flow that doesn't go
-        // through the picker) → chip overrides (legacy free-form Claude
-        // settings, kept for back-compat with users who already set them).
-        // When all are absent, Rust applies sonnet/low.
-        const effectiveModel: string | null = opts.model ?? dispatchPick?.model ?? overrides.model;
-        const effectiveEffort: string | null =
-          opts.effort ?? dispatchPick?.effort ?? overrides.effort;
+        const thoroughness = (await getReviewerThoroughness()) ?? DEFAULT_THOROUGHNESS;
+        const spawn = THOROUGHNESS_SPAWN[thoroughness];
+        const effectiveModel: string = spawn.model;
+        const effectiveEffort: string = spawn.effort;
 
         const session = await repo.reviewSessions.create({
           projectId: project.id,
@@ -334,16 +325,13 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           .join("\n");
         const mode: ReviewRunnerMode =
           opts.mode ?? (project.kind === "writer" ? "writer-fast" : "rigorous");
-        // Boundary log: what model the React side is actually handing to the
-        // spawn. Pairs with `[claude-session] spawn-model …` in stderr to pin
-        // down which hop drops the value when the chip's selection doesn't
-        // reach the CLI argv.
+        // Boundary log: what the React side is actually handing to the spawn.
+        // Pairs with `[claude-session] spawn-model …` in stderr to pin down
+        // which hop drops the value when the toggle's selection doesn't reach
+        // the CLI argv.
         console.info("[spawn-model]", {
           reviewSessionId: session.id,
-          overridesModel: overrides.model,
-          overridesEffort: overrides.effort,
-          perSpawnModel: opts.model ?? null,
-          perSpawnEffort: opts.effort ?? null,
+          thoroughness,
           effectiveModel,
           effectiveEffort,
           mode,
@@ -424,13 +412,10 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         if (!session) throw new Error(`review session ${opts.reviewSessionId} not found`);
         const paper = await repo.papers.get(opts.paperId);
 
-        const [overrides, dispatchPick] = await Promise.all([
-          loadClaudeOverrides(),
-          getReviewDispatchPick(),
-        ]);
-        const effectiveModel: string | null = opts.model ?? dispatchPick?.model ?? overrides.model;
-        const effectiveEffort: string | null =
-          opts.effort ?? dispatchPick?.effort ?? overrides.effort;
+        const thoroughness = (await getReviewerThoroughness()) ?? DEFAULT_THOROUGHNESS;
+        const spawn = THOROUGHNESS_SPAWN[thoroughness];
+        const effectiveModel: string = spawn.model;
+        const effectiveEffort: string = spawn.effort;
 
         const claudeSessionId = await claudeSpawn({
           rootId,
@@ -457,6 +442,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           reviewSessionId: opts.reviewSessionId,
           claudeSessionId,
           planPath: opts.planWorkspaceRelPath,
+          thoroughness,
           model: effectiveModel,
           effort: effectiveEffort,
         });
