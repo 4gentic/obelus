@@ -1,14 +1,3 @@
-// WS3 stream-json → metric events. The jobs-listener owns the live stream;
-// this module is the pure state machine that turns one parsed event (plus a
-// stdout line for phase markers) into zero-or-more `MetricEvent`s.
-//
-// Kept stateful per session: the caller (jobs-listener) creates one tracker
-// at session start and feeds it every stdout event in order, then calls
-// `finalize()` when the subprocess exits.
-//
-// Pure of side effects on purpose: tests feed a recorded fixture and assert on
-// the emitted events without mocking Tauri.
-
 import {
   extractAssistantText,
   extractResultText,

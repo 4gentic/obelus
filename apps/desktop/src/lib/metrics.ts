@@ -1,17 +1,3 @@
-// WS3: structured per-session metrics for one Claude review run. Events are
-// appended to `<workspace>/metrics-<sessionId>.jsonl`, one JSON object per
-// line. The Rust `metrics_append` command resolves the workspace dir from
-// `projectId` and opens the file in append mode.
-//
-// Two writers share the same file: this TS module (stream-derived events from
-// `jobs-listener.tsx`) and the Rust side (bundle-stats, preflight-rust, apply
-// — written directly inside the relevant Tauri commands). Rust events go in
-// before the first stream event arrives; TS events ride the stdout reader.
-//
-// Events flow through a Zod schema as a discriminated union on `event` so a
-// future reader (analytics script, eval harness) can reject malformed lines
-// without re-deriving the shape.
-
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 

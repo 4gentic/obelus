@@ -426,6 +426,21 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           mode: "deep-review",
         });
         await repo.reviewSessions.setClaudeSessionId(opts.reviewSessionId, claudeSessionId);
+        // Bundle was exported in the original session; count fields are N/A.
+        await appendMetric(project.id, claudeSessionId, {
+          event: "bundle-stats",
+          at: nowIso(),
+          sessionId: claudeSessionId,
+          annotations: 0,
+          anchorSource: 0,
+          anchorPdf: 0,
+          anchorHtml: 0,
+          papers: 0,
+          files: 0,
+          bytes: 0,
+          model: effectiveModel,
+          effort: effectiveEffort,
+        });
 
         useJobsStore.getState().register({
           claudeSessionId,

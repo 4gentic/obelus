@@ -298,14 +298,15 @@ function WriterStartReview({
 // stdout listener); elapsed is computed against the phase's started-at, with a
 // fallback to the job's startedAt when no phase has fired yet.
 function PhaseProgressStrip({ claudeSessionId }: { claudeSessionId: string }): JSX.Element | null {
+  const status = useJobsStore((s) => s.jobs[claudeSessionId]?.status);
   const job = useJobsStore((s) => s.jobs[claudeSessionId]);
   const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    if (!job || (job.status !== "running" && job.status !== "ingesting")) return;
+    if (status !== "running" && status !== "ingesting") return;
     const id = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(id);
-  }, [job]);
+  }, [status]);
 
   if (!job) return null;
   const phaseLabel = job.phase || "starting";

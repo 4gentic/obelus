@@ -1,5 +1,6 @@
 import { Store } from "@tauri-apps/plugin-store";
 import type { ClaudeStatus } from "../ipc/commands";
+import type { ReviewerThoroughness } from "../lib/reviewer-thoroughness";
 
 const STORE_PATH = "app-state.json";
 
@@ -19,13 +20,6 @@ export interface WizardCheckpoint {
   folio: 1 | 2 | 3 | 4 | "done";
   seenOnce: boolean;
 }
-
-// Cross-session pick for the start-review panel's Normal / Deep-thinking
-// toggle. The narrow shape is intentional: the read path validates against
-// the allow-list before handing the value to the runner, so a stale or
-// hand-edited app-state.json falls back to the default rather than reaching
-// the Tauri boundary.
-import type { ReviewerThoroughness } from "../lib/reviewer-thoroughness";
 
 const REVIEWER_THOROUGHNESS_VALUES: ReadonlyArray<ReviewerThoroughness> = ["normal", "deep"];
 

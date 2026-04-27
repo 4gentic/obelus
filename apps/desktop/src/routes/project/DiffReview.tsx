@@ -811,7 +811,7 @@ type DeepReviewAvailability =
   | { kind: "unavailable"; reason: string }
   | { kind: "ready"; planRelPath: string };
 
-function basenameNoExt(p: string): string {
+function basename(p: string): string {
   const slash = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
   return slash < 0 ? p : p.slice(slash + 1);
 }
@@ -837,7 +837,7 @@ function useDeepReviewAvailability(
           setState({ kind: "unavailable", reason: "session-gone" });
           return;
         }
-        const sessionBundleBasename = basenameNoExt(session.bundleId);
+        const sessionBundleBasename = basename(session.bundleId);
         const entries = await workspaceReadDir(projectId, ".").catch(() => []);
         if (cancelled) return;
         const planNames = entries.map((e) => e.name).filter((n) => /^plan-.+\.json$/.test(n));
@@ -846,10 +846,11 @@ function useDeepReviewAvailability(
           if (isDeepReviewPlanName(name)) continue;
           try {
             const buffer = await workspaceReadFile(projectId, name);
+            if (cancelled) return;
             const text = new TextDecoder().decode(new Uint8Array(buffer));
             const plan = PlanFileSchema.safeParse(JSON.parse(text));
             if (!plan.success) continue;
-            if (basenameNoExt(plan.data.bundleId) !== sessionBundleBasename) continue;
+            if (basename(plan.data.bundleId) !== sessionBundleBasename) continue;
             if (originalPlan === null || name > originalPlan) {
               originalPlan = name;
             }
