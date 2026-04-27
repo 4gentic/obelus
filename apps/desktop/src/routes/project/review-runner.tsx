@@ -293,14 +293,6 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           effort: effectiveEffort,
         });
         createdSessionId = session.id;
-        await appendMetric(project.id, session.id, {
-          event: "anchor-resolution",
-          at: nowIso(),
-          sessionId: session.id,
-          source: anchorResolution.source,
-          pdfFallback: anchorResolution.pdfFallback,
-          htmlFallback: anchorResolution.htmlFallback,
-        });
         // Snapshot the paper's source files now, so on exit we can tell
         // whether Claude bypassed plan-fix and mutated source directly. If
         // any of these files' sha256 changes and no plan file is produced,
@@ -373,6 +365,14 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           clickToSpawnMs: Date.now() - startedAt,
         });
         await repo.reviewSessions.setClaudeSessionId(session.id, claudeSessionId);
+        await appendMetric(project.id, claudeSessionId, {
+          event: "anchor-resolution",
+          at: nowIso(),
+          sessionId: claudeSessionId,
+          source: anchorResolution.source,
+          pdfFallback: anchorResolution.pdfFallback,
+          htmlFallback: anchorResolution.htmlFallback,
+        });
 
         useJobsStore.getState().register({
           claudeSessionId,
