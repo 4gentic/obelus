@@ -9,6 +9,7 @@ pub mod factory_reset;
 pub mod fs_scoped;
 pub mod history;
 pub mod latex;
+pub mod metrics;
 pub mod preflight;
 pub mod project;
 pub mod project_meta;

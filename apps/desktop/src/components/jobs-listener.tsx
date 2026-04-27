@@ -7,16 +7,31 @@ import {
   onClaudeExit,
   onClaudeStderr,
   onClaudeStdout,
+  PlanFileSchema,
   parseStreamLine,
   type StreamUsage,
 } from "@obelus/claude-sidecar";
 import type { ReactNode } from "react";
 import { type JSX, useEffect } from "react";
-import { compileLatex, compileTypst, type LatexCompiler } from "../ipc/commands";
+import {
+  compileLatex,
+  compileTypst,
+  type LatexCompiler,
+  workspacePath,
+  workspaceReadFile,
+} from "../ipc/commands";
 import { artifactLabel } from "../lib/artifact-label";
 import { sourcesDiffSincePresnap, takeSnapshotForSession } from "../lib/bundle-sources";
 import { extractPhaseMarker, phaseFromEvent, SEMANTIC_PHASE_PREFIX } from "../lib/claude-phase";
 import { type PhaseKind, useJobsStore } from "../lib/jobs-store";
+import {
+  appendMetric,
+  type MetricEvent,
+  nowIso,
+  PLAN_STATS_CATEGORIES,
+  type PlanStatsByCategoryShape,
+} from "../lib/metrics";
+import { MetricsStream } from "../lib/metrics-stream";
 import { getRepository } from "../lib/repo";
 import { getActiveBuffersStore } from "../routes/project/active-buffers-store";
 import { ingestPlanFile } from "../routes/project/ingest-plan";
@@ -45,6 +60,7 @@ const sessionUsage = new Map<string, StreamUsage>();
 const sessionModel = new Map<string, string>();
 const sessionStreamStart = new Map<string, number>();
 const sessionFirstObelusPhaseAt = new Map<string, number>();
+const sessionMetrics = new Map<string, MetricsStream>();
 
 function clearSession(sessionId: string): void {
   semanticSessions.delete(sessionId);
@@ -52,6 +68,30 @@ function clearSession(sessionId: string): void {
   sessionModel.delete(sessionId);
   sessionStreamStart.delete(sessionId);
   sessionFirstObelusPhaseAt.delete(sessionId);
+  sessionMetrics.delete(sessionId);
+}
+
+function ensureMetricsStream(sessionId: string, startedAt: number): MetricsStream {
+  let s = sessionMetrics.get(sessionId);
+  if (!s) {
+    s = new MetricsStream({
+      sessionId,
+      startedAt,
+      startedAtIso: new Date(startedAt).toISOString(),
+    });
+    sessionMetrics.set(sessionId, s);
+  }
+  return s;
+}
+
+function flushMetrics(
+  projectId: string,
+  sessionId: string,
+  events: ReadonlyArray<MetricEvent>,
+): void {
+  for (const ev of events) {
+    void appendMetric(projectId, sessionId, ev);
+  }
 }
 
 // Owns the single, app-lifetime subscription to the Claude stdout/exit event
@@ -164,6 +204,18 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
           useJobsStore.getState().recordObelusWrotePath(ev.sessionId, match[1]);
         }
       }
+
+      // WS3 metrics: feed the session's stream tracker. Project id comes from
+      // the registered job record; events for sessions we don't know about
+      // (race with `register`) are silently dropped — the next event will
+      // catch up.
+      const job = useJobsStore.getState().get(ev.sessionId);
+      if (job) {
+        const tracker = ensureMetricsStream(ev.sessionId, job.startedAt);
+        const atMs = parseTsMs(ev.ts) ?? Date.now();
+        tracker.ingest(parsed, atMs, new Date(atMs).toISOString());
+        flushMetrics(job.projectId, ev.sessionId, tracker.drain());
+      }
     }).then((fn) => {
       if (cancelled) fn();
       else unlistenStdout = fn;
@@ -199,6 +251,10 @@ async function handleExit(
     clearSession(sessionId);
     return;
   }
+
+  // WS3 metrics: close the active phase and (if a plan was written) compute
+  // its stats. Done before we stomp on session state below.
+  await finalizeMetrics(sessionId, job.projectId, job.obelusWrotePath);
 
   emitReviewTiming(sessionId, job.startedAt, job.phaseHistory, code, wasCancelled);
 
@@ -321,6 +377,108 @@ async function handleExit(
     }
   } finally {
     clearSession(sessionId);
+  }
+}
+
+// Closes the metrics stream for a session: emits the final `phase` /
+// `phase-tokens` events for whatever phase was active at exit, and — if the
+// plugin wrote a plan file — emits `plan-stats` after reading it. Best-effort:
+// any failure is logged and swallowed; metrics must never fail an exit path.
+async function finalizeMetrics(
+  sessionId: string,
+  projectId: string,
+  obelusWrotePath: string | undefined,
+): Promise<void> {
+  const tracker = sessionMetrics.get(sessionId);
+  if (tracker) {
+    const atMs = Date.now();
+    tracker.finalize(atMs, new Date(atMs).toISOString());
+    flushMetrics(projectId, sessionId, tracker.drain());
+  }
+  if (obelusWrotePath) {
+    await emitPlanStats(projectId, sessionId, obelusWrotePath);
+  }
+}
+
+function isPlanStatsCategory(value: string): value is keyof PlanStatsByCategoryShape {
+  return (PLAN_STATS_CATEGORIES as ReadonlyArray<string>).includes(value);
+}
+
+async function emitPlanStats(
+  projectId: string,
+  sessionId: string,
+  hintPath: string,
+): Promise<void> {
+  if (!hintPath.endsWith(".json")) return;
+  try {
+    const workspaceAbs = await workspacePath(projectId, "");
+    const normalised = workspaceAbs.endsWith("/") ? workspaceAbs : `${workspaceAbs}/`;
+    if (!hintPath.startsWith(normalised)) {
+      console.warn("[metrics-plan-stats]", {
+        sessionId,
+        reason: "outside-workspace",
+        hintPath,
+      });
+      return;
+    }
+    const rel = hintPath.slice(normalised.length);
+    const buffer = await workspaceReadFile(projectId, rel);
+    const text = new TextDecoder().decode(new Uint8Array(buffer));
+    const parsed = PlanFileSchema.safeParse(JSON.parse(text));
+    if (!parsed.success) {
+      console.warn("[metrics-plan-stats]", {
+        sessionId,
+        reason: "schema-failed",
+        issues: parsed.error.issues.length,
+      });
+      return;
+    }
+    const blocks = parsed.data.blocks;
+    const byCategory: PlanStatsByCategoryShape = {
+      unclear: 0,
+      wrong: 0,
+      praise: 0,
+      cascade: 0,
+      impact: 0,
+      quality: 0,
+    };
+    let ambiguous = 0;
+    let totalDiffLines = 0;
+    let nonEmptyDiffs = 0;
+    for (const b of blocks) {
+      const firstId = b.annotationIds[0] ?? "";
+      // Synthesised blocks key by their id prefix (cascade-, impact-,
+      // quality-); user marks key by their declared category. The user's
+      // 6-key shape stays stable; categories outside the keys (e.g.
+      // weak-argument) don't get a slot here — that's by spec.
+      let bucket: keyof PlanStatsByCategoryShape | null = null;
+      if (firstId.startsWith("cascade-")) bucket = "cascade";
+      else if (firstId.startsWith("impact-")) bucket = "impact";
+      else if (firstId.startsWith("quality-")) bucket = "quality";
+      else if (isPlanStatsCategory(b.category)) bucket = b.category;
+      if (bucket) byCategory[bucket] += 1;
+      if (b.ambiguous) ambiguous += 1;
+      if (b.patch !== "") {
+        nonEmptyDiffs += 1;
+        totalDiffLines += b.patch.split("\n").length;
+      }
+    }
+    const avgDiffLines = nonEmptyDiffs === 0 ? 0 : totalDiffLines / nonEmptyDiffs;
+    await appendMetric(projectId, sessionId, {
+      event: "plan-stats",
+      at: nowIso(),
+      sessionId,
+      blocks: blocks.length,
+      byCategory,
+      ambiguous,
+      avgDiffLines,
+    });
+  } catch (err) {
+    console.warn("[metrics-plan-stats]", {
+      sessionId,
+      reason: "read-failed",
+      detail: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 

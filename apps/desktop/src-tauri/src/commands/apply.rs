@@ -4,6 +4,7 @@
 // from backup in-order before returning the error.
 
 use crate::commands::fs_scoped::{atomic_write, resolve_for_write};
+use crate::commands::metrics;
 use crate::commands::workspace::workspace_dir_for;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -11,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, State};
 
 #[derive(Deserialize, Debug)]
@@ -70,11 +71,48 @@ pub async fn apply_hunks(
     hunks: Vec<HunkInput>,
     state: State<'_, AppState>,
 ) -> AppResult<ApplyReport> {
-    let lock = state.root_lock(&root_id);
+    let started = Instant::now();
+    let result = apply_hunks_inner(&app, &root_id, &project_id, &session_id, hunks, &state).await;
+    // WS3 boundary log: even on Err we want a row, so the metrics tally
+    // matches the user-visible "tried to apply N" experience.
+    let workspace = workspace_dir_for(&app, &project_id).ok();
+    if let Some(workspace) = workspace.as_ref() {
+        let total_ms = started.elapsed().as_millis();
+        let (applied, failed) = match result.as_ref() {
+            Ok(r) => (r.hunks_applied, r.hunks_failed.len()),
+            Err(_) => (0, 0),
+        };
+        let payload = serde_json::json!({
+            "event": "apply",
+            "at": metrics::now_iso(),
+            "sessionId": session_id,
+            "blocksApplied": applied,
+            "blocksFailed": failed,
+            // No retry loop wired yet (apply.rs applies once per hunk and
+            // surfaces failures); kept at 0 so the schema is stable and the
+            // field is ready for fix-compile retry instrumentation.
+            "compileRetries": 0,
+            "totalMs": total_ms,
+            "ok": result.is_ok(),
+        });
+        metrics::append_event_bestoffer(workspace, &session_id, &payload).await;
+    }
+    result
+}
+
+async fn apply_hunks_inner(
+    app: &AppHandle,
+    root_id: &str,
+    project_id: &str,
+    session_id: &str,
+    hunks: Vec<HunkInput>,
+    state: &State<'_, AppState>,
+) -> AppResult<ApplyReport> {
+    let lock = state.root_lock(root_id);
     let _guard = lock.lock().await;
-    let backup_root = workspace_dir_for(&app, &project_id)?
+    let backup_root = workspace_dir_for(app, project_id)?
         .join("backup")
-        .join(&session_id);
+        .join(session_id);
 
     let mut grouped: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for h in hunks {
@@ -86,7 +124,7 @@ pub async fn apply_hunks(
     let mut failures: Vec<HunkFailure> = Vec::new();
 
     for (rel_path, patches) in grouped {
-        let abs_path = resolve_for_write(&root_id, &rel_path, &state).await?;
+        let abs_path = resolve_for_write(root_id, &rel_path, state).await?;
         let current = tokio::fs::read(&abs_path).await.map_err(AppError::from)?;
 
         let outcome = apply_patches_to_bytes(&current, &patches, &rel_path);
@@ -149,7 +187,7 @@ pub async fn apply_hunks(
 
     let files_written = staged.len();
     let manifest = Manifest {
-        session_id: session_id.clone(),
+        session_id: session_id.to_owned(),
         applied_at: iso8601_utc_now(),
         files: manifest_files,
     };
