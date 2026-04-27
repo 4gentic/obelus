@@ -54,7 +54,7 @@ export default function ProjectShell(): JSX.Element {
     () => edits.live.find((e) => e.id === edits.currentDraftId),
     [edits.live, edits.currentDraftId],
   );
-  const divergence = useWorkingTreeDivergence(rootId, project.id, currentDraft);
+  const divergence = useWorkingTreeDivergence(rootId, project.id, currentDraft, repo, paperId);
   const findStore = useFindStore();
   const quickOpenStore = useQuickOpenStore();
   const panels = useProjectPanels(project.id);
@@ -314,7 +314,11 @@ export default function ProjectShell(): JSX.Element {
         />
       </header>
       {divergence.dirty && divergence.report !== null && (
-        <DivergenceBanner report={divergence.report} currentOrdinal={divergence.currentOrdinal} />
+        <DivergenceBanner
+          report={divergence.report}
+          currentOrdinal={divergence.currentOrdinal}
+          onDismiss={divergence.dismiss}
+        />
       )}
       <EnsureRevisionProvider value={lazyEnsureRevision}>
         <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
@@ -399,18 +403,36 @@ function composeGridColumns({ hideLeft, hideReview, bodyWidth, widths }: Compose
 interface DivergenceBannerProps {
   report: { modified: string[]; added: string[]; missing: string[] };
   currentOrdinal: number | undefined;
+  onDismiss: () => void | Promise<void>;
 }
 
-function DivergenceBanner({ report, currentOrdinal }: DivergenceBannerProps): JSX.Element {
+function DivergenceBanner({
+  report,
+  currentOrdinal,
+  onDismiss,
+}: DivergenceBannerProps): JSX.Element {
   const changes = [...report.modified, ...report.added, ...report.missing];
   const total = changes.length;
   const sample = changes.slice(0, 3).join(", ");
   const more = total > 3 ? ` and ${total - 3} more` : "";
   const label = currentOrdinal !== undefined ? `Draft ${currentOrdinal}` : "the current draft";
   return (
-    <p className="project-shell__divergence" role="status">
-      You've edited {total} file{total === 1 ? "" : "s"} by hand since {label} ({sample}
-      {more}). Applying will capture these changes as a new draft.
-    </p>
+    <div className="project-shell__divergence" role="status">
+      <p className="project-shell__divergence-text">
+        You've edited {total} file{total === 1 ? "" : "s"} by hand since {label} ({sample}
+        {more}). Applying will capture these changes as a new draft.
+      </p>
+      <button
+        type="button"
+        className="project-shell__divergence-dismiss"
+        aria-label="Dismiss"
+        title="Dismiss until the edit set changes"
+        onClick={() => {
+          void onDismiss();
+        }}
+      >
+        ×
+      </button>
+    </div>
   );
 }

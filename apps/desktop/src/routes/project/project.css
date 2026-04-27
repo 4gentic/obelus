@@ -34,6 +34,9 @@
 }
 
 .project-shell__divergence {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
   margin: 0;
   padding: var(--space-1) var(--space-5);
   background: color-mix(in oklab, var(--rubric) 8%, var(--paper));
@@ -42,6 +45,36 @@
   font-size: var(--step--1);
   border-bottom: 1px solid var(--rule-soft);
   flex-shrink: 0;
+}
+
+.project-shell__divergence-text {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.project-shell__divergence-dismiss {
+  flex-shrink: 0;
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--step-0);
+  line-height: 1;
+  padding: 0 var(--space-2);
+  cursor: pointer;
+}
+
+.project-shell__divergence-dismiss:hover {
+  color: var(--ink);
+  border-color: var(--rule-soft);
+}
+
+.project-shell__divergence-dismiss:focus-visible {
+  outline: 2px solid var(--rubric);
+  outline-offset: 1px;
 }
 
 .project-shell__body {
