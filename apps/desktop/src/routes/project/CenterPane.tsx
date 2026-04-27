@@ -10,6 +10,7 @@ import { useOpenPaper } from "./OpenPaper";
 import { extensionOf, SOURCE_EXTS } from "./openable";
 import PaperActionsMenu from "./PaperActionsMenu";
 import PdfPane from "./PdfPane";
+import PdfZoomControls from "./PdfZoomControls";
 import SourcePane from "./SourcePane";
 import TypstPane from "./TypstPane";
 import UnsupportedPane from "./UnsupportedPane";
@@ -107,6 +108,7 @@ export default function CenterPane(): JSX.Element {
   // soft-hidden paper (removedAt set) keeps its rows but hides from the
   // sidebar; suppressing the menu there matches that "out of view" stance.
   const showPaperActions = activePaper !== null && activePaper.removedAt === undefined;
+  const showZoom = openPaper.kind === "ready" && activePaper !== null;
 
   const body = ((): JSX.Element => {
     if (!openFilePath) return <UnsupportedPane path={null} />;
@@ -125,7 +127,7 @@ export default function CenterPane(): JSX.Element {
         );
       }
       if (openPaper.kind === "ready") {
-        return <PdfPane doc={openPaper.doc} />;
+        return <PdfPane doc={openPaper.doc} paperId={openPaper.paper.id} />;
       }
       return <UnsupportedPane path={openFilePath} />;
     }
@@ -195,6 +197,7 @@ export default function CenterPane(): JSX.Element {
         <header className="pane__path" title={absolutePath}>
           <code className="pane__path-code">{absolutePath}</code>
           {showSave && openFilePath !== null && <PathHeaderSave relPath={openFilePath} />}
+          {showZoom && activePaper !== null && <PdfZoomControls paperId={activePaper.id} />}
           {showPaperActions && activePaper !== null && <PaperActionsMenu paper={activePaper} />}
         </header>
       )}

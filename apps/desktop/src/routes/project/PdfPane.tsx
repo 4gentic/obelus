@@ -1,12 +1,14 @@
 import { type FindMatch, usePdfDocumentView } from "@obelus/pdf-view";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { JSX, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFindStore, usePdfFindRectsStore } from "./find-store-context";
+import { setPdfAutoScale, usePdfTool, usePdfZoom } from "./pdf-zoom-store";
 import { useReviewStore } from "./store-context";
 
 interface Props {
   doc: PDFDocumentProxy;
+  paperId: string | null;
 }
 
 type Rect = readonly [number, number, number, number];
@@ -15,8 +17,11 @@ function rectKey(prefix: string, r: Rect): string {
   return `${prefix}-${r[0]}-${r[1]}-${r[2]}-${r[3]}`;
 }
 
-export default function PdfPane({ doc }: Props): JSX.Element {
+export default function PdfPane({ doc, paperId }: Props): JSX.Element {
   const paneRef = useRef<HTMLDivElement | null>(null);
+  const zoomOverride = usePdfZoom(paperId);
+  const tool = usePdfTool(paperId);
+  const [spaceHeld, setSpaceHeld] = useState(false);
   const store = useReviewStore();
   const annotations = store((s) => s.annotations);
   const selectedAnchor = store((s) => s.selectedAnchor);
@@ -67,6 +72,14 @@ export default function PdfPane({ doc }: Props): JSX.Element {
     [findMatchesByPage, findCurrentIndex],
   );
 
+  const panMode = tool === "pan" || spaceHeld;
+  const onAutoScaleChange = useCallback(
+    (scale: number): void => {
+      if (paperId === null) return;
+      setPdfAutoScale(paperId, scale);
+    },
+    [paperId],
+  );
   const documentView = usePdfDocumentView({
     doc,
     annotations,
@@ -77,7 +90,48 @@ export default function PdfPane({ doc }: Props): JSX.Element {
     onFocusMark: (id) => setFocused(id),
     highlightClassName: "pdf-hl",
     renderExtraOverlay,
+    zoomOverride,
+    onAutoScaleChange,
+    panMode,
   });
+
+  // Held-Space pan override. Only fires when the PDF is mounted (paperId set)
+  // and the user isn't typing into a form/editor. Window blur clears so
+  // alt-tab away mid-press doesn't strand pan mode on.
+  useEffect(() => {
+    if (paperId === null) return;
+    const isEditableTarget = (t: EventTarget | null): boolean => {
+      if (!(t instanceof HTMLElement)) return false;
+      const tag = t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      if (t.isContentEditable) return true;
+      if (t.closest(".cm-editor")) return true;
+      return false;
+    };
+    const onKeyDown = (ev: KeyboardEvent): void => {
+      if (ev.code !== "Space") return;
+      if (isEditableTarget(ev.target)) return;
+      if (ev.repeat) {
+        ev.preventDefault();
+        return;
+      }
+      ev.preventDefault();
+      setSpaceHeld(true);
+    };
+    const onKeyUp = (ev: KeyboardEvent): void => {
+      if (ev.code !== "Space") return;
+      setSpaceHeld(false);
+    };
+    const onBlur = (): void => setSpaceHeld(false);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [paperId]);
 
   // Scroll to the current match's page. `findScrollTick` is listed so a
   // single-match document still re-scrolls when the user presses Next and

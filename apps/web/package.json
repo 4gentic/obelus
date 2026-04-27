@@ -29,10 +29,10 @@
     "@obelus/review-shell": "workspace:*",
     "@obelus/review-store": "workspace:*",
     "dexie": "4.4.2",
-    "pdfjs-dist": "5.6.205",
+    "pdfjs-dist": "5.7.284",
     "react": "19.2.5",
     "react-dom": "19.2.5",
-    "react-router-dom": "7.14.1",
+    "react-router-dom": "7.14.2",
     "zod": "4.3.6",
     "zustand": "5.0.12"
   },
@@ -43,9 +43,9 @@
     "@vitejs/plugin-react": "6.0.1",
     "happy-dom": "20.9.0",
     "typescript": "6.0.3",
-    "vite": "8.0.9",
+    "vite": "8.0.10",
     "vite-plugin-pwa": "1.2.0",
-    "vitest": "4.1.4",
+    "vitest": "4.1.5",
     "workbox-window": "7.4.0"
   }
 }

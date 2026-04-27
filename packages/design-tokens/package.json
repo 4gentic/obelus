@@ -21,6 +21,6 @@
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "vitest": "4.1.4"
+    "vitest": "4.1.5"
   }
 }

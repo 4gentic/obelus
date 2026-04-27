@@ -8,7 +8,7 @@
 
 .project-shell__header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-4);
   padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--rule-soft);
@@ -34,6 +34,9 @@
 }
 
 .project-shell__divergence {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
   margin: 0;
   padding: var(--space-1) var(--space-5);
   background: color-mix(in oklab, var(--rubric) 8%, var(--paper));
@@ -42,6 +45,36 @@
   font-size: var(--step--1);
   border-bottom: 1px solid var(--rule-soft);
   flex-shrink: 0;
+}
+
+.project-shell__divergence-text {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.project-shell__divergence-dismiss {
+  flex-shrink: 0;
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--step-0);
+  line-height: 1;
+  padding: 0 var(--space-2);
+  cursor: pointer;
+}
+
+.project-shell__divergence-dismiss:hover {
+  color: var(--ink);
+  border-color: var(--rule-soft);
+}
+
+.project-shell__divergence-dismiss:focus-visible {
+  outline: 2px solid var(--rubric);
+  outline-offset: 1px;
 }
 
 .project-shell__body {
@@ -58,6 +91,55 @@
 
 .project-shell__body--no-left {
   grid-template-columns: minmax(0, 1fr) 220px 340px;
+}
+
+.project-shell__body--no-review {
+  grid-template-columns: 220px minmax(0, 1fr) 0 0;
+}
+
+.project-shell__body--no-left.project-shell__body--no-review {
+  grid-template-columns: minmax(0, 1fr) 0 0;
+}
+
+/* Show-rail: a slim editorial spine. A 1px hairline rule with a vertical mono
+   label ("files" / "review") that reads like the spine of a closed book.
+   Sits above the PDF text layer (z-index: 30 > .pdf-page__text z:2) so a
+   clicker can always reach it during scroll. */
+.panel-toggles {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: auto;
+}
+
+.panel-toggles__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-1);
+  color: color-mix(in oklab, var(--ink-soft) 75%, transparent);
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    background 120ms linear,
+    border-color 120ms linear;
+}
+
+.panel-toggles__btn:hover,
+.panel-toggles__btn:focus-visible {
+  color: var(--ink);
+  background: color-mix(in oklab, var(--ink) 5%, transparent);
+  outline: none;
+}
+
+.panel-toggles__btn[aria-pressed="true"] {
+  color: var(--ink);
 }
 
 .project-shell__center {
@@ -157,10 +239,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 0 340px;
   }
-  .project-shell__body--no-pdf {
+  .project-shell__body--no-pdf,
+  .project-shell__body--no-review {
     grid-template-columns: 220px minmax(0, 1fr) 0 0;
   }
-  .project-shell__body--no-left.project-shell__body--no-pdf {
+  .project-shell__body--no-left.project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
   .project-shell__margin {
@@ -177,10 +261,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 0 300px;
   }
-  .project-shell__body--no-pdf {
+  .project-shell__body--no-pdf,
+  .project-shell__body--no-review {
     grid-template-columns: 180px minmax(0, 1fr) 0 0;
   }
-  .project-shell__body--no-left.project-shell__body--no-pdf {
+  .project-shell__body--no-left.project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
 }
@@ -193,7 +279,9 @@
     grid-template-columns: minmax(0, 1fr) 0 260px;
   }
   .project-shell__body--no-pdf,
-  .project-shell__body--no-left.project-shell__body--no-pdf {
+  .project-shell__body--no-review,
+  .project-shell__body--no-left.project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
   .files {
@@ -211,10 +299,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 220px minmax(420px, 32%);
   }
-  .project-shell__body--no-pdf {
+  .project-shell__body--no-pdf,
+  .project-shell__body--no-review {
     grid-template-columns: 220px minmax(0, 1fr) 0 0;
   }
-  .project-shell__body--no-left.project-shell__body--no-pdf {
+  .project-shell__body--no-left.project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
 }
@@ -226,10 +316,12 @@
   .project-shell__body--no-left {
     grid-template-columns: minmax(0, 1fr) 240px minmax(480px, 36%);
   }
-  .project-shell__body--no-pdf {
+  .project-shell__body--no-pdf,
+  .project-shell__body--no-review {
     grid-template-columns: 240px minmax(0, 1fr) 0 0;
   }
-  .project-shell__body--no-left.project-shell__body--no-pdf {
+  .project-shell__body--no-left.project-shell__body--no-pdf,
+  .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
 }
@@ -762,6 +854,43 @@ button.files__row {
   flex: 0 0 auto;
 }
 
+.pdf-zoom {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-right: var(--space-2);
+}
+
+.pdf-zoom__btn,
+.pdf-zoom__pct {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  padding: 1px var(--space-2);
+  min-width: 22px;
+  height: 22px;
+  line-height: 1;
+}
+
+.pdf-zoom__pct {
+  min-width: 48px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdf-zoom__btn--tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--space-1);
+}
+
+.pdf-zoom__btn--tool[aria-pressed="true"] {
+  color: var(--ink);
+  border-color: var(--ink-soft);
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+
 .paper-actions-wrap {
   flex: 0 0 auto;
   display: inline-flex;
@@ -860,8 +989,7 @@ button.files__row {
 .pdf-hl {
   --hl-color: var(--ink-soft);
   position: absolute;
-  mix-blend-mode: multiply;
-  background: color-mix(in srgb, var(--hl-color) 32%, transparent);
+  background: color-mix(in srgb, var(--hl-color) 30%, transparent);
   pointer-events: none;
 }
 
@@ -899,18 +1027,18 @@ button.files__row {
 }
 
 .pdf-hl--draft {
-  background: color-mix(in srgb, var(--hl-color) 20%, transparent);
-  outline: 1px dashed color-mix(in srgb, var(--hl-color) 60%, transparent);
+  background: color-mix(in srgb, var(--hl-color) 22%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--hl-color) 55%, transparent);
   outline-offset: 0;
 }
 
 .pdf-hl--find {
   --hl-color: var(--hl-unclear);
-  background: color-mix(in srgb, var(--hl-unclear) 45%, transparent);
+  background: color-mix(in srgb, var(--hl-unclear) 42%, transparent);
 }
 
 .pdf-hl--find-current {
-  background: color-mix(in srgb, var(--hl-unclear) 65%, transparent);
+  background: color-mix(in srgb, var(--hl-unclear) 60%, transparent);
   outline: 1.5px solid var(--rubric);
   outline-offset: 0;
 }
@@ -1340,6 +1468,9 @@ button.files__row {
   margin-top: var(--space-1);
   padding-top: var(--space-1);
   border-top: 1px solid var(--rule-soft);
+  max-height: clamp(120px, 28vh, 280px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .diff-review__file-row {
