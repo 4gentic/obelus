@@ -171,27 +171,40 @@ fn render_summary(plan: &PlanFile) -> String {
 // next to it (same stem, `.md` extension). Returns the absolute path of the
 // .md just written. Best-effort callers swallow the error and log; the JSON
 // remains the source of truth either way.
+//
+// `Path::starts_with` is component-wise and does not resolve `..`, so we
+// canonicalize both sides before comparing — otherwise a path like
+// `<workspace>/foo/../../etc/passwd.json` would pass a lexical prefix check
+// while resolving outside the workspace.
 pub async fn project_plan_md(
     workspace_dir: &Path,
     plan_json_path: &Path,
 ) -> AppResult<std::path::PathBuf> {
-    let bytes = tokio::fs::read(plan_json_path).await.map_err(AppError::from)?;
+    if !plan_json_path.is_absolute() {
+        return Err(AppError::OutOfScope);
+    }
+    let workspace_canon = workspace_dir.canonicalize().map_err(AppError::from)?;
+    let json_canon = plan_json_path.canonicalize().map_err(AppError::from)?;
+    if !json_canon.starts_with(&workspace_canon) {
+        return Err(AppError::OutOfScope);
+    }
+
+    let bytes = tokio::fs::read(&json_canon).await.map_err(AppError::from)?;
     let value: serde_json::Value = serde_json::from_slice(&bytes)
-        .map_err(|e| AppError::Other(format!("plan JSON parse failed at {}: {e}", plan_json_path.display())))?;
+        .map_err(|e| AppError::Other(format!("plan JSON parse failed at {}: {e}", json_canon.display())))?;
 
     // Pull the timestamp out of the file stem (`plan-<iso>.json`) so the
     // rendered .md heading stays anchored to the run that produced it.
-    let stamp = plan_json_path
+    let stamp = json_canon
         .file_stem()
         .and_then(|s| s.to_str())
         .and_then(|stem| stem.strip_prefix("plan-"))
         .map(|s| s.to_owned());
 
     let md_body = render_plan_md(&value, stamp.as_deref());
-    let md_path = plan_json_path.with_extension("md");
-    if !md_path.starts_with(workspace_dir) {
-        return Err(AppError::OutOfScope);
-    }
+    // md_path shares its parent with json_canon, which we already proved is
+    // inside workspace_canon, so the write cannot escape.
+    let md_path = json_canon.with_extension("md");
     tokio::fs::write(&md_path, md_body.as_bytes()).await.map_err(AppError::from)?;
     Ok(md_path)
 }
@@ -208,9 +221,6 @@ pub async fn plan_render_md(
 ) -> AppResult<String> {
     let workspace = workspace_dir_for(&app, &project_id)?;
     let json_path = std::path::PathBuf::from(&plan_json_abs_path);
-    if !json_path.starts_with(&workspace) {
-        return Err(AppError::OutOfScope);
-    }
     let md_path = project_plan_md(&workspace, &json_path).await?;
     Ok(md_path.to_string_lossy().into_owned())
 }
@@ -353,7 +363,10 @@ mod tests {
         tokio::fs::write(&json_path, serde_json::to_vec(&plan).unwrap()).await.unwrap();
 
         let md_path = project_plan_md(&workspace, &json_path).await.unwrap();
-        assert_eq!(md_path, workspace.join("plan-20260427-140000.md"));
+        // Compare canonical forms — on macOS tempdirs live under `/var` which
+        // canonicalize() resolves to `/private/var`.
+        let expected = workspace.join("plan-20260427-140000.md").canonicalize().unwrap();
+        assert_eq!(md_path.canonicalize().unwrap(), expected);
         let body = tokio::fs::read_to_string(&md_path).await.unwrap();
         assert!(body.starts_with("# Obelus Plan — 20260427-140000"));
         assert!(body.contains("```diff"));
@@ -369,6 +382,35 @@ mod tests {
             .await
             .unwrap();
         let res = project_plan_md(&workspace, &outside).await;
+        assert!(matches!(res, Err(AppError::OutOfScope)));
+    }
+
+    // A `..` segment that resolves outside the workspace must be rejected.
+    // `Path::starts_with` is component-wise (it sees `ws`, `..`, `escape.json`
+    // as three components, all of which prefix-match `ws`), so without
+    // canonicalization the prefix check would pass and the write would land
+    // outside the sandbox.
+    #[tokio::test]
+    async fn project_plan_md_rejects_dotdot_traversal() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("ws");
+        tokio::fs::create_dir_all(&workspace).await.unwrap();
+        let outside = tmp.path().join("escape.json");
+        tokio::fs::write(&outside, b"{\"bundleId\":\"b\",\"format\":\"\",\"entrypoint\":\"\",\"blocks\":[]}")
+            .await
+            .unwrap();
+        let traversal = workspace.join("..").join("escape.json");
+        let res = project_plan_md(&workspace, &traversal).await;
+        assert!(matches!(res, Err(AppError::OutOfScope)));
+        // And no `.md` was written next to the target.
+        assert!(!tmp.path().join("escape.md").exists());
+    }
+
+    #[tokio::test]
+    async fn project_plan_md_rejects_relative_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().to_path_buf();
+        let res = project_plan_md(&workspace, Path::new("plan.json")).await;
         assert!(matches!(res, Err(AppError::OutOfScope)));
     }
 }
