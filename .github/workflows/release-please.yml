@@ -15,11 +15,12 @@ jobs:
       desktop-released: ${{ steps.release.outputs['apps/desktop--release_created'] }}
       desktop-tag: ${{ steps.release.outputs['apps/desktop--tag_name'] }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          make-latest: "false"
 
   build-desktop:
     needs: release-please
