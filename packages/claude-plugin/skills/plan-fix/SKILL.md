@@ -97,7 +97,7 @@ At the top of each of **Locating the source span**, **Stress-test**, **Impact sw
 [obelus:phase] writing-plan
 ```
 
-Bare line, no Markdown, no prose on the same line, no trailing punctuation. The desktop reads these as semantic-phase labels and as stopwatch markers. **Re-read the Pacing rule above:** emit each marker as the first text of its phase, before any deep reasoning or tool call within that phase. If the section is skipped (e.g. coherence-sweep when `substantive < 2`, quality-sweep when its skip conditions apply), skip its marker too — an emitted marker is a promise that the section ran.
+Bare line, no Markdown, no prose on the same line, no trailing punctuation. The desktop reads these as semantic-phase labels and as stopwatch markers. **Re-read the Pacing rule above:** emit each marker as the first text of its phase, before any deep reasoning or tool call within that phase. Rigorous mode runs the full set of phases — never short-circuit a sweep on a substantive-mark count. If a phase truly has nothing to emit (e.g. coherence-sweep that finds no drift, impact-sweep with all-local deltas), the marker still fires and the phase emits zero blocks — that is correct, and very different from never running. An emitted marker is a promise that the section ran.
 
 `writing-plan` is non-skippable. Every successful run reaches **Output — markdown**, so `[obelus:phase] writing-plan` must be the last assistant text emitted before the first `Write` to a `plan-*` file.
 

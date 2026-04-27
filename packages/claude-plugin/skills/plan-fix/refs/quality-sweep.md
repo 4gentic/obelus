@@ -4,14 +4,9 @@ Every apply-revision run also asks: *beyond the marks the reviewer wrote, what w
 
 ## When it runs
 
-Always, with two narrow exceptions:
+Always in rigorous mode. The sweep is **never gated on a substantive-mark count** — rigor is opt-in by mode choice, and the need for a holistic re-read can come from the substance of a single mark just as much as from many marks. One narrow exception remains:
 
-- **No rubric and fewer than two substantive blocks.** One mark and no rubric is too little signal to sweep against — quality proposals at that point are guesses, not second-reader value. Skip the sweep and omit its phase marker.
-- **More than 15 user-mark substantive blocks on a single paper.** The reviewer is in heavy active control of that paper; additional unsolicited edits would be noise. Skip the sweep for that paper only (other papers in a multi-paper bundle still sweep normally).
-
-The desktop's prelude reports `quality-sweep: skipped (no rubric and substantive blocks < 2)` when the first skip applies; trust the signal.
-
-Otherwise, the sweep runs. If `paper.rubric.body` is present, frame the sweep against that rubric (audience, venue, tone). If no rubric is present, the default rubric is: *a top-venue paper — claims carry citations, terminology is consistent, prose is free of boilerplate and empty intensifiers, the argument is tight, and every section delivers on what the introduction promised.*
+- **More than 15 user-mark substantive blocks on a single paper.** The reviewer is in heavy active control of that paper; additional unsolicited edits would be noise. Skip the sweep for that paper only (other papers in a multi-paper bundle still sweep normally). If `paper.rubric.body` is present, frame the sweep against that rubric (audience, venue, tone). If no rubric is present, the default rubric is: *a top-venue paper — claims carry citations, terminology is consistent, prose is free of boilerplate and empty intensifiers, the argument is tight, and every section delivers on what the introduction promised.*
 
 ## How it runs
 
