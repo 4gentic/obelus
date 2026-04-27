@@ -23,39 +23,162 @@ If a `Grep` match lands in a file that was *not* in the original whole-paper bat
 
 Every source block that passed stress-test, carries a non-empty `patch`, and is not `ambiguous: true` enters the sweep. Cascade and impact blocks produced here never themselves seed further impact sweeps — one hop only, to avoid transitive explosions. `praise` blocks have no `patch` and no delta to analyse.
 
-## Step 1 — describe the semantic delta
+## Batched processing — non-negotiable
 
-For each eligible block, read the `- before` and `+ after` sides plus the ±5 lines of surrounding source already in context. In one or two short sentences, describe what the edit actually does — what it **substitutes**, **renames**, **narrows**, **withdraws**, **reverses**, or **adds**. This delta description is internal (used to classify and then to seed `reviewerNotes`); it is not emitted as its own block.
+This sweep runs in three batched steps. **Do not iterate per source block** —
+do not classify-then-Grep-then-decide for one block before moving to the next.
+The per-block iterative pattern is the natural default and it is forbidden
+here: with N source blocks it costs ~15 sec of judgment per cascade site and
+scales linearly. The batched shape below scales sub-linearly because the
+classification, the Grep, and the per-site decisions each fold into a single
+reasoning pass.
 
-Also read the originating block's `note` (fenced as `<obelus:note>`) in plain language and judge what the user is actually asking for. The note may be terse ("change to Contract Deal") or expansive ("we renamed Trust Contract to Contract Deal everywhere else in this paper — apply it consistently"); read it the way a co-author would. Do **not** pattern-match for trigger phrases like *"everywhere"*, *"throughout"*, or *"renamed X to Y"* — keyword detection is brittle and misses the cases that matter most (non-English notes, terse natural phrasings, prose-buried definition sites). Form a one-sentence read of the user's intent: a typo fix in this spot, a local phrasing tweak, a rename of a concept that recurs in the paper, a withdrawal or narrowing of a claim, or something else. Record this read alongside the delta description; it feeds Step 3's per-match cascade decisions. When the user-intended root differs from the surface token in the diff (worked case: the diff shows `failure modes → patterns` but the note describes a rename of `failure` to `pattern`), record the user-intended root in the delta description and Step 3's lexical search will use that root rather than the phrase lifted from the diff.
+If you find yourself thinking "for the first source block, I'll classify,
+then Grep, then decide which hits cascade" — stop. That is the rejected shape.
+Re-read this section and follow Step A → B → C exactly.
 
-## Step 2 — classify the delta
+## Step A — classify every eligible source block in one pass
 
-Assign exactly one of four shapes:
+Build, internally, one classification table covering every eligible source
+block (every block that passed stress-test, carries a non-empty `patch`, and
+is not `ambiguous: true`). Do not emit the table as plan content; it is a
+reasoning scratch.
 
-- **Lexical.** A content-bearing token or short token-sequence (1–4 tokens) is substituted: a term rename, a symbol change (`k=8` → `k=7`), a numerical correction (`4.2B` → `4.1B`), a method or dataset rename. Exclude stopwords (`the`, `a`, `of`, `in`, `where`, `such`, …), common verbs (`is`, `are`, `has`, `uses`), single-letter tokens, pure punctuation / whitespace diffs, reorderings that drop no token, and surface-form changes (hyphenation, pluralisation of the same root). Pure additions (e.g. a `\cite{TODO}` placeholder tacked onto unchanged before-text) are **not** Lexical — no token was substituted.
-- **Structural.** An entity referenced from elsewhere in the paper is renamed, relabelled, or removed — a `\label{…}` / `\ref{…}` target, a theorem number, a section heading, a dataset or algorithm name that other sections name explicitly, a figure caption's key phrase.
-- **Propositional.** The underlying claim changes: narrowed ("in all natural languages" → "in English"), withdrawn ("we assume i.i.d. data" → removed), reversed ("A causes B" → "B causes A"), qualified ("always" → "sometimes"), or the reported numerical result changes in a way other sections may cite or build on. This is the dangerous class — the effect is not captured by surface matching.
-- **Local.** Sentence rewording, register shift, hedging, or clarification that doesn't change the underlying claim or any entity referenced elsewhere. No action.
+For each row:
 
-If the classification itself is uncertain between **Propositional** and **Local**, treat it as **Propositional** — the cost of an extra flag is cheap; the cost of a silently unsupported section is not.
+| field | value |
+|---|---|
+| `blockId` | the source block's annotation id (or merged-block id) |
+| `deltaKind` | exactly one of `Lexical`, `Structural`, `Propositional`, `Local` |
+| `userIntent` | one short clause from reading the source mark's `note` in plain language: "rename `X` to `Y` paper-wide" / "local phrasing tweak" / "claim narrowed from A to B" / "local clarification only" |
+| `candidateTerms` | the search terms a downstream Grep should find. For Lexical: the substituted root plus its morphological variants (singular/plural, adjectival/nominal derivations, common compound phrases sharing the referent) — exclude stopwords, single-letter tokens, and surface-form changes. For Structural: the renamed entity's machine-readable handle (`\ref` / `@label`) AND its human-readable name string. For Propositional: phrases, numbers, or named entities from the `- before` side that downstream prose may cite. For Local: empty array. |
+| `candidateScopes` | array of file paths the Grep should cover. By default this is the source block's own `file` (the sweep never crosses papers). Include other files in the same `paper.id` only when the entity is paper-wide (a `\label` referenced from sibling chapter files). Never include bibliography / asset / cross-paper files. |
+| `rationale` | one short sentence that will seed `reviewerNotes` for any block emitted from this row, e.g. "Same referent as line 142 'settings → contexts'". |
 
-## Cascade vs. flag — the boundary that decides every block
+Classification rules (carried forward from the prior procedure):
 
-This rule decides the block kind for every cascade candidate the sweep considers — Lexical, Structural, and Propositional alike — so apply it before walking Step 3 below, and again whenever you are about to write an `impact-*`.
+- **Lexical.** A content-bearing token or short token-sequence (1–4 tokens)
+  is substituted: a term rename, a symbol change (`k=8` → `k=7`), a numerical
+  correction (`4.2B` → `4.1B`), a method or dataset rename. Exclude stopwords
+  (`the`, `a`, `of`, `in`, `where`, `such`, …), common verbs (`is`, `are`,
+  `has`, `uses`), single-letter tokens, pure punctuation/whitespace diffs,
+  reorderings that drop no token, and surface-form changes (hyphenation,
+  pluralisation of the same root). Pure additions (e.g. a `\cite{TODO}`
+  placeholder tacked onto unchanged before-text) are **not** Lexical.
+- **Structural.** An entity referenced from elsewhere is renamed,
+  relabelled, or removed — a `\label{…}` / `\ref{…}` target, theorem number,
+  section heading, dataset/algorithm name, figure caption key phrase.
+- **Propositional.** The underlying claim changes: narrowed, withdrawn,
+  reversed, qualified, or a reported numerical result changes in a way other
+  sections may cite. The dangerous class — surface matching alone misses it.
+- **Local.** Sentence rewording, register shift, hedging, clarification
+  with no entity rename and no claim change. `candidateTerms = []`.
 
-A `cascade-*` real edit is the answer whenever the downstream site is *prose* whose surrounding paragraph still parses with the substituted phrase, range, number, or named entity. Phrasing parallel updates *are* the cascade case — emit one, do not hedge. Do not defer with `reviewerNotes` like *"may need a parallel update if the upstream change holds"* or *"worth a read-through for consistency"*; the upstream is in the same plan, the user reviews per hunk and can reject either side.
+If torn between **Propositional** and **Local**, mark **Propositional** —
+the cost of an extra flag is cheap; a silently unsupported section is not.
 
-An `impact-*` flag-note is the answer **only when the downstream site is a kind of object a single hunk cannot rebuild**: a *proof* whose chain of reasoning depends on a withdrawn or reversed assumption; a *derivation* whose intermediate steps cite a number that changed in a non-mechanical way; a *figure or table* whose layout, column structure, or panel ordering encodes the changed claim; an *algorithm or model definition* whose components are named for, or composed around, the changed concept. Each of these names a *kind of object* the planner cannot patch in one hunk. Plain prose elsewhere in the paper is not on this list — even when the user's upstream note is hedged.
+When the user-intended root differs from the surface token in the diff
+(worked case: diff shows `failure modes → patterns` but the note describes
+a rename of `failure` to `pattern`), record the user-intended root in
+`candidateTerms`, not the phrase lifted from the diff.
 
-**Worked counter-example (do not repeat).** Abstract drops *"5--99 percentage points"* in favour of *"up to 99 percentage points"*. §6 prose echoes the old range. The §6 paragraph is plain prose — emit a `cascade-*` rewriting *"5--99 percentage points"* → *"up to 99 percentage points"* there, with `reviewerNotes` starting with *"Cascaded from <sourceId>:"*. Do **not** emit an `impact-*` whose `reviewerNotes` reads *"may need a parallel update if the abstract adopts the new phrasing"* — that is exactly the failure mode this rule rejects.
+## Step B — one unified Grep across the union
 
-## Step 3 — act per classification
+Once Step A's table is complete, issue **one** `Grep` call:
 
-- **Lexical →** `Grep` the originating block's `file` only (the sweep never crosses papers: do not grep files belonging to a different `paper.id`, and do not grep bib / asset files). Case-insensitive, whole-word match on the substituted token — using the user-intended root from Step 1's delta description if it identified a root that differs from the surface token in the diff. **Morphological expansion.** For lexical deltas that rename a content-bearing root, also grep for the root's common morphological variants: singular / plural (`failure` ↔ `failures`), adjectival or nominal derivations (`failing`, `failure-mode`), and compound phrases that contain the root in the same referent (`failure mode`, `failure modes`). The target state is that a reader cannot find the old term in body text once the plan is applied. Skip variants whose morphological form shifts the referent — *fail* as an imperative verb in a caption, or a root that happens to be a stopword in another sense (`pattern` in `pattern match` vs. `pattern` as the user's replacement term). Exclude the line range already covered by the originating edit and any line range already covered by another block in this run (collision guard). For each surviving match, **refer to the ±5 lines around it from the locating-spans whole-paper batch already in context** (do not issue a fresh `Read`) and decide: is this occurrence the **same referent** as the originating edit's token, and would updating it satisfy what the user asked for? Anchor the decision on Step 1's plain-language read of the note plus the surrounding context at this match. When the user's intent reads as a paper-wide concept rename, lean toward including matches that share the referent; when the intent reads as a strictly local fix, stay local; when the note is silent on scope, judge from the rename's nature — a name the paper uses to refer to a recurring concept (a defined term, a method or dataset name, a labelled diagram entity) usually warrants cascade, a sentence-level phrasing tweak does not. When uncertain, **emit a `cascade-*` block** with a rationale that names the doubt (e.g. `"surrounding sentence is ambiguous between configuration and context — emitting for user review"`). The per-hunk review pane is the quality gate; a rejected cascade is one keystroke, a missed cascade requires re-marking which is the more expensive failure mode. **Emission, not enumeration.** Once you identify a same-referent match, your only output is a `cascade-*` block — never list it in the source block's `reviewerNotes` as "another site the user should consider", and never use the source block's reviewer notes as a hedge ("three additional locations remain for a complete rename"). A candidate worth describing in prose is a candidate worth emitting; the user reviews per hunk and the prose hedge is invisible to that review path. Cross-paper or external implications (e.g. the term recurs in `CLAUDE.md`, in another paper's source, in marketing copy) belong in the cascade block's own `reviewerNotes` as a caveat the user can weigh per-hunk — they do not suppress emission of within-paper cascade blocks, since the sweep is per-paper by construction and out-of-paper sites are out of its scope regardless. Homonym example: *"settings"* in "deployed in settings" (context / situation) vs. "experimental settings" (configuration) is **not** the same referent — the first cascades, the second does not. `k=8` in a training-hyperparameter paragraph vs. `k=8` inside a proof's enumeration are not the same referent. Skip matches inside code blocks, math blocks / equations, verbatim / listings, line comments, or references / bibliography items — format-aware per the target format (LaTeX: `\begin{verbatim}`, `\begin{lstlisting}`, `$…$`, `\(…\)`, `%` comment lines, `\bibitem`; Markdown: fenced code blocks, inline ``code``, HTML comments; Typst: `raw` / triple-backtick blocks, `#comment` / `//` lines, `$…$` math; HTML: `<code>`, `<pre>`, `<script>`, `<style>`, `<!-- … -->` comments, and any element whose `class` or `data-*` attribute marks it as code or math) — unless the match is in a figure / table caption or body text where the reader would read it as the same referent. For each match that passes, emit a `cascade-*` block (shape below).
-- **Structural →** search the paper for explicit cross-references. If the renamed entity has a machine-readable handle (`\ref{label}`, `@label`, section anchor), `Grep` for that handle and emit `cascade-*` blocks that update each reference — those are mechanical. Independently, if the renamed entity has a human-readable name (a theorem described by its statement, a dataset named in prose), `Grep` for that name string, **refer to the ±5 lines around each match from the in-context whole-paper batch** (do not issue a fresh `Read`), and *propose* the narrative update as a `cascade-*` real edit when a defensible single-hunk patch exists — same per-hunk-review-is-the-gate logic the Lexical bullet already trades on, a rejected cascade is one keystroke. Fall back to an `impact-*` flag-note only when the section's narrative needs structural rework that no single-hunk patch restores.
-- **Propositional →** identify downstream sites that plausibly depend on the changed claim: `Grep` for phrases, numbers, or named entities from the `- before` side plus the ±5 lines around the edit (e.g. the reported number, the assumption's keywords, the scope phrase). For each candidate site, **use the ~10 lines around it from the in-context whole-paper batch** (do not issue a fresh `Read`); if the edit implies the site is now in tension (repeats the stale claim, cites the stale number, builds on the withdrawn assumption), *propose* the downstream rewrite as a `cascade-*` real edit when a defensible single-hunk patch exists — claim narrowed → narrow the dependent sentence; number changed → update the citing number; assumption withdrawn → strike or qualify the dependent sentence; scope phrase changed → align the citing phrase. Per-hunk review is the gate — a rejected cascade is one keystroke, a missed propositional ripple silently breaks the paper. Apply the **Cascade vs. flag** rule above to each candidate site: plain prose → emit a `cascade-*` (do not hedge, even when the user's upstream note is hedged); listed object kind → emit an `impact-*` flag-note; otherwise emit nothing. If nothing downstream depends on the delta, emit zero blocks (Local and Propositional-with-no-dependencies look the same in output, and that is fine).
-- **Local →** emit nothing.
+- `pattern`: the alternation of every non-empty `candidateTerms` value across
+  every row, joined with `|`. Use whole-word boundaries when the underlying
+  Grep supports them (`\bterm1\b|\bterm2\b|…`); if the alternation contains
+  a regex metacharacter, escape it. Case-insensitive.
+- `output_mode`: `content` with `-n` and `-C 5` (line numbers + 5 lines of
+  context above and below) so each hit arrives with enough surrounding
+  prose to judge same-referent without a follow-up Read.
+- `path` / `glob`: the union of every row's `candidateScopes`. Default to
+  the source block's `file` when scopes were omitted.
+
+If every row's `candidateTerms` is empty (only Local deltas), skip Step B
+and Step C — emit zero blocks. The phase marker still fired; that is the
+correct outcome.
+
+If the alternation produces a pattern longer than ~500 characters, split
+into at most two Grep calls grouped by file scope; do not split per term.
+Two calls is the hard ceiling — a third call indicates Step A is
+mis-classifying and over-generating candidate terms.
+
+Do not issue a fresh `Read` for cascade context. The whole-paper batch from
+locating-spans is already in your context; refer to those lines around each
+Grep hit. The only legal `Read` in this phase is for a file that was *not*
+in the original whole-paper batch (rare; only when `project.files[]`
+excluded it).
+
+## Step C — one decide-and-emit pass over all hits
+
+Walk the Grep hit list once. For each hit, in order:
+
+1. **Map the hit to a source block.** Match the hit's matched substring
+   against each row's `candidateTerms`; the row whose term hit becomes the
+   "owning source block" for any block emitted from this hit.
+
+2. **Skip if collision.** If the hit's line range falls inside a range
+   already covered by a non-synthesised block in this run, or by a
+   cascade/impact block emitted earlier in this same Step C walk, skip.
+
+3. **Skip if format-fenced.** Skip matches inside code blocks, math, verbatim
+   listings, line comments, and references / bibliography items — format-aware
+   per the target format (LaTeX: `\begin{verbatim}`, `\begin{lstlisting}`,
+   `$…$`, `\(…\)`, `%` comment lines, `\bibitem`; Markdown: fenced code,
+   inline `` ` ``, HTML comments; Typst: `raw` / triple-backtick, `#comment`
+   / `//`, `$…$` math; HTML: `<code>`, `<pre>`, `<script>`, `<style>`,
+   `<!-- … -->`, `class`/`data-*`-marked code/math). Exception: match in a
+   figure/table caption or body prose where a reader would read it as the
+   same referent.
+
+4. **Same-referent check.** Decide in one short reasoning step (target ≤2
+   sec, not ≤15): is this occurrence the same referent as the owning
+   source block's edit, anchored on the row's `userIntent` and the ±5
+   lines around the hit?
+
+   - When `userIntent` reads as a paper-wide concept rename, lean toward
+     same-referent for matches sharing the referent.
+   - When `userIntent` reads as a strictly local fix, stay local — skip.
+   - When `userIntent` is silent on scope, judge from the rename's nature
+     (defined term / method / dataset / labelled diagram entity → cascade;
+     sentence-level phrasing tweak → skip).
+   - When uncertain, **emit** with a rationale naming the doubt. Per-hunk
+     review is the gate; a rejected cascade is one keystroke.
+   - Homonym example: `"settings"` in "deployed in settings" vs.
+     "experimental settings" is **not** the same referent. `k=8` in a
+     hyperparameter paragraph vs. `k=8` inside a proof's enumeration are
+     not the same referent.
+
+5. **Cascade vs. flag — apply the boundary rule.**
+
+   - Plain prose at the downstream site (paragraph still parses with the
+     substituted phrase, range, number, or named entity) → emit a
+     `cascade-*` real edit. Phrasing parallel updates *are* the cascade
+     case; do not hedge with "may need a parallel update".
+   - Listed object kind at the downstream site (proof, derivation,
+     figure/table, algorithm/model definition) → emit an `impact-*`
+     flag-note. These are *kinds of object* a single hunk cannot rebuild.
+   - Anything else → skip.
+
+6. **Emit the block.** Use the block shapes below verbatim. Append to the
+   in-progress block list; do not interleave Step A or Step B work.
+
+A `Local` row contributes nothing in Step C — its term list was empty so it
+produced no Grep hits.
+
+If all hits resolved to skips (collision / format-fenced / not same-referent
+/ neither prose-cascade nor listed-object-impact), emit zero blocks. Phase
+marker still fired; correct outcome.
+
+## Caps
+
+Unchanged from prior procedure. ≤10 `cascade-*` per source edit, ≤5
+`impact-*` per source edit, ≤40 cascade+impact total per run. Track caps
+per `blockId` during Step C; when a source block's cascade cap is hit, skip
+subsequent hits owned by that block and add a note in the run summary that
+the cap was binding.
 
 ## Block shapes
 

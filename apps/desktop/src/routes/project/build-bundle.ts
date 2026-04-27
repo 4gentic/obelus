@@ -21,6 +21,22 @@ function dirnameOf(relPath: string): string {
   return i < 0 ? "" : relPath.slice(0, i);
 }
 
+// The PDF dirname is the trusted anchor: the reviewer marked up that PDF, so
+// its colocated source is what the read list should expose. Use the
+// mainRelPath-dirname only when it is the same as, or a descendant of, the
+// PDF dirname (split-source layout). When mainRelPath sits elsewhere (a
+// stale scan pinned to runtime/ARCHITECTURE.md while the PDF lives in
+// paper/short), ignore it — every unrelated file the model reads costs a
+// round-trip the read list shouldn't pay for.
+export function chooseSourceRoot(mainRelPath: string | undefined, pdfRelPath: string): string {
+  const pdfRoot = dirnameOf(pdfRelPath);
+  if (mainRelPath === undefined) return pdfRoot;
+  const mainRoot = dirnameOf(mainRelPath);
+  if (mainRoot === pdfRoot) return pdfRoot;
+  if (mainRoot.startsWith(`${pdfRoot}/`)) return pdfRoot;
+  return pdfRoot;
+}
+
 // Files that compile the paper. Scope: source format AND inside the paper's
 // source-root directory tree. The source root is `dirname(mainRelPath)` when
 // the paper declares an entrypoint, else `dirname(pdfRelPath)` (writer
@@ -105,11 +121,22 @@ export interface ExportBundleInput {
   rootId?: string;
 }
 
+// Per-annotation outcome of pre-resolution: how many anchors entered the
+// bundle as `source` (plugin can jump direct), vs. `pdf` / `html` fallback
+// (plugin must fuzzy-search at apply time). Lifted out of the function-local
+// counts so the caller can land it in WS3 metrics under a known sessionId.
+export interface AnchorResolutionCounts {
+  source: number;
+  pdfFallback: number;
+  htmlFallback: number;
+}
+
 export interface ExportedBundle {
   filename: string;
   json: string;
   annotationCount: number;
   fileCount: number;
+  anchorResolution: AnchorResolutionCounts;
 }
 
 function isoStampForFilename(now: Date = new Date()): string {
@@ -234,8 +261,15 @@ export async function exportBundleForPaper(input: ExportBundleInput): Promise<Ex
     resolutionsByFile: Object.fromEntries(resolutionsByFile),
   });
 
-  const paperSourceRoot = dirnameOf(mainRelPath ?? paper.pdfRelPath);
-  const scopedFiles = scopePaperFiles(projectFiles, paperSourceRoot, mainRelPath);
+  const paperSourceRoot = chooseSourceRoot(mainRelPath, paper.pdfRelPath);
+  const scopedEntrypoint =
+    mainRelPath !== undefined &&
+    (paperSourceRoot === "" ||
+      mainRelPath === paperSourceRoot ||
+      mainRelPath.startsWith(`${paperSourceRoot}/`))
+      ? mainRelPath
+      : undefined;
+  const scopedFiles = scopePaperFiles(projectFiles, paperSourceRoot, scopedEntrypoint);
 
   const projectInput: ProjectInput = {
     id: project.id,
@@ -273,11 +307,17 @@ export async function exportBundleForPaper(input: ExportBundleInput): Promise<Ex
 
   const filename = `bundle-${isoStampForFilename()}.json`;
   const json = `${JSON.stringify(bundle, null, 2)}\n`;
+  const anchorResolution: AnchorResolutionCounts = {
+    source: resolvedCount,
+    pdfFallback: annotations.length - resolvedCount,
+    htmlFallback: 0,
+  };
   return {
     filename,
     json,
     annotationCount: annotations.length,
     fileCount: papers.length,
+    anchorResolution,
   };
 }
 
@@ -383,11 +423,23 @@ export async function exportHtmlBundleForPaper(
     droppedForPdfAnchor,
     filename,
   });
+  let sourceCount = 0;
+  let htmlFallbackCount = 0;
+  for (const a of annotations) {
+    if (a.anchor.kind === "source") sourceCount += 1;
+    else htmlFallbackCount += 1;
+  }
+  const anchorResolution: AnchorResolutionCounts = {
+    source: sourceCount,
+    pdfFallback: 0,
+    htmlFallback: htmlFallbackCount,
+  };
   return {
     filename,
     json,
     annotationCount: annotations.length,
     fileCount: papers.length,
+    anchorResolution,
   };
 }
 
@@ -480,10 +532,16 @@ export async function exportMdBundleForPaper(input: ExportMdBundleInput): Promis
     droppedForMissingAnchor,
     filename,
   });
+  const anchorResolution: AnchorResolutionCounts = {
+    source: annotations.length,
+    pdfFallback: 0,
+    htmlFallback: 0,
+  };
   return {
     filename,
     json,
     annotationCount: annotations.length,
     fileCount: papers.length,
+    anchorResolution,
   };
 }

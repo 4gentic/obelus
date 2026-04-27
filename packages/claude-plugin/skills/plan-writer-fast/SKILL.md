@@ -20,14 +20,15 @@ Each `[obelus:phase] <name>` marker (listed below) must be emitted **on the assi
 
 ## File output contract — non-negotiable
 
-Emit two artefacts per run, both under `$OBELUS_WORKSPACE_DIR/`, both stamped with the **same** compact UTC timestamp generated once at the start of the run (`YYYYMMDD-HHmmss`, e.g. `20260423-143012` — no colons, no `T`, no `Z`):
+Emit one artefact per run, under `$OBELUS_WORKSPACE_DIR/`, stamped with a compact UTC timestamp generated once at the start of the run (`YYYYMMDD-HHmmss`, e.g. `20260423-143012` — no colons, no `T`, no `Z`):
 
-- `$OBELUS_WORKSPACE_DIR/plan-<iso-timestamp>.md` — human-readable.
-- `$OBELUS_WORKSPACE_DIR/plan-<iso-timestamp>.json` — machine-readable companion. Consumed by the desktop diff-review UI.
+- `$OBELUS_WORKSPACE_DIR/plan-<iso-timestamp>.json` — the contract. Consumed by the desktop diff-review UI; the desktop also projects a sibling `plan-<iso-timestamp>.md` from it for the user to read.
 
-**Pre-flight.** The desktop guarantees `$OBELUS_WORKSPACE_DIR/` exists before invoking this skill; you can `Write` directly to plan paths under it.
+Do **not** emit a Markdown plan yourself. The desktop's projection is the authoritative human-readable rendering; emitting a parallel `.md` here is wasted reasoning (WS8) and will be overwritten.
 
-**Final marker line.** After both `Write` calls succeed, print exactly one line on stdout in this form, with nothing else on the line:
+**Pre-flight.** The desktop guarantees `$OBELUS_WORKSPACE_DIR/` exists before invoking this skill; you can `Write` directly to the JSON plan path under it.
+
+**Final marker line.** After the `Write` succeeds, print exactly one line on stdout in this form, with nothing else on the line:
 
 ```
 OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso-timestamp>.json
@@ -42,7 +43,7 @@ The desktop reads this marker as the canonical plan locator.
 [obelus:phase] writing-plan
 ```
 
-Bare line, no Markdown, no prose on the same line. Emit `gather-context` before the first `Read`; emit `writing-plan` before the first `Write` to a `plan-*` file.
+Bare line, no Markdown, no prose on the same line. Emit `gather-context` before the first `Read`; emit `writing-plan` before the `Write` to the `plan-*.json` file.
 
 ## Steps
 
@@ -217,51 +218,11 @@ explanation. Do **not** emit a non-empty patch with `ambiguous: true`; do
 **not** emit an empty patch with `emptyReason: null`. The desktop's plan
 validator rejects either combination.
 
-### 4. Write `plan-<iso>.md`
+### 4. Write `plan-<iso>.json`
 
-One Markdown block per *edit* (a merged block produces one section, not N), in plan order:
+The structural contract the desktop diff-review UI consumes — and the only file this skill writes. The desktop projects a sibling `plan-<iso>.md` from this JSON; do not Write a Markdown plan from here.
 
-```md
-## <n>. <category> — <annotation-id>
-
-**Where**: `<file>:<start>-<end>`
-**Quote**: <truncated quote, ≤ 80 chars>
-**Note**: <annotation note>
-**Affects**: <annotation-id-1>, <annotation-id-2>, …    (omit when only one)
-
-**Change**:
-```diff
-- <before>
-+ <after>
-```
-
-**Why**: <one-sentence rationale — name how it satisfies each contributing mark>
-
-**Reviewer notes**: <empty for writer-fast unless ambiguous, or a summary for praise / no-edit / ambiguous blocks>
-
-**Ambiguous**: <true | false>
-**Empty reason**: <praise | no-edit-requested | ambiguous | none>
-```
-
-Headline rules:
-- Use the **first** annotation id in the block's `annotationIds` as the heading id.
-- Add an `**Affects**` line listing every contributing id when the block carries more than one mark.
-- For `praise` / `aside` / `flag` blocks with no edit, the diff fence is empty:
-
-  ````
-  **Change**:
-  ```diff
-  ```
-  ````
-
-End the file with a `## Summary` section: counts by category, count of
-ambiguous blocks, count of merged blocks (`annotationIds.length > 1`), the
-bundle path. No cascade / impact / coherence / quality counts — those don't
-exist in writer-fast.
-
-### 5. Write `plan-<iso>.json`
-
-The structural contract the desktop diff-review UI consumes:
+**The shape below is exact.** Field names are part of the contract — do **not** rename, pluralize, singularize, or invent additional keys. Top-level keys are exactly `bundleId`, `format`, `entrypoint`, `blocks`. Block keys are exactly `annotationIds`, `file`, `category`, `patch`, `ambiguous`, `reviewerNotes`, `emptyReason`. **Do not** add `schemaVersion`, `planId`, `planAt`, `bundlePath`, `papers[]`, `kind`, `description`, `anchor`, `reviewerNote` (singular), or `annotationId` (singular). A plan with any of those keys is unreadable and the run is wasted.
 
 ```json
 {
@@ -284,7 +245,7 @@ The structural contract the desktop diff-review UI consumes:
 
 Rules:
 
-- One block per *edit*, in the same order as the `.md` sections.
+- One block per *edit*, in bundle order.
 - `annotationIds` is a non-empty array of strings. A merged block carries every mark id its diff satisfies, in stable order.
 - `format` and `entrypoint` are required strings — empty string `""` when not determinable, never missing keys.
 - `patch` is a single-hunk unified diff (`@@ -L,N +L,N @@\n- before\n+ after\n`) **terminated with `\n`**. Empty string when no edit (`praise`, `aside`/`flag` with no requested edit, `ambiguous: true`).
@@ -292,9 +253,9 @@ Rules:
 - `reviewerNotes` is an empty string for writer-fast unless `ambiguous: true` or the block has a non-null `emptyReason` (in which case it carries the explanation). The Rigorous path is what populates `reviewerNotes` from the `paper-reviewer` subagent.
 - `emptyReason` is `null` when `patch !== ""` and one of `"praise"` / `"ambiguous"` / `"no-edit-requested"` when `patch === ""`. The desktop's Zod validator rejects mismatches.
 
-### 6. Emit the marker
+### 5. Emit the marker
 
-After both `Write` calls return, print one stdout line:
+After the `Write` returns, print one stdout line:
 
 ```
 OBELUS_WROTE: $OBELUS_WORKSPACE_DIR/plan-<iso-timestamp>.json
@@ -318,8 +279,7 @@ If you need an end-to-end example showing the holistic-merge case (one block sat
 
 ## Before returning, verify
 
-- Both `$OBELUS_WORKSPACE_DIR/plan-<iso>.md` and `$OBELUS_WORKSPACE_DIR/plan-<iso>.json` reached disk via `Write` (no fallback to stdout) and share the same timestamp.
-- Block order is identical between the two files; counts match.
+- `$OBELUS_WORKSPACE_DIR/plan-<iso>.json` reached disk via `Write` (no fallback to stdout). You did not emit a sibling `plan-<iso>.md` — the desktop projects that itself.
 - Every block's `annotationIds` is a non-empty array; no mark id appears in two non-synthesised blocks.
 - Every non-empty `patch` string in the JSON ends with `\n`.
 - Every `patch === ""` block carries a non-null `emptyReason`; every `patch !== ""` block carries `emptyReason: null`. Every `ambiguous: true` block carries `patch: ""` and `emptyReason: "ambiguous"`.

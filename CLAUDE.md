@@ -119,6 +119,10 @@ Two tracks:
 
 If you change `ProjectKind`, the bundle schema's `kind` enum, the `annotations` shape, or any persisted row, *both* tracks apply: ship a proper SQLite migration **and** flag the reset for in-flight local state.
 
+## Performance work needs measurements, not inference
+
+Phase-share distributions in a review session are workload-sensitive: a 1-mark run is preflight-bound, a 12-mark run is coherence-sweep-bound. **Never act on n=1 telemetry for prompt-rewrite or skill-restructuring decisions** — pair every claim with at least one multi-mark baseline so you're not optimizing a workload that doesn't exist in the wild. Historical baselines live in [`docs/metrics/`](docs/metrics/) as sanitized JSONL snapshots; the canonical event shape is the `MetricEvent` discriminated union in [`apps/desktop/src/lib/metrics.ts`](apps/desktop/src/lib/metrics.ts) (read that file before adding a new event type — the Zod schemas double as the on-disk contract). Every major performance workstream should land a "before" snapshot in `docs/metrics/` *and* an "after" snapshot once the change is in; the diff is the receipt.
+
 ## Git hygiene
 
 - **Never `git push` without explicit user confirmation.** A `PreToolUse` hook in `.claude/settings.json` forces a permission prompt on any Bash command containing `git push` (including `--force`, compound commands, flag variants). Don't try to work around it. If a push is warranted, ask first and let the user approve each one.

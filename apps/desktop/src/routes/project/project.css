@@ -2798,12 +2798,6 @@ button.files__row {
   margin: 0;
 }
 
-.reviewer-actions__head-tools {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 .reviewer-actions__progress {
   margin: 0;
   font-family: var(--font-mono);
@@ -3007,14 +3001,6 @@ button.files__row {
   animation: reviewer-actions-pulse 1.2s ease-in-out infinite;
 }
 
-.reviewer-actions__model-hint {
-  margin: 0.25rem 0 0;
-  font-size: var(--step--1);
-  color: var(--ink-soft);
-  font-family: var(--font-body);
-  font-style: italic;
-}
-
 @keyframes reviewer-actions-pulse {
   0%,
   100% {
@@ -3169,153 +3155,103 @@ button.files__row {
   word-break: break-word;
 }
 
-/* --- Claude chip + popover ----------------------------------------------- */
+/* --- Reviewer thoroughness toggle (Normal / Deep thinking) -------------- */
 
-.claude-chip-wrap {
+.thoroughness-toggle {
   position: relative;
   display: inline-flex;
-  min-width: 0;
-}
-
-.review-column__launch .claude-chip-wrap {
-  margin-right: auto;
-}
-
-.claude-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35em;
-  padding: 2px var(--space-2);
-  border: 1px solid var(--rule-soft);
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: border-color 120ms linear;
-  min-width: 0;
-}
-
-.claude-chip:hover,
-.claude-chip--open {
-  border-color: var(--ink);
-}
-
-.claude-chip__brand {
-  color: var(--ink-soft);
-  letter-spacing: 0.08em;
-  text-transform: lowercase;
-}
-
-.claude-chip__value {
-  color: var(--ink);
-}
-
-.claude-chip__value--inherited {
-  color: var(--ink-soft);
-  font-style: italic;
-}
-
-.claude-chip__sep {
-  color: var(--ink-soft);
-  opacity: 0.5;
-}
-
-.claude-chip__caret {
-  color: var(--ink-soft);
-  font-size: 0.85em;
-  margin-left: 0.1em;
-}
-
-.claude-chip-pop {
-  position: fixed;
-  z-index: 200;
-  padding: var(--space-3);
-  background: var(--paper);
-  border: 1px solid var(--ink);
-  box-shadow: 0 6px 20px color-mix(in oklab, var(--ink) 14%, transparent);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  max-width: calc(100vw - 16px);
-}
-
-.claude-chip-pop__group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.claude-chip-pop__row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.claude-chip-pop__label {
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.claude-chip-pop__hint {
-  color: var(--ink-soft);
-  font-family: var(--font-mono);
-  font-size: var(--step--3);
-  letter-spacing: 0.04em;
-}
-
-.claude-chip-pop__seg {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
+  align-items: stretch;
+  margin: 0 auto 0 0;
+  padding: 0;
   border: 1px solid var(--rule-soft);
   border-radius: 3px;
-  overflow: hidden;
+  overflow: visible;
+  background: var(--paper);
 }
 
-.claude-chip-pop__seg-btn {
-  flex: 1 1 auto;
-  min-width: 0;
+.thoroughness-toggle[disabled] {
+  opacity: 0.55;
+}
+
+.thoroughness-toggle__btn {
   padding: 4px var(--space-2);
-  border: none;
   border-right: 1px solid var(--rule-soft);
-  background: transparent;
   color: var(--ink-soft);
-  font-family: var(--font-mono);
-  font-size: var(--step--2);
-  letter-spacing: 0.02em;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step--1);
+  letter-spacing: 0.01em;
   cursor: pointer;
   transition:
     background-color 120ms linear,
     color 120ms linear;
 }
 
-.claude-chip-pop__seg-btn:last-child {
+.thoroughness-toggle__btn:last-child {
   border-right: none;
 }
 
-.claude-chip-pop__seg-btn:hover {
-  background: color-mix(in oklab, var(--ink) 5%, transparent);
+.thoroughness-toggle:not([disabled]) .thoroughness-toggle__btn:hover {
   color: var(--ink);
+  background: color-mix(in oklab, var(--ink) 4%, transparent);
 }
 
-.claude-chip-pop__seg-btn--on {
-  background: color-mix(in oklab, var(--rubric) 12%, transparent);
+.thoroughness-toggle__btn--on {
   color: var(--ink);
+  background: color-mix(in oklab, var(--rubric) 10%, transparent);
 }
 
-.claude-chip-pop__foot {
-  margin: 0;
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--rule-soft);
+.thoroughness-toggle__btn:focus-within {
+  outline: 2px solid var(--rubric);
+  outline-offset: -2px;
+}
+
+.thoroughness-toggle[disabled] .thoroughness-toggle__btn {
+  cursor: not-allowed;
+}
+
+.thoroughness-toggle__btn-label {
+  display: inline-block;
+}
+
+.thoroughness-toggle__hint {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: auto;
+  z-index: 200;
+  display: none;
+  width: max-content;
+  max-width: 18em;
+  padding: var(--space-2) var(--space-3);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--ink) 12%, transparent);
+  font-family: var(--font-body);
+  font-style: normal;
+  font-size: var(--step--2);
+  color: var(--ink);
+  pointer-events: none;
+  text-align: left;
+}
+
+.thoroughness-toggle:not([disabled]) .thoroughness-toggle__btn:hover .thoroughness-toggle__hint,
+.thoroughness-toggle__btn:focus-within .thoroughness-toggle__hint {
+  display: block;
+}
+
+.thoroughness-toggle__hint-model {
+  display: block;
   font-family: var(--font-mono);
   font-size: var(--step--2);
   color: var(--ink-soft);
+  margin-bottom: 2px;
+  letter-spacing: 0.02em;
+}
+
+.thoroughness-toggle__hint-blurb {
+  display: block;
+  line-height: 1.4;
 }
 
 .review-column__start--danger {

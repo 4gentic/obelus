@@ -15,7 +15,9 @@ import {
   stashSnapshotForSession,
 } from "../../lib/bundle-sources";
 import { useJobsStore } from "../../lib/jobs-store";
-import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
+import { appendMetric, nowIso } from "../../lib/metrics";
+import { DEFAULT_THOROUGHNESS, THOROUGHNESS_SPAWN } from "../../lib/reviewer-thoroughness";
+import { getReviewerThoroughness } from "../../store/app-state";
 import { useBuffersStore } from "./buffers-store-context";
 import {
   exportBundleForPaper,
@@ -27,6 +29,7 @@ import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
 import { createReviewProgressStore } from "./review-progress-store";
 import {
+  type DeepReviewOptions,
   ReviewRunnerContext,
   type ReviewRunnerMode,
   type RunCounts,
@@ -244,7 +247,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         const tBundleStart = performance.now();
         const paper = await repo.papers.get(paperId);
         if (!paper) throw new Error(`paper ${paperId} not found`);
-        const { filename, json, annotationCount, fileCount } =
+        const { filename, json, annotationCount, fileCount, anchorResolution } =
           paper.format === "md"
             ? await exportMdBundleForPaper({ repo, paperId })
             : paper.format === "html"
@@ -269,14 +272,17 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           bytes: bytes.byteLength,
         });
 
-        const overrides = await loadClaudeOverrides();
+        const thoroughness = (await getReviewerThoroughness()) ?? DEFAULT_THOROUGHNESS;
+        const spawn = THOROUGHNESS_SPAWN[thoroughness];
+        const effectiveModel: string = spawn.model;
+        const effectiveEffort: string = spawn.effort;
 
         const session = await repo.reviewSessions.create({
           projectId: project.id,
           paperId,
           bundleId: filename,
-          model: overrides.model,
-          effort: overrides.effort,
+          model: effectiveModel,
+          effort: effectiveEffort,
         });
         createdSessionId = session.id;
         // Snapshot the paper's source files now, so on exit we can tell
@@ -319,16 +325,16 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           .join("\n");
         const mode: ReviewRunnerMode =
           opts.mode ?? (project.kind === "writer" ? "writer-fast" : "rigorous");
-        // Boundary log: what model the React side is actually handing to the
-        // spawn. Pairs with `[claude-session] spawn-model …` in stderr to pin
-        // down which hop drops the value when the chip's selection doesn't
-        // reach the CLI argv.
+        // Boundary log: what the React side is actually handing to the spawn.
+        // Pairs with `[claude-session] spawn-model …` in stderr to pin down
+        // which hop drops the value when the toggle's selection doesn't reach
+        // the CLI argv.
         console.info("[spawn-model]", {
           reviewSessionId: session.id,
-          overridesModel: overrides.model,
-          overridesEffort: overrides.effort,
+          thoroughness,
+          effectiveModel,
+          effectiveEffort,
           mode,
-          resolvedFromOverride: overrides.model !== null,
         });
         const tSpawn = performance.now();
         const claudeSessionId = await claudeSpawn({
@@ -336,8 +342,8 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           projectId: project.id,
           bundleWorkspaceRelPath: filename,
           ...(combinedExtra !== "" ? { extraPromptBody: combinedExtra } : {}),
-          model: overrides.model,
-          effort: overrides.effort,
+          model: effectiveModel,
+          effort: effectiveEffort,
           mode,
         });
         console.info("[write-perf]", {
@@ -348,6 +354,14 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           clickToSpawnMs: Date.now() - startedAt,
         });
         await repo.reviewSessions.setClaudeSessionId(session.id, claudeSessionId);
+        await appendMetric(project.id, claudeSessionId, {
+          event: "anchor-resolution",
+          at: nowIso(),
+          sessionId: claudeSessionId,
+          source: anchorResolution.source,
+          pdfFallback: anchorResolution.pdfFallback,
+          htmlFallback: anchorResolution.htmlFallback,
+        });
 
         useJobsStore.getState().register({
           claudeSessionId,
@@ -390,8 +404,80 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
     await claudeCancel(active.claudeSessionId);
   }, [activePaperId]);
 
+  const startDeepReview = useCallback(
+    async (opts: DeepReviewOptions): Promise<void> => {
+      const startedAt = Date.now();
+      try {
+        const session = await repo.reviewSessions.get(opts.reviewSessionId);
+        if (!session) throw new Error(`review session ${opts.reviewSessionId} not found`);
+        const paper = await repo.papers.get(opts.paperId);
+
+        const thoroughness = (await getReviewerThoroughness()) ?? DEFAULT_THOROUGHNESS;
+        const spawn = THOROUGHNESS_SPAWN[thoroughness];
+        const effectiveModel: string = spawn.model;
+        const effectiveEffort: string = spawn.effort;
+
+        const claudeSessionId = await claudeSpawn({
+          rootId,
+          projectId: project.id,
+          bundleWorkspaceRelPath: opts.planWorkspaceRelPath,
+          model: effectiveModel,
+          effort: effectiveEffort,
+          mode: "deep-review",
+        });
+        await repo.reviewSessions.setClaudeSessionId(opts.reviewSessionId, claudeSessionId);
+        // Bundle was exported in the original session; count fields are N/A.
+        await appendMetric(project.id, claudeSessionId, {
+          event: "bundle-stats",
+          at: nowIso(),
+          sessionId: claudeSessionId,
+          annotations: 0,
+          anchorSource: 0,
+          anchorPdf: 0,
+          anchorHtml: 0,
+          papers: 0,
+          files: 0,
+          bytes: 0,
+          model: effectiveModel,
+          effort: effectiveEffort,
+        });
+
+        useJobsStore.getState().register({
+          claudeSessionId,
+          projectId: project.id,
+          projectLabel: project.label,
+          rootId,
+          kind: "review",
+          startedAt,
+          reviewSessionId: opts.reviewSessionId,
+          paperId: opts.paperId,
+          ...(paper?.title ? { paperTitle: paper.title } : {}),
+        });
+        console.info("[deep-review-spawn]", {
+          reviewSessionId: opts.reviewSessionId,
+          claudeSessionId,
+          planPath: opts.planWorkspaceRelPath,
+          thoroughness,
+          model: effectiveModel,
+          effort: effectiveEffort,
+        });
+      } catch (err) {
+        const detail =
+          err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+        const message = `Could not start deep review: ${detail}`;
+        console.warn("[deep-review-start]", {
+          reviewSessionId: opts.reviewSessionId,
+          paperId: opts.paperId,
+          detail,
+        });
+        setLocal({ kind: "error", paperId: opts.paperId, message });
+      }
+    },
+    [repo, project.id, project.label, rootId],
+  );
+
   return (
-    <ReviewRunnerContext.Provider value={{ status, start, cancel, progressStore }}>
+    <ReviewRunnerContext.Provider value={{ status, start, startDeepReview, cancel, progressStore }}>
       {children}
     </ReviewRunnerContext.Provider>
   );

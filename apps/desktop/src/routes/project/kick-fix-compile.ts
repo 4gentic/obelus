@@ -7,7 +7,6 @@ import type { Repository } from "@obelus/repo";
 import { getVersion } from "@tauri-apps/api/app";
 import { workspaceWriteText } from "../../ipc/commands";
 import { useJobsStore } from "../../lib/jobs-store";
-import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 
 export type FixCompileTrigger = "apply" | "manual";
 
@@ -124,8 +123,6 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     `${JSON.stringify(bundle, null, 2)}\n`,
   );
 
-  const overrides = await loadClaudeOverrides();
-
   // Register the fix-compile run as its own review session. `bundleId` is the
   // compile-error bundle filename so `ingestPlanFile`'s basename match fires
   // on the plan the skill produces. When hunks land, the paper's DiffStore
@@ -135,8 +132,8 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     projectId,
     paperId,
     bundleId: bundleWorkspaceRelPath,
-    model: overrides.model,
-    effort: overrides.effort,
+    model: null,
+    effort: null,
   });
 
   const claudeSessionId = await claudeFixCompile({
@@ -144,8 +141,8 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     projectId,
     bundleWorkspaceRelPath,
     paperId,
-    model: overrides.model,
-    effort: overrides.effort,
+    model: null,
+    effort: null,
   });
   await repo.reviewSessions.setClaudeSessionId(fixSession.id, claudeSessionId);
 

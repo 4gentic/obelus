@@ -8,10 +8,13 @@
 // declare the subset we need; serde ignores unknown fields by default, so the
 // schema can grow without breaking this module.
 
+use jsonschema::Validator;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::OnceLock;
+use std::time::Instant;
 
 #[derive(Deserialize)]
 struct Bundle {
@@ -88,22 +91,78 @@ pub enum Mode {
     Rigorous,
 }
 
-pub fn build_prelude(
+// WS3 telemetry. `bundle-stats` and `preflight-rust` events use these shapes.
+pub struct BundleStats {
+    pub annotations: usize,
+    pub anchor_source: usize,
+    pub anchor_pdf: usize,
+    pub anchor_html: usize,
+    pub papers: usize,
+    pub files: usize,
+    pub bytes: u64,
+}
+
+pub struct PreludeTimings {
+    pub prelude_ms: u128,
+    pub sha256_ms: u128,
+    pub total_ms: u128,
+}
+
+// Returns the prelude string plus the bundle's anchor histogram / file
+// inventory and a coarse breakdown of where the wall-clock went. Used by
+// `claude_session::claude_spawn` for the prompt prelude and the WS3
+// `bundle-stats` / `preflight-rust` events.
+pub fn build_prelude_with_metrics(
     bundle_path: &Path,
     project_root: &Path,
     plugin_dir: &Path,
     mode: Mode,
-) -> Option<String> {
+) -> Option<(String, BundleStats, PreludeTimings)> {
+    let total = Instant::now();
     let raw = std::fs::read_to_string(bundle_path).ok()?;
+    let bytes = raw.as_bytes().len() as u64;
     let bundle: Bundle = serde_json::from_str(&raw)
         .map_err(|e| {
             eprintln!("[preflight] bundle parse failed: {e}; skipping prelude");
         })
         .ok()?;
-    Some(match mode {
+    let stats = compute_bundle_stats(&bundle, bytes);
+
+    let mut sha256_ms: u128 = 0;
+    let prelude = match mode {
         Mode::WriterFast => render_writer_fast(&bundle),
-        Mode::Rigorous => render_rigorous(&bundle, project_root, plugin_dir),
-    })
+        Mode::Rigorous => render_rigorous_timed(&bundle, project_root, plugin_dir, &mut sha256_ms),
+    };
+
+    let total_ms = total.elapsed().as_millis();
+    let timings = PreludeTimings {
+        prelude_ms: total_ms.saturating_sub(sha256_ms),
+        sha256_ms,
+        total_ms,
+    };
+    Some((prelude, stats, timings))
+}
+
+fn compute_bundle_stats(bundle: &Bundle, bytes: u64) -> BundleStats {
+    let mut anchor_source = 0;
+    let mut anchor_pdf = 0;
+    let mut anchor_html = 0;
+    for ann in &bundle.annotations {
+        match ann.anchor {
+            Anchor::Source { .. } => anchor_source += 1,
+            Anchor::Pdf {} => anchor_pdf += 1,
+            Anchor::Html {} => anchor_html += 1,
+        }
+    }
+    BundleStats {
+        annotations: bundle.annotations.len(),
+        anchor_source,
+        anchor_pdf,
+        anchor_html,
+        papers: bundle.papers.len(),
+        files: bundle.project.files.len(),
+        bytes,
+    }
 }
 
 fn detect_format(extension: Option<&str>) -> &'static str {
@@ -218,7 +277,12 @@ fn render_writer_fast(bundle: &Bundle) -> String {
     s
 }
 
-fn render_rigorous(bundle: &Bundle, project_root: &Path, plugin_dir: &Path) -> String {
+fn render_rigorous_timed(
+    bundle: &Bundle,
+    project_root: &Path,
+    plugin_dir: &Path,
+    sha256_ms: &mut u128,
+) -> String {
     let entrypoint = primary_entrypoint(bundle).unwrap_or_default();
     let format = detect_format(extension_of(&entrypoint));
 
@@ -251,6 +315,9 @@ fn render_rigorous(bundle: &Bundle, project_root: &Path, plugin_dir: &Path) -> S
 
     let mut s = String::new();
     s.push_str("Pre-flight (validated by the desktop; trust it, do not re-derive):\n");
+    // The schema check ran in Rust before the spawn — the model can trust the
+    // bundle's structure and skip its own re-validation pass over the schema.
+    s.push_str("- bundle-validated: true\n");
     // The model's path to plan-fix's SKILL.md, given so it can `Read` the
     // skill body directly without Glob-hunting. Both apply-revision and
     // plan-fix have `disable-model-invocation: true`, which blocks Skill-tool
@@ -264,7 +331,7 @@ fn render_rigorous(bundle: &Bundle, project_root: &Path, plugin_dir: &Path) -> S
     s.push_str(&format!("- format: {}\n", if format.is_empty() { "(unknown)" } else { format }));
     s.push_str(&format!(
         "- entrypoint: {}\n",
-        if entrypoint.is_empty() { "(unknown)".to_string() } else { entrypoint }
+        if entrypoint.is_empty() { "(unknown)" } else { entrypoint.as_str() }
     ));
     s.push_str(&format!(
         "- papers: {}, annotations: {}\n",
@@ -279,7 +346,10 @@ fn render_rigorous(bundle: &Bundle, project_root: &Path, plugin_dir: &Path) -> S
         "- anchor-kind histogram: source={}, pdf={}, html={}\n",
         hist_source, hist_pdf, hist_html
     ));
-    s.push_str(&format!("- all-source-anchored: {}\n", all_source));
+    // `all-source-anchored` is derivable from the histogram above (pdf==0 &&
+    // html==0); kept implicit so the prelude doesn't restate the same fact.
+    // The skip-condition block below still uses the boolean to guide the
+    // orchestrator.
     if papers_with_rubric.is_empty() {
         s.push_str("- has-rubric: false\n");
     } else {
@@ -309,6 +379,7 @@ fn render_rigorous(bundle: &Bundle, project_root: &Path, plugin_dir: &Path) -> S
     s.push_str("- delimiter collisions: none (bundle-builder enforces this at export)\n");
 
     s.push_str("\nPer-paper:\n");
+    let single_paper = bundle.papers.len() == 1;
     for paper in &bundle.papers {
         let per_paper_entrypoint = paper
             .entrypoint
@@ -321,32 +392,39 @@ fn render_rigorous(bundle: &Bundle, project_root: &Path, plugin_dir: &Path) -> S
             sanitize_title_for_prelude(&paper.title),
             short_id(&paper.id)
         ));
-        s.push_str(&format!(
-            "    format: {}, entrypoint: {}\n",
-            if per_paper_format.is_empty() { "(unknown)" } else { per_paper_format },
-            if per_paper_entrypoint.is_empty() {
-                "(unknown)".to_string()
-            } else {
-                per_paper_entrypoint
-            }
-        ));
+        // Suppress the per-paper format/entrypoint line when it duplicates the
+        // global one — the only case where the per-paper view adds nothing.
+        // Multi-paper bundles still surface it because each paper can carry
+        // its own entrypoint.
+        let duplicates_global =
+            single_paper && per_paper_format == format && per_paper_entrypoint == entrypoint;
+        if !duplicates_global {
+            s.push_str(&format!(
+                "    format: {}, entrypoint: {}\n",
+                if per_paper_format.is_empty() { "(unknown)" } else { per_paper_format },
+                if per_paper_entrypoint.is_empty() {
+                    "(unknown)".to_string()
+                } else {
+                    per_paper_entrypoint
+                }
+            ));
+        }
         if let Some(pdf) = paper.pdf.as_ref() {
+            let t = Instant::now();
             let status = pdf_sha_status(project_root, &pdf.rel_path, &pdf.sha256);
+            *sha256_ms = sha256_ms.saturating_add(t.elapsed().as_millis());
             s.push_str(&format!("    pdf: {} (sha256 {})\n", pdf.rel_path, status));
         }
     }
 
-    // Hint table: which sweeps the desktop's signals already authorize you to
-    // skip. The model still owns the all-deltas-local call (impact-sweep skip).
-    s.push_str("\nSkip-condition signals (the orchestrator's contract):\n");
+    // Hint table: signals that affect the workflow. Rigor itself is opt-in by
+    // mode choice — sweeps are NOT gated on a substantive-block count. The
+    // model decides per phase whether the actual content yields anything to
+    // emit (a coherence-sweep that finds no drift emits zero blocks; that's
+    // correct, and very different from never running).
     if all_source {
+        s.push_str("\nSkip-condition signals (the orchestrator's contract):\n");
         s.push_str("- locating-spans: source-only — the pdf/html fuzzy fallback does not run\n");
-    }
-    if substantive < 2 {
-        s.push_str("- coherence-sweep: skipped (substantive blocks < 2)\n");
-        if papers_with_rubric.is_empty() {
-            s.push_str("- quality-sweep: skipped (no rubric and substantive blocks < 2)\n");
-        }
     }
     s
 }
@@ -377,6 +455,54 @@ fn sanitize_title_for_prelude(title: &str) -> String {
         }
     }
     out
+}
+
+// Compiled validator, cached for the process lifetime. The schema artifact at
+// `<plugin>/schemas/bundle.schema.json` is the same JSON the plugin enforces;
+// reading it from the desktop side keeps both surfaces in lockstep without a
+// generator step. The first call pays the parse + compile cost (a few ms);
+// subsequent calls reuse the compiled validator.
+static SCHEMA_VALIDATOR: OnceLock<Result<Validator, String>> = OnceLock::new();
+
+fn get_or_compile_validator(plugin_dir: &Path) -> Result<&'static Validator, String> {
+    let cell = SCHEMA_VALIDATOR.get_or_init(|| {
+        let path = plugin_dir.join("schemas").join("bundle.schema.json");
+        let body = std::fs::read_to_string(&path)
+            .map_err(|e| format!("read schema {}: {e}", path.display()))?;
+        let schema: serde_json::Value = serde_json::from_str(&body)
+            .map_err(|e| format!("parse schema {}: {e}", path.display()))?;
+        jsonschema::draft202012::new(&schema)
+            .map_err(|e| format!("compile schema: {e}"))
+    });
+    match cell {
+        Ok(v) => Ok(v),
+        Err(e) => Err(e.clone()),
+    }
+}
+
+// Validate the bundle JSON against the pinned JSON Schema. Returns up to the
+// first 3 human-readable error strings so the desktop can surface them without
+// flooding the UI. The 3-error cap mirrors the plugin's apply-revision
+// halt-condition table — three reasons is enough to act on, the rest are
+// usually downstream of the first.
+pub fn validate_bundle_against_schema(
+    bundle_json: &serde_json::Value,
+    plugin_dir: &Path,
+) -> Result<(), Vec<String>> {
+    let validator = match get_or_compile_validator(plugin_dir) {
+        Ok(v) => v,
+        Err(e) => return Err(vec![format!("schema unavailable: {e}")]),
+    };
+    let errors: Vec<String> = validator
+        .iter_errors(bundle_json)
+        .take(3)
+        .map(|err| format!("{err} (at {})", err.instance_path()))
+        .collect();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 fn pdf_sha_status(project_root: &Path, rel_path: &str, expected_hex: &str) -> &'static str {
@@ -441,7 +567,8 @@ mod tests {
         }"#;
         let path = write_bundle(tmp.path(), bundle);
         let plugin = tmp.path().join("plugin");
-        let out = build_prelude(&path, tmp.path(), &plugin, Mode::WriterFast).unwrap();
+        let (out, _stats, _t) =
+            build_prelude_with_metrics(&path, tmp.path(), &plugin, Mode::WriterFast).unwrap();
         assert!(out.contains("- format: typst"));
         assert!(out.contains("- entrypoint: chapters/00-abstract.typ"));
         assert!(out.contains("- papers: 1, annotations: 2"));
@@ -478,15 +605,27 @@ mod tests {
         }"#;
         let path = write_bundle(tmp.path(), bundle);
         let plugin = tmp.path().join("plugin");
-        let out = build_prelude(&path, tmp.path(), &plugin, Mode::Rigorous).unwrap();
+        let (out, stats, _t) =
+            build_prelude_with_metrics(&path, tmp.path(), &plugin, Mode::Rigorous).unwrap();
+        // WS3 bundle-stats: histogram numbers from `compute_bundle_stats`
+        // must agree with the histogram printed in the rigorous prelude body.
+        assert_eq!(stats.papers, 1);
+        assert_eq!(stats.annotations, 3);
+        assert_eq!(stats.anchor_source, 2);
+        assert_eq!(stats.anchor_pdf, 1);
+        assert_eq!(stats.anchor_html, 0);
+        assert!(out.contains("- bundle-validated: true"), "got: {out}");
         assert!(out.contains("- format: latex"));
         assert!(out.contains("- substantive blocks: 1 (excluding 1 praise, 1 aside, 0 flag)"));
         assert!(out.contains("- anchor-kind histogram: source=2, pdf=1, html=0"));
-        assert!(out.contains("- all-source-anchored: false"));
+        // `all-source-anchored` was removed from the prelude; it's derivable
+        // from the histogram (pdf==0 && html==0).
+        assert!(!out.contains("all-source-anchored"), "got: {out}");
         assert!(out.contains("- has-rubric: false"));
-        // substantive < 2 → coherence-sweep skip and quality-sweep skip both surface.
-        assert!(out.contains("coherence-sweep: skipped"));
-        assert!(out.contains("quality-sweep: skipped"));
+        // Rigorous mode never gates sweeps on a substantive-mark count, so the
+        // prelude must NOT emit any "skipped because substantive < N" lines.
+        assert!(!out.contains("coherence-sweep: skipped"), "got: {out}");
+        assert!(!out.contains("quality-sweep: skipped"), "got: {out}");
         // The plan-fix path is given so the model doesn't have to Glob-hunt
         // for it. Resolved against the plugin dir argument.
         let expected = plugin.join("skills").join("plan-fix").join("SKILL.md");
@@ -506,5 +645,80 @@ mod tests {
         assert_eq!(pdf_sha_status(tmp.path(), "paper.pdf", good), "matches");
         assert_eq!(pdf_sha_status(tmp.path(), "paper.pdf", "0".repeat(64).as_str()), "mismatches");
         assert_eq!(pdf_sha_status(tmp.path(), "missing.pdf", good), "missing");
+    }
+
+    // The validator is cached behind a `OnceLock`, so the first test that
+    // initialises it pins the schema for the whole process. Both validator
+    // tests stage the same schema artifact (the one shipped with the plugin)
+    // into their temp dirs — the cache key is the schema body, not the path,
+    // so subsequent calls reuse the validator regardless of which test wins
+    // the race.
+    fn stage_real_schema(plugin_dir: &Path) {
+        let schemas = plugin_dir.join("schemas");
+        std::fs::create_dir_all(&schemas).unwrap();
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../packages/claude-plugin/schemas/bundle.schema.json");
+        std::fs::copy(&src, schemas.join("bundle.schema.json")).unwrap_or_else(|e| {
+            panic!("copy schema from {}: {e}", src.display());
+        });
+    }
+
+    #[test]
+    fn validate_bundle_against_schema_accepts_known_good_bundle() {
+        let tmp = tempfile::tempdir().unwrap();
+        let plugin = tmp.path().join("plugin");
+        stage_real_schema(&plugin);
+        // Mirrors the shape of `packages/claude-plugin/fixtures/sample/bundle.json`
+        // but trimmed to the minimum required by the schema.
+        let bundle: serde_json::Value = serde_json::json!({
+            "bundleVersion": "1.0",
+            "tool": { "name": "obelus", "version": "0.1.0" },
+            "project": {
+                "id": "11111111-1111-4111-8111-111111111111",
+                "label": "x",
+                "kind": "writer",
+                "categories": [{ "slug": "unclear", "label": "unclear" }]
+            },
+            "papers": [{
+                "id": "22222222-2222-4222-8222-222222222222",
+                "title": "T",
+                "revision": 1,
+                "createdAt": "2026-04-19T00:00:00.000Z"
+            }],
+            "annotations": []
+        });
+        validate_bundle_against_schema(&bundle, &plugin)
+            .expect("known-good bundle should validate");
+    }
+
+    #[test]
+    fn validate_bundle_against_schema_rejects_missing_bundle_version() {
+        let tmp = tempfile::tempdir().unwrap();
+        let plugin = tmp.path().join("plugin");
+        stage_real_schema(&plugin);
+        let bundle: serde_json::Value = serde_json::json!({
+            "tool": { "name": "obelus", "version": "0.1.0" },
+            "project": {
+                "id": "11111111-1111-4111-8111-111111111111",
+                "label": "x",
+                "kind": "writer",
+                "categories": [{ "slug": "unclear", "label": "unclear" }]
+            },
+            "papers": [{
+                "id": "22222222-2222-4222-8222-222222222222",
+                "title": "T",
+                "revision": 1,
+                "createdAt": "2026-04-19T00:00:00.000Z"
+            }],
+            "annotations": []
+        });
+        let errors = validate_bundle_against_schema(&bundle, &plugin)
+            .expect_err("bundle missing bundleVersion should fail validation");
+        assert!(!errors.is_empty(), "expected at least one error");
+        assert!(errors.len() <= 3, "errors capped at 3, got {}", errors.len());
+        assert!(
+            errors.iter().any(|e| e.contains("bundleVersion")),
+            "expected an error mentioning bundleVersion; got {errors:?}",
+        );
     }
 }

@@ -8,16 +8,9 @@ import EngineBlock from "../components/engine-block";
 import type { ClaudeStatus } from "../ipc/commands";
 import { factoryReset, wizardReset } from "../lib/reset";
 import { checkForUpdate, downloadAndInstall, type UpdaterState } from "../lib/updater";
-import {
-  type ClaudeEffortChoice,
-  type ClaudeModelChoice,
-  EFFORT_CHOICES,
-  MODEL_CHOICES,
-  useClaudeConfig,
-} from "../lib/use-claude-defaults";
 import "./settings.css";
 
-import type { ChangeEvent, JSX } from "react";
+import type { JSX } from "react";
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -122,8 +115,6 @@ export default function Settings(): JSX.Element {
           {busy ? "Checking." : "Check again"}
         </button>
       </article>
-
-      <ClaudeConfigBlock />
 
       <article className="settings__block">
         <h2 className="settings__block-title">Compile engines</h2>
@@ -243,87 +234,5 @@ export default function Settings(): JSX.Element {
         </p>
       </article>
     </section>
-  );
-}
-
-const MODEL_LABELS: Record<Exclude<ClaudeModelChoice, null>, string> = {
-  opus: "Opus 4.7",
-  sonnet: "Sonnet 4.6",
-  haiku: "Haiku 4.5",
-};
-
-const EFFORT_LABELS: Record<Exclude<ClaudeEffortChoice, null>, string> = {
-  low: "low",
-  medium: "medium",
-  high: "high",
-  xhigh: "xhigh",
-  max: "max",
-};
-
-function ClaudeConfigBlock(): JSX.Element {
-  const cfg = useClaudeConfig();
-  const defaultModel = cfg.defaults?.model ?? "—";
-  const defaultEffort = cfg.defaults?.effortLevel ?? "—";
-
-  function onModelChange(e: ChangeEvent<HTMLSelectElement>): void {
-    const v = e.target.value;
-    void cfg.setModel(v === "" ? null : (v as Exclude<ClaudeModelChoice, null>));
-  }
-
-  function onEffortChange(e: ChangeEvent<HTMLSelectElement>): void {
-    const v = e.target.value;
-    void cfg.setEffort(v === "" ? null : (v as Exclude<ClaudeEffortChoice, null>));
-  }
-
-  return (
-    <article className="settings__block">
-      <h2 className="settings__block-title">Claude</h2>
-      <p className="settings__body">
-        Choose the model and reasoning effort Obelus asks Claude Code to use. Leaving a field on{" "}
-        <em>Follow Claude Code</em> inherits whatever you set via <code>/model</code> or in{" "}
-        <code>~/.claude/settings.json</code>. The review and revision skills (apply-revision,
-        plan-writer-fast, write-review, fix-compile) ignore both choices and always run on Sonnet at
-        low effort — they're dispatch and minimal-diff composition, not reasoning, and Opus or
-        extended thinking on those skills produces minutes of wall-clock per phase without improving
-        the output. The settings here apply to free-form ask sessions.
-      </p>
-      <div className="settings__fields">
-        <label className="settings__field">
-          <span className="settings__field-label">Model</span>
-          <select
-            className="settings__select"
-            value={cfg.model ?? ""}
-            onChange={onModelChange}
-            disabled={!cfg.loaded}
-          >
-            <option value="">Follow Claude Code</option>
-            {MODEL_CHOICES.map((m) => (
-              <option key={m} value={m}>
-                {MODEL_LABELS[m]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="settings__field">
-          <span className="settings__field-label">Effort</span>
-          <select
-            className="settings__select"
-            value={cfg.effort ?? ""}
-            onChange={onEffortChange}
-            disabled={!cfg.loaded}
-          >
-            <option value="">Follow Claude Code</option>
-            {EFFORT_CHOICES.map((e) => (
-              <option key={e} value={e}>
-                {EFFORT_LABELS[e]}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <pre className="settings__pane">
-        {`claude code default   ${defaultModel} · ${defaultEffort}`}
-      </pre>
-    </article>
   );
 }

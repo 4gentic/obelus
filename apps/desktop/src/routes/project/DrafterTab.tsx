@@ -1,7 +1,6 @@
 import { claudeAsk } from "@obelus/claude-sidecar";
 import { formatSpawnInvocation } from "@obelus/prompts";
 import { type JSX, useState } from "react";
-import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { useProject } from "./context";
 
 // Hidden behind `import.meta.env.VITE_DRAFTER_PREVIEW === "1"` (see
@@ -27,7 +26,6 @@ export default function DrafterTab(): JSX.Element {
   async function onRunSpec(): Promise<void> {
     setStatus({ kind: "starting" });
     try {
-      const overrides = await loadClaudeOverrides();
       const promptBody = formatSpawnInvocation({
         kind: "ask",
         promptBody:
@@ -37,8 +35,8 @@ export default function DrafterTab(): JSX.Element {
         rootId,
         projectId: project.id,
         promptBody,
-        model: overrides.model,
-        effort: overrides.effort,
+        model: null,
+        effort: null,
       });
       setStatus({ kind: "started", sessionId });
     } catch (err) {

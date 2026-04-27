@@ -76,6 +76,14 @@ export interface IngestPlanResult {
   synthesisedKept: number;
   scannedPlans: string[];
   hasSources: boolean;
+  // True iff this ingest appended to existing rows (deep-review plan riding
+  // on top of an already-ingested rigorous plan) rather than replacing them.
+  additive: boolean;
+  // Number of hunks that survived in the session from a prior ingest. Zero
+  // for non-additive runs; the count of non-quality rows that the new
+  // deep-review batch is layered on top of otherwise. A deep-review re-run
+  // deletes prior `quality-*` rows before this is computed.
+  existingHunkCount: number;
 }
 
 // Synthesised blocks carry IDs the planner invents (they have no row in the
@@ -147,6 +155,15 @@ export function partitionPlanBlocks<T extends PlanBlockLike>(
 function basename(p: string): string {
   const slash = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
   return slash < 0 ? p : p.slice(slash + 1);
+}
+
+// Deep-review plans land alongside the original rigorous plan with a `-deep`
+// suffix before the `.json` extension. The desktop ingests them additively:
+// the original plan's hunks must survive while the new `quality-*` blocks land
+// on top. Centralised here so the filename convention is the only signal that
+// drives mode detection on the desktop side.
+export function isDeepReviewPlanName(name: string): boolean {
+  return name.endsWith("-deep.json");
 }
 
 function toWorkspaceRel(workspaceAbs: string, hintPath: string): string | null {
@@ -224,7 +241,10 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     // Timestamped plans first (newest → oldest), then the bare fallback. A
     // plain lex sort would put `plan.json` ahead of `plan-<iso>.json` after
     // reverse because `-` < `.`, which lets a stale bare plan shadow the
-    // current timestamped one.
+    // current timestamped one. The deep-review suffix sorts later than the
+    // bare timestamped sibling on a reverse-lex sort (`-deep.json` > `.json`),
+    // which is what we want: when a deep-review plan and its parent rigorous
+    // plan are both on disk, the deep-review one is picked first.
     const timestamped = directoryNames
       .filter((n) => /^plan-.+\.json$/.test(n))
       .sort()
@@ -234,20 +254,19 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
       : timestamped;
 
     if (planNames.length === 0 && scannedPlans.length === 0) {
-      // .md plans without a .json companion are a partial-run signal: the
-      // skill wrote the human-readable artifact but skipped the
-      // machine-readable one the desktop ingests. Surfacing this is more
-      // useful than blaming the spawn prompt, which usually did reach the
-      // model — the trouble is downstream of invocation.
+      // After WS8 the .json is the only contract — the desktop projects
+      // the .md from it, so a stray .md with no .json is either a stale
+      // file from an older run or a contract violation from a newer skill.
+      // Either way the diff-review UI has nothing to ingest.
       const orphanedMd = directoryNames.filter((n) => /^plan-.+\.md$/.test(n));
       const dirSummary = directoryNames.join(", ") || "(empty)";
       const headline =
         orphanedMd.length > 0
-          ? `Claude wrote a plan markdown but no .json companion the desktop can ingest.`
+          ? `A plan markdown is on disk, but no .json the desktop can ingest.`
           : `Claude finished without writing a plan file under the project workspace.`;
       const details =
         orphanedMd.length > 0
-          ? `Found .md plan(s) with no .json sibling: ${orphanedMd.join(", ")}. The skill needs to write both files with matching timestamps; check the job log for an OBELUS_WROTE: marker (absent if the skill exited before the json Write call).`
+          ? `Found .md plan(s) with no .json sibling: ${orphanedMd.join(", ")}. The .json is the contract; the desktop projects the .md from it. A stray .md without a .json means either a leftover file from a previous run or the skill aborted before its Write call.`
           : `The session ended cleanly but emitted no \`OBELUS_WROTE:\` marker and left no plan-*.json behind. Possible causes: the model didn't dispatch the skill (look for tool calls hunting for "plan-writer-fast" or "apply-revision" by name in the job log), or the skill aborted before writing. Workspace contents: ${dirSummary}.`;
       throw new Error(`${headline}\n\n${details}`);
     }
@@ -299,6 +318,26 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     synthesisedKept,
   } = partitionPlanBlocks(picked.plan.blocks, knownAnnotationIds);
 
+  // Deep-review plans append to the existing session's hunks instead of
+  // replacing them. The original rigorous plan's blocks must survive — the
+  // new `quality-*` blocks land alongside them in the diff-review UI. A
+  // re-run replaces the prior deep-review batch only (delete `quality-*`
+  // rows, keep everything else). If a deep-review plan arrives without an
+  // underlying rigorous plan in the session, surface a clear error: the
+  // deep-review depends on the prior rigorous plan being already ingested
+  // (its `bundleId` is what they share).
+  const isDeep = isDeepReviewPlanName(picked.name);
+  if (isDeep) {
+    await repo.diffHunks.deleteDeepReviewBlocks(sessionId);
+  }
+  const existingHunks = isDeep ? await repo.diffHunks.listForSession(sessionId) : [];
+  if (isDeep && existingHunks.length === 0) {
+    throw new Error(
+      `deep-review plan ${picked.name} has no underlying rigorous plan in session ${sessionId}; ingest the rigorous plan first`,
+    );
+  }
+  const ordinalBase = isDeep ? existingHunks.reduce((n, h) => Math.max(n, h.ordinal), -1) + 1 : 0;
+
   const rows: DiffHunkRow[] = keptBlocks.map((b, i) => ({
     id: crypto.randomUUID(),
     sessionId,
@@ -312,11 +351,15 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     emptyReason: b.emptyReason,
     noteText: "",
     reviewerNotes: b.reviewerNotes,
-    ordinal: i,
+    ordinal: ordinalBase + i,
     applyFailure: null,
   }));
 
-  await repo.diffHunks.upsertMany(sessionId, rows);
+  if (isDeep) {
+    await repo.diffHunks.appendMany(sessionId, rows);
+  } else {
+    await repo.diffHunks.upsertMany(sessionId, rows);
+  }
 
   const ambiguousCount = keptBlocks.reduce((n, b) => n + (b.ambiguous ? 1 : 0), 0);
   const multiMarkDiffs = keptBlocks.reduce((n, b) => n + (b.annotationIds.length > 1 ? 1 : 0), 0);
@@ -325,8 +368,10 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
   console.info("[ingest-plan]", {
     sessionId,
     planPath: picked.name,
+    additive: isDeep,
     blockCount: picked.plan.blocks.length,
     hunkCount: rows.length,
+    existingHunkCount: existingHunks.length,
     ambiguousCount,
     multiMarkDiffs,
     emptyByReason,
@@ -347,6 +392,8 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     synthesisedKept,
     scannedPlans,
     hasSources,
+    additive: isDeep,
+    existingHunkCount: existingHunks.length,
   };
 }
 

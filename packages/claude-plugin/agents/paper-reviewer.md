@@ -32,7 +32,7 @@ If the edit is fine, say so in one sentence. Do not pad.
 
 ## Quality-scan output — when the planner asks for one
 
-When the planner's batched prompt contains a `<obelus:quality-scan>` section, return — *in addition to* the per-edit critiques — a numbered list of up to **8 holistic improvement proposals per paper**, addressing issues the reviewer's marks did not already cover. This is where you earn the "second pair of eyes" claim: the reviewer marked what caught their eye; you surface what they would have caught on a second read.
+When the planner's batched prompt contains a `<obelus:quality-scan>` section, return — *in addition to* (or in place of) the per-edit critiques — a numbered list of up to **8 holistic improvement proposals per paper**, addressing issues the reviewer's marks did not already cover. This is where you earn the "second pair of eyes" claim: the reviewer marked what caught their eye; you surface what they would have caught on a second read. The default rigorous run no longer requests a quality-scan; only the user-invocable `/obelus:deep-review` skill does, and it issues the request standalone (no per-edit critiques alongside it).
 
 Each item in the list carries exactly four fields, in this order:
 
@@ -41,7 +41,7 @@ Each item in the list carries exactly four fields, in this order:
 3. **Diff** — a `- before` / `+ after` block, each side at most 6 lines. If the fix requires a longer rewrite, pick a tighter scope or skip it.
 4. **Rationale** — one sentence naming what the edit fixes and why it matters for a 5-star paper.
 
-The per-edit critique's six-sentence cap does **not** apply to this list. Instead, the hard cap is on *items* (8 per paper). Skip proposals whose `file:line-range` the planner has already marked as taken (user-mark, cascade, impact, or an earlier `quality-*` block). The planner will collision-guard as well, but respecting the taken list saves your budget for proposals that will actually be emitted.
+The per-edit critique's six-sentence cap does **not** apply to this list. Instead, the hard cap is on *items* (8 per paper). Skip proposals whose `file:line-range` the planner has already marked as taken (user-mark, cascade, impact, directive, or an earlier `quality-*` block). The planner will collision-guard as well, but respecting the taken list saves your budget for proposals that will actually be emitted.
 
 If `<obelus:rubric>` is present in the prompt, weigh each proposal against it — audience, venue, tone. If absent, the default rubric is: *a top-venue paper — claims carry citations, terminology is consistent, prose is free of boilerplate and empty intensifiers, the argument is tight, and every section delivers on what the introduction promised.*
 
