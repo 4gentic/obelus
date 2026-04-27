@@ -7,6 +7,7 @@ import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
 import { usePaperId } from "./OpenPaper";
 import { extensionOf, isOpenable, NOISE_DIRS } from "./openable";
+import { useCompanionPaperId } from "./use-companion-paper";
 import { useInlineConfirm } from "./use-inline-confirm";
 import { usePaperBuild } from "./use-paper-build";
 
@@ -449,8 +450,16 @@ function NewFileInputRow(props: NewFileInputRowProps): JSX.Element {
 export default function FilesColumn(): JSX.Element {
   const { project, rootId, repo, setOpenFilePath, openFilePath } = useProject();
   const activePaperId = usePaperId();
+  // When the open file is a source (e.g. ms.tex), `usePaperId()` returns null
+  // because OpenPaper only registers an active paper for PDFs/MD/HTML. Without
+  // a fallback, the star button next to every source file would silently no-op
+  // — which is exactly what test users hit on a freshly-cloned LaTeX repo.
+  // Resolve the companion paper (same-stem PDF, else any paper whose PDF lives
+  // in the same directory or an ancestor) and use it when no paper is active.
+  const companionPaperId = useCompanionPaperId(repo, project.id, openFilePath);
+  const effectivePaperId = activePaperId ?? companionPaperId;
   const buffers = useBuffersStore();
-  const { build, setMain } = usePaperBuild(repo, activePaperId);
+  const { build, setMain } = usePaperBuild(repo, effectivePaperId);
   const [papers, setPapers] = useState<PaperRow[]>([]);
   const [markCounts, setMarkCounts] = useState<Map<string, number>>(new Map());
 
