@@ -81,8 +81,9 @@ export default function FolioProject({
         >
           <span className="folio__card-title">I'm a writer.</span>
           <span className="folio__card-legend">
-            For authors and co-authors. Open the folder that holds your paper source — LaTeX,
-            Markdown, or Typst — and mark the rendered PDF for revision.
+            For authors and co-authors. Open the folder that holds your paper source — LaTeX{" "}
+            <em>(Beta)</em>, Markdown <em>(Beta)</em>, or Typst — and mark the rendered PDF for
+            revision.
           </span>
           <span className="folio__card-sub">Pick folder →</span>
         </button>
