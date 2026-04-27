@@ -8,7 +8,7 @@
 
 .project-shell__header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-4);
   padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--rule-soft);
@@ -72,111 +72,41 @@
    label ("files" / "review") that reads like the spine of a closed book.
    Sits above the PDF text layer (z-index: 30 > .pdf-page__text z:2) so a
    clicker can always reach it during scroll. */
-.panel-rail {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 18px;
-  padding: 0;
-  display: flex;
+.panel-toggles {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: auto;
+}
+
+.panel-toggles__btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: none;
-  color: color-mix(in oklab, var(--ink-soft) 80%, transparent);
-  font-family: var(--font-mono);
-  font-size: var(--step--3, 9.5px);
-  letter-spacing: 0.18em;
-  text-transform: lowercase;
-  cursor: pointer;
-  z-index: 30;
-  transition:
-    color 120ms linear,
-    background 120ms linear;
-}
-
-.panel-rail::before {
-  content: "";
-  position: absolute;
-  top: var(--space-4);
-  bottom: var(--space-4);
-  width: 1px;
-  background: color-mix(in oklab, var(--ink-soft) 35%, transparent);
-  transition: background 120ms linear;
-}
-
-.panel-rail:hover,
-.panel-rail:focus-visible {
-  color: var(--ink);
-  background: color-mix(in oklab, var(--ink) 4%, transparent);
-  outline: none;
-}
-
-.panel-rail:hover::before,
-.panel-rail:focus-visible::before {
-  background: var(--ink-soft);
-}
-
-.panel-rail__label {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  position: relative;
-  z-index: 1;
-  padding: 2px 1px;
-  background: var(--paper);
-}
-
-.panel-rail--left {
-  left: 0;
-}
-
-.panel-rail--left::before {
-  right: 0;
-}
-
-.panel-rail--right {
-  right: 0;
-}
-
-.panel-rail--right::before {
-  left: 0;
-}
-
-/* Hide-button: typographic close-mark inside the panel chrome. No pill, no
-   border in resting state — only a quiet hover wash. */
-.panel-hide {
-  position: absolute;
-  top: var(--space-2);
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius-1);
-  color: color-mix(in oklab, var(--ink-soft) 70%, transparent);
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  line-height: 1;
+  color: color-mix(in oklab, var(--ink-soft) 75%, transparent);
   cursor: pointer;
-  z-index: 5;
   transition:
     color 120ms linear,
-    background 120ms linear;
+    background 120ms linear,
+    border-color 120ms linear;
 }
 
-.panel-hide:hover,
-.panel-hide:focus-visible {
+.panel-toggles__btn:hover,
+.panel-toggles__btn:focus-visible {
   color: var(--ink);
   background: color-mix(in oklab, var(--ink) 5%, transparent);
   outline: none;
 }
 
-.panel-hide--files {
-  right: var(--space-3);
-}
-
-.panel-hide--review {
-  left: var(--space-3);
+.panel-toggles__btn[aria-pressed="true"] {
+  color: var(--ink);
 }
 
 .project-shell__center {

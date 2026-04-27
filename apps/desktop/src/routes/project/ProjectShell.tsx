@@ -15,7 +15,8 @@ import { type PaneWidths, useProjectLayout } from "./layout-store";
 import MarginGutter from "./MarginGutter";
 import { useOpenPaper, useRefreshOpenPaper } from "./OpenPaper";
 import PaneDivider from "./PaneDivider";
-import { bumpPdfZoom, PDF_ZOOM_BASE, setPdfZoom } from "./pdf-zoom-store";
+import PanelToggles from "./PanelToggles";
+import { bumpPdfZoom, setPdfZoom } from "./pdf-zoom-store";
 import QuickOpenPalette from "./QuickOpenPalette";
 import { useQuickOpenStore } from "./quick-open-store-context";
 import ReviewColumn from "./ReviewColumn";
@@ -147,8 +148,8 @@ export default function ProjectShell(): JSX.Element {
         const id = openPaper.paper.id;
         ev.preventDefault();
         if (ev.key === "0") setPdfZoom(id, null);
-        else if (ev.key === "-") bumpPdfZoom(id, PDF_ZOOM_BASE, -1);
-        else bumpPdfZoom(id, PDF_ZOOM_BASE, 1);
+        else if (ev.key === "-") bumpPdfZoom(id, -1);
+        else bumpPdfZoom(id, 1);
         return;
       }
 
@@ -180,6 +181,31 @@ export default function ProjectShell(): JSX.Element {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [reviewStore, findStore, quickOpenStore, openPaper, panels, project.kind]);
+
+  // Click outside the review form dismisses a pending draft. Defer one
+  // microtask so SelectionListener (also listening on document `mouseup`) can
+  // install a fresh anchor first — if it does, the live Selection is non-empty
+  // and we leave the new draft alone; if it doesn't, mirror the Esc handler.
+  useEffect(() => {
+    const onMouseUp = (ev: MouseEvent): void => {
+      const state = reviewStore.getState();
+      if (!state.selectedAnchor && !state.focusedAnnotationId) return;
+      const target = ev.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(".project-shell__review")) return;
+      queueMicrotask(() => {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.rangeCount > 0) return;
+        const cur = reviewStore.getState();
+        if (!cur.selectedAnchor && !cur.focusedAnnotationId) return;
+        cur.setSelectedAnchor(null);
+        cur.setFocusedAnnotation(null);
+        sel?.removeAllRanges();
+      });
+    };
+    document.addEventListener("mouseup", onMouseUp);
+    return () => document.removeEventListener("mouseup", onMouseUp);
+  }, [reviewStore]);
 
   // Writer-mode MD/HTML papers don't get a `papers` row until their first mark.
   // `ReviewDraft` (mounted in `ReviewColumn`, a sibling subtree of `CenterPane`)
@@ -279,6 +305,13 @@ export default function ProjectShell(): JSX.Element {
       <header className="project-shell__header">
         <h1 className="project-shell__title">{project.label}</h1>
         <code className="project-shell__root">{project.root}</code>
+        <PanelToggles
+          showFilesToggle={!reviewerForcesHidden}
+          filesHidden={panels.filesHidden}
+          reviewHidden={panels.reviewHidden}
+          onToggleFiles={panels.toggleFiles}
+          onToggleReview={panels.toggleReview}
+        />
       </header>
       {divergence.dirty && divergence.report !== null && (
         <DivergenceBanner report={divergence.report} currentOrdinal={divergence.currentOrdinal} />
@@ -287,15 +320,6 @@ export default function ProjectShell(): JSX.Element {
         <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
           {project.kind === "writer" && !hideLeft ? (
             <div className="project-shell__files">
-              <button
-                type="button"
-                className="panel-hide panel-hide--files"
-                onClick={panels.toggleFiles}
-                aria-label="Hide files panel"
-                title="Hide files (⌘B)"
-              >
-                ×
-              </button>
               <FilesColumn />
               {showFilesDivider ? (
                 <PaneDivider
@@ -315,28 +339,6 @@ export default function ProjectShell(): JSX.Element {
             <div className="quick-open-anchor">
               <QuickOpenPalette />
             </div>
-            {hideLeft && !reviewerForcesHidden && (
-              <button
-                type="button"
-                className="panel-rail panel-rail--left"
-                onClick={panels.toggleFiles}
-                aria-label="Show files panel"
-                title="Show files (⌘B)"
-              >
-                <span className="panel-rail__label">files</span>
-              </button>
-            )}
-            {hideReview && (
-              <button
-                type="button"
-                className="panel-rail panel-rail--right"
-                onClick={panels.toggleReview}
-                aria-label="Show review panel"
-                title="Show review (⌘\\)"
-              >
-                <span className="panel-rail__label">review</span>
-              </button>
-            )}
             <CenterPane />
           </main>
           <div className="project-shell__margin">
@@ -364,15 +366,6 @@ export default function ProjectShell(): JSX.Element {
                   onChange={onReviewResize}
                 />
               ) : null}
-              <button
-                type="button"
-                className="panel-hide panel-hide--review"
-                onClick={panels.toggleReview}
-                aria-label="Hide review panel"
-                title="Hide review (⌘\\)"
-              >
-                ×
-              </button>
               <div className="project-shell__review-scroll">
                 <ReviewColumn
                   onApply={apply}
