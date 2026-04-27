@@ -15,6 +15,7 @@ import {
   stashSnapshotForSession,
 } from "../../lib/bundle-sources";
 import { useJobsStore } from "../../lib/jobs-store";
+import { appendMetric, nowIso } from "../../lib/metrics";
 import { loadClaudeOverrides } from "../../lib/use-claude-defaults";
 import { getReviewDispatchPick } from "../../store/app-state";
 import { useBuffersStore } from "./buffers-store-context";
@@ -245,7 +246,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         const tBundleStart = performance.now();
         const paper = await repo.papers.get(paperId);
         if (!paper) throw new Error(`paper ${paperId} not found`);
-        const { filename, json, annotationCount, fileCount } =
+        const { filename, json, annotationCount, fileCount, anchorResolution } =
           paper.format === "md"
             ? await exportMdBundleForPaper({ repo, paperId })
             : paper.format === "html"
@@ -292,6 +293,14 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           effort: effectiveEffort,
         });
         createdSessionId = session.id;
+        await appendMetric(project.id, session.id, {
+          event: "anchor-resolution",
+          at: nowIso(),
+          sessionId: session.id,
+          source: anchorResolution.source,
+          pdfFallback: anchorResolution.pdfFallback,
+          htmlFallback: anchorResolution.htmlFallback,
+        });
         // Snapshot the paper's source files now, so on exit we can tell
         // whether Claude bypassed plan-fix and mutated source directly. If
         // any of these files' sha256 changes and no plan file is produced,

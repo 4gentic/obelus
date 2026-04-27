@@ -105,11 +105,22 @@ export interface ExportBundleInput {
   rootId?: string;
 }
 
+// Per-annotation outcome of pre-resolution: how many anchors entered the
+// bundle as `source` (plugin can jump direct), vs. `pdf` / `html` fallback
+// (plugin must fuzzy-search at apply time). Lifted out of the function-local
+// counts so the caller can land it in WS3 metrics under a known sessionId.
+export interface AnchorResolutionCounts {
+  source: number;
+  pdfFallback: number;
+  htmlFallback: number;
+}
+
 export interface ExportedBundle {
   filename: string;
   json: string;
   annotationCount: number;
   fileCount: number;
+  anchorResolution: AnchorResolutionCounts;
 }
 
 function isoStampForFilename(now: Date = new Date()): string {
@@ -273,11 +284,17 @@ export async function exportBundleForPaper(input: ExportBundleInput): Promise<Ex
 
   const filename = `bundle-${isoStampForFilename()}.json`;
   const json = `${JSON.stringify(bundle, null, 2)}\n`;
+  const anchorResolution: AnchorResolutionCounts = {
+    source: resolvedCount,
+    pdfFallback: annotations.length - resolvedCount,
+    htmlFallback: 0,
+  };
   return {
     filename,
     json,
     annotationCount: annotations.length,
     fileCount: papers.length,
+    anchorResolution,
   };
 }
 
@@ -383,11 +400,23 @@ export async function exportHtmlBundleForPaper(
     droppedForPdfAnchor,
     filename,
   });
+  let sourceCount = 0;
+  let htmlFallbackCount = 0;
+  for (const a of annotations) {
+    if (a.anchor.kind === "source") sourceCount += 1;
+    else htmlFallbackCount += 1;
+  }
+  const anchorResolution: AnchorResolutionCounts = {
+    source: sourceCount,
+    pdfFallback: 0,
+    htmlFallback: htmlFallbackCount,
+  };
   return {
     filename,
     json,
     annotationCount: annotations.length,
     fileCount: papers.length,
+    anchorResolution,
   };
 }
 
@@ -480,10 +509,16 @@ export async function exportMdBundleForPaper(input: ExportMdBundleInput): Promis
     droppedForMissingAnchor,
     filename,
   });
+  const anchorResolution: AnchorResolutionCounts = {
+    source: annotations.length,
+    pdfFallback: 0,
+    htmlFallback: 0,
+  };
   return {
     filename,
     json,
     annotationCount: annotations.length,
     fileCount: papers.length,
+    anchorResolution,
   };
 }
