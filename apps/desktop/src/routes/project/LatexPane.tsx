@@ -1,6 +1,6 @@
 import type { JSX } from "react";
 import { useState } from "react";
-import { compileTypst } from "../../ipc/commands";
+import { compileLatex, type LatexCompiler } from "../../ipc/commands";
 import { useProject } from "./context";
 import { kickFixCompile } from "./kick-fix-compile";
 import SourcePane from "./SourcePane";
@@ -18,32 +18,35 @@ type CompileState =
   | { kind: "error"; message: string }
   | { kind: "fixing" };
 
-export default function TypstPane({ rootId, relPath }: Props): JSX.Element {
+// latexmk on PATH wins inside `compile_latex` if MacTeX/TeX Live is installed;
+// otherwise the Rust resolver falls back to the managed Tectonic. Either way
+// the compiler token stays "latexmk" so the fix-compile bundle's `compiler`
+// enum value matches what the auto-compile flow uses.
+const DEFAULT_COMPILER: LatexCompiler = "latexmk";
+
+export default function LatexPane({ rootId, relPath }: Props): JSX.Element {
   const { repo, project, setOpenFilePath } = useProject();
   const [state, setState] = useState<CompileState>({ kind: "idle" });
-  // Paper this source belongs to — needed because the fix-compile flow must
-  // create a review session against a paper row. We resolve it via the
-  // shared companion-paper hook (companion PDF of same stem, else any paper
-  // whose PDF is in the same folder or an ancestor) and do NOT read
-  // paperBuild.mainRelPath here: that value has been observed to drift to
-  // unrelated paths (e.g. a markdown file in a sibling directory) and
-  // sending it as the compile entrypoint caused the desktop to try to
-  // recompile the wrong file. The user clicked Fix with AI while looking
-  // at `relPath`; `relPath` is the compile that's failing; `relPath` is
-  // what the skill should repair.
+  // Compile itself does not require a paper — that's the point of this
+  // component on a freshly-cloned repo. Fix-with-AI does, because the
+  // compile-error bundle is keyed on a paperId; we resolve the companion
+  // best-effort and just hide the button when nothing matches.
   const fixPaperId = useCompanionPaperId(repo, project.id, relPath);
 
   const run = async (): Promise<void> => {
     setState({ kind: "compiling" });
     try {
-      const report = await compileTypst(rootId, relPath);
+      const report = await compileLatex(rootId, relPath, DEFAULT_COMPILER);
       setState({
         kind: "done",
         outputRelPath: report.outputRelPath,
         warnings: report.stderr,
       });
-      // Bounce via null so OpenPaper's effect fires even on repeat compiles of
-      // the same path — the rendered bytes have changed, but the key hasn't.
+      // Bounce via null so OpenPaper's effect fires even on repeat compiles
+      // of the same path. On a fresh repo the freshly-written PDF is opened
+      // here and findOrCreatePaper inside OpenPaper auto-registers the paper
+      // row — that's how the workflow bootstraps without any "set up paper"
+      // step beforehand.
       setOpenFilePath(null);
       requestAnimationFrame(() => setOpenFilePath(report.outputRelPath));
     } catch (err) {
@@ -66,7 +69,7 @@ export default function TypstPane({ rootId, relPath }: Props): JSX.Element {
         projectLabel: project.label,
         paperId: fixPaperId,
         originSessionId: null,
-        compiler: "typst",
+        compiler: DEFAULT_COMPILER,
         mainRelPath: relPath,
         stderr: errorMessage,
         trigger: "manual",
@@ -90,7 +93,7 @@ export default function TypstPane({ rootId, relPath }: Props): JSX.Element {
   return (
     <div className="compile-pane">
       <header className="compile-pane__head">
-        <span className="compile-pane__label">Typst source</span>
+        <span className="compile-pane__label">LaTeX source</span>
         <div className="compile-pane__actions">
           {state.kind === "error" && fixPaperId !== null && (
             <button

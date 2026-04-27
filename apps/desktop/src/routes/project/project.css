@@ -2714,14 +2714,14 @@ button.files__row {
   color: var(--ink-soft);
 }
 
-.typst-pane {
+.compile-pane {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
 }
 
-.typst-pane__head {
+.compile-pane__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2731,20 +2731,20 @@ button.files__row {
   background: var(--panel);
 }
 
-.typst-pane__label {
+.compile-pane__label {
   font-family: var(--font-mono);
   font-size: var(--step--1);
   color: var(--ink-soft);
   letter-spacing: 0.02em;
 }
 
-.typst-pane__actions {
+.compile-pane__actions {
   display: flex;
   gap: var(--space-2);
   align-items: center;
 }
 
-.typst-pane__banner {
+.compile-pane__banner {
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--rule-soft);
@@ -2757,12 +2757,12 @@ button.files__row {
   overflow: auto;
 }
 
-.typst-pane__banner--err {
+.compile-pane__banner--err {
   color: var(--rubric);
   background: color-mix(in oklab, var(--rubric) 10%, var(--paper));
 }
 
-.typst-pane__editor {
+.compile-pane__editor {
   flex: 1;
   min-height: 0;
   overflow: hidden;

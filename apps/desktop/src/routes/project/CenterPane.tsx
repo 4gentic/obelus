@@ -5,6 +5,7 @@ import { usePaperTrust } from "../../store/use-paper-trust";
 import { useBuffersStore } from "./buffers-store-context";
 import { useProject } from "./context";
 import HtmlReviewSurface from "./HtmlReviewSurface";
+import LatexPane from "./LatexPane";
 import MdReviewSurface from "./MdReviewSurface";
 import { useOpenPaper } from "./OpenPaper";
 import { extensionOf, SOURCE_EXTS } from "./openable";
@@ -130,6 +131,7 @@ export default function CenterPane(): JSX.Element {
       return <UnsupportedPane path={openFilePath} />;
     }
     if (ext === "typ") return <TypstPane rootId={rootId} relPath={openFilePath} />;
+    if (ext === "tex") return <LatexPane rootId={rootId} relPath={openFilePath} />;
     // Reviewer-mode MD: skip the Source editor entirely and mount the
     // review surface directly. Writer-mode MD falls through to SourcePane,
     // whose Preview tab mounts the same review surface — writers edit and
