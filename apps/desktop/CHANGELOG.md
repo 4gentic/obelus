@@ -2,6 +2,19 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9](https://github.com/4gentic/obelus/compare/desktop-v0.1.8...desktop-v0.1.9) (2026-04-28)
+
+
+### Features
+
+* redesign annotation categories and polish review-shell UI ([#117](https://github.com/4gentic/obelus/issues/117)) ([62b3c87](https://github.com/4gentic/obelus/commit/62b3c875632207451eed2f442959fd0598b8ac75))
+
+
+### Bug Fixes
+
+* **pdf-view:** remove render-time highlight padding ([#114](https://github.com/4gentic/obelus/issues/114)) ([60a7d13](https://github.com/4gentic/obelus/commit/60a7d1383a54b76364f2e45fd7cf52143b083cff))
+* **settings:** auto-check Claude Code version on open ([#116](https://github.com/4gentic/obelus/issues/116)) ([802ffa3](https://github.com/4gentic/obelus/commit/802ffa37925c2d49692fc626755459ff866e75f0))
+
 ## [0.1.8](https://github.com/4gentic/obelus/compare/desktop-v0.1.7...desktop-v0.1.8) (2026-04-27)
 
 
