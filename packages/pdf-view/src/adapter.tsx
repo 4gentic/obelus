@@ -19,8 +19,8 @@ const PDF_POINT_WIDTH = 612;
 // the page's median baseline-to-baseline distance, so these pads only need to
 // extend a touch further to make adjacent rects abut without seam. Overlap on
 // translucent fills produces a darker double-stripe; aim for tile, not stack.
-const HL_PAD_TOP = 0.1;
-const HL_PAD_BOTTOM = 0.14;
+const HL_PAD_TOP = 0;
+const HL_PAD_BOTTOM = 0;
 
 function hlStyle(x: number, y: number, w: number, h: number, s: number) {
   const padT = h * HL_PAD_TOP;
