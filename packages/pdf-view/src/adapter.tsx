@@ -8,6 +8,21 @@ import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState
 import PdfDocument from "./PdfDocument";
 import SelectionListener from "./SelectionListener";
 
+function findScrollAncestor(el: HTMLElement): HTMLElement {
+  let cur: HTMLElement | null = el.parentElement;
+  while (cur) {
+    const style = cur.ownerDocument?.defaultView?.getComputedStyle(cur);
+    const overflow = (style?.overflowY ?? "") + (style?.overflowX ?? "");
+    if (/(auto|scroll|overlay)/.test(overflow)) return cur;
+    cur = cur.parentElement;
+  }
+  return (
+    (el.ownerDocument?.scrollingElement as HTMLElement | null) ??
+    el.ownerDocument?.documentElement ??
+    el
+  );
+}
+
 const BASE_SCALE = 1.25;
 const SAFETY_MIN_SCALE = 0.25;
 const FIT_MAX_SCALE = 2;
@@ -171,7 +186,8 @@ export function usePdfDocumentView({
 
   const scrollToAnnotation = useCallback(
     (id: string): void => {
-      const scroll = containerRef.current?.closest<HTMLElement>(".review-shell__scroll");
+      const el = containerRef.current;
+      const scroll = el ? findScrollAncestor(el) : null;
       const top = annotationTops.get(id);
       if (scroll && top !== undefined) {
         scroll.scrollTo({ top: Math.max(0, top - 100), behavior: "smooth" });
