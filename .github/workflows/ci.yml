@@ -9,20 +9,31 @@ permissions:
 
 jobs:
   verify:
-    if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     steps:
+      - name: Release-please PR (no-op verify)
+        if: startsWith(github.head_ref, 'release-please--')
+        run: echo "Release-please PR — verify skipped"
       - uses: actions/checkout@v6
+        if: ${{ !startsWith(github.head_ref, 'release-please--') }}
       - uses: pnpm/action-setup@v6
+        if: ${{ !startsWith(github.head_ref, 'release-please--') }}
         with:
           version: 9.12.0
       - uses: actions/setup-node@v6
+        if: ${{ !startsWith(github.head_ref, 'release-please--') }}
         with:
           node-version: 20
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm guard:network
+      - if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+        run: pnpm install --frozen-lockfile
+      - if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+        run: pnpm build
+      - if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+        run: pnpm lint
+      - if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+        run: pnpm typecheck
+      - if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+        run: pnpm test
+      - if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+        run: pnpm guard:network
