@@ -171,6 +171,21 @@ function snapshotPage(
   return { pageIndex, firstIntersectedItem: first, lastIntersectedItem: last };
 }
 
+function findScrollAncestor(el: HTMLElement): HTMLElement {
+  let cur: HTMLElement | null = el.parentElement;
+  while (cur) {
+    const style = cur.ownerDocument?.defaultView?.getComputedStyle(cur);
+    const overflow = (style?.overflowY ?? "") + (style?.overflowX ?? "");
+    if (/(auto|scroll|overlay)/.test(overflow)) return cur;
+    cur = cur.parentElement;
+  }
+  return (
+    (el.ownerDocument?.scrollingElement as HTMLElement | null) ??
+    el.ownerDocument?.documentElement ??
+    el
+  );
+}
+
 export default function SelectionListener({
   onAnchor,
   panMode = false,
@@ -211,8 +226,7 @@ export default function SelectionListener({
     const host = hostRef.current;
     if (!host) return;
     const adapter = host.closest<HTMLElement>(".pdf-adapter");
-    const scroll = host.closest<HTMLElement>(".review-shell__scroll");
-    if (!scroll) return;
+    const scroll = findScrollAncestor(host);
 
     let active = false;
     let originX = 0;
@@ -263,6 +277,7 @@ export default function SelectionListener({
     if (panMode) return;
     const host = hostRef.current;
     if (!host) return;
+    const adapter = host.closest<HTMLElement>(".pdf-adapter");
 
     // Only treat mouseup as a selection if the gesture *started* inside the PDF
     // host. Otherwise clicking UI in the review pane (e.g., Discard) while an
@@ -276,6 +291,9 @@ export default function SelectionListener({
       if (started) {
         downX = ev.clientX;
         downY = ev.clientY;
+        // Lift the CSS gate that suppresses the native ::selection paint so
+        // the user can see what they're sweeping. Cleared on mouseup below.
+        adapter?.setAttribute("data-selecting", "true");
       }
     };
 
@@ -284,6 +302,7 @@ export default function SelectionListener({
     const handler = (ev: MouseEvent): void => {
       if (!started) return;
       started = false;
+      adapter?.removeAttribute("data-selecting");
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
@@ -360,6 +379,7 @@ export default function SelectionListener({
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("mouseup", handler);
+      adapter?.removeAttribute("data-selecting");
     };
   }, [onAnchor, panMode]);
 

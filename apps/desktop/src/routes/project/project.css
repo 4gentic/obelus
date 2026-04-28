@@ -986,63 +986,6 @@ button.files__row {
   background: var(--paper);
 }
 
-.pdf-hl {
-  --hl-color: var(--ink-soft);
-  position: absolute;
-  background: color-mix(in srgb, var(--hl-color) 30%, transparent);
-  pointer-events: none;
-}
-
-.pdf-hl[data-focused="true"] {
-  outline: 1px solid var(--rubric);
-  outline-offset: 0;
-}
-
-.pdf-hl[data-category="unclear"] {
-  --hl-color: var(--hl-unclear);
-}
-.pdf-hl[data-category="wrong"] {
-  --hl-color: var(--hl-wrong);
-}
-.pdf-hl[data-category="weak-argument"] {
-  --hl-color: var(--hl-weak);
-}
-.pdf-hl[data-category="citation-needed"] {
-  --hl-color: var(--hl-cite);
-}
-.pdf-hl[data-category="praise"] {
-  --hl-color: var(--hl-praise);
-}
-.pdf-hl[data-category="rephrase"] {
-  --hl-color: var(--hl-rephrase);
-}
-.pdf-hl[data-category="enhancement"] {
-  --hl-color: var(--hl-enhancement);
-}
-.pdf-hl[data-category="aside"] {
-  --hl-color: var(--hl-aside);
-}
-.pdf-hl[data-category="flag"] {
-  --hl-color: var(--hl-flag);
-}
-
-.pdf-hl--draft {
-  background: color-mix(in srgb, var(--hl-color) 22%, transparent);
-  outline: 1px dashed color-mix(in srgb, var(--hl-color) 55%, transparent);
-  outline-offset: 0;
-}
-
-.pdf-hl--find {
-  --hl-color: var(--hl-unclear);
-  background: color-mix(in srgb, var(--hl-unclear) 42%, transparent);
-}
-
-.pdf-hl--find-current {
-  background: color-mix(in srgb, var(--hl-unclear) 60%, transparent);
-  outline: 1.5px solid var(--rubric);
-  outline-offset: 0;
-}
-
 /* Zero-height sticky anchor so the find bar stays pinned to the visible top
    of the scrolling center pane without scrolling with the PDF pages. */
 .find-bar-anchor {

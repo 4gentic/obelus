@@ -2,6 +2,26 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8](https://github.com/4gentic/obelus/compare/desktop-v0.1.7...desktop-v0.1.8) (2026-04-27)
+
+
+### Features
+
+* **desktop:** give .tex files a Compile pane and unblock the main star ([#111](https://github.com/4gentic/obelus/issues/111)) ([2380a9e](https://github.com/4gentic/obelus/commit/2380a9e3688264e194a2b585ff6e1594d5a193af))
+* **desktop:** make the divergence banner dismissible ([#108](https://github.com/4gentic/obelus/issues/108)) ([4057b59](https://github.com/4gentic/obelus/commit/4057b59f1df9425769c3b86fed22dde29a3724ec))
+* **pdf-polish:** PDF rendering, zoom, pan, highlights, and collapsible panels ([#110](https://github.com/4gentic/obelus/issues/110)) ([c61e3b0](https://github.com/4gentic/obelus/commit/c61e3b0d6461c20829395bc7fecbb30579ec6581))
+* **ui:** mark LaTeX as Beta across landing, wizard, README, engines panel ([#109](https://github.com/4gentic/obelus/issues/109)) ([90779f4](https://github.com/4gentic/obelus/commit/90779f4b2beff0c1fd2e3af11cfa39c5c5bb7009))
+
+
+### Bug Fixes
+
+* **desktop:** publish updater manifest with each release ([#87](https://github.com/4gentic/obelus/issues/87)) ([9c1a607](https://github.com/4gentic/obelus/commit/9c1a607a3101f94d689e91e7d074ab5c1131e963))
+
+
+### Refactor
+
+* **plugin:** rigorous-mode measurement, prompts, and Normal/Deep toggle ([#88](https://github.com/4gentic/obelus/issues/88)) ([5abc594](https://github.com/4gentic/obelus/commit/5abc594857290edc4499efc968c10a210d3e5cd5))
+
 ## [0.1.7](https://github.com/4gentic/obelus/compare/desktop-v0.1.6...desktop-v0.1.7) (2026-04-26)
 
 
