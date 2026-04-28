@@ -7,15 +7,15 @@ export const palette = {
 } as const;
 
 export const highlight = {
-  unclear: "#d9b44a",
+  remove: "#9c5550",
+  elaborate: "#5e8d6e",
+  rephrase: "#6f8ca8",
+  improve: "#c99b5a",
   wrong: "#c85a3f",
   weak: "#8a6f9e",
-  cite: "#5e8d6e",
   praise: "#a8b89a",
-  rephrase: "#6f8ca8",
-  enhancement: "#c99b5a",
-  aside: "#9c8ca3",
-  flag: "#6b8b8a",
+  note: "#9c8ca3",
+  find: "#d9b44a",
 } as const;
 
 export const fonts = {

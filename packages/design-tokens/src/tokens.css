@@ -5,15 +5,16 @@
   --ink-soft: #6b655a;
   --rubric: #b84a2e;
 
-  --hl-unclear: #d9b44a;
+  --hl-remove: #9c5550;
+  --hl-elaborate: #5e8d6e;
+  --hl-rephrase: #6f8ca8;
+  --hl-improve: #b88a4d;
   --hl-wrong: #b94a31;
   --hl-weak: #8a6f9e;
-  --hl-cite: #5e8d6e;
   --hl-praise: #a8b89a;
-  --hl-rephrase: #6f8ca8;
-  --hl-enhancement: #b88a4d;
-  --hl-aside: #9c8ca3;
-  --hl-flag: #6b8b8a;
+  --hl-note: #9c8ca3;
+
+  --hl-find: #d9b44a;
 
   --font-display: "Newsreader Variable", "Newsreader", Georgia, serif;
   --font-body: "Source Serif 4 Variable", "Source Serif 4", Georgia, serif;
@@ -47,6 +48,6 @@
 
   --diff-old-bg: color-mix(in oklab, var(--rubric) 12%, var(--paper));
   --diff-old-rule: var(--rubric);
-  --diff-new-bg: color-mix(in oklab, var(--hl-cite) 14%, var(--paper));
-  --diff-new-rule: var(--hl-cite);
+  --diff-new-bg: color-mix(in oklab, var(--hl-elaborate) 14%, var(--paper));
+  --diff-new-rule: var(--hl-elaborate);
 }
