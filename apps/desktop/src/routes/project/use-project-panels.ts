@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getProjectPanelState,
   type ProjectPanelState,
@@ -22,12 +22,17 @@ const DEFAULTS: ProjectPanelState = { filesHidden: false, reviewHidden: false };
 // render on the async load.
 export function useProjectPanels(projectId: string): ProjectPanels {
   const [state, setState] = useState<ProjectPanelState>(DEFAULTS);
+  // If the user toggles before the async hydration resolves, the hydrated
+  // value would otherwise clobber the click. dirtyRef gates that.
+  const dirtyRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+    dirtyRef.current = false;
     void (async () => {
       const loaded = await getProjectPanelState(projectId);
-      if (!cancelled) setState(loaded ?? DEFAULTS);
+      if (cancelled || dirtyRef.current) return;
+      setState(loaded ?? DEFAULTS);
     })();
     return () => {
       cancelled = true;
@@ -35,6 +40,7 @@ export function useProjectPanels(projectId: string): ProjectPanels {
   }, [projectId]);
 
   const toggleFiles = useCallback(() => {
+    dirtyRef.current = true;
     setState((prev) => {
       const next = { ...prev, filesHidden: !prev.filesHidden };
       void setProjectPanelHidden(projectId, "files", next.filesHidden);
@@ -43,6 +49,7 @@ export function useProjectPanels(projectId: string): ProjectPanels {
   }, [projectId]);
 
   const toggleReview = useCallback(() => {
+    dirtyRef.current = true;
     setState((prev) => {
       const next = { ...prev, reviewHidden: !prev.reviewHidden };
       void setProjectPanelHidden(projectId, "review", next.reviewHidden);
@@ -53,6 +60,7 @@ export function useProjectPanels(projectId: string): ProjectPanels {
   const showReview = useCallback(() => {
     setState((prev) => {
       if (!prev.reviewHidden) return prev;
+      dirtyRef.current = true;
       void setProjectPanelHidden(projectId, "review", false);
       return { ...prev, reviewHidden: false };
     });
