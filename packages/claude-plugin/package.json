@@ -1,6 +1,6 @@
 {
   "name": "@obelus/claude-plugin",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Claude Code plugin that applies Obelus review bundles to paper sources.",
   "license": "MIT",
   "type": "module",
