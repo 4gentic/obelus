@@ -49,17 +49,11 @@ const DOM_LINE_INSET_RATIO = 0.12;
 //
 // Must be called SYNCHRONOUSLY before any await — after the async phase the
 // text layer may be torn down and the spans gone.
-function domRectsFromAnchor(
-  anchor: Anchor,
-  pageEl: HTMLElement,
-  scale: number,
-): Bbox[] | null {
+function domRectsFromAnchor(anchor: Anchor, pageEl: HTMLElement, scale: number): Bbox[] | null {
   const startSpan = pageEl.querySelector<HTMLElement>(
     `span[data-item-index="${anchor.startItem}"]`,
   );
-  const endSpan = pageEl.querySelector<HTMLElement>(
-    `span[data-item-index="${anchor.endItem}"]`,
-  );
+  const endSpan = pageEl.querySelector<HTMLElement>(`span[data-item-index="${anchor.endItem}"]`);
   if (!startSpan || !endSpan) return null;
 
   const startText = startSpan.firstChild;
@@ -287,8 +281,7 @@ export function usePdfDocumentView({
             const viewport = page.getViewport({ scale: 1 });
             const ext = extract(anchor, items, viewport);
             const rects =
-              domRectsByPage.get(anchor.pageIndex) ??
-              rectsFromAnchor(anchor, items, viewport);
+              domRectsByPage.get(anchor.pageIndex) ?? rectsFromAnchor(anchor, items, viewport);
             return {
               kind: "pdf",
               anchor,
