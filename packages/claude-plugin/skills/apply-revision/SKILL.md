@@ -141,7 +141,7 @@ Detected latex source at main.tex.
 
 [stdout]
 <workspace>/plan-20260423-143012.json
-Wrote 5 blocks (1 citation-needed, 1 unclear, 1 praise, 2 cascade) — 0 ambiguous.
+Wrote 5 blocks (1 elaborate, 1 rephrase, 1 praise, 2 cascade) — 0 ambiguous.
 
 Read the plan at <workspace>/plan-20260423-143012.md. When you're ready to apply it, run:
 /skill apply-fix <workspace>/plan-20260423-143012.json

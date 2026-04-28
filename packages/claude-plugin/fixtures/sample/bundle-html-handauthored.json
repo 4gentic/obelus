@@ -9,8 +9,8 @@
     "label": "margin-note-handauthored",
     "kind": "reviewer",
     "categories": [
-      { "slug": "unclear", "label": "unclear" },
-      { "slug": "citation-needed", "label": "citation needed", "color": "#B84A2E" },
+      { "slug": "elaborate", "label": "elaborate" },
+      { "slug": "weak-argument", "label": "weak argument", "color": "#B84A2E" },
       { "slug": "praise", "label": "praise" }
     ]
   },
@@ -27,7 +27,7 @@
     {
       "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
       "paperId": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5ea0",
-      "category": "unclear",
+      "category": "elaborate",
       "quote": "the disagreement is not local",
       "contextBefore": "A reviewer who finds themselves writing three paragraphs in the margin has discovered that ",
       "contextAfter": " — it belongs in a separate document, addressed to the author rather than to the page.",
@@ -45,7 +45,7 @@
     {
       "id": "ffffffff-ffff-4fff-8fff-ffffffffffff",
       "paperId": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5ea0",
-      "category": "citation-needed",
+      "category": "weak-argument",
       "quote": "Bourdieu",
       "contextBefore": "A page covered in marginalia is a page asking to be rewritten, not a page that has been improved. ",
       "contextAfter": " noted somewhere that the proliferation of glosses on a text is a sign of its declining authority",

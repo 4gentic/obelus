@@ -9,7 +9,7 @@
     "label": "cascade-citation-only",
     "kind": "writer",
     "categories": [
-      { "slug": "citation-needed", "label": "citation-needed" },
+      { "slug": "weak-argument", "label": "weak-argument" },
       { "slug": "praise", "label": "praise" }
     ]
   },
@@ -26,7 +26,7 @@
     {
       "id": "c0000006-0000-4000-8000-000000000003",
       "paperId": "c0000006-0000-4000-8000-000000000002",
-      "category": "citation-needed",
+      "category": "weak-argument",
       "quote": "Vaswani et al.",
       "contextBefore": "Attention was introduced by ",
       "contextAfter": " and has become the default building block of transformer models.",

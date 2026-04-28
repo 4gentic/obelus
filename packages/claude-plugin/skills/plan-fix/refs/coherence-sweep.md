@@ -52,7 +52,7 @@ The four categories:
 For each drift instance, emit one block:
 
 - `annotationIds: ["coherence-<k>"]` where `k` is 1-based per run.
-- `category: "unclear"` (so the diff-review UI surfaces it as an
+- `category: "note"` (so the diff-review UI surfaces it as an
   author-facing flag without a patch to accept/reject).
 - `patch: ""`
 - `emptyReason: "structural-note"`
