@@ -13,7 +13,7 @@ function fixture(): PromptInput {
     annotations: [
       {
         id: "550e8400-e29b-41d4-a716-446655440001",
-        category: "unclear",
+        category: "elaborate",
         quote: "The results were good.",
         contextBefore: "prior ",
         contextAfter: " next",
@@ -43,7 +43,7 @@ describe("formatReviewPrompt", () => {
     expect(text).toContain("## Minor comments");
     expect(text).toContain("## Refusals");
     expect(text).toContain("Do not edit any source file.");
-    expect(text).toContain("- In `paper.pdf`, on page 3 (unclear):");
+    expect(text).toContain("- In `paper.pdf`, on page 3 (elaborate):");
     expect(text).toContain("Quote: <obelus:quote>The results were good.</obelus:quote>");
   });
 

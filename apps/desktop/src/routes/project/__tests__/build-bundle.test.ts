@@ -352,7 +352,7 @@ describe("exportMdBundleForPaper", () => {
     const ann: AnnotationRow = {
       id: "55555555-5555-4555-8555-555555555555",
       revisionId: revision.id,
-      category: "unclear",
+      category: "elaborate",
       quote: "some quoted passage",
       contextBefore: "before ",
       contextAfter: " after",
@@ -423,7 +423,7 @@ describe("exportMdBundleForPaper", () => {
     const anchored: AnnotationRow = {
       id: "99999999-9999-4999-8999-999999999999",
       revisionId: revision.id,
-      category: "unclear",
+      category: "elaborate",
       quote: "q",
       contextBefore: "",
       contextAfter: "",
@@ -442,7 +442,7 @@ describe("exportMdBundleForPaper", () => {
     const dangling: AnnotationRow = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       revisionId: revision.id,
-      category: "unclear",
+      category: "elaborate",
       quote: "q",
       contextBefore: "",
       contextAfter: "",
@@ -605,7 +605,7 @@ describe("exportHtmlBundleForPaper", () => {
     const sourceAnn: AnnotationRow = {
       id: "f3333333-3333-4333-8333-333333333333",
       revisionId: revision.id,
-      category: "unclear",
+      category: "elaborate",
       quote: "paired text",
       contextBefore: "",
       contextAfter: "",

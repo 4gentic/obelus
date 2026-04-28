@@ -10,7 +10,7 @@ const validBundle: Bundle = {
     label: "attention-survey",
     kind: "writer",
     categories: [
-      { slug: "unclear", label: "unclear" },
+      { slug: "elaborate", label: "elaborate" },
       { slug: "wrong", label: "wrong", color: "#B84A2E" },
       { slug: "praise", label: "praise" },
     ],
@@ -40,7 +40,7 @@ const validBundle: Bundle = {
     {
       id: "11111111-1111-4111-8111-111111111111",
       paperId: "00000000-0000-4000-8000-000000000010",
-      category: "unclear",
+      category: "elaborate",
       quote: "attention is a bottleneck",
       contextBefore: "We argue that ",
       contextAfter: " for sequences past 16k tokens.",

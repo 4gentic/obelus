@@ -38,7 +38,7 @@ describe.skipIf(!hasIdb)("buildBundle", () => {
     const ann: AnnotationRow = {
       id: crypto.randomUUID(),
       revisionId,
-      category: "unclear",
+      category: "elaborate",
       quote: "The results were good.",
       contextBefore: "prior text ",
       contextAfter: " next text",
@@ -109,7 +109,7 @@ function plainBundle(overrides: { note?: string; quote?: string } = {}): BundleT
       id: "550e8400-e29b-41d4-a716-446655440000",
       label: "Paper",
       kind: "reviewer",
-      categories: [{ slug: "unclear", label: "unclear" }],
+      categories: [{ slug: "elaborate", label: "elaborate" }],
     },
     papers: [
       {
@@ -125,7 +125,7 @@ function plainBundle(overrides: { note?: string; quote?: string } = {}): BundleT
       {
         id: "550e8400-e29b-41d4-a716-446655440001",
         paperId: "550e8400-e29b-41d4-a716-446655440000",
-        category: "unclear",
+        category: "elaborate",
         quote: overrides.quote ?? "The results were good.",
         contextBefore: "prior ",
         contextAfter: " next",

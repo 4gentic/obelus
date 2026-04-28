@@ -35,7 +35,7 @@ describe.skipIf(!hasIdb)("schema round-trip", () => {
     const ann: AnnotationRow = {
       id: crypto.randomUUID(),
       revisionId: revision.id,
-      category: "unclear",
+      category: "elaborate",
       quote: "foo",
       contextBefore: "a",
       contextAfter: "b",

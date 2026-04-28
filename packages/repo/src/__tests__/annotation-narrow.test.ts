@@ -5,7 +5,7 @@ import type { AnnotationRow } from "../types";
 const baseFields = {
   id: "a1",
   revisionId: "rev",
-  category: "unclear",
+  category: "elaborate",
   quote: "q",
   contextBefore: "",
   contextAfter: "",

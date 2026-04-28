@@ -21,7 +21,7 @@ function makeRow(
   return {
     id: "a1",
     revisionId: "rev-1",
-    category: "unclear",
+    category: "elaborate",
     quote: "the thing",
     contextBefore: "",
     contextAfter: "",
@@ -134,7 +134,7 @@ describe("buildAnnotationsRepo", () => {
       {
         id: "a1",
         revision_id: "rev-1",
-        category: "unclear",
+        category: "elaborate",
         quote: "q",
         context_before: "",
         context_after: "",

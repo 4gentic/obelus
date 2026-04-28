@@ -14,7 +14,7 @@ function seed() {
       label: "Phase 3 Project",
       kind: "writer" as const,
       categories: [
-        { slug: "unclear", label: "unclear" },
+        { slug: "elaborate", label: "elaborate" },
         { slug: "praise", label: "praise", color: "#6B655A" },
       ],
     },
@@ -33,7 +33,7 @@ function seed() {
       {
         id: ANN_ID,
         paperId: PAPER_ID,
-        category: "unclear",
+        category: "elaborate",
         quote: "the claim that Z is always Y",
         contextBefore: "",
         contextAfter: "",
