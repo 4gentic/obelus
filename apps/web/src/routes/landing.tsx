@@ -91,14 +91,7 @@ export default function Landing() {
                   strokeWidth="1"
                 />
                 <line x1="22" y1="32" x2="158" y2="32" stroke="var(--ink)" strokeWidth="1" />
-                <rect
-                  x="22"
-                  y="44"
-                  width="120"
-                  height="10"
-                  fill="var(--hl-unclear)"
-                  opacity="0.35"
-                />
+                <rect x="22" y="44" width="120" height="10" fill="var(--hl-find)" opacity="0.35" />
                 <line x1="22" y1="48" x2="158" y2="48" stroke="var(--ink)" strokeWidth="1" />
                 <line x1="22" y1="62" x2="148" y2="62" stroke="var(--ink)" strokeWidth="1" />
                 <line x1="22" y1="76" x2="158" y2="76" stroke="var(--ink)" strokeWidth="1" />
@@ -183,7 +176,7 @@ export default function Landing() {
                 <circle cx="16" cy="19" r="1.2" fill="var(--ink-soft)" />
                 <circle cx="21" cy="19" r="1.2" fill="var(--ink-soft)" />
                 <circle cx="26" cy="19" r="1.2" fill="var(--ink-soft)" />
-                <rect x="18" y="34" width="70" height="6" fill="var(--hl-unclear)" opacity="0.35" />
+                <rect x="18" y="34" width="70" height="6" fill="var(--hl-find)" opacity="0.35" />
                 <line x1="18" y1="38" x2="102" y2="38" stroke="var(--ink)" strokeWidth="1" />
                 <line x1="18" y1="48" x2="92" y2="48" stroke="var(--ink)" strokeWidth="1" />
                 <line x1="18" y1="58" x2="102" y2="58" stroke="var(--ink)" strokeWidth="1" />

@@ -1842,7 +1842,7 @@ button.files__row {
 }
 
 .hunk-block--accepted {
-  background: color-mix(in oklab, var(--hl-cite) 8%, var(--paper));
+  background: color-mix(in oklab, var(--hl-elaborate) 8%, var(--paper));
 }
 
 .hunk-block--rejected {

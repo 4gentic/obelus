@@ -51,7 +51,7 @@ test.describe("review", () => {
 
     await page
       .locator("label.catpick__chip")
-      .filter({ hasText: /^unclear$/i })
+      .filter({ hasText: /^elaborate$/i })
       .click();
     await page.getByRole("textbox", { name: /what needs attention/i }).fill("Needs a rewrite.");
     await page.getByRole("button", { name: "Save mark" }).click();
@@ -60,7 +60,7 @@ test.describe("review", () => {
 
     const firstItem = page.locator(".review-pane__item").first();
     await expect(firstItem).toBeVisible();
-    await expect(firstItem).toHaveAttribute("data-category", "unclear");
+    await expect(firstItem).toHaveAttribute("data-category", "elaborate");
     await expect(firstItem).toContainText(MINIMAL_PDF_QUOTE);
     await expect(page.locator(".review-shell__hl").first()).toBeVisible();
 
@@ -76,14 +76,14 @@ test.describe("review", () => {
 
     await page
       .locator("label.catpick__chip")
-      .filter({ hasText: /^citation needed$/i })
+      .filter({ hasText: /^weak argument$/i })
       .click();
     await page.getByRole("textbox", { name: /what needs attention/i }).fill("Original note.");
     await page.getByRole("button", { name: "Save mark" }).click();
 
     await expect(page.locator(".review-pane__item").first()).toHaveAttribute(
       "data-category",
-      "citation-needed",
+      "weak-argument",
     );
 
     // Rename the paper via the breadcrumb.
@@ -98,7 +98,7 @@ test.describe("review", () => {
     await expect(page.getByRole("button", { name: /rename reloaded paper/i })).toBeVisible();
     await expect(page.locator(".review-pane__item").first()).toHaveAttribute(
       "data-category",
-      "citation-needed",
+      "weak-argument",
     );
     await expect(page.locator(".review-pane__item").first()).toContainText("Original note.");
   });
@@ -109,14 +109,14 @@ test.describe("review", () => {
 
     await page
       .locator("label.catpick__chip")
-      .filter({ hasText: /^unclear$/i })
+      .filter({ hasText: /^elaborate$/i })
       .click();
     await page.getByRole("button", { name: "Save mark" }).click();
 
     const item = page.locator(".review-pane__item").first();
-    await expect(item).toHaveAttribute("data-category", "unclear");
+    await expect(item).toHaveAttribute("data-category", "elaborate");
     const highlight = page.locator(".review-shell__hl").first();
-    await expect(highlight).toHaveAttribute("data-category", "unclear");
+    await expect(highlight).toHaveAttribute("data-category", "elaborate");
 
     await item
       .locator("label.catpick__chip")
@@ -157,7 +157,7 @@ test.describe("review", () => {
     await selectQuote(page);
     await page
       .locator("label.catpick__chip")
-      .filter({ hasText: /^unclear$/i })
+      .filter({ hasText: /^elaborate$/i })
       .click();
     await page.getByRole("button", { name: "Save mark" }).click();
     await expect(page.locator(".review-pane__item")).toHaveCount(1);
@@ -182,7 +182,7 @@ test.describe("review", () => {
     expect(Array.isArray(parsed.annotations)).toBe(true);
     expect(parsed.annotations.length).toBeGreaterThanOrEqual(1);
     expect(parsed.annotations[0]).toMatchObject({
-      category: "unclear",
+      category: "elaborate",
       quote: MINIMAL_PDF_QUOTE,
       anchor: expect.objectContaining({ kind: "pdf" }),
     });

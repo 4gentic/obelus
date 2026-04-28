@@ -24,24 +24,22 @@ export function autoNoteFromSession(hunks: ReadonlyArray<DiffHunkRow>): string {
 
 function phraseFor(category: string): string {
   switch (category) {
-    case "unclear":
-      return "clarified passages";
+    case "remove":
+      return "removed passages";
+    case "elaborate":
+      return "elaborated passages";
+    case "rephrase":
+      return "reshaped sentences";
+    case "improve":
+      return "strengthened passages";
     case "wrong":
       return "corrected mistakes";
     case "weak-argument":
       return "tightened arguments";
-    case "citation-needed":
-      return "added citation placeholders";
-    case "rephrase":
-      return "reshaped sentences";
     case "praise":
       return "kept praised passages";
-    case "enhancement":
-      return "proposed enhancements";
-    case "aside":
-      return "added asides";
-    case "flag":
-      return "flagged passages";
+    case "note":
+      return "addressed notes";
     default:
       return category;
   }
