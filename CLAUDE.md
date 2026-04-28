@@ -91,7 +91,7 @@ The canonical example is the review surface: PDF and Markdown papers render thro
 
 - `pnpm dev` — run the web app.
 - `pnpm dev:desktop` — run the Tauri desktop app (compiles Rust first pass).
-- `pnpm verify` — lint, typecheck, test, network-guard, build.
+- `pnpm verify` — lint, typecheck, test, network-guard, build. **Always run this in a Sonnet subagent** (`model: "sonnet"`) so the verbose output is processed by the cheaper model regardless of which model the main session is using.
 - `pnpm guard:network` — grep for forbidden network-call strings anywhere in the web or desktop app. Fails CI if any hit.
 
 ## Managed engines
@@ -126,6 +126,12 @@ Phase-share distributions in a review session are workload-sensitive: a 1-mark r
 ## Git hygiene
 
 - **Never `git push` without explicit user confirmation.** A `PreToolUse` hook in `.claude/settings.json` forces a permission prompt on any Bash command containing `git push` (including `--force`, compound commands, flag variants). Don't try to work around it. If a push is warranted, ask first and let the user approve each one.
+
+## Worktrees
+
+- **Always branch from the latest remote `main`** when creating a worktree, unless the user explicitly specifies a different base. Fetch first: `git fetch origin` then `git worktree add .claude/worktrees/<name> -b <branch> origin/main`.
+- **All worktrees live under `.claude/worktrees/<name>`** — never elsewhere in the repo tree.
+- Never base a worktree on a local branch that may be ahead of or behind `origin/main` without asking first.
 
 ## When in doubt
 
