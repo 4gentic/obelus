@@ -6,6 +6,7 @@ import { getActiveSourceView } from "./active-source-view";
 import { useBuffersStore } from "./buffers-store-context";
 import CenterPane from "./CenterPane";
 import { useProject } from "./context";
+import { DocumentScrollProvider } from "./document-scroll-context";
 import { EnsureRevisionProvider } from "./ensure-revision-context";
 import FilesColumn from "./FilesColumn";
 import FindBar from "./FindBar";
@@ -321,66 +322,68 @@ export default function ProjectShell(): JSX.Element {
         />
       )}
       <EnsureRevisionProvider value={lazyEnsureRevision}>
-        <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
-          {project.kind === "writer" && !hideLeft ? (
-            <div className="project-shell__files">
-              <FilesColumn />
-              {showFilesDivider ? (
-                <PaneDivider
-                  side="files"
-                  bodyRef={bodyRef}
-                  hideLeft={hideLeft}
-                  valueNow={widths?.filesWidth}
-                  onChange={onFilesResize}
-                />
-              ) : null}
-            </div>
-          ) : null}
-          <main className="project-shell__center">
-            <div className="find-bar-anchor">
-              <FindBar />
-            </div>
-            <div className="quick-open-anchor">
-              <QuickOpenPalette />
-            </div>
-            <CenterPane />
-          </main>
-          <div className="project-shell__margin">
-            {showMarginDivider ? (
-              <PaneDivider
-                side="margin"
-                bodyRef={bodyRef}
-                hideLeft={hideLeft}
-                valueNow={widths?.marginWidth}
-                onChange={onMarginResize}
-              />
+        <DocumentScrollProvider>
+          <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
+            {project.kind === "writer" && !hideLeft ? (
+              <div className="project-shell__files">
+                <FilesColumn />
+                {showFilesDivider ? (
+                  <PaneDivider
+                    side="files"
+                    bodyRef={bodyRef}
+                    hideLeft={hideLeft}
+                    valueNow={widths?.filesWidth}
+                    onChange={onFilesResize}
+                  />
+                ) : null}
+              </div>
             ) : null}
-            <div className="project-shell__margin-scroll">
-              <MarginGutter />
-            </div>
-          </div>
-          {!hideReview && (
-            <div className="project-shell__review">
-              {showReviewDivider ? (
+            <main className="project-shell__center">
+              <div className="find-bar-anchor">
+                <FindBar />
+              </div>
+              <div className="quick-open-anchor">
+                <QuickOpenPalette />
+              </div>
+              <CenterPane />
+            </main>
+            <div className="project-shell__margin">
+              {showMarginDivider ? (
                 <PaneDivider
-                  side="review"
+                  side="margin"
                   bodyRef={bodyRef}
                   hideLeft={hideLeft}
-                  valueNow={widths?.reviewWidth}
-                  onChange={onReviewResize}
+                  valueNow={widths?.marginWidth}
+                  onChange={onMarginResize}
                 />
               ) : null}
-              <div className="project-shell__review-scroll">
-                <ReviewColumn
-                  onApply={apply}
-                  onRepass={repass}
-                  onDiscard={discard}
-                  forkInfo={forkInfo}
-                />
+              <div className="project-shell__margin-scroll">
+                <MarginGutter />
               </div>
             </div>
-          )}
-        </div>
+            {!hideReview && (
+              <div className="project-shell__review">
+                {showReviewDivider ? (
+                  <PaneDivider
+                    side="review"
+                    bodyRef={bodyRef}
+                    hideLeft={hideLeft}
+                    valueNow={widths?.reviewWidth}
+                    onChange={onReviewResize}
+                  />
+                ) : null}
+                <div className="project-shell__review-scroll">
+                  <ReviewColumn
+                    onApply={apply}
+                    onRepass={repass}
+                    onDiscard={discard}
+                    forkInfo={forkInfo}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </DocumentScrollProvider>
       </EnsureRevisionProvider>
     </div>
   );

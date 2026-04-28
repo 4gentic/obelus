@@ -7,8 +7,10 @@ import {
 import "@obelus/html-view/host-frame.css";
 import { TrustBanner } from "@obelus/review-shell";
 import "@obelus/review-shell/review-shell.css";
-import { type JSX, useCallback, useEffect, useState } from "react";
+import { type JSX, useCallback, useEffect, useRef, useState } from "react";
 import "./html-review-surface.css";
+import { useRegisterDocumentScroll } from "./document-scroll-context";
+import { findScrollAncestor } from "./find-scroll-ancestor";
 import { useFindStore } from "./find-store-context";
 import { useReviewStore } from "./store-context";
 
@@ -73,12 +75,20 @@ export default function HtmlReviewSurface({
     };
   }, [findProvider, findStore]);
 
+  const paneRef = useRef<HTMLDivElement | null>(null);
+  const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = paneRef.current;
+    setScrollEl(el ? findScrollAncestor(el) : null);
+  }, []);
+  useRegisterDocumentScroll(scrollEl, documentView.annotationTops, documentView.scrollToAnnotation);
+
   const showBanner =
     !trusted && !bannerDismissed && blockedUris.length > 0 && onTrust !== undefined;
   const hosts = uniqueHosts(blockedUris);
 
   return (
-    <div className="html-pane">
+    <div className="html-pane" ref={paneRef}>
       {showBanner ? (
         <TrustBanner
           hosts={hosts}

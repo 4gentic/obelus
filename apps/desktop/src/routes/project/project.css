@@ -157,7 +157,11 @@
   overflow: hidden;
 }
 
-.project-shell__margin-scroll,
+.project-shell__margin-scroll {
+  height: 100%;
+  overflow: hidden;
+}
+
 .project-shell__review-scroll {
   height: 100%;
   overflow: auto;
@@ -2377,19 +2381,34 @@ button.files__row {
 }
 
 .margin-gutter {
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-3) var(--space-2);
-  gap: var(--space-2);
-  overflow-y: auto;
+  position: relative;
   height: 100%;
   background: var(--paper);
 }
 
 .margin-note {
+  position: absolute;
+  left: var(--space-2);
+  right: var(--space-2);
   padding: var(--space-1) var(--space-2);
+  border: none;
   border-left: 2px solid var(--rule-soft);
+  background: transparent;
+  font: inherit;
   font-size: var(--step--1);
+  text-align: left;
+  cursor: pointer;
+  transition: top 120ms ease-out;
+}
+
+.margin-note:hover,
+.margin-note:focus-visible {
+  border-left-color: var(--ink-soft);
+  outline: none;
+}
+
+.margin-note[data-focused="true"] {
+  border-left-color: var(--rubric);
 }
 
 .margin-note__cat {
@@ -2404,6 +2423,7 @@ button.files__row {
 }
 
 .margin-note__body {
+  display: block;
   margin: var(--space-1) 0 0 0;
   color: var(--ink-soft);
 }
