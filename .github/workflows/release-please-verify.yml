@@ -1,14 +1,13 @@
 name: ci
 on:
   pull_request:
-    branches:
-      - 'release-please--**'
 
 permissions:
   contents: read
 
 jobs:
   verify:
+    if: startsWith(github.head_ref, 'release-please--')
     runs-on: ubuntu-latest
     steps:
       - run: echo "Release Please PR — verify skipped"
