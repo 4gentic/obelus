@@ -1,4 +1,5 @@
 import type { PaperRow, PaperRubric } from "@obelus/repo";
+import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { type JSX, useCallback, useEffect, useState } from "react";
 import { openRubricPicker } from "../../ipc/commands";
 import { useProject } from "./context";
@@ -76,7 +77,7 @@ export default function RubricPanel({ paper }: Props): JSX.Element | null {
   const onPaste = useCallback(async (): Promise<void> => {
     setError(null);
     try {
-      const text = await navigator.clipboard.readText();
+      const text = await readText();
       const body = text.trim();
       if (body.length === 0) {
         setError("Clipboard is empty.");
