@@ -1,4 +1,4 @@
-import { type Anchor, extract, rectsFromAnchor } from "@obelus/anchor";
+import { type Anchor, type Bbox, extract, rectsFromAnchor } from "@obelus/anchor";
 import { type AnnotationRow, isPdfAnchored } from "@obelus/repo";
 import type { DocumentView } from "@obelus/review-shell";
 import type { DraftInput, PdfDraftSlice } from "@obelus/review-store";
@@ -36,6 +36,64 @@ const PDF_POINT_WIDTH = 612;
 // translucent fills produces a darker double-stripe; aim for tile, not stack.
 const HL_PAD_TOP = 0;
 const HL_PAD_BOTTOM = 0;
+
+// Matches LINE_INSET_RATIO in packages/anchor/src/rects.ts — keeps adjacent
+// highlight lines from visually touching.
+const DOM_LINE_INSET_RATIO = 0.12;
+
+// Computes highlight rects from the live DOM rather than from proportional
+// character-width approximation. Range.getClientRects() uses actual glyph
+// advances and accounts for pdfjs's per-span scaleX transforms, giving
+// character-exact left/right edges. Returns null on any DOM miss so the
+// caller can fall back to rectsFromAnchor.
+//
+// Must be called SYNCHRONOUSLY before any await — after the async phase the
+// text layer may be torn down and the spans gone.
+function domRectsFromAnchor(
+  anchor: Anchor,
+  pageEl: HTMLElement,
+  scale: number,
+): Bbox[] | null {
+  const startSpan = pageEl.querySelector<HTMLElement>(
+    `span[data-item-index="${anchor.startItem}"]`,
+  );
+  const endSpan = pageEl.querySelector<HTMLElement>(
+    `span[data-item-index="${anchor.endItem}"]`,
+  );
+  if (!startSpan || !endSpan) return null;
+
+  const startText = startSpan.firstChild;
+  const endText = endSpan.firstChild;
+  if (!(startText instanceof Text) || !(endText instanceof Text)) return null;
+
+  const startOffset = Math.max(0, Math.min(anchor.startOffset, startText.data.length));
+  const endOffset = Math.max(0, Math.min(anchor.endOffset, endText.data.length));
+
+  let clientRects: DOMRectList;
+  try {
+    const range = document.createRange();
+    range.setStart(startText, startOffset);
+    range.setEnd(endText, endOffset);
+    clientRects = range.getClientRects();
+  } catch {
+    return null;
+  }
+  if (clientRects.length === 0) return null;
+
+  const pageBox = pageEl.getBoundingClientRect();
+  const result: Bbox[] = [];
+  for (let i = 0; i < clientRects.length; i++) {
+    const r = clientRects[i];
+    if (!r || r.width <= 0 || r.height <= 0) continue;
+    const x = (r.left - pageBox.left) / scale;
+    const y = (r.top - pageBox.top) / scale;
+    const w = r.width / scale;
+    const h = r.height / scale;
+    const inset = h * DOM_LINE_INSET_RATIO;
+    result.push([x, y + inset, w, h - inset * 2] as Bbox);
+  }
+  return result.length > 0 ? result : null;
+}
 
 function hlStyle(x: number, y: number, w: number, h: number, s: number) {
   const padT = h * HL_PAD_TOP;
@@ -203,6 +261,23 @@ export function usePdfDocumentView({
       itemsByPage: ReadonlyMap<number, ReadonlyArray<TextItem>>,
     ): void => {
       if (anchors.length === 0) return;
+
+      // Capture DOM rects synchronously — text layer spans are intact now but
+      // may be gone after the getPage() await below.
+      const container = containerRef.current;
+      const domRectsByPage = new Map<number, Bbox[] | null>();
+      if (container) {
+        for (const anchor of anchors) {
+          const pageEl = container.querySelector<HTMLElement>(
+            `[data-page-index="${anchor.pageIndex}"]`,
+          );
+          domRectsByPage.set(
+            anchor.pageIndex,
+            pageEl ? domRectsFromAnchor(anchor, pageEl, scale) : null,
+          );
+        }
+      }
+
       void (async () => {
         const built = await Promise.all(
           anchors.map(async (anchor): Promise<PdfDraftSlice | null> => {
@@ -211,7 +286,9 @@ export function usePdfDocumentView({
             const page = await doc.getPage(anchor.pageIndex + 1);
             const viewport = page.getViewport({ scale: 1 });
             const ext = extract(anchor, items, viewport);
-            const rects = rectsFromAnchor(anchor, items, viewport);
+            const rects =
+              domRectsByPage.get(anchor.pageIndex) ??
+              rectsFromAnchor(anchor, items, viewport);
             return {
               kind: "pdf",
               anchor,
@@ -235,7 +312,7 @@ export function usePdfDocumentView({
         });
       })();
     },
-    [doc, onAnchor],
+    [doc, onAnchor, scale],
   );
 
   // Per-page overlay: saved marks + draft rects + whatever the consumer
