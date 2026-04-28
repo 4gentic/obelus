@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
-  "description": "Permissions scoped to the main Obelus window. Core permissions are narrowed to just the event listen/unlisten surface the renderer actually uses (via @tauri-apps/api/event.listen and the deep-link/store plugins' internal listeners) plus core:app:allow-version for the Settings about-block; every other core:* module is denied. Plugin permissions are pinned to the minimum surface the frontend actually invokes. The FS plugin is registered for Rust-side use only (no JS permissions), so the scoped fs_* commands remain the sole filesystem entry point for untrusted callers. The dialog plugin is exposed to JS for native OS confirmations on destructive actions (dialog:allow-ask) and for the native save sheet used when the user exports a reviewer's letter (dialog:allow-save). The shell plugin is exposed to JS only via shell:allow-open scoped to https://4gentic.ai, used by the Settings imprint link to open the publisher's site in the OS browser.",
+  "description": "Permissions scoped to the main Obelus window. Core permissions are narrowed to just the event listen/unlisten surface the renderer actually uses (via @tauri-apps/api/event.listen and the deep-link/store plugins' internal listeners) plus core:app:allow-version for the Settings about-block; every other core:* module is denied. Plugin permissions are pinned to the minimum surface the frontend actually invokes. The FS plugin is registered for Rust-side use only (no JS permissions), so the scoped fs_* commands remain the sole filesystem entry point for untrusted callers. The dialog plugin is exposed to JS for native OS confirmations on destructive actions (dialog:allow-ask) and for the native save sheet used when the user exports a reviewer's letter (dialog:allow-save). The shell plugin is exposed to JS only via shell:allow-open scoped to https://4gentic.ai, used by the Settings imprint link to open the publisher's site in the OS browser. The clipboard-manager plugin is exposed for review-mode copy/paste affordances (Copy prompt, Copy draft, Copy next-step command, Paste rubric); we route through the Rust plugin instead of navigator.clipboard because WKWebView rejects the async Clipboard API in Tauri windows.",
   "windows": ["main"],
   "permissions": [
     "core:event:allow-listen",
@@ -21,6 +21,8 @@
     "deep-link:allow-get-current",
     "dialog:allow-ask",
     "dialog:allow-save",
+    "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-text",
     {
       "identifier": "shell:allow-open",
       "allow": [{ "url": "^https://4gentic\\.ai" }]

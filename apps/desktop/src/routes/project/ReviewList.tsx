@@ -1,5 +1,5 @@
 import type { AnnotationRow } from "@obelus/repo";
-import { CategorySelect } from "@obelus/review-shell";
+import { CategorySelect, NoteEditor } from "@obelus/review-shell";
 import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
 import { markLocationLabel } from "./mark-location-label";
@@ -25,16 +25,14 @@ function NoteField({
   }, [initial]);
 
   return (
-    <textarea
-      className="review-list__note review-list__note--editable"
-      placeholder="Note (optional)"
+    <NoteEditor
       value={value}
-      onChange={(ev) => setValue(ev.target.value)}
-      onBlur={() => {
-        if (value !== initial) onCommit(value);
+      onChange={setValue}
+      onCommit={(next) => {
+        if (next !== initial) onCommit(next);
       }}
-      rows={2}
-      aria-label={`note for mark ${annotationId}`}
+      placeholder="Note (optional)"
+      ariaLabel={`note for mark ${annotationId}`}
     />
   );
 }

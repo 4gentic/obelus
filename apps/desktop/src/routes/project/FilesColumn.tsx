@@ -77,6 +77,25 @@ function isSelfOrDescendant(target: string, source: string): boolean {
   return target.startsWith(`${source}/`);
 }
 
+function RefreshIcon(): JSX.Element {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M13.5 8a5.5 5.5 0 1 1-1.61-3.89" />
+      <polyline points="13.5 2.5 13.5 5.5 10.5 5.5" />
+    </svg>
+  );
+}
+
 interface PinButtonProps {
   pinned: boolean;
   onToggle: () => void;
@@ -596,6 +615,22 @@ export default function FilesColumn(): JSX.Element {
     [rootId],
   );
 
+  const refreshTree = useCallback(async (): Promise<void> => {
+    setTree((prev) => ({ ...prev, walking: true }));
+    try {
+      const { entries, hasOpenable } = await walkAndPrecompute(rootId);
+      setTree((prev) => ({
+        expanded: prev.expanded,
+        entries,
+        hasOpenable,
+        walking: false,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not read folder.");
+      setTree((prev) => ({ ...prev, walking: false }));
+    }
+  }, [rootId]);
+
   const toggle = useCallback(
     (path: string) => {
       setTree((prev) => {
@@ -1031,6 +1066,16 @@ export default function FilesColumn(): JSX.Element {
               ▸
             </span>
             <span className="files__header-title">Workspace</span>
+          </button>
+          <button
+            type="button"
+            className="files__new-button"
+            aria-label="Refresh files"
+            title="Refresh files"
+            onClick={() => void refreshTree()}
+            disabled={tree.walking}
+          >
+            <RefreshIcon />
           </button>
           <button
             type="button"
