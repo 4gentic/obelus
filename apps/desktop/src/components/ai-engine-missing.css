@@ -1,0 +1,38 @@
+.ai-engine-missing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ai-engine-missing__hint {
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  margin: 0;
+}
+
+.ai-engine-missing__cmds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.ai-engine-missing__cmd {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--panel);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-1);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.ai-engine-missing__cmd-label {
+  display: block;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  margin-bottom: var(--space-1);
+}

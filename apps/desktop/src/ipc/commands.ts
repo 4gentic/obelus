@@ -2,12 +2,15 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type ClaudeState = "found" | "notFound" | "belowFloor" | "aboveCeiling" | "unreadable";
 
+export type HostOs = "macos" | "linux" | "windows" | "other";
+
 export interface ClaudeStatus {
   path: string | null;
   version: string | null;
   status: ClaudeState;
   floor: string;
   ceilExclusive: string;
+  hostOs: HostOs;
 }
 
 export type DirEntryKind = "file" | "dir" | "other";

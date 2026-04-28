@@ -1,5 +1,4 @@
 import type { ProjectKind } from "@obelus/repo";
-import type { ClaudeStatus } from "../../ipc/commands";
 
 export type WizardFolio = 1 | 2 | 3 | 4 | "done";
 
@@ -12,14 +11,11 @@ export interface PickedProject {
 
 export interface WizardState {
   folio: WizardFolio;
-  claude: ClaudeStatus | "checking";
   desk: string | undefined;
   project: PickedProject | undefined;
 }
 
 export type WizardAction =
-  | { type: "DETECT_START" }
-  | { type: "DETECT_RESULT"; claude: ClaudeStatus }
   | { type: "SET_DESK"; desk: string }
   | { type: "PICK_FOLDER"; root: string; label: string }
   | { type: "PICK_FILE"; root: string; label: string; relPath: string }
@@ -28,7 +24,7 @@ export type WizardAction =
   | { type: "FINISH" };
 
 export function makeInitialWizardState(startAt: WizardFolio = 1): WizardState {
-  return { folio: startAt, claude: "checking", desk: undefined, project: undefined };
+  return { folio: startAt, desk: undefined, project: undefined };
 }
 
 export const initialWizardState: WizardState = makeInitialWizardState();
@@ -50,10 +46,6 @@ function prev(folio: WizardFolio): WizardFolio {
 
 export function wizardReducer(state: WizardState, action: WizardAction): WizardState {
   switch (action.type) {
-    case "DETECT_START":
-      return { ...state, claude: "checking" };
-    case "DETECT_RESULT":
-      return { ...state, claude: action.claude };
     case "SET_DESK":
       return { ...state, desk: action.desk };
     case "PICK_FOLDER":

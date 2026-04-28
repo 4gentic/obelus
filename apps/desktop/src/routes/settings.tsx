@@ -3,9 +3,10 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useCallback, useEffect, useState } from "react";
-import { readClaudeStatus } from "../boot/detect";
+import AiEngineMissing from "../components/ai-engine-missing";
 import EngineBlock from "../components/engine-block";
-import type { ClaudeStatus } from "../ipc/commands";
+import { useAiEngine } from "../hooks/use-ai-engine";
+import { ACTIVE_AI_ENGINE, aiEngineLabel } from "../lib/ai-engine";
 import { factoryReset, wizardReset } from "../lib/reset";
 import { checkForUpdate, downloadAndInstall, type UpdaterState } from "../lib/updater";
 import "./settings.css";
@@ -19,7 +20,7 @@ function formatBytes(n: number): string {
 }
 
 export default function Settings(): JSX.Element {
-  const [claude, setClaude] = useState<ClaudeStatus | null>(null);
+  const engine = useAiEngine();
   const [busy, setBusy] = useState(false);
   const [resetting, setResetting] = useState<"wizard" | "factory" | null>(null);
   const [updater, setUpdater] = useState<UpdaterState>({ kind: "idle" });
@@ -28,15 +29,11 @@ export default function Settings(): JSX.Element {
   const recheck = useCallback(async (): Promise<void> => {
     setBusy(true);
     try {
-      setClaude(await readClaudeStatus(true));
+      await engine.recheck();
     } finally {
       setBusy(false);
     }
-  }, []);
-
-  useEffect(() => {
-    void recheck();
-  }, [recheck]);
+  }, [engine]);
 
   useEffect(() => {
     void getVersion()
@@ -94,17 +91,28 @@ export default function Settings(): JSX.Element {
       </header>
 
       <article className="settings__block">
-        <h2 className="settings__block-title">Claude Code</h2>
-        {claude === null ? (
+        <h2 className="settings__block-title">{aiEngineLabel(ACTIVE_AI_ENGINE)}</h2>
+        {engine.status === "checking" ? (
           <p className="settings__body">Looking.</p>
-        ) : claude.status === "found" ? (
+        ) : engine.status.raw.status === "found" ? (
           <pre className="settings__pane">
-            {`path     ${claude.path ?? "—"}\nversion  ${claude.version ?? "—"}`}
+            {`path     ${engine.status.raw.path ?? "—"}\nversion  ${engine.status.raw.version ?? "—"}`}
           </pre>
         ) : (
-          <pre className="settings__pane settings__pane--warn">
-            {`status   ${claude.status}\nfloor    ${claude.floor}`}
-          </pre>
+          <div className="settings__pane settings__pane--warn">
+            <pre>{`status   ${engine.status.raw.status}\nfloor    ${engine.status.raw.floor}`}</pre>
+            <div className="settings__pane-extras">
+              <AiEngineMissing
+                engine={engine.status.engine}
+                hostOs={engine.status.hostOs}
+                lead={
+                  engine.status.raw.status === "notFound"
+                    ? `${aiEngineLabel(engine.status.engine)} is not installed on this machine.`
+                    : `${aiEngineLabel(engine.status.engine)} is installed but not at a version Obelus accepts.`
+                }
+              />
+            </div>
+          </div>
         )}
         <button
           type="button"

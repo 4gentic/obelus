@@ -19,6 +19,27 @@ pub enum ClaudeState {
     Unreadable,
 }
 
+#[derive(Serialize, Debug, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub enum HostOs {
+    Macos,
+    Linux,
+    Windows,
+    Other,
+}
+
+fn host_os() -> HostOs {
+    if cfg!(target_os = "macos") {
+        HostOs::Macos
+    } else if cfg!(target_os = "linux") {
+        HostOs::Linux
+    } else if cfg!(target_os = "windows") {
+        HostOs::Windows
+    } else {
+        HostOs::Other
+    }
+}
+
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaudeStatus {
@@ -27,6 +48,7 @@ pub struct ClaudeStatus {
     pub status: ClaudeState,
     pub floor: String,
     pub ceil_exclusive: String,
+    pub host_os: HostOs,
 }
 
 #[tauri::command]
@@ -41,6 +63,7 @@ pub async fn detect_claude() -> ClaudeStatus {
                 status: ClaudeState::Unreadable,
                 floor: CLAUDE_FLOOR.into(),
                 ceil_exclusive: CLAUDE_CEIL_EXCLUSIVE.into(),
+                host_os: host_os(),
             },
         },
         None => ClaudeStatus {
@@ -49,6 +72,7 @@ pub async fn detect_claude() -> ClaudeStatus {
             status: ClaudeState::NotFound,
             floor: CLAUDE_FLOOR.into(),
             ceil_exclusive: CLAUDE_CEIL_EXCLUSIVE.into(),
+            host_os: host_os(),
         },
     }
 }
@@ -124,5 +148,6 @@ fn classify(path: &PathBuf, version: &str) -> ClaudeStatus {
         status: state,
         floor: CLAUDE_FLOOR.into(),
         ceil_exclusive: CLAUDE_CEIL_EXCLUSIVE.into(),
+        host_os: host_os(),
     }
 }

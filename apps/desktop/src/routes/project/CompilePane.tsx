@@ -1,5 +1,7 @@
 import type { JSX } from "react";
 import { useState } from "react";
+import { useAiEngine } from "../../hooks/use-ai-engine";
+import { AiEngineUnavailable, isAiEngineReady } from "../../lib/ai-engine";
 import { useProject } from "./context";
 import { kickFixCompile } from "./kick-fix-compile";
 import SourcePane from "./SourcePane";
@@ -41,6 +43,8 @@ export default function CompilePane({
   compilerToken,
 }: Props): JSX.Element {
   const { repo, project, setOpenFilePath } = useProject();
+  const engine = useAiEngine();
+  const engineReady = isAiEngineReady(engine.status);
   const [state, setState] = useState<CompileState>({ kind: "idle" });
   // Compile itself does not require a paper — that's the point of this
   // component on a freshly-cloned repo. Fix-with-AI does, because the
@@ -97,10 +101,13 @@ export default function CompilePane({
       });
       setState({ kind: "idle" });
     } catch (err) {
-      setState({
-        kind: "error",
-        message: err instanceof Error ? err.message : "Could not start compile-fix.",
-      });
+      const message =
+        err instanceof AiEngineUnavailable
+          ? "Claude Code isn't installed. Open Settings to install it, then try again."
+          : err instanceof Error
+            ? err.message
+            : "Could not start compile-fix.";
+      setState({ kind: "error", message });
     }
   };
 
@@ -121,7 +128,12 @@ export default function CompilePane({
               type="button"
               className="btn btn--subtle"
               onClick={() => void askFix()}
-              title="Send the compile error to an AI fix-compile job"
+              disabled={!engineReady}
+              title={
+                engineReady
+                  ? "Send the compile error to an AI fix-compile job"
+                  : "Install Claude Code from Settings to enable AI fixes."
+              }
             >
               Fix with AI
             </button>

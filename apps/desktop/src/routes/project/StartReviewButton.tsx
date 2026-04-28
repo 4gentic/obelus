@@ -1,6 +1,8 @@
 import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
+import { useAiEngine } from "../../hooks/use-ai-engine";
+import { isAiEngineReady } from "../../lib/ai-engine";
 import { useJobsStore } from "../../lib/jobs-store";
 import { DEFAULT_THOROUGHNESS, type ReviewerThoroughness } from "../../lib/reviewer-thoroughness";
 import { splitHeadline } from "../../lib/split-headline";
@@ -80,6 +82,8 @@ function WriterStartReview({
 }: WriterStartReviewProps): JSX.Element {
   const edits = usePaperEdits(repo, paperId);
   const confirm = useInlineConfirm();
+  const engine = useAiEngine();
+  const engineReady = isAiEngineReady(engine.status);
   const [indications, setIndications] = useState("");
   const [mode, setMode] = useState<ReviewRunnerMode>("writer-fast");
   const [thoroughness, setThoroughnessState] = useState<ReviewerThoroughness>(DEFAULT_THOROUGHNESS);
@@ -134,6 +138,7 @@ function WriterStartReview({
   const canStart =
     isPaperOpen &&
     (annotationCount > 0 || trimmedIndications.length > 0) &&
+    engineReady &&
     statusKind !== "working" &&
     statusKind !== "running" &&
     statusKind !== "ingesting";
@@ -242,6 +247,7 @@ function WriterStartReview({
               confirm.armed ? "btn btn--primary review-column__start--danger" : "btn btn--primary"
             }
             disabled={!canStart}
+            title={engineReady ? undefined : "Install Claude Code from Settings to start a review."}
             onClick={() => {
               if (!isOnTip && discards.length > 0 && !confirm.armed) {
                 confirm.arm();

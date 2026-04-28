@@ -1,6 +1,8 @@
 import { claudeAsk } from "@obelus/claude-sidecar";
 import { formatSpawnInvocation } from "@obelus/prompts";
 import { type JSX, useState } from "react";
+import { useAiEngine } from "../../hooks/use-ai-engine";
+import { AiEngineUnavailable, isAiEngineReady, requireAiEngineReady } from "../../lib/ai-engine";
 import { useProject } from "./context";
 
 // Hidden behind `import.meta.env.VITE_DRAFTER_PREVIEW === "1"` (see
@@ -16,6 +18,8 @@ import { useProject } from "./context";
 // `--plugin-dir` so the command resolves out of the box.
 export default function DrafterTab(): JSX.Element {
   const { rootId, project } = useProject();
+  const engine = useAiEngine();
+  const engineReady = isAiEngineReady(engine.status);
   const [status, setStatus] = useState<
     | { kind: "idle" }
     | { kind: "starting" }
@@ -26,6 +30,7 @@ export default function DrafterTab(): JSX.Element {
   async function onRunSpec(): Promise<void> {
     setStatus({ kind: "starting" });
     try {
+      await requireAiEngineReady();
       const promptBody = formatSpawnInvocation({
         kind: "ask",
         promptBody:
@@ -40,10 +45,13 @@ export default function DrafterTab(): JSX.Element {
       });
       setStatus({ kind: "started", sessionId });
     } catch (err) {
-      setStatus({
-        kind: "error",
-        message: err instanceof Error ? err.message : "Could not reach Claude.",
-      });
+      const message =
+        err instanceof AiEngineUnavailable
+          ? "Claude Code isn't installed. Open Settings to install it, then try again."
+          : err instanceof Error
+            ? err.message
+            : "Could not reach Claude.";
+      setStatus({ kind: "error", message });
     }
   }
 
@@ -64,7 +72,8 @@ export default function DrafterTab(): JSX.Element {
             type="button"
             className="btn btn--primary"
             onClick={() => void onRunSpec()}
-            disabled={status.kind === "starting"}
+            disabled={status.kind === "starting" || !engineReady}
+            title={engineReady ? undefined : "Install Claude Code from Settings to enable."}
           >
             {status.kind === "starting" ? "Starting…" : "Run /spec on this paper"}
           </button>
@@ -73,7 +82,9 @@ export default function DrafterTab(): JSX.Element {
               ? `Session ${status.sessionId.slice(0, 8)} started.`
               : status.kind === "error"
                 ? status.message
-                : "Calls Claude with the obelus-drafter plugin's /spec command."}
+                : !engineReady
+                  ? "Install Claude Code from Settings to run drafter."
+                  : "Calls Claude with the obelus-drafter plugin's /spec command."}
           </span>
         </div>
       </div>

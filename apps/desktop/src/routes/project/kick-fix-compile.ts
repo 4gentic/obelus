@@ -6,6 +6,7 @@ import { claudeFixCompile } from "@obelus/claude-sidecar";
 import type { Repository } from "@obelus/repo";
 import { getVersion } from "@tauri-apps/api/app";
 import { workspaceWriteText } from "../../ipc/commands";
+import { requireAiEngineReady } from "../../lib/ai-engine";
 import { useJobsStore } from "../../lib/jobs-store";
 
 export type FixCompileTrigger = "apply" | "manual";
@@ -90,6 +91,10 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     });
     return;
   }
+
+  // Throws AiEngineUnavailable upstream when the engine isn't installed.
+  // The CompilePane catch surfaces the error message to the user.
+  await requireAiEngineReady();
 
   const paper = await repo.papers.get(paperId).catch(() => undefined);
   if (!paper) {
