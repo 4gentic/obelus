@@ -2,7 +2,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { readClaudeStatus } from "../boot/detect";
 import EngineBlock from "../components/engine-block";
 import type { ClaudeStatus } from "../ipc/commands";
@@ -25,11 +25,18 @@ export default function Settings(): JSX.Element {
   const [updater, setUpdater] = useState<UpdaterState>({ kind: "idle" });
   const [version, setVersion] = useState<string | null>(null);
 
-  useEffect(() => {
-    void (async () => {
-      setClaude(await readClaudeStatus());
-    })();
+  const recheck = useCallback(async (): Promise<void> => {
+    setBusy(true);
+    try {
+      setClaude(await readClaudeStatus(true));
+    } finally {
+      setBusy(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void recheck();
+  }, [recheck]);
 
   useEffect(() => {
     void getVersion()
@@ -38,13 +45,6 @@ export default function Settings(): JSX.Element {
         console.error("[settings] getVersion failed", err);
       });
   }, []);
-
-  async function recheck(): Promise<void> {
-    setBusy(true);
-    const next = await readClaudeStatus(true);
-    setClaude(next);
-    setBusy(false);
-  }
 
   async function onWizardReset(): Promise<void> {
     const ok = await ask(
