@@ -26,9 +26,7 @@ export default function Settings(): JSX.Element {
   const [version, setVersion] = useState<string | null>(null);
 
   useEffect(() => {
-    void (async () => {
-      setClaude(await readClaudeStatus());
-    })();
+    void recheck();
   }, []);
 
   useEffect(() => {
@@ -41,9 +39,11 @@ export default function Settings(): JSX.Element {
 
   async function recheck(): Promise<void> {
     setBusy(true);
-    const next = await readClaudeStatus(true);
-    setClaude(next);
-    setBusy(false);
+    try {
+      setClaude(await readClaudeStatus(true));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onWizardReset(): Promise<void> {
