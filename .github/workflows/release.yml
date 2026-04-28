@@ -110,7 +110,7 @@ jobs:
           releaseId: ${{ needs.resolve.outputs.id }}
           args: ${{ matrix.args }}
 
-  mark-latest:
+  publish-update-channel:
     needs: [resolve, build]
     if: needs.resolve.outputs.should-build == 'true'
     runs-on: ubuntu-latest
@@ -119,4 +119,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.resolve.outputs.tag }}
-        run: gh release edit "$TAG" --latest -R "$REPO"
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --latest -R "$REPO"
+
+          WORK="$(mktemp -d)"
+          gh release download "$TAG" -R "$REPO" -p latest.json -D "$WORK"
+
+          if gh release view desktop-latest -R "$REPO" >/dev/null 2>&1; then
+            gh release upload desktop-latest -R "$REPO" "$WORK/latest.json" --clobber
+          else
+            gh release create desktop-latest -R "$REPO" \
+              --title "Desktop update channel" \
+              --notes "Rolling pointer to the latest desktop release. Used by the in-app updater. See the desktop-v* releases for actual binaries and changelogs." \
+              --latest=false \
+              "$WORK/latest.json"
+          fi
