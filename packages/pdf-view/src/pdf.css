@@ -84,7 +84,7 @@
 
 .pdf-adapter[data-selecting="true"] .pdf-page__text::selection,
 .pdf-adapter[data-selecting="true"] .pdf-page__text ::selection {
-  background: color-mix(in srgb, var(--rubric) 28%, transparent);
+  background: color-mix(in srgb, var(--ink-soft) 28%, transparent);
   color: transparent;
 }
 
