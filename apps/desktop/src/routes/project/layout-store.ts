@@ -5,6 +5,14 @@ export const MIN_FILES_WIDTH = 180;
 export const MIN_MARGIN_WIDTH = 180;
 export const MIN_REVIEW_WIDTH = 320;
 
+// Mirror of the static `.project-shell__body` grid in project.css. Used as
+// the carry-forward fallback when a user drags one divider while another
+// pane is hidden — `measure()` reports 0 for hidden panes, and persisting
+// 0 here would render the pane at 0px the next time it's unhidden.
+const DEFAULT_FILES_WIDTH = 220;
+const DEFAULT_MARGIN_WIDTH = 220;
+const DEFAULT_REVIEW_WIDTH = 340;
+
 export interface PaneWidths {
   filesWidth: number;
   marginWidth: number;
@@ -44,6 +52,11 @@ function notify(projectId: string): void {
   for (const cb of set) cb();
 }
 
+function carry(prev: number | undefined, measured: number, fallback: number): number {
+  if (prev !== undefined) return prev;
+  return measured > 0 ? measured : fallback;
+}
+
 function setPaneWidth(
   projectId: string,
   side: DividerSide,
@@ -52,9 +65,16 @@ function setPaneWidth(
 ): void {
   const prev = widthsByProject.get(projectId);
   const next: PaneWidths = {
-    filesWidth: side === "files" ? value : (prev?.filesWidth ?? measured.filesWidth),
-    marginWidth: side === "margin" ? value : (prev?.marginWidth ?? measured.marginWidth),
-    reviewWidth: side === "review" ? value : (prev?.reviewWidth ?? measured.reviewWidth),
+    filesWidth:
+      side === "files" ? value : carry(prev?.filesWidth, measured.filesWidth, DEFAULT_FILES_WIDTH),
+    marginWidth:
+      side === "margin"
+        ? value
+        : carry(prev?.marginWidth, measured.marginWidth, DEFAULT_MARGIN_WIDTH),
+    reviewWidth:
+      side === "review"
+        ? value
+        : carry(prev?.reviewWidth, measured.reviewWidth, DEFAULT_REVIEW_WIDTH),
   };
   widthsByProject.set(projectId, next);
   notify(projectId);
