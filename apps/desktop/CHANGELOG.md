@@ -2,6 +2,13 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10](https://github.com/4gentic/obelus/compare/desktop-v0.1.9...desktop-v0.1.10) (2026-04-28)
+
+
+### Bug Fixes
+
+* **desktop:** pin updater to a rolling desktop-latest tag ([#119](https://github.com/4gentic/obelus/issues/119)) ([2bebd52](https://github.com/4gentic/obelus/commit/2bebd52255641b999096d76d2f9e8695d576f984))
+
 ## [0.1.9](https://github.com/4gentic/obelus/compare/desktop-v0.1.8...desktop-v0.1.9) (2026-04-28)
 
 
