@@ -2,6 +2,7 @@ import type { AnnotationRow } from "@obelus/repo";
 import { CategorySelect, NoteEditor } from "@obelus/review-shell";
 import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
+import { useDocumentScroll } from "./document-scroll-context";
 import { markLocationLabel } from "./mark-location-label";
 import { useReviewStore } from "./store-context";
 import { trimQuoteMiddle } from "./trim-quote";
@@ -41,12 +42,14 @@ function ReviewItem({
   a,
   focused,
   setFocused,
+  scrollToAnnotation,
   updateAnnotation,
   deleteAnnotation,
 }: {
   a: AnnotationRow;
   focused: boolean;
   setFocused: (id: string | null) => void;
+  scrollToAnnotation: (id: string) => void;
   updateAnnotation: (id: string, patch: Partial<AnnotationRow>) => Promise<void>;
   deleteAnnotation: (id: string) => Promise<void>;
 }): JSX.Element {
@@ -61,6 +64,11 @@ function ReviewItem({
       onClick={(ev) => {
         if ((ev.target as HTMLElement).closest(INTERACTIVE_SELECTOR)) return;
         setFocused(a.id);
+        // Scroll the document so the user lands on the source line — only
+        // from the list-click path, not via a `useEffect` on focusedId, so
+        // clicking a highlight inside the PDF (which already focuses) doesn't
+        // re-scroll the viewport jitter-style.
+        scrollToAnnotation(a.id);
       }}
     >
       <header className="review-list__head">
@@ -111,6 +119,7 @@ export default function ReviewList(): JSX.Element {
   const setFocused = store((s) => s.setFocusedAnnotation);
   const updateAnnotation = store((s) => s.updateAnnotation);
   const deleteAnnotation = store((s) => s.deleteAnnotation);
+  const { scrollToAnnotation } = useDocumentScroll();
   const listRef = useRef<HTMLOListElement | null>(null);
 
   useEffect(() => {
@@ -133,6 +142,7 @@ export default function ReviewList(): JSX.Element {
           a={a}
           focused={focusedId === a.id}
           setFocused={setFocused}
+          scrollToAnnotation={scrollToAnnotation}
           updateAnnotation={updateAnnotation}
           deleteAnnotation={deleteAnnotation}
         />
