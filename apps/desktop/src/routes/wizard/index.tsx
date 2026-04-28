@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { readClaudeStatus } from "../../boot/detect";
+import { useAiEngine } from "../../hooks/use-ai-engine";
 import { getRepository } from "../../lib/repo";
 import { getAppState, setAppState } from "../../store/app-state";
 import FolioDesk from "./folio-desk";
@@ -18,10 +18,12 @@ export default function Wizard(): JSX.Element {
   const initial = useMemo(() => makeInitialWizardState(addMode ? 4 : 1), [addMode]);
   const [state, dispatch] = useReducer(wizardReducer, initial);
   const loaded = useRef(false);
+  const engine = useAiEngine();
 
-  // Restore prior folio, start claude detection.
-  // In add-mode we skip straight to folio 3 and don't re-run detect —
-  // the user already passed the one-time gates on their first visit.
+  // Restore prior folio. Engine detection is owned by the shared hook —
+  // the wizard reads it without re-running.
+  // In add-mode we skip straight to folio 3 — the user already passed the
+  // one-time gates on their first visit.
   useEffect(() => {
     if (addMode) {
       loaded.current = true;
@@ -31,13 +33,10 @@ export default function Wizard(): JSX.Element {
     void (async () => {
       const saved = await getAppState("wizard");
       if (!cancelled && saved && saved.folio !== "done") {
-        // Resume at the saved folio by replaying ADVANCE until we reach it.
         const steps = typeof saved.folio === "number" ? saved.folio - 1 : 0;
         for (let i = 0; i < steps; i++) dispatch({ type: "ADVANCE" });
       }
       loaded.current = true;
-      const status = await readClaudeStatus();
-      if (!cancelled) dispatch({ type: "DETECT_RESULT", claude: status });
     })();
     return () => {
       cancelled = true;
@@ -105,11 +104,9 @@ export default function Wizard(): JSX.Element {
       <div className="wizard__book">
         {state.folio === 1 ? (
           <FolioMachinist
-            claude={state.claude}
-            onRecheck={async () => {
-              dispatch({ type: "DETECT_START" });
-              const next = await readClaudeStatus(true);
-              dispatch({ type: "DETECT_RESULT", claude: next });
+            engine={engine.status}
+            onRecheck={() => {
+              void engine.recheck();
             }}
             onAdvance={() => dispatch({ type: "ADVANCE" })}
           />

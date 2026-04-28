@@ -8,6 +8,7 @@ import {
 } from "@obelus/claude-sidecar";
 import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { workspaceWriteText } from "../../ipc/commands";
+import { AiEngineUnavailable, requireAiEngineReady } from "../../lib/ai-engine";
 import {
   type BundleLike,
   collectBundleSourcePaths,
@@ -234,6 +235,20 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         return;
       }
 
+      try {
+        await requireAiEngineReady();
+      } catch (err) {
+        if (err instanceof AiEngineUnavailable) {
+          setLocal({
+            kind: "error",
+            paperId,
+            message: "Claude Code isn't installed. Open Settings to install it, then try again.",
+          });
+          return;
+        }
+        throw err;
+      }
+
       const startedAt = Date.now();
       progressStore.getState().start();
       setLocal({
@@ -408,6 +423,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
     async (opts: DeepReviewOptions): Promise<void> => {
       const startedAt = Date.now();
       try {
+        await requireAiEngineReady();
         const session = await repo.reviewSessions.get(opts.reviewSessionId);
         if (!session) throw new Error(`review session ${opts.reviewSessionId} not found`);
         const paper = await repo.papers.get(opts.paperId);
@@ -462,13 +478,20 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           effort: effectiveEffort,
         });
       } catch (err) {
-        const detail =
-          err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
-        const message = `Could not start deep review: ${detail}`;
+        const message =
+          err instanceof AiEngineUnavailable
+            ? "Claude Code isn't installed. Open Settings to install it, then try again."
+            : `Could not start deep review: ${
+                err instanceof Error
+                  ? err.message
+                  : typeof err === "string"
+                    ? err
+                    : JSON.stringify(err)
+              }`;
         console.warn("[deep-review-start]", {
           reviewSessionId: opts.reviewSessionId,
           paperId: opts.paperId,
-          detail,
+          detail: err instanceof Error ? err.message : String(err),
         });
         setLocal({ kind: "error", paperId: opts.paperId, message });
       }

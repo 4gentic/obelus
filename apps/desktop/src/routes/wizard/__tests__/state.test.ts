@@ -1,30 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { ClaudeStatus } from "../../../ipc/commands";
 import { initialWizardState, makeInitialWizardState, wizardReducer } from "../state";
 
-const okClaude: ClaudeStatus = {
-  path: "/usr/local/bin/claude",
-  version: "1.2.3",
-  status: "found",
-  floor: "1.0.0",
-  ceilExclusive: "2.0.0",
-};
-
 describe("wizardReducer", () => {
-  it("starts at folio 1 with claude=checking", () => {
+  it("starts at folio 1 with desk and project unset", () => {
     expect(initialWizardState.folio).toBe(1);
-    expect(initialWizardState.claude).toBe("checking");
     expect(initialWizardState.desk).toBeUndefined();
     expect(initialWizardState.project).toBeUndefined();
-  });
-
-  it("DETECT_RESULT replaces the claude sentinel", () => {
-    const next = wizardReducer(initialWizardState, {
-      type: "DETECT_RESULT",
-      claude: okClaude,
-    });
-    expect(next.claude).toEqual(okClaude);
-    expect(next.folio).toBe(1);
   });
 
   it("ADVANCE walks 1 → 2 → 3 → 4 → done and stops there", () => {

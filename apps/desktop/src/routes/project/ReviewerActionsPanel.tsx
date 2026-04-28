@@ -4,8 +4,9 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { JSX, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
-import { readClaudeStatus } from "../../boot/detect";
+import { useAiEngine } from "../../hooks/use-ai-engine";
 import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
+import { isAiEngineReady } from "../../lib/ai-engine";
 import { exportBundleForPaper, exportMdBundleForPaper } from "./build-bundle";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
@@ -49,22 +50,12 @@ export default function ReviewerActionsPanel(): JSX.Element {
   const body = store((s) => s.body);
   const status = store((s) => s.status);
 
-  const [claudeReady, setClaudeReady] = useState<null | boolean>(null);
+  const engine = useAiEngine();
+  const claudeReady = engine.status === "checking" ? null : isAiEngineReady(engine.status);
   const [exportState, setExportState] = useState<ExportState>({ kind: "idle" });
   const [savedDraftAt, setSavedDraftAt] = useState<string | null>(null);
   const [draftCopied, setDraftCopied] = useState(false);
   const outputRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const s = await readClaudeStatus();
-      if (!cancelled) setClaudeReady(s.status === "found");
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const pdfReady = openPaper.kind === "ready";
   const mdReady = openPaper.kind === "ready-md" && openPaper.paper !== null;

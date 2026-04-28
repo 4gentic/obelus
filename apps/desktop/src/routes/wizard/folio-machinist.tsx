@@ -1,20 +1,17 @@
 import type { JSX } from "react";
-import type { ClaudeStatus } from "../../ipc/commands";
+import AiEngineMissing from "../../components/ai-engine-missing";
+import { type AiEngineStatus, aiEngineLabel } from "../../lib/ai-engine";
 
 interface Props {
-  claude: ClaudeStatus | "checking";
+  engine: AiEngineStatus | "checking";
   onRecheck: () => void;
   onAdvance: () => void;
 }
 
-export default function FolioMachinist({ claude, onRecheck, onAdvance }: Props): JSX.Element {
-  // Honor the "we will keep going" copy on aboveCeiling/unreadable: warn, but
-  // don't block the wizard. Only truly-missing or too-old claude is fatal.
-  const ready =
-    claude !== "checking" &&
-    (claude.status === "found" ||
-      claude.status === "aboveCeiling" ||
-      claude.status === "unreadable");
+export default function FolioMachinist({ engine, onRecheck, onAdvance }: Props): JSX.Element {
+  const checking = engine === "checking";
+  const ready = !checking && engine.ready;
+  const stranded = !checking && !engine.ready;
   return (
     <article className="folio">
       <header className="folio__head">
@@ -22,58 +19,73 @@ export default function FolioMachinist({ claude, onRecheck, onAdvance }: Props):
         <h1 className="folio__title">First, the machinist.</h1>
       </header>
       <p className="folio__body">
-        Obelus does not speak to any model. It asks Claude Code, already on your disk, to do the
-        work.
+        Obelus carries no model of its own. The reviewing is done by Claude Code, already on your
+        machine.
       </p>
-      <ClaudePanel claude={claude} />
-      <footer className="folio__foot">
+      <ClaudePanel engine={engine} />
+      <footer className={`folio__foot${ready ? "" : " folio__foot--stack"}`}>
         {ready ? (
           <button type="button" className="folio__cta" onClick={onAdvance}>
             Continue <span aria-hidden="true">→</span>
           </button>
         ) : (
-          <button type="button" className="folio__cta" onClick={onRecheck}>
-            Check again
+          <button type="button" className="folio__cta" onClick={onRecheck} disabled={checking}>
+            {checking ? "Looking…" : "Check again"}
           </button>
         )}
+        {stranded ? (
+          <>
+            <button type="button" className="folio__skip" onClick={onAdvance}>
+              Continue without it <span aria-hidden="true">→</span>
+            </button>
+            <span className="folio__skip-note">
+              I'll keep going. The review actions unlock once Claude Code is installed.
+            </span>
+          </>
+        ) : null}
       </footer>
     </article>
   );
 }
 
-function ClaudePanel({ claude }: { claude: ClaudeStatus | "checking" }): JSX.Element {
-  if (claude === "checking") {
+function ClaudePanel({ engine }: { engine: AiEngineStatus | "checking" }): JSX.Element {
+  if (engine === "checking") {
     return <pre className="folio__pane">{"claude  —  looking\nauth    —  looking"}</pre>;
   }
-  if (claude.status === "found") {
+  const raw = engine.raw;
+  if (raw.status === "found") {
     return (
       <pre className="folio__pane">
-        {`claude  —  found   ${claude.version ?? "(unknown)"}\nauth    —  your shell, your keys`}
+        {`claude  —  found   ${raw.version ?? "(unknown)"}\nauth    —  your shell, your keys`}
       </pre>
     );
   }
-  if (claude.status === "belowFloor") {
+  if (raw.status === "belowFloor") {
     return (
       <div className="folio__pane folio__pane--warn">
-        <pre>{`claude  —  too old (${claude.version ?? "?"})\nfloor   —  ${claude.floor}`}</pre>
-        <p className="folio__hint">
-          Obelus expects a newer Claude Code. Upgrade with{" "}
-          <code>npm i -g @anthropic-ai/claude-code</code>, then check again.
-        </p>
+        <pre>{`claude  —  too old (${raw.version ?? "?"})\nfloor   —  ${raw.floor}`}</pre>
+        <div className="folio__pane-extras">
+          <AiEngineMissing
+            engine={engine.engine}
+            hostOs={engine.hostOs}
+            lead={`Obelus expects a newer ${aiEngineLabel(engine.engine)}. Re-run the installer for your platform, then check again.`}
+            trailing={null}
+          />
+        </div>
       </div>
     );
   }
-  if (claude.status === "aboveCeiling") {
+  if (raw.status === "aboveCeiling") {
     return (
       <div className="folio__pane folio__pane--warn">
-        <pre>{`claude  —  newer than Obelus expects (${claude.version ?? "?"})`}</pre>
+        <pre>{`claude  —  newer than Obelus expects (${raw.version ?? "?"})`}</pre>
         <p className="folio__hint">
           This may still work. We will keep going, but file anything that breaks.
         </p>
       </div>
     );
   }
-  if (claude.status === "unreadable") {
+  if (raw.status === "unreadable") {
     return (
       <div className="folio__pane folio__pane--warn">
         <pre>{"claude  —  found, but could not read version"}</pre>
@@ -87,10 +99,13 @@ function ClaudePanel({ claude }: { claude: ClaudeStatus | "checking" }): JSX.Ele
   return (
     <div className="folio__pane folio__pane--warn">
       <pre>{"claude  —  not found on this machine"}</pre>
-      <p className="folio__hint">Install Claude Code, then check again.</p>
-      <pre className="folio__cmd">brew install anthropic/tap/claude</pre>
-      <pre className="folio__cmd">npm i -g @anthropic-ai/claude-code</pre>
-      <p className="folio__hint">I will check again when you come back.</p>
+      <div className="folio__pane-extras">
+        <AiEngineMissing
+          engine={engine.engine}
+          hostOs={engine.hostOs}
+          lead="Install Claude Code, then check again."
+        />
+      </div>
     </div>
   );
 }

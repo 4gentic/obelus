@@ -10,6 +10,8 @@ import {
   parseStreamLine,
 } from "@obelus/claude-sidecar";
 import { type JSX, useEffect, useRef, useState } from "react";
+import { useAiEngine } from "../../hooks/use-ai-engine";
+import { AiEngineUnavailable, isAiEngineReady, requireAiEngineReady } from "../../lib/ai-engine";
 import { useAskStore } from "./ask-store-context";
 import { buildAskPrompt } from "./build-ask-prompt";
 import { useProject } from "./context";
@@ -21,6 +23,8 @@ export default function AskPanel(): JSX.Element {
   const openPaper = useOpenPaper();
   const reviewStore = useReviewStore();
   const askStore = useAskStore();
+  const engine = useAiEngine();
+  const engineReady = isAiEngineReady(engine.status);
 
   const threadId = askStore((s) => s.threadId);
   const messages = askStore((s) => s.messages);
@@ -141,6 +145,7 @@ export default function AskPanel(): JSX.Element {
     });
 
     try {
+      await requireAiEngineReady();
       await askStore.getState().appendUser(question);
       const claudeSessionId = await claudeAsk({
         rootId,
@@ -151,9 +156,13 @@ export default function AskPanel(): JSX.Element {
       });
       await askStore.getState().startAssistant(claudeSessionId);
     } catch (err) {
-      await askStore
-        .getState()
-        .failAssistant(err instanceof Error ? err.message : "Could not reach Claude.");
+      const msg =
+        err instanceof AiEngineUnavailable
+          ? "Claude Code isn't installed. Open Settings to install it, then try again."
+          : err instanceof Error
+            ? err.message
+            : "Could not reach Claude.";
+      await askStore.getState().failAssistant(msg);
     }
   }
 
@@ -230,7 +239,8 @@ export default function AskPanel(): JSX.Element {
             <button
               type="submit"
               className="btn btn--primary"
-              disabled={!threadId || draft.trim().length === 0}
+              disabled={!threadId || draft.trim().length === 0 || !engineReady}
+              title={engineReady ? undefined : "Install Claude Code from Settings to ask."}
             >
               Ask
             </button>
