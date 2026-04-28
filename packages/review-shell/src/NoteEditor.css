@@ -5,22 +5,28 @@
 }
 
 .note-editor__ta {
+  width: 100%;
+  min-width: 0;
   font-family: var(--font-body);
-  font-size: var(--step-0);
+  font-size: var(--step--1);
   line-height: 1.5;
   color: var(--ink);
   background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
   border-radius: var(--radius-1);
-  padding: var(--space-3);
+  padding: var(--space-2);
   box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent);
   resize: vertical;
-  min-height: 5.5em;
+  min-height: 4.5em;
   max-height: 480px;
   overflow: auto;
   transition:
     border-color 120ms linear,
     box-shadow 120ms linear;
+}
+
+.note-editor__ta--tall {
+  min-height: 8em;
 }
 
 .note-editor__ta:focus {

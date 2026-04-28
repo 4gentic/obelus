@@ -1,3 +1,4 @@
+import { NoteEditor } from "@obelus/review-shell";
 import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
@@ -263,17 +264,19 @@ function WriterStartReview({
         </>
       )}
       {isPaperOpen && statusKind !== "running" && (
-        <label className="review-column__notes">
-          <span className="review-column__notes-label">Notes</span>
-          <textarea
-            className="review-column__notes-input"
+        <div className="review-column__notes">
+          <label className="review-column__notes-label" htmlFor="review-column-notes">
+            Notes
+          </label>
+          <NoteEditor
+            id="review-column-notes"
             value={indications}
-            onChange={(event) => setIndications(event.target.value)}
+            onChange={setIndications}
             placeholder="Tell the reviewer what to focus on — or leave alone. e.g. “check the whole paper for inconsistencies.”"
-            rows={3}
             disabled={modeDisabled}
+            tall
           />
-        </label>
+        </div>
       )}
       {!isPaperOpen && <p className="review-column__hint">Open a paper to start a review.</p>}
       {isPaperOpen &&

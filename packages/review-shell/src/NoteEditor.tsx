@@ -6,9 +6,12 @@ import type { JSX } from "react";
 type Props = {
   value: string;
   onChange: (next: string) => void;
-  onCommit: (value: string) => void;
+  onCommit?: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  ariaLabel?: string;
+  id?: string;
+  tall?: boolean;
 };
 
 // Auto-grows with content; preserves any height the user has dragged to.
@@ -25,6 +28,9 @@ export default function NoteEditor({
   onCommit,
   placeholder,
   disabled = false,
+  ariaLabel,
+  id,
+  tall = false,
 }: Props): JSX.Element {
   const ref = useRef<HTMLTextAreaElement | null>(null);
 
@@ -37,12 +43,14 @@ export default function NoteEditor({
   return (
     <textarea
       ref={ref}
-      className="note-editor__ta"
+      id={id}
+      className={tall ? "note-editor__ta note-editor__ta--tall" : "note-editor__ta"}
       value={value}
       placeholder={placeholder ?? "Write a note…"}
       onChange={(e) => onChange(e.target.value)}
-      onBlur={(e) => onCommit(e.target.value)}
+      onBlur={onCommit ? (e) => onCommit(e.target.value) : undefined}
       disabled={disabled}
+      aria-label={ariaLabel}
     />
   );
 }

@@ -1,3 +1,4 @@
+import { NoteEditor } from "@obelus/review-shell";
 import { type JSX, useEffect, useState } from "react";
 import CategoryPicker from "./CategoryPicker";
 import { useEnsureRevision } from "./ensure-revision-context";
@@ -51,13 +52,7 @@ export default function ReviewDraft(): JSX.Element | null {
           Pick a category to save this mark.
         </p>
       ) : null}
-      <textarea
-        className="review-draft__note"
-        placeholder="Note (optional)"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        rows={4}
-      />
+      <NoteEditor value={note} onChange={setNote} placeholder="Note (optional)" />
       <div className="review-draft__actions">
         <button type="button" className="btn btn--primary" onClick={handleSave}>
           Save mark
