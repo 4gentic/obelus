@@ -39,7 +39,17 @@ function countLeadingBackticks(text: string, from: number): number {
   return n;
 }
 
+// Single-entry cache keyed by reference equality on the input. The selection
+// hook calls this on every `selectionchange` (selection refinement reads the
+// breakpoint table); without the cache we'd re-run `fromMarkdown` 20+ times
+// per drag on the entire buffer. Reference equality is enough — `MarkdownView`
+// holds the source string stable until the file (or writer-mode buffer)
+// actually changes.
+let cachedText: string | null = null;
+let cachedMap: DocumentSourceMap | null = null;
+
 export function buildDocumentSourceMap(text: string): DocumentSourceMap | null {
+  if (text === cachedText) return cachedMap;
   let tree: MdastRoot;
   try {
     tree = fromMarkdown(text, {
@@ -47,6 +57,8 @@ export function buildDocumentSourceMap(text: string): DocumentSourceMap | null {
       mdastExtensions: [gfmFromMarkdown()],
     });
   } catch {
+    cachedText = text;
+    cachedMap = null;
     return null;
   }
   const breakpoints: OffsetBreakpoint[] = [];
@@ -101,7 +113,10 @@ export function buildDocumentSourceMap(text: string): DocumentSourceMap | null {
       rendered += 1;
     }
   });
-  return { rendered: parts.join(""), breakpoints };
+  const result: DocumentSourceMap = { rendered: parts.join(""), breakpoints };
+  cachedText = text;
+  cachedMap = result;
+  return result;
 }
 
 // `bias` resolves the boundary case where `renderedIdx` equals one

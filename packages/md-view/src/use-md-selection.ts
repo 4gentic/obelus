@@ -467,6 +467,13 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
   // block start once a drag crosses an inline/block boundary, returning more
   // text than the user dragged.
   const copyQuoteRef = useRef<string>("");
+  // Cheap dedup against the native Selection's 4-tuple: skip the heavy
+  // anchor-resolution + source-map work when the browser fires a redundant
+  // `selectionchange` (focus, scroll, etc.) without moving the range.
+  const lastNativeAnchorNode = useRef<Node | null>(null);
+  const lastNativeAnchorOffset = useRef<number>(-1);
+  const lastNativeFocusNode = useRef<Node | null>(null);
+  const lastNativeFocusOffset = useRef<number>(-1);
   const mousedownRef = useRef<{ x: number; y: number } | null>(null);
   // Live pointer position, updated on every pointermove during a drag.
   // `computeMarkdownSelection` consults it when WebKit snaps `focusNode` to a
@@ -529,6 +536,18 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
       if (!container) return;
       const sel = document.getSelection();
       if (!sel) return;
+      if (
+        sel.anchorNode === lastNativeAnchorNode.current &&
+        sel.anchorOffset === lastNativeAnchorOffset.current &&
+        sel.focusNode === lastNativeFocusNode.current &&
+        sel.focusOffset === lastNativeFocusOffset.current
+      ) {
+        return;
+      }
+      lastNativeAnchorNode.current = sel.anchorNode;
+      lastNativeAnchorOffset.current = sel.anchorOffset;
+      lastNativeFocusNode.current = sel.focusNode;
+      lastNativeFocusOffset.current = sel.focusOffset;
       const result = computeMarkdownSelection(
         container,
         mousedownRef.current,

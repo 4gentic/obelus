@@ -250,14 +250,19 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
   // selected text to the clipboard when the user presses Cmd+C inside the
   // sandboxed iframe.
   const copyQuoteRef = useRef<string>("");
+  // Dedup against the native Selection's 4-tuple. `selectionchange` re-fires
+  // on focus and scroll without moving the range; without this gate, the
+  // full-DOM `collectText(mount)` walk inside `rangeContextFromRoot` runs on
+  // every redundant event.
+  const lastNativeAnchorNode = useRef<Node | null>(null);
+  const lastNativeAnchorOffset = useRef<number>(-1);
+  const lastNativeFocusNode = useRef<Node | null>(null);
+  const lastNativeFocusOffset = useRef<number>(-1);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: mountVersion is the intentional re-trigger — the iframe loads asynchronously, so the listener must re-attach to the iframe document once mountRef.current points there.
   useEffect(() => {
     const host = hostRef.current;
-    if (!host) {
-      console.info("[html-select] effect ran but hostRef.current is null");
-      return;
-    }
+    if (!host) return;
     const mount = mountRef.current;
     // Attach to both the host's document and (when distinct) the mount's
     // document. Browsers vary on whether `selectionchange` fires inside a
@@ -270,12 +275,7 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
     if (mount?.ownerDocument && mount.ownerDocument !== host.ownerDocument) {
       docs.push(mount.ownerDocument);
     }
-    if (docs.length === 0) {
-      console.info("[html-select] no ownerDocument");
-      return;
-    }
-    const inIframe = docs.length === 2;
-    console.info("[html-select] listener attached", { mode, sourceFile, inIframe });
+    if (docs.length === 0) return;
     // WebKit (Tauri on macOS) does not reliably fire `selectionchange`
     // *during* drag inside a same-origin iframe — only at focus
     // transitions. Without a `mouseup`/`pointerup` fallback, a drag-
@@ -312,39 +312,29 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
       if (dedupKey === lastQuoteRef.current) return;
       lastQuoteRef.current = dedupKey;
       copyQuoteRef.current = result.quote;
-      console.info("[html-select] image click", {
-        kind: result.kind,
-        quote: result.quote,
-      });
       onSelectionRef.current(result);
     }
 
     function onSelectionChange(): void {
       const liveHost = hostRef.current;
       const liveMount = mountRef.current;
-      if (!liveHost || !liveMount) {
-        console.info("[html-select] change but refs missing", {
-          hostNull: liveHost === null,
-          mountNull: liveMount === null,
-        });
-        return;
-      }
+      if (!liveHost || !liveMount) return;
       const sel = pickSelection(liveHost, liveMount);
-      if (!sel) {
-        console.info("[html-select] no selection returned by pickSelection");
+      if (!sel) return;
+      if (
+        sel.anchorNode === lastNativeAnchorNode.current &&
+        sel.anchorOffset === lastNativeAnchorOffset.current &&
+        sel.focusNode === lastNativeFocusNode.current &&
+        sel.focusOffset === lastNativeFocusOffset.current
+      ) {
         return;
       }
-      const inMount = sel.anchorNode !== null && liveMount.contains(sel.anchorNode);
-      console.info("[html-select] selection picked", {
-        rangeCount: sel.rangeCount,
-        isCollapsed: sel.isCollapsed,
-        anchorNodeName: sel.anchorNode?.nodeName,
-        focusNodeName: sel.focusNode?.nodeName,
-        anchorInsideMount: inMount,
-      });
+      lastNativeAnchorNode.current = sel.anchorNode;
+      lastNativeAnchorOffset.current = sel.anchorOffset;
+      lastNativeFocusNode.current = sel.focusNode;
+      lastNativeFocusOffset.current = sel.focusOffset;
       const result = computeHtmlSelectionAnchor(liveMount, sel, mode, sourceFile);
       if (result === null) {
-        console.info("[html-select] computeHtmlSelectionAnchor returned null");
         // Don't nuke an image-click draft. Clicking an `<img>` produces a
         // collapsed Selection (or none), which would otherwise look like
         // "the user just cleared their text selection".
@@ -358,10 +348,6 @@ export function useHtmlSelection(options: UseHtmlSelectionOptions): void {
       if (result.quote === lastQuoteRef.current) return;
       lastQuoteRef.current = result.quote;
       copyQuoteRef.current = result.quote;
-      console.info("[html-select] emitting anchor", {
-        kind: result.kind,
-        quoteLen: result.quote.length,
-      });
       onSelectionRef.current(result);
     }
     function onCopy(ev: ClipboardEvent): void {
