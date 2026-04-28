@@ -1,5 +1,6 @@
 import { formatReviewPrompt, type PromptAnnotation } from "@obelus/bundle-builder";
 import type { PaperRow } from "@obelus/repo";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { JSX, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -207,7 +208,7 @@ export default function ReviewerActionsPanel(): JSX.Element {
         annotations: ctx.annotations,
         ...(paper.rubric ? { rubric: { label: paper.rubric.label, body: paper.rubric.body } } : {}),
       });
-      await navigator.clipboard.writeText(text);
+      await writeText(text);
       setExportState({ kind: "copied" });
       window.setTimeout(() => {
         setExportState((prev) => (prev.kind === "copied" ? { kind: "idle" } : prev));
@@ -246,7 +247,7 @@ export default function ReviewerActionsPanel(): JSX.Element {
   }
 
   async function onCopyDraft(): Promise<void> {
-    await navigator.clipboard.writeText(body);
+    await writeText(body);
     setDraftCopied(true);
     window.setTimeout(() => setDraftCopied(false), 1800);
   }
@@ -519,8 +520,8 @@ function ClaudeAction({
 
 function NextStep({ command }: { command: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
-  const onCopy = (): void => {
-    void navigator.clipboard.writeText(command);
+  const onCopy = async (): Promise<void> => {
+    await writeText(command);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
