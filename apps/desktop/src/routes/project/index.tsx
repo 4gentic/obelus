@@ -47,16 +47,17 @@ export default function ProjectRoute(): JSX.Element {
         const rootId = await authorizeProjectRoot(project.root);
         await repo.projects.touchLastOpened(id);
         // Refresh the project-metadata cache (file tree, main-file detection,
-        // $OBELUS_WORKSPACE_DIR/project.json mirror) before the shell mounts. Silent on
-        // failure: a missing cache is recoverable via the manual Rescan action
-        // and must not block the project from opening.
-        void runProjectScan({
+        // $OBELUS_WORKSPACE_DIR/project.json mirror) before the shell mounts.
+        // Awaited so writer-mode auto-open can read `mainRelPath` below; a
+        // scan failure must still not block the project from opening, so
+        // swallow it into a null report and fall through.
+        const report = await runProjectScan({
           repo,
           rootId,
           projectId: project.id,
           label: project.label,
           kind: project.kind,
-        }).catch(() => {});
+        }).catch(() => null);
         const stored = project.lastOpenedFilePath;
         if (stored) {
           if (!cancelled) setOpenFilePath(stored);
@@ -66,6 +67,12 @@ export default function ProjectRoute(): JSX.Element {
           if (first && !cancelled) {
             setOpenFilePath(first);
             void repo.projects.setLastOpenedFile(project.id, first);
+          }
+        } else if (project.kind === "writer") {
+          const main = report?.mainRelPath ?? null;
+          if (main && !cancelled) {
+            setOpenFilePath(main);
+            void repo.projects.setLastOpenedFile(project.id, main);
           }
         }
         if (!cancelled) setState({ kind: "ready", project, rootId, repo });
