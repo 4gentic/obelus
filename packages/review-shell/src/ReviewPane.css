@@ -435,7 +435,7 @@
 }
 
 .review-pane__next-cmd[data-copied="true"] .review-pane__next-hint {
-  color: var(--hl-cite);
+  color: var(--hl-elaborate);
 }
 
 @media (max-width: 900px) {

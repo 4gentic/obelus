@@ -80,8 +80,17 @@
   pointer-events: none;
 }
 
-.review-shell__hl[data-category="unclear"] {
-  --hl-color: var(--hl-unclear);
+.review-shell__hl[data-category="remove"] {
+  --hl-color: var(--hl-remove);
+}
+.review-shell__hl[data-category="elaborate"] {
+  --hl-color: var(--hl-elaborate);
+}
+.review-shell__hl[data-category="rephrase"] {
+  --hl-color: var(--hl-rephrase);
+}
+.review-shell__hl[data-category="improve"] {
+  --hl-color: var(--hl-improve);
 }
 .review-shell__hl[data-category="wrong"] {
   --hl-color: var(--hl-wrong);
@@ -89,23 +98,11 @@
 .review-shell__hl[data-category="weak-argument"] {
   --hl-color: var(--hl-weak);
 }
-.review-shell__hl[data-category="citation-needed"] {
-  --hl-color: var(--hl-cite);
-}
 .review-shell__hl[data-category="praise"] {
   --hl-color: var(--hl-praise);
 }
-.review-shell__hl[data-category="rephrase"] {
-  --hl-color: var(--hl-rephrase);
-}
-.review-shell__hl[data-category="enhancement"] {
-  --hl-color: var(--hl-enhancement);
-}
-.review-shell__hl[data-category="aside"] {
-  --hl-color: var(--hl-aside);
-}
-.review-shell__hl[data-category="flag"] {
-  --hl-color: var(--hl-flag);
+.review-shell__hl[data-category="note"] {
+  --hl-color: var(--hl-note);
 }
 
 .review-shell__hl[data-focused="true"] {
@@ -127,20 +124,20 @@
 }
 
 /* Find-in-document overlay. Sits in a sibling layer to the annotation layer
-   so the cascade is clean. Uses the same editorial yellow as the PDF find
-   pane (`--hl-unclear`) so the eye reads "this is search" regardless of
-   format. The active match gets a stronger fill plus an ink-coloured ring. */
+   so the cascade is clean. Uses the editorial yellow `--hl-find` so the eye
+   reads "this is search" regardless of format. The active match gets a
+   stronger fill plus an ink-coloured ring. */
 .review-shell__hl-layer--find {
   z-index: 1;
 }
 
 .review-shell__hl--find {
-  --hl-color: var(--hl-unclear);
-  background: color-mix(in srgb, var(--hl-unclear) 42%, transparent);
+  --hl-color: var(--hl-find);
+  background: color-mix(in srgb, var(--hl-find) 42%, transparent);
 }
 
 .review-shell__hl--find-current {
-  background: color-mix(in srgb, var(--hl-unclear) 60%, transparent);
+  background: color-mix(in srgb, var(--hl-find) 60%, transparent);
   outline: 1.5px solid var(--rubric);
   outline-offset: 0;
 }

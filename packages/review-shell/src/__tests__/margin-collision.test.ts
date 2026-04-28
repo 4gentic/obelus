@@ -8,7 +8,7 @@ function makeRow(id: string): AnnotationRow {
   return {
     id,
     revisionId: "rev",
-    category: "unclear",
+    category: "elaborate",
     quote: "q",
     contextBefore: "",
     contextAfter: "",
