@@ -126,12 +126,17 @@ jobs:
           WORK="$(mktemp -d)"
           gh release download "$TAG" -R "$REPO" -p latest.json -D "$WORK"
 
+          # Delete-and-recreate (instead of `gh release upload --clobber`) so
+          # each release publishes a brand-new asset under desktop-latest.
+          # GitHub Releases CDN edges can serve stale content for a clobbered
+          # asset for an unpredictable window — installed clients then read
+          # the previous version's manifest and conclude "up to date" against
+          # an outdated build. Recreating the release sidesteps that.
           if gh release view desktop-latest -R "$REPO" >/dev/null 2>&1; then
-            gh release upload desktop-latest -R "$REPO" "$WORK/latest.json" --clobber
-          else
-            gh release create desktop-latest -R "$REPO" \
-              --title "Desktop update channel" \
-              --notes "Rolling pointer to the latest desktop release. Used by the in-app updater. See the desktop-v* releases for actual binaries and changelogs." \
-              --latest=false \
-              "$WORK/latest.json"
+            gh release delete desktop-latest -R "$REPO" --cleanup-tag --yes
           fi
+          gh release create desktop-latest -R "$REPO" \
+            --title "Desktop update channel" \
+            --notes "Rolling pointer to the latest desktop release. Used by the in-app updater. See the desktop-v* releases for actual binaries and changelogs." \
+            --latest=false \
+            "$WORK/latest.json"
