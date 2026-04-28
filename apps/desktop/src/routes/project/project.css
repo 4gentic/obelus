@@ -2004,23 +2004,35 @@ button.files__row {
   min-width: 0;
   min-height: 4.5em;
   padding: var(--space-2);
-  background: var(--paper);
+  background: var(--panel);
   color: var(--ink);
-  border: 1px solid var(--rule-soft);
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: var(--radius-1);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent);
   font-family: var(--font-body);
   font-size: var(--step--1);
   line-height: 1.5;
   resize: vertical;
+  transition: border-color 120ms linear, box-shadow 120ms linear;
 }
 
 .review-column__notes-input:focus {
   outline: none;
-  border-color: var(--ink);
+  border-color: color-mix(in srgb, var(--ink) 60%, transparent);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
 .review-column__notes-input::placeholder {
   color: var(--ink-soft);
   font-style: italic;
+}
+
+.review-pane__item {
+  border-top: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+.review-pane__item:first-child {
+  border-top: none;
 }
 
 .visually-hidden {
@@ -2174,21 +2186,24 @@ button.files__row {
 .review-list__note--editable {
   width: 100%;
   min-width: 0;
-  border: 1px solid transparent;
-  padding: var(--space-1);
+  padding: var(--space-2);
   font-family: var(--font-body);
-  background: transparent;
-  color: var(--ink-soft);
+  font-size: var(--step--1);
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: var(--radius-1);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent);
   resize: vertical;
   margin: 0;
+  transition: border-color 120ms linear, box-shadow 120ms linear;
 }
 
-.review-list__note--editable:hover,
 .review-list__note--editable:focus {
-  border-color: var(--rule-soft);
-  background: var(--paper);
-  color: var(--ink);
   outline: none;
+  border-color: color-mix(in srgb, var(--ink) 60%, transparent);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
 .review-list__cat--resolved {
