@@ -76,13 +76,19 @@ export default function PdfPage({ doc, pageIndex, scale, overlay }: Props): JSX.
     return () => io.disconnect();
   }, []);
 
-  // Text-layer effect. Intentionally NOT gated on `isRenderable` so visibility
-  // flips don't tear it down mid-render. pdfjs's `TextLayer.render()` pumps a
-  // ReadableStream with no internal cancellation check — only `textLayer.cancel()`
-  // stops the pump. If the effect were re-run while a render was in flight, two
-  // TextLayers would interleave `append()` calls on the same container and the
-  // captured items array would drift from the DOM spans' `data-item-index`.
+  // Text-layer effect. Gated on `isRenderable` so a long PDF doesn't fan out
+  // 30+ parallel `streamTextContent()` pumps on initial mount — that work
+  // monopolizes the main thread for the first few seconds, queueing the
+  // user's first click behind it and producing a visible "stuck" feeling
+  // before the very first selection.
+  //
+  // The teardown race the previous version warned about (two `TextLayer`s
+  // interleaving `append()` on the same container if the effect re-ran
+  // mid-render) is contained by `cancelled` + `textLayer.cancel()` in the
+  // cleanup, plus `textLayerEl.replaceChildren()` at the start of each new
+  // run wiping any stragglers from a cancelled pump.
   useEffect(() => {
+    if (!isRenderable) return;
     let cancelled = false;
     let textLayer: TextLayer | null = null;
     let unregister: (() => void) | null = null;
@@ -184,7 +190,7 @@ export default function PdfPage({ doc, pageIndex, scale, overlay }: Props): JSX.
       if (wrapper) clearPageItems(wrapper);
       if (page) page.cleanup();
     };
-  }, [doc, pageIndex, scale]);
+  }, [doc, pageIndex, scale, isRenderable]);
 
   // Raster effect. Paints the canvas when the page enters the renderable band.
   // Independent of the text-layer effect so visibility flips don't disturb the
