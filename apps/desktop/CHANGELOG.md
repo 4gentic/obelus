@@ -2,6 +2,20 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11](https://github.com/4gentic/obelus/compare/desktop-v0.1.10...desktop-v0.1.11) (2026-04-28)
+
+
+### Features
+
+* **desktop:** add refresh button to files column ([#123](https://github.com/4gentic/obelus/issues/123)) ([22a12a9](https://github.com/4gentic/obelus/commit/22a12a9da06d6b87d8d53020ef881ef86ae286d2))
+* **desktop:** centralize Claude detection and gate AI actions on engine readiness ([#127](https://github.com/4gentic/obelus/issues/127)) ([b12bfed](https://github.com/4gentic/obelus/commit/b12bfedc69543d8609828c237f07759ef3868e67))
+* **desktop:** route clipboard I/O through Tauri plugin ([#122](https://github.com/4gentic/obelus/issues/122)) ([443cc91](https://github.com/4gentic/obelus/commit/443cc9177cbc6d477b9dfa89ee3b506d71b98884))
+
+
+### Refactor
+
+* **desktop:** unify mark and review note inputs into shared NoteEditor ([#126](https://github.com/4gentic/obelus/issues/126)) ([04ba0ea](https://github.com/4gentic/obelus/commit/04ba0eab426877656914e841cb0a1b0dc8f4add9))
+
 ## [0.1.10](https://github.com/4gentic/obelus/compare/desktop-v0.1.9...desktop-v0.1.10) (2026-04-28)
 
 
