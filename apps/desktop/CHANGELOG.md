@@ -2,6 +2,24 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12](https://github.com/4gentic/obelus/compare/desktop-v0.1.11...desktop-v0.1.12) (2026-04-28)
+
+
+### Features
+
+* **desktop:** align margin notes to document scroll + click-to-scroll ([#131](https://github.com/4gentic/obelus/issues/131)) ([92a0a5f](https://github.com/4gentic/obelus/commit/92a0a5f4cfacf907ec3373023d81df5e6abbbb83))
+* **desktop:** auto-open main file for writer projects on first load ([#134](https://github.com/4gentic/obelus/issues/134)) ([9103b57](https://github.com/4gentic/obelus/commit/9103b573b87be786fd4a5ee983804567b3bec832))
+
+
+### Bug Fixes
+
+* **desktop:** prevent files column from rendering at 0px after toggle ([#130](https://github.com/4gentic/obelus/issues/130)) ([8056b4b](https://github.com/4gentic/obelus/commit/8056b4b011b8ce45ba3d1b9bc1b4677469f03a93))
+
+
+### Performance
+
+* lazy-mount PDF text layers; trim per-event selection work ([#133](https://github.com/4gentic/obelus/issues/133)) ([b323b9a](https://github.com/4gentic/obelus/commit/b323b9af7b259e80db95cd211a1d509c55237858))
+
 ## [0.1.11](https://github.com/4gentic/obelus/compare/desktop-v0.1.10...desktop-v0.1.11) (2026-04-28)
 
 
