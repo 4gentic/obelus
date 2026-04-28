@@ -52,8 +52,8 @@ export default function PdfPane({ doc, paperId }: Props): JSX.Element {
         m.rects.map((r) => {
           const isCurrent = m.matchIndex === findCurrentIndex;
           const cls = isCurrent
-            ? "pdf-hl pdf-hl--find pdf-hl--find-current"
-            : "pdf-hl pdf-hl--find";
+            ? "review-shell__hl review-shell__hl--find review-shell__hl--find-current"
+            : "review-shell__hl review-shell__hl--find";
           return (
             <div
               key={rectKey(`find-${m.matchIndex}`, r)}
@@ -88,7 +88,6 @@ export default function PdfPane({ doc, paperId }: Props): JSX.Element {
     focusedId,
     onAnchor: (draft) => setSelectedAnchor(draft),
     onFocusMark: (id) => setFocused(id),
-    highlightClassName: "pdf-hl",
     renderExtraOverlay,
     zoomOverride,
     onAutoScaleChange,
