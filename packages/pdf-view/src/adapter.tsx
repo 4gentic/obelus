@@ -8,6 +8,21 @@ import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState
 import PdfDocument from "./PdfDocument";
 import SelectionListener from "./SelectionListener";
 
+function findScrollAncestor(el: HTMLElement): HTMLElement {
+  let cur: HTMLElement | null = el.parentElement;
+  while (cur) {
+    const style = cur.ownerDocument?.defaultView?.getComputedStyle(cur);
+    const overflow = (style?.overflowY ?? "") + (style?.overflowX ?? "");
+    if (/(auto|scroll|overlay)/.test(overflow)) return cur;
+    cur = cur.parentElement;
+  }
+  return (
+    (el.ownerDocument?.scrollingElement as HTMLElement | null) ??
+    el.ownerDocument?.documentElement ??
+    el
+  );
+}
+
 const BASE_SCALE = 1.25;
 const SAFETY_MIN_SCALE = 0.25;
 const FIT_MAX_SCALE = 2;
@@ -19,8 +34,8 @@ const PDF_POINT_WIDTH = 612;
 // the page's median baseline-to-baseline distance, so these pads only need to
 // extend a touch further to make adjacent rects abut without seam. Overlap on
 // translucent fills produces a darker double-stripe; aim for tile, not stack.
-const HL_PAD_TOP = 0.1;
-const HL_PAD_BOTTOM = 0.14;
+const HL_PAD_TOP = 0.04;
+const HL_PAD_BOTTOM = 0.22;
 
 function hlStyle(x: number, y: number, w: number, h: number, s: number) {
   const padT = h * HL_PAD_TOP;
@@ -171,7 +186,8 @@ export function usePdfDocumentView({
 
   const scrollToAnnotation = useCallback(
     (id: string): void => {
-      const scroll = containerRef.current?.closest<HTMLElement>(".review-shell__scroll");
+      const el = containerRef.current;
+      const scroll = el ? findScrollAncestor(el) : null;
       const top = annotationTops.get(id);
       if (scroll && top !== undefined) {
         scroll.scrollTo({ top: Math.max(0, top - 100), behavior: "smooth" });
