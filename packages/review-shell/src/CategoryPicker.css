@@ -34,6 +34,8 @@
   border-left: 2px solid var(--chip-color);
   border-radius: var(--radius-1);
   background: transparent;
+  user-select: none;
+  -webkit-user-select: none;
   transition:
     background 120ms linear,
     color 120ms linear;
@@ -86,4 +88,6 @@
 .catpick__label {
   text-transform: lowercase;
   letter-spacing: 0.02em;
+  user-select: none;
+  -webkit-user-select: none;
 }

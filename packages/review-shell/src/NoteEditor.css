@@ -18,7 +18,9 @@
   min-height: 5.5em;
   max-height: 480px;
   overflow: auto;
-  transition: border-color 120ms linear, box-shadow 120ms linear;
+  transition:
+    border-color 120ms linear,
+    box-shadow 120ms linear;
 }
 
 .note-editor__ta:focus {

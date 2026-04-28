@@ -1,12 +1,13 @@
 import type { AnnotationRow } from "@obelus/repo";
+import { CategorySelect } from "@obelus/review-shell";
 import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
-import CategoryPicker from "./CategoryPicker";
 import { markLocationLabel } from "./mark-location-label";
 import { useReviewStore } from "./store-context";
 import { trimQuoteMiddle } from "./trim-quote";
 
-const INTERACTIVE_SELECTOR = ".category-picker, textarea, .review-list__remove";
+const INTERACTIVE_SELECTOR =
+  ".cat-select__trigger, .cat-select__pop, textarea, .review-list__remove";
 
 function NoteField({
   annotationId,
@@ -65,7 +66,18 @@ function ReviewItem({
       }}
     >
       <header className="review-list__head">
-        <span className="review-list__page">{markLocationLabel(a)}</span>
+        <div className="review-list__head-left">
+          <span className="review-list__page">{markLocationLabel(a)}</span>
+          {isResolved ? (
+            <span className="review-list__cat review-list__cat--resolved">{a.category}</span>
+          ) : (
+            <CategorySelect
+              value={a.category}
+              onChange={(c) => void updateAnnotation(a.id, { category: c })}
+              ariaLabel={`Change category for mark on ${markLocationLabel(a)}`}
+            />
+          )}
+        </div>
         <button
           type="button"
           className="review-list__remove"
@@ -78,15 +90,6 @@ function ReviewItem({
           ×
         </button>
       </header>
-      {isResolved ? (
-        <p className="review-list__cat review-list__cat--resolved">{a.category}</p>
-      ) : (
-        <CategoryPicker
-          name={`cat-${a.id}`}
-          value={a.category}
-          onChange={(c) => void updateAnnotation(a.id, { category: c })}
-        />
-      )}
       <blockquote className="review-list__quote">{trimQuoteMiddle(a.quote)}</blockquote>
       {isResolved ? (
         a.note ? (

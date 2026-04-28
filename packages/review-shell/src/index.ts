@@ -1,4 +1,5 @@
 export { default as CategoryPicker } from "./CategoryPicker";
+export { default as CategorySelect } from "./CategorySelect";
 export type { FindProvider, FindSearchOptions } from "./find";
 export { default as MarginGutter, resolveCollisions } from "./MarginGutter";
 export { default as MarginNote } from "./MarginNote";

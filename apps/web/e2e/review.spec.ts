@@ -118,8 +118,9 @@ test.describe("review", () => {
     const highlight = page.locator(".review-shell__hl").first();
     await expect(highlight).toHaveAttribute("data-category", "elaborate");
 
-    await item
-      .locator("label.catpick__chip")
+    await item.locator(".cat-select__trigger").click();
+    await page
+      .getByRole("menuitemradio")
       .filter({ hasText: /^praise$/i })
       .click();
 

@@ -15,6 +15,13 @@ export type CategoryMeta = {
   readonly description: string;
 };
 
+const NOTE_META: CategoryMeta = {
+  id: "note",
+  label: "note",
+  tokenVar: "--hl-note",
+  description: "A neutral pointer for the AI. It may act on it or leave it alone.",
+};
+
 export const DEFAULT_CATEGORIES: ReadonlyArray<CategoryMeta> = [
   {
     id: "remove",
@@ -60,14 +67,13 @@ export const DEFAULT_CATEGORIES: ReadonlyArray<CategoryMeta> = [
     tokenVar: "--hl-praise",
     description: "A strength worth naming in the cover letter's opening.",
   },
-  {
-    id: "note",
-    label: "note",
-    tokenVar: "--hl-note",
-    description: "A neutral pointer for the AI. It may act on it or leave it alone.",
-  },
+  NOTE_META,
 ];
 
 export function descriptionFor(id: string): string | undefined {
   return DEFAULT_CATEGORIES.find((c) => c.id === id)?.description;
+}
+
+export function categoryMeta(id: string): CategoryMeta {
+  return DEFAULT_CATEGORIES.find((c) => c.id === id) ?? NOTE_META;
 }
