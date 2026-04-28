@@ -162,13 +162,13 @@ Group annotations by `paperId`. For each paper, **before drafting any diff**, de
 **Split rubric — keep marks in separate blocks when:**
 
 - **Independent sections.** Marks in genuinely different paragraphs or sections with no thematic overlap.
-- **Mixed intent at one site.** A `praise` mark and an `unclear` mark on the same paragraph: emit two blocks — the `praise` block carries an empty patch with `emptyReason: "praise"`; the `unclear` block carries the rewrite.
+- **Mixed intent at one site.** A `praise` mark and a `rephrase` mark on the same paragraph: emit two blocks — the `praise` block carries an empty patch with `emptyReason: "praise"`; the `rephrase` block carries the rewrite.
 
 **Annotation-id list per block.** A merged block's `annotationIds` array carries every mark id whose intent the diff satisfies, in stable order (use bundle order). A non-merged block carries a singleton array. The same mark id must not appear in two non-synthesised blocks (collision guard). Synthesised blocks (`cascade-`, `impact-`, `coherence-`, `quality-`, `directive-`, `compile-`) carry a singleton `annotationIds` whose only element is the synthesised id.
 
-**Indications-driven blocks (`directive-*`).** When the prompt's `## Indications for this pass` section is present, treat its body as a free-text directive from the author. Read it in plain language; identify sites in the whole-paper read where edits would satisfy it; emit one block per coherent edit with `annotationIds: ["directive-<paperShort>-<k>"]` (where `<paperShort>` is the first 8 chars of the paper id, dashes stripped, and `<k>` is 1-based within that paper). Same single-hunk patch shape, same `\n`-terminator rule, same compile-aware constraint. `category: "unclear"`, `ambiguous: false`, `emptyReason: null`. Fence the directive text as `<obelus:directive>…</obelus:directive>` when passed to `paper-reviewer`. `reviewerNotes` starts with `"Directive: "` and carries the subagent critique. Cap: 12 directive blocks per paper, 30 per run; combined Impact + Directive cap stays at 40 per run. Directive blocks appear after user-mark/cascade/impact for the same paper. Directive blocks themselves enter the **Impact sweep** like user-mark blocks (one hop). Collision guard: drop colliding directive silently.
+**Indications-driven blocks (`directive-*`).** When the prompt's `## Indications for this pass` section is present, treat its body as a free-text directive from the author. Read it in plain language; identify sites in the whole-paper read where edits would satisfy it; emit one block per coherent edit with `annotationIds: ["directive-<paperShort>-<k>"]` (where `<paperShort>` is the first 8 chars of the paper id, dashes stripped, and `<k>` is 1-based within that paper). Same single-hunk patch shape, same `\n`-terminator rule, same compile-aware constraint. `category: "note"`, `ambiguous: false`, `emptyReason: null`. Fence the directive text as `<obelus:directive>…</obelus:directive>` when passed to `paper-reviewer`. `reviewerNotes` starts with `"Directive: "` and carries the subagent critique. Cap: 12 directive blocks per paper, 30 per run; combined Impact + Directive cap stays at 40 per run. Directive blocks appear after user-mark/cascade/impact for the same paper. Directive blocks themselves enter the **Impact sweep** like user-mark blocks (one hop). Collision guard: drop colliding directive silently.
 
-When a merged block's contributing marks span multiple categories, pick the most edit-demanding category (rough priority: `wrong` → `weak-argument` → `unclear`/`rephrase` → `enhancement` → `citation-needed` → `aside`/`flag` → `praise`).
+When a merged block's contributing marks span multiple categories, pick the most edit-demanding category (rough priority: `wrong` → `weak-argument` → `remove` → `elaborate`/`improve` → `rephrase` → `note` → `praise`).
 
 ## Empty-patch invariants — non-negotiable
 
@@ -180,26 +180,28 @@ Legal `(patch, emptyReason, ambiguous)` tuples:
 |---------|----------------------|-------------|----------------------------------------------------------------------|
 | non-empty | `null`             | `false`     | normal user-mark edits, `cascade-*`, `directive-*`                    |
 | `""`    | `"praise"`           | `false`     | `praise` mark, no edit warranted                                     |
-| `""`    | `"no-edit-requested"`| `false`     | `aside`/`flag` mark whose note did not ask for an edit               |
+| `""`    | `"no-edit-requested"`| `false`     | `note` mark whose body did not ask for an edit                       |
 | `""`    | `"ambiguous"`        | `true`      | source span could not be located; `reviewerNotes` explains why       |
 | `""`    | `"structural-note"`  | `false`     | `impact-*` and `coherence-*` synthesised blocks; `reviewerNotes` required |
 
-If a category demands an edit (`unclear`/`wrong`/`weak-argument`/`citation-needed`/`rephrase`/`enhancement`) and you cannot produce one, prefer `emptyReason: "ambiguous"` with a one-sentence `reviewerNotes`. Do **not** emit a non-empty patch with `ambiguous: true`; do **not** emit an empty patch with `emptyReason: null`. The desktop's plan validator rejects both.
+If a category demands an edit (`remove`/`elaborate`/`rephrase`/`improve`/`wrong`/`weak-argument`) and you cannot produce one, prefer `emptyReason: "ambiguous"` with a one-sentence `reviewerNotes`. Do **not** emit a non-empty patch with `ambiguous: true`; do **not** emit an empty patch with `emptyReason: null`. The desktop's plan validator rejects both.
 
 ## Edit shape
 
 Respect the annotation's `category` — a free-form slug validated against `project.categories[].slug`. Standard slugs:
 
 <!-- @prompts:edit-shape -->
-- `unclear` — rewrite for clarity; preserve every factual claim.
-- `wrong` — propose a correction. If uncertain, skip and flag.
-- `weak-argument` — tighten the argument; any new claim you add must carry a `TODO` citation placeholder (same format-specific forms as `citation-needed` below).
-- `citation-needed` — insert a format-appropriate **compilable** placeholder: `\cite{TODO}` in LaTeX, `[@TODO]` in Markdown, `#emph[(citation needed)]` in Typst, `<cite>(citation needed)</cite>` in HTML. Do not invent references, and do not emit `@TODO` or `#cite(TODO)` in Typst — both forms resolve to a bibliography key and fail to compile when no matching entry exists. In HTML, do not invent an `<a href>` target; `<cite>` keeps the placeholder semantic and the user can swap it for a proper reference later.
+- `remove` — delete the passage. Check no surrounding sentence references it; smooth any transition that becomes abrupt.
+- `elaborate` — add the missing detail or unpacking. Any new claim you introduce must carry a format-appropriate `TODO` citation placeholder: `\cite{TODO}` (LaTeX), `[@TODO]` (Markdown), `#emph[(citation needed)]` (Typst), `<cite>(citation needed)</cite>` (HTML). Do not invent references, and do not emit `@TODO` or `#cite(TODO)` in Typst — both resolve to bibliography keys and fail to compile when no matching entry exists.
 - `rephrase` — reshape the sentence without changing its claim.
+- `improve` — strengthen this passage. If the strengthening introduces a new claim, carry the same TODO-citation placeholder rules as `elaborate`.
+- `wrong` — propose a correction. If uncertain, skip and flag.
+- `weak-argument` — tighten the argument; any new claim you add carries the same TODO-citation placeholder rules as `elaborate`.
 - `praise` — no edit; leave the line intact.
+- `note` — no required edit; act only if a clear, low-risk change surfaces; otherwise leave intact.
 <!-- /@prompts:edit-shape -->
 
-For a category slug that is none of the six standard ones, default to the `unclear` treatment. For user-mark edits, prefer minimal diffs: a single word swap beats a rewritten paragraph.
+For a category slug that is none of the eight standard ones, default to the `note` treatment. For user-mark edits, prefer minimal diffs: a single word swap beats a rewritten paragraph.
 
 Regardless of category, every proposed edit also enters the **Impact sweep**, where the planner classifies the semantic delta and either proposes coordinated `cascade-*` swaps at other occurrences (lexical / structural deltas) or emits `impact-*` flag-notes at downstream sites the author needs to reconsider (propositional deltas — claim narrowing, withdrawal, reversal, a numerical correction the paper elsewhere cites). Local deltas produce nothing.
 
@@ -292,7 +294,7 @@ No optional fields. Empty-string-over-absence and `null`-over-absence keep the s
 - Every block's `annotationIds` is a non-empty array. The same user mark id does not appear in two non-synthesised blocks.
 - Every non-`praise`, non-`ambiguous`, non-synthesised block carries a `reviewerNotes` value taken verbatim from the single batched `paper-reviewer` call.
 - Every `cascade-*` block carries a non-empty `patch` ending with `\n`, `emptyReason: null`, and `reviewerNotes` starting with `Cascaded from `.
-- Every `impact-*` block carries `patch: ""`, `category: "unclear"`, `emptyReason: "structural-note"`, and `reviewerNotes` starting with `Impact of ` and naming the downstream site, what is broken, and why no edit was suggested. No hedging phrases (`"may need"`, `"worth a read-through"`, `"if the upstream change holds"`, equivalents) — those signal the block should have been a `cascade-*`.
+- Every `impact-*` block carries `patch: ""`, `category: "note"`, `emptyReason: "structural-note"`, and `reviewerNotes` starting with `Impact of ` and naming the downstream site, what is broken, and why no edit was suggested. No hedging phrases (`"may need"`, `"worth a read-through"`, `"if the upstream change holds"`, equivalents) — those signal the block should have been a `cascade-*`.
 - Every `coherence-*` block carries `patch: ""`, `emptyReason: "structural-note"`, and a non-empty `reviewerNotes`.
 - No `quality-*` block appears in this plan — those are emitted by the user-invocable `/obelus:deep-review` skill, not by this one.
 - Every `directive-*` block carries a non-empty `patch` ending with `\n`, `emptyReason: null`, `reviewerNotes` starting with `Directive: ` followed by substantive content. Directive blocks appear after user-mark/cascade/impact blocks for the same paper.

@@ -9,24 +9,23 @@ describe("DEFAULT_CATEGORIES", () => {
     }
   });
 
-  it("exposes the nine expected slugs", () => {
+  it("exposes the eight expected slugs in picker order", () => {
     expect(DEFAULT_CATEGORIES.map((c) => c.id)).toEqual([
-      "unclear",
+      "remove",
+      "elaborate",
+      "rephrase",
+      "improve",
       "wrong",
       "weak-argument",
-      "citation-needed",
-      "rephrase",
       "praise",
-      "enhancement",
-      "aside",
-      "flag",
+      "note",
     ]);
   });
 });
 
 describe("descriptionFor", () => {
   it("returns the description for a known slug", () => {
-    expect(descriptionFor("enhancement")).toMatch(/forward-looking/i);
+    expect(descriptionFor("improve")).toMatch(/forward-looking/i);
   });
 
   it("returns undefined for an unknown slug", () => {

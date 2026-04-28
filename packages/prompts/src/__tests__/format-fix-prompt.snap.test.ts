@@ -12,7 +12,7 @@ function fixture(): PromptInput {
     annotations: [
       {
         id: "550e8400-e29b-41d4-a716-446655440001",
-        category: "unclear",
+        category: "elaborate",
         quote: "The results were good.",
         contextBefore: "prior ",
         contextAfter: " next",
@@ -21,7 +21,7 @@ function fixture(): PromptInput {
       },
       {
         id: "550e8400-e29b-41d4-a716-446655440002",
-        category: "citation-needed",
+        category: "weak-argument",
         quote: "Vaswani et al.",
         contextBefore: "as in ",
         contextAfter: " (citation pending)",
@@ -39,13 +39,13 @@ describe("formatFixPrompt", () => {
     expect(text).toContain(
       "Source: `paper.pdf` (sha256 `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`)",
     );
-    expect(text).toContain("- In `paper.pdf`, on page 3 (unclear):");
+    expect(text).toContain("- In `paper.pdf`, on page 3 (elaborate):");
     expect(text).toContain("Quote: <obelus:quote>The results were good.</obelus:quote>");
     expect(text).toContain("Note: <obelus:note>How good?</obelus:note>");
     expect(text).toContain(
       "Context: <obelus:context-before>prior </obelus:context-before>…<obelus:context-after> next</obelus:context-after>",
     );
-    expect(text).toContain("- In `main.tex`, line 142 (citation-needed):");
+    expect(text).toContain("- In `main.tex`, line 142 (weak-argument):");
   });
 
   it("emits just the entrypoint when no sha256 is provided", () => {

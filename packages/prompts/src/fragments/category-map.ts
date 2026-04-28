@@ -8,21 +8,21 @@ export const CATEGORY_MAP: ReadonlyArray<CategoryDestination> = [
   { category: "`wrong`", destination: "Major comments" },
   { category: "`weak-argument`", destination: "Major comments" },
   {
-    category: "`unclear`",
-    destination: "Major comments (default); Minor only for a local-phrasing complaint",
+    category: "`remove`",
+    destination:
+      "Major comments — name what's being cut and verify the surrounding text still reads coherently after removal",
+  },
+  {
+    category: "`improve`",
+    destination: "Major comments (forward-looking opportunity, not a defect)",
+  },
+  {
+    category: "`elaborate`",
+    destination: "Major comments — surface what the reader still needs and write the addition",
   },
   { category: "`rephrase`", destination: "Minor comments" },
-  { category: "`citation-needed`", destination: "Minor comments" },
   {
-    category: "`enhancement`",
-    destination: "Major comments (forward-looking suggestion — an opportunity, not a defect)",
-  },
-  {
-    category: "`aside`",
-    destination: "Minor comments (may be omitted if nothing actionable surfaces)",
-  },
-  {
-    category: "`flag`",
+    category: "`note`",
     destination: "Minor comments (may be omitted if nothing actionable surfaces)",
   },
   { category: "*(anything else)*", destination: "Minor comments" },

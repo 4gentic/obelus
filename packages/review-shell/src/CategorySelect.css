@@ -1,0 +1,111 @@
+.cat-select {
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.cat-select__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 1px var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--chip-accent, var(--ink-soft));
+  border-radius: var(--radius-1);
+  cursor: pointer;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    background 120ms linear,
+    border-color 120ms linear;
+}
+
+.cat-select__trigger:hover,
+.cat-select__trigger:focus-visible,
+.cat-select__trigger[data-open="true"] {
+  background: color-mix(in oklab, var(--chip-accent) 14%, var(--paper));
+  border-color: var(--chip-accent);
+}
+
+.cat-select__trigger:focus-visible {
+  outline: none;
+}
+
+.cat-select__trigger-label {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.cat-select__caret {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--ink-soft);
+  line-height: 1;
+}
+
+.cat-select__pop {
+  position: fixed;
+  z-index: 200;
+  padding: var(--space-1);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 0 6px 20px color-mix(in oklab, var(--ink) 14%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: calc(100vw - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.cat-select__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  border-left: 2px solid var(--chip-accent, var(--ink-soft));
+  cursor: pointer;
+  font-family: var(--font-body);
+  text-align: left;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 120ms linear;
+}
+
+.cat-select__option:hover,
+.cat-select__option:focus-visible {
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+
+.cat-select__option:focus-visible {
+  outline: none;
+}
+
+.cat-select__option[data-checked="true"] {
+  background: color-mix(in oklab, var(--chip-accent) 14%, var(--paper));
+}
+
+.cat-select__option-label {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.cat-select__option-hint {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+  line-height: 1.4;
+  white-space: normal;
+}

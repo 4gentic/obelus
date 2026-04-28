@@ -1,8 +1,10 @@
 export const EDIT_SHAPE_MARKDOWN: string = [
-  "- `unclear` — rewrite for clarity; preserve every factual claim.",
-  "- `wrong` — propose a correction. If uncertain, skip and flag.",
-  "- `weak-argument` — tighten the argument; any new claim you add must carry a `TODO` citation placeholder (same format-specific forms as `citation-needed` below).",
-  "- `citation-needed` — insert a format-appropriate **compilable** placeholder: `\\cite{TODO}` in LaTeX, `[@TODO]` in Markdown, `#emph[(citation needed)]` in Typst, `<cite>(citation needed)</cite>` in HTML. Do not invent references, and do not emit `@TODO` or `#cite(TODO)` in Typst — both forms resolve to a bibliography key and fail to compile when no matching entry exists. In HTML, do not invent an `<a href>` target; `<cite>` keeps the placeholder semantic and the user can swap it for a proper reference later.",
+  "- `remove` — delete the passage. Check no surrounding sentence references it; smooth any transition that becomes abrupt.",
+  "- `elaborate` — add the missing detail or unpacking. Any new claim you introduce must carry a format-appropriate `TODO` citation placeholder: `\\cite{TODO}` (LaTeX), `[@TODO]` (Markdown), `#emph[(citation needed)]` (Typst), `<cite>(citation needed)</cite>` (HTML). Do not invent references, and do not emit `@TODO` or `#cite(TODO)` in Typst — both resolve to bibliography keys and fail to compile when no matching entry exists.",
   "- `rephrase` — reshape the sentence without changing its claim.",
+  "- `improve` — strengthen this passage. If the strengthening introduces a new claim, carry the same TODO-citation placeholder rules as `elaborate`.",
+  "- `wrong` — propose a correction. If uncertain, skip and flag.",
+  "- `weak-argument` — tighten the argument; any new claim you add carries the same TODO-citation placeholder rules as `elaborate`.",
   "- `praise` — no edit; leave the line intact.",
+  "- `note` — no required edit; act only if a clear, low-risk change surfaces; otherwise leave intact.",
 ].join("\n");

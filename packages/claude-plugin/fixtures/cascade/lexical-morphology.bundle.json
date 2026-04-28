@@ -10,7 +10,7 @@
     "kind": "writer",
     "categories": [
       { "slug": "rephrase", "label": "rephrase" },
-      { "slug": "unclear", "label": "unclear" },
+      { "slug": "elaborate", "label": "elaborate" },
       { "slug": "praise", "label": "praise" }
     ]
   },

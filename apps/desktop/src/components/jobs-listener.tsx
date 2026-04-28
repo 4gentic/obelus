@@ -458,7 +458,7 @@ async function emitPlanStats(
     }
     const blocks = parsed.data.blocks;
     const byCategory: PlanStatsByCategoryShape = {
-      unclear: 0,
+      rephrase: 0,
       wrong: 0,
       praise: 0,
       cascade: 0,

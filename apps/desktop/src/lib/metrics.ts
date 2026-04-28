@@ -89,7 +89,7 @@ const TaskCallEvent = z.object({
 });
 
 export const PLAN_STATS_CATEGORIES = [
-  "unclear",
+  "rephrase",
   "wrong",
   "praise",
   "cascade",
@@ -98,7 +98,7 @@ export const PLAN_STATS_CATEGORIES = [
 ] as const;
 
 const PlanStatsByCategory = z.object({
-  unclear: z.number().int().nonnegative(),
+  rephrase: z.number().int().nonnegative(),
   wrong: z.number().int().nonnegative(),
   praise: z.number().int().nonnegative(),
   cascade: z.number().int().nonnegative(),

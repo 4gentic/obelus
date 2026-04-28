@@ -306,7 +306,9 @@
 
 .review-pane__item-head {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: var(--space-3);
   font-family: var(--font-mono);
   font-size: var(--step--1);
   color: var(--ink-soft);
@@ -314,28 +316,15 @@
   letter-spacing: 0.04em;
 }
 
+.review-pane__item-head-left {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
 .review-pane__item-link {
   color: var(--rubric);
-}
-
-.review-pane__item .catpick__legend {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.review-pane__item .catpick {
-  gap: var(--space-1);
-}
-
-.review-pane__item .catpick__chip {
-  padding: 2px var(--space-2);
 }
 
 .review-pane__item-quotes {
@@ -435,7 +424,7 @@
 }
 
 .review-pane__next-cmd[data-copied="true"] .review-pane__next-hint {
-  color: var(--hl-cite);
+  color: var(--hl-elaborate);
 }
 
 @media (max-width: 900px) {

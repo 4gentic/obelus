@@ -17,7 +17,7 @@ function plainInput(overrides: { note?: string; quote?: string } = {}): PromptIn
     annotations: [
       {
         id: "550e8400-e29b-41d4-a716-446655440001",
-        category: "unclear",
+        category: "elaborate",
         quote: overrides.quote ?? "The results were good.",
         contextBefore: "prior ",
         contextAfter: " next",

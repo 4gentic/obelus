@@ -7,7 +7,7 @@ const createdAt = "2026-04-19T12:00:00.000Z";
 function pdfRow(id: string): HtmlMapRow {
   return {
     id,
-    category: "unclear",
+    category: "elaborate",
     quote: "q",
     contextBefore: "",
     contextAfter: "",
@@ -26,7 +26,7 @@ function pdfRow(id: string): HtmlMapRow {
 function sourceRow(id: string, file: string): HtmlMapRow {
   return {
     id,
-    category: "unclear",
+    category: "elaborate",
     quote: "q",
     contextBefore: "",
     contextAfter: "",
@@ -40,7 +40,7 @@ function sourceRow(id: string, file: string): HtmlMapRow {
 function htmlRow(id: string, file: string, withHint: boolean): HtmlMapRow {
   return {
     id,
-    category: "unclear",
+    category: "elaborate",
     quote: "q",
     contextBefore: "",
     contextAfter: "",
@@ -120,7 +120,7 @@ describe("mapHtmlAnnotations", () => {
   it("maps html-element rows through unchanged", () => {
     const row: HtmlMapRow = {
       id: "img-1",
-      category: "unclear",
+      category: "elaborate",
       quote: "diagram of pier",
       contextBefore: "",
       contextAfter: "",
@@ -146,7 +146,7 @@ describe("mapHtmlAnnotations", () => {
   it("preserves sourceHint on html-element rows", () => {
     const row: HtmlMapRow = {
       id: "img-2",
-      category: "unclear",
+      category: "elaborate",
       quote: "alt text",
       contextBefore: "",
       contextAfter: "",

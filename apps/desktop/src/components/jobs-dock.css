@@ -98,11 +98,11 @@
 }
 
 .jobs-dock__seg--ingesting {
-  box-shadow: inset 0 2px 0 var(--hl-unclear);
+  box-shadow: inset 0 2px 0 var(--hl-find);
 }
 
 .jobs-dock__seg--done {
-  box-shadow: inset 0 2px 0 var(--hl-cite);
+  box-shadow: inset 0 2px 0 var(--hl-elaborate);
 }
 
 .jobs-dock__seg--error {

@@ -9,8 +9,8 @@
     "label": "attention-survey-html-paired",
     "kind": "reviewer",
     "categories": [
-      { "slug": "unclear", "label": "unclear" },
-      { "slug": "citation-needed", "label": "citation needed", "color": "#B84A2E" },
+      { "slug": "elaborate", "label": "elaborate" },
+      { "slug": "weak-argument", "label": "weak argument", "color": "#B84A2E" },
       { "slug": "praise", "label": "praise" }
     ],
     "main": "sample.md"
@@ -28,7 +28,7 @@
     {
       "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       "paperId": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5e90",
-      "category": "unclear",
+      "category": "elaborate",
       "quote": "most production systems still truncate or chunk their inputs",
       "contextBefore": "This cost dominates training budgets for context windows beyond about sixteen thousand tokens, and is the reason ",
       "contextAfter": ".",
@@ -54,7 +54,7 @@
     {
       "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
       "paperId": "8a1c2f3e-4b5d-4a6f-9e7c-1a2b3c4d5e90",
-      "category": "citation-needed",
+      "category": "weak-argument",
       "quote": "A more balanced evaluation would weight retrieval-heavy tasks more heavily than is currently standard.",
       "contextBefore": "benchmarks that do not stress long-range retrieval. ",
       "contextAfter": "",

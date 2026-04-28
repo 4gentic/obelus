@@ -2,6 +2,7 @@ import type { AnnotationRow, PaperRubric } from "@obelus/repo";
 import type { DraftInput } from "@obelus/review-store";
 import { useEffect, useMemo, useRef, useState } from "react";
 import CategoryPicker from "./CategoryPicker";
+import CategorySelect from "./CategorySelect";
 import NoteEditor from "./NoteEditor";
 import RubricPanel from "./RubricPanel";
 import "./ReviewPane.css";
@@ -125,18 +126,20 @@ function AnnotationItem({
       data-kind={entry.kind}
     >
       <header className="review-pane__item-head">
-        <span className="review-pane__item-page">{locLabel}</span>
+        <div className="review-pane__item-head-left">
+          <span className="review-pane__item-page">{locLabel}</span>
+          <CategorySelect
+            value={category}
+            onChange={(c) => void onUpdateCategory(first.id, c)}
+            ariaLabel={`Change category for mark at ${locLabel}`}
+          />
+        </div>
         {entry.kind === "group" ? (
           <span className="review-pane__item-link" title="Linked across pages">
             {"⇄"}
           </span>
         ) : null}
       </header>
-      <CategoryPicker
-        name={`cat-${first.id}`}
-        value={category}
-        onChange={(c) => void onUpdateCategory(first.id, c)}
-      />
       {quoteNodes}
       <NoteEditor
         value={local}

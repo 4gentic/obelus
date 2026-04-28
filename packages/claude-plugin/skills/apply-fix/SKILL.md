@@ -122,7 +122,7 @@ Plan at `<workspace>/plan-20260423-143012.md` with three blocks (one valid, one 
 ```
 [stdout]
 Would apply (1):
-  main.tex:142 — citation-needed (550e8400-...-440001)
+  main.tex:142 — elaborate (550e8400-...-440001)
   @@ -142,1 +142,1 @@
   - as shown by Vaswani et al.
   + as shown by Vaswani et al.~\cite{TODO}
@@ -140,7 +140,7 @@ No `Edit` tool calls happened. The summary file describes the planned actions so
 
 ## Worked example — Typst compile verify
 
-Plan's companion JSON sets `format: "typst"`, `entrypoint: "main.typ"`. Step 2 applies one `citation-needed` edit at `main.typ:42`, inserting a stale `@smith` cite that no `.bib` entry defines. The plan itself was valid; the source tree shifted under it (a reviewer renamed the bib key after the plan was written). Step 4 runs:
+Plan's companion JSON sets `format: "typst"`, `entrypoint: "main.typ"`. Step 2 applies one `elaborate` edit at `main.typ:42`, inserting a stale `@smith` cite that no `.bib` entry defines. The plan itself was valid; the source tree shifted under it (a reviewer renamed the bib key after the plan was written). Step 4 runs:
 
 ```
 $ typst --version
@@ -163,7 +163,7 @@ Summary:
 ```md
 Mode: applied
 Applied: 1
-  main.typ:42 — citation-needed (550e8400-...-440042)
+  main.typ:42 — elaborate (550e8400-...-440042)
 Refused (out of scope): 0
 Skipped (ambiguous): 0
 Skipped (stale): 0

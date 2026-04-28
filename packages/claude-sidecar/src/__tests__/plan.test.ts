@@ -8,7 +8,7 @@ function block(overrides: Partial<Record<string, unknown>> = {}): unknown {
   return {
     annotationIds: [USER_ID],
     file: "intro.tex",
-    category: "unclear",
+    category: "elaborate",
     patch: "@@ -1 +1 @@\n-old\n+new\n",
     ambiguous: false,
     reviewerNotes: "",
@@ -98,7 +98,7 @@ describe("PlanBlock empty-patch invariants", () => {
 
   it("accepts an aside / flag mark with empty patch and emptyReason 'no-edit-requested'", () => {
     const parsed = PlanFile.parse(
-      envelope([block({ category: "aside", patch: "", emptyReason: "no-edit-requested" })]),
+      envelope([block({ category: "note", patch: "", emptyReason: "no-edit-requested" })]),
     );
     expect(parsed.blocks[0]?.emptyReason).toBe("no-edit-requested");
   });
@@ -142,7 +142,7 @@ describe("PlanBlock empty-patch invariants", () => {
       envelope([
         block({
           annotationIds: ["impact-abcd1234-1"],
-          category: "unclear",
+          category: "elaborate",
           patch: "",
           emptyReason: "structural-note",
           reviewerNotes: "Impact of <id>: section 3 narrowing.",
@@ -182,7 +182,7 @@ describe("PlanBlock empty-patch invariants", () => {
         envelope([
           block({
             annotationIds: ["impact-abcd1234-1"],
-            category: "unclear",
+            category: "elaborate",
             patch: "",
             emptyReason: "structural-note",
             reviewerNotes: "",
@@ -198,7 +198,7 @@ describe("PlanBlock empty-patch invariants", () => {
         envelope([
           block({
             annotationIds: ["impact-abcd1234-1"],
-            category: "unclear",
+            category: "elaborate",
             patch: "",
             emptyReason: "structural-note",
             reviewerNotes: "Section 3 still depends on the withdrawn assumption.",
@@ -214,7 +214,7 @@ describe("PlanBlock empty-patch invariants", () => {
         envelope([
           block({
             annotationIds: ["impact-abcd1234-1"],
-            category: "unclear",
+            category: "elaborate",
             patch: "",
             emptyReason: "structural-note",
             reviewerNotes: "Impact of ",
@@ -243,7 +243,7 @@ describe("PlanBlock empty-patch invariants", () => {
         envelope([
           block({
             annotationIds: ["coherence-1"],
-            category: "unclear",
+            category: "elaborate",
             patch: "",
             emptyReason: "structural-note",
             reviewerNotes: "",
@@ -258,7 +258,7 @@ describe("PlanBlock empty-patch invariants", () => {
       envelope([
         block({
           annotationIds: ["coherence-1"],
-          category: "unclear",
+          category: "elaborate",
           patch: "",
           emptyReason: "structural-note",
           reviewerNotes: "Marks ...440001 and ...440002 disagree on 'estimator' vs 'algorithm'.",

@@ -94,7 +94,7 @@ Every `quality-*` block:
 
 - `annotationIds: ["quality-<fileShort>-<k>"]` — `<fileShort>` is the basename of the target file without extension (e.g. `01-introduction` for `paper/short/01-introduction.typ`); `<k>` is 1-based within that file.
 - `file` — the proposal's target file (relative to repo root).
-- `category` — derived from the issue class: `clarity` → `unclear`, `boilerplate` → `unclear`, `citation-gap` → `citation-needed`, `weak-claim` → `weak-argument`, `rubric-drift` → `unclear`, `coverage-gap` → `unclear`.
+- `category` — pick the slug from `bundle.project.categories` that best matches the substance of the finding, consulting each entry's `description`. As guidance, not a lookup: prose-level clarity issues land in `rephrase`, missing context in `elaborate`, boilerplate that should go in `remove`, under-supported claims (including missing citations) in `weak-argument`, structural rubric gaps in `note`, coverage gaps in `elaborate`. Use judgment for anything that doesn't cleanly fit.
 - `patch` — non-empty single-hunk unified diff (`@@ -L,N +L,N @@\n- before\n+ after\n`). **Every body line, including the final one, terminates with `\n`** — that is the unified-diff format. A patch whose last line lacks `\n` is malformed.
 - `ambiguous: false`.
 - `reviewerNotes` — starts with `"Quality pass: "` and names the issue in one sentence (e.g. `"Quality pass: hedging triad ('robust, scalable, and efficient') flattens the contribution."`). Keep it under 200 characters.

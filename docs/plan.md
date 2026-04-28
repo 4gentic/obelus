@@ -155,7 +155,7 @@ PWA keeps exporting v1. Desktop exports v2. Plugin supports both via a dispatch 
 
   ```json
   { "bundleId":"…", "blocks": [
-    { "annotationId":"…", "file":"main.tex", "category":"unclear",
+    { "annotationId":"…", "file":"main.tex", "category":"elaborate",
       "patch":"@@ -42,3 +42,3 @@\n- old\n+ new\n",
       "ambiguous": false, "reviewerNotes":"…" } ] }
   ```
@@ -293,8 +293,8 @@ Replaces the review-pane column when a Claude run completes. File tree + source 
 ```css
 --diff-old-bg   : color-mix(in oklab, var(--rubric) 12%, var(--paper));
 --diff-old-rule : var(--rubric);            /* existing #B84A2E */
---diff-new-bg   : color-mix(in oklab, var(--hl-cite) 14%, var(--paper));
---diff-new-rule : var(--hl-cite);           /* existing sage */
+--diff-new-bg   : color-mix(in oklab, var(--hl-elaborate) 14%, var(--paper));
+--diff-new-rule : var(--hl-elaborate);       /* existing sage */
 ```
 
 Keystrokes (Prince-of-Persia economy, no chord > 2 keys):

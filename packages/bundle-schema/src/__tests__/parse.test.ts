@@ -8,7 +8,7 @@ const validBundle = {
     id: "00000000-0000-4000-8000-000000000001",
     label: "proj",
     kind: "writer",
-    categories: [{ slug: "unclear", label: "unclear" }],
+    categories: [{ slug: "elaborate", label: "elaborate" }],
   },
   papers: [
     {

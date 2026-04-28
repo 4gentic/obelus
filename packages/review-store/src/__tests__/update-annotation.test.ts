@@ -6,7 +6,7 @@ function makeRow(overrides: Partial<AnnotationRow> = {}): AnnotationRow {
   return {
     id: "a1",
     revisionId: "rev-1",
-    category: "unclear",
+    category: "elaborate",
     quote: "the thing",
     contextBefore: "",
     contextAfter: "",
@@ -40,8 +40,8 @@ describe("updateAnnotation", () => {
   });
 
   it("mirrors category across grouped siblings", async () => {
-    const sibA = makeRow({ id: "a", page: 1, groupId: "g1", category: "unclear" });
-    const sibB = makeRow({ id: "b", page: 2, groupId: "g1", category: "unclear" });
+    const sibA = makeRow({ id: "a", page: 1, groupId: "g1", category: "elaborate" });
+    const sibB = makeRow({ id: "b", page: 2, groupId: "g1", category: "elaborate" });
     const { repo, bulkPut } = makeRepo([sibA, sibB]);
     const useStore = createReviewStore(repo);
     await useStore.getState().load("rev-1");
@@ -104,7 +104,7 @@ describe("updateAnnotation", () => {
   });
 
   it("is a no-op for a resolved mark", async () => {
-    const row = makeRow({ id: "done", resolvedInEditId: "edit-1", category: "unclear" });
+    const row = makeRow({ id: "done", resolvedInEditId: "edit-1", category: "elaborate" });
     const { repo, bulkPut } = makeRepo([row]);
     const useStore = createReviewStore(repo);
     await useStore.getState().load("rev-1");
@@ -112,6 +112,6 @@ describe("updateAnnotation", () => {
     await useStore.getState().updateAnnotation("done", { category: "rephrase" });
 
     expect(bulkPut).not.toHaveBeenCalled();
-    expect(useStore.getState().annotations[0]?.category).toBe("unclear");
+    expect(useStore.getState().annotations[0]?.category).toBe("elaborate");
   });
 });

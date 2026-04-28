@@ -95,12 +95,11 @@ The Obelus desktop app and other file-ingesting callers rely on this contract; d
 | `praise` | Woven into the opening paragraph |
 | `wrong` | Major comments |
 | `weak-argument` | Major comments |
-| `unclear` | Major comments (default); Minor only for a local-phrasing complaint |
+| `remove` | Major comments — name what's being cut and verify the surrounding text still reads coherently after removal |
+| `improve` | Major comments (forward-looking opportunity, not a defect) |
+| `elaborate` | Major comments — surface what the reader still needs and write the addition |
 | `rephrase` | Minor comments |
-| `citation-needed` | Minor comments |
-| `enhancement` | Major comments (forward-looking suggestion — an opportunity, not a defect) |
-| `aside` | Minor comments (may be omitted if nothing actionable surfaces) |
-| `flag` | Minor comments (may be omitted if nothing actionable surfaces) |
+| `note` | Minor comments (may be omitted if nothing actionable surfaces) |
 | *(anything else)* | Minor comments |
 <!-- /@prompts:category-map -->
 
@@ -192,7 +191,7 @@ Four natural / unnatural pairs:
 
 ## Worked example — praise-only bundle
 
-Bundle holds three `praise` marks on the introduction, the contribution, and the discussion. There are no `wrong`, `weak-argument`, `unclear`, `rephrase`, or `citation-needed` marks. The full file is the heading plus an opening paragraph that folds the praise in:
+Bundle holds three `praise` marks on the introduction, the contribution, and the discussion. There are no `wrong`, `weak-argument`, `remove`, `elaborate`, `improve`, `rephrase`, or `note` marks. The full file is the heading plus an opening paragraph that folds the praise in:
 
 ```md
 # Review · Contrastive Training Objectives Revisited
@@ -204,7 +203,7 @@ No `## Major comments` heading, no `## Minor comments` heading. A praise-only le
 
 ## Worked example — typical bundle
 
-Bundle holds one `weak-argument` mark on §4 (PDF-anchored, page 5), one `citation-needed` mark on the introduction (source-anchored, `main.tex:12`), and two `praise` marks woven into the opening:
+Bundle holds one `weak-argument` mark on §4 (PDF-anchored, page 5), one `note` mark on the introduction (source-anchored, `main.tex:12`), and two `praise` marks woven into the opening:
 
 ```md
 # Review · Contrastive Training Objectives Revisited
@@ -217,10 +216,10 @@ The paper proposes a contrastive training objective and reports gains on three b
 
 ## Minor comments
 
-- main.tex:12: "the dot-product attention operator of Vaswani et al." needs a proper citation — `\cite{vaswani2017attention}` or the venue's equivalent.
+- main.tex:12: "the dot-product attention operator of Vaswani et al." would benefit from an explicit reference — `\cite{vaswani2017attention}` or the venue's equivalent — to ground the comparison.
 ```
 
-The opening folds in the two `praise` marks without a `## Strengths` heading; the `weak-argument` mark becomes one Major paragraph keyed by `(p. 5)`; the `citation-needed` mark becomes one Minor item keyed by its source locator.
+The opening folds in the two `praise` marks without a `## Strengths` heading; the `weak-argument` mark becomes one Major paragraph keyed by `(p. 5)`; the `note` mark becomes one Minor item keyed by its source locator.
 
 ## Minimal compliant turn
 

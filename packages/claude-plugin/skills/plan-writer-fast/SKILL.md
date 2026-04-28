@@ -124,9 +124,9 @@ several marks.
 
 - **Independent sections.** Marks in genuinely different paragraphs or
   sections with no thematic overlap.
-- **Mixed intent at one site.** A `praise` mark and an `unclear` mark on the
+- **Mixed intent at one site.** A `praise` mark and a `rephrase` mark on the
   same paragraph: emit two blocks — the praise block carries an empty patch
-  with `emptyReason: "praise"`; the unclear block carries the rewrite.
+  with `emptyReason: "praise"`; the rephrase block carries the rewrite.
 
 **Annotation-id list per block.** A merged block's `annotationIds` array
 carries every mark id whose intent the diff satisfies, in a stable order
@@ -141,7 +141,7 @@ satisfy it; emit one block per coherent edit with `annotationIds:
 ["directive-<paperShort>-<k>"]`, where `<paperShort>` is the first 8
 characters of the paper id (strip dashes if UUID-shaped) and `<k>` is 1-based
 within that paper. Same single-hunk patch shape, same `\n`-terminator rule,
-same compile-aware constraint as user-mark blocks. `category: "unclear"`
+same compile-aware constraint as user-mark blocks. `category: "note"`
 (the default mapping for free-form directives), `ambiguous: false`,
 `emptyReason: null`, `reviewerNotes: "Directive: <one-sentence summary of
 what this block does for the directive>."`. The directive text itself is
@@ -157,27 +157,25 @@ run (collision guard — drop the colliding directive silently).
 Categories follow the same rules as `plan-fix`:
 
 <!-- @prompts:edit-shape -->
-- `unclear` — rewrite for clarity; preserve every factual claim.
-- `wrong` — propose a correction. If uncertain, skip and flag.
-- `weak-argument` — tighten the argument; any new claim you add must carry a `TODO` citation placeholder (same format-specific forms as `citation-needed` below).
-- `citation-needed` — insert a format-appropriate **compilable** placeholder: `\cite{TODO}` in LaTeX, `[@TODO]` in Markdown, `#emph[(citation needed)]` in Typst, `<cite>(citation needed)</cite>` in HTML. Do not invent references, and do not emit `@TODO` or `#cite(TODO)` in Typst — both forms resolve to a bibliography key and fail to compile when no matching entry exists. In HTML, do not invent an `<a href>` target; `<cite>` keeps the placeholder semantic and the user can swap it for a proper reference later.
+- `remove` — delete the passage. Check no surrounding sentence references it; smooth any transition that becomes abrupt.
+- `elaborate` — add the missing detail or unpacking. Any new claim you introduce must carry a format-appropriate `TODO` citation placeholder: `\cite{TODO}` (LaTeX), `[@TODO]` (Markdown), `#emph[(citation needed)]` (Typst), `<cite>(citation needed)</cite>` (HTML). Do not invent references, and do not emit `@TODO` or `#cite(TODO)` in Typst — both resolve to bibliography keys and fail to compile when no matching entry exists.
 - `rephrase` — reshape the sentence without changing its claim.
+- `improve` — strengthen this passage. If the strengthening introduces a new claim, carry the same TODO-citation placeholder rules as `elaborate`.
+- `wrong` — propose a correction. If uncertain, skip and flag.
+- `weak-argument` — tighten the argument; any new claim you add carries the same TODO-citation placeholder rules as `elaborate`.
 - `praise` — no edit; leave the line intact.
+- `note` — no required edit; act only if a clear, low-risk change surfaces; otherwise leave intact.
 <!-- /@prompts:edit-shape -->
 
-Writer-mode bundles also carry these:
+For a `note` mark whose body did not ask for an edit, emit `patch: ""` with `emptyReason: "no-edit-requested"` and put the note's substance into `reviewerNotes`. If the note explicitly asks for an edit, do it (non-empty patch, `emptyReason: null`).
 
-- `enhancement` — author-facing forward-looking suggestion. Default to the `unclear` treatment (rewrite for clarity / strengthen the passage); the note's `body` is the author's directive, follow it.
-- `aside` — context the author left for the AI. Often does not need an edit; emit `patch: ""` with `emptyReason: "no-edit-requested"` and put the note's substance into `reviewerNotes`. If the note explicitly asks for an edit, do it (non-empty patch, `emptyReason: null`).
-- `flag` — pointer for the AI. Same handling as `aside`.
-
-For unknown category slugs (the bundle's `project.categories` is free-form), default to `unclear`.
+For unknown category slugs (the bundle's `project.categories` is free-form), default to `note`.
 
 When the merged block's contributing marks span multiple categories, pick the
 most edit-demanding category for the block's `category` field (rough
-priority: `wrong` → `weak-argument` → `unclear`/`rephrase` → `enhancement` →
-`citation-needed` → `aside`/`flag` → `praise`). The `reviewerNotes`
-summarises which marks contributed.
+priority: `wrong` → `weak-argument` → `remove` → `elaborate`/`improve` →
+`rephrase` → `note` → `praise`). The `reviewerNotes` summarises which marks
+contributed.
 
 **Edit constraints:**
 
@@ -204,17 +202,15 @@ not as a diff row). The empty case **must** declare its reason:
 - `emptyReason: "praise"` — the reviewer praised the passage; no change
   warranted. `patch: ""`, `ambiguous: false`, the reviewer's note quoted
   in `reviewerNotes`.
-- `emptyReason: "no-edit-requested"` — an `aside` or `flag` whose note did
-  not ask for an edit. `patch: ""`, `ambiguous: false`, the note in
-  `reviewerNotes`.
+- `emptyReason: "no-edit-requested"` — a `note` whose body did not ask for
+  an edit. `patch: ""`, `ambiguous: false`, the note in `reviewerNotes`.
 - `emptyReason: "ambiguous"` — the source span could not be located (PDF /
   HTML anchor not pre-resolved, or quote no longer matches). `patch: ""`,
   `ambiguous: true`, an explanation in `reviewerNotes`.
 
-If a category demands an edit (`unclear` / `wrong` / `weak-argument` /
-`citation-needed` / `rephrase` / `enhancement`) and you cannot produce one,
-prefer `emptyReason: "ambiguous"` with a one-sentence reviewerNotes
-explanation. Do **not** emit a non-empty patch with `ambiguous: true`; do
+If a category demands an edit (`remove` / `elaborate` / `rephrase` /
+`improve` / `wrong` / `weak-argument`) and you cannot produce one, prefer
+`emptyReason: "ambiguous"` with a one-sentence reviewerNotes explanation. Do **not** emit a non-empty patch with `ambiguous: true`; do
 **not** emit an empty patch with `emptyReason: null`. The desktop's plan
 validator rejects either combination.
 
@@ -248,7 +244,7 @@ Rules:
 - One block per *edit*, in bundle order.
 - `annotationIds` is a non-empty array of strings. A merged block carries every mark id its diff satisfies, in stable order.
 - `format` and `entrypoint` are required strings — empty string `""` when not determinable, never missing keys.
-- `patch` is a single-hunk unified diff (`@@ -L,N +L,N @@\n- before\n+ after\n`) **terminated with `\n`**. Empty string when no edit (`praise`, `aside`/`flag` with no requested edit, `ambiguous: true`).
+- `patch` is a single-hunk unified diff (`@@ -L,N +L,N @@\n- before\n+ after\n`) **terminated with `\n`**. Empty string when no edit (`praise`, `note` with no requested edit, `ambiguous: true`).
 - Every body line in the patch ends with `\n` — that is the unified-diff format. A patch missing the final `\n` corrupts the apply step. **Scan each `blocks[i].patch` before writing; if the last character is not `\n`, append one.**
 - `reviewerNotes` is an empty string for writer-fast unless `ambiguous: true` or the block has a non-null `emptyReason` (in which case it carries the explanation). The Rigorous path is what populates `reviewerNotes` from the `paper-reviewer` subagent.
 - `emptyReason` is `null` when `patch !== ""` and one of `"praise"` / `"ambiguous"` / `"no-edit-requested"` when `patch === ""`. The desktop's Zod validator rejects mismatches.

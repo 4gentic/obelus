@@ -12,27 +12,25 @@ type Props = {
 };
 
 const categoryVar: Record<Category, string> = {
-  unclear: "--hl-unclear",
+  remove: "--hl-remove",
+  elaborate: "--hl-elaborate",
+  rephrase: "--hl-rephrase",
+  improve: "--hl-improve",
   wrong: "--hl-wrong",
   "weak-argument": "--hl-weak",
-  "citation-needed": "--hl-cite",
-  rephrase: "--hl-rephrase",
   praise: "--hl-praise",
-  enhancement: "--hl-enhancement",
-  aside: "--hl-aside",
-  flag: "--hl-flag",
+  note: "--hl-note",
 };
 
 const categoryLabel: Record<Category, string> = {
-  unclear: "unclear",
+  remove: "remove",
+  elaborate: "elaborate",
+  rephrase: "rephrase",
+  improve: "improve",
   wrong: "wrong",
   "weak-argument": "weak argument",
-  "citation-needed": "citation needed",
-  rephrase: "rephrase",
   praise: "praise",
-  enhancement: "enhancement",
-  aside: "aside",
-  flag: "flag",
+  note: "note",
 };
 
 function isCategory(value: string): value is Category {
@@ -40,7 +38,7 @@ function isCategory(value: string): value is Category {
 }
 
 export default function MarginNote({ annotation, top, onSelect, onRef }: Props): JSX.Element {
-  const cat: Category = isCategory(annotation.category) ? annotation.category : "unclear";
+  const cat: Category = isCategory(annotation.category) ? annotation.category : "note";
   const token = categoryVar[cat];
   const hasThread = annotation.thread.length > 0;
   return (

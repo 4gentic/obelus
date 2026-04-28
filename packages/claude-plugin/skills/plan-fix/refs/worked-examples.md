@@ -10,7 +10,7 @@ One annotation, end to end. Input (a single mark in the bundle):
 
 ```
 id: 550e8400-e29b-41d4-a716-446655440001
-category: citation-needed
+category: elaborate
 quote: "as shown by Vaswani et al."
 note: "needs full citation"
 anchor: { file: "main.tex", lineStart: 142, lineEnd: 142 }   # pre-resolved by the desktop
@@ -27,7 +27,7 @@ The matching `<workspace>/plan-20260423-143012.json` (top-level envelope plus th
     {
       "annotationIds": ["550e8400-e29b-41d4-a716-446655440001"],
       "file": "main.tex",
-      "category": "citation-needed",
+      "category": "elaborate",
       "patch": "@@ -142,1 +142,1 @@\n- as shown by Vaswani et al.\n+ as shown by Vaswani et al.~\\cite{TODO}\n",
       "ambiguous": false,
       "reviewerNotes": "The edit addresses the note by inserting a placeholder rather than guessing a key, and it does not introduce a new claim.",
@@ -45,7 +45,7 @@ Same shape, different format. Input:
 
 ```
 id: 550e8400-e29b-41d4-a716-446655440042
-category: citation-needed
+category: elaborate
 quote: "as shown by Vaswani et al."
 note: "needs full citation"
 anchor: { file: "main.typ", lineStart: 42, lineEnd: 42 }
@@ -62,7 +62,7 @@ JSON (top-level envelope plus the one block) — note `format: "typst"` and `ent
     {
       "annotationIds": ["550e8400-e29b-41d4-a716-446655440042"],
       "file": "main.typ",
-      "category": "citation-needed",
+      "category": "elaborate",
       "patch": "@@ -42,1 +42,1 @@\n- as shown by Vaswani et al.\n+ as shown by Vaswani et al. #emph[(citation needed)]\n",
       "ambiguous": false,
       "reviewerNotes": "The edit addresses the note by inserting a placeholder that keeps the file compilable, and it does not introduce a new claim.",
@@ -76,7 +76,7 @@ JSON (top-level envelope plus the one block) — note `format: "typst"` and `ent
 
 ## Worked example — holistic merge
 
-The reviewer marked an abstract three times: two specific phrasings inside it (one `unclear`, one `rephrase`) and one `enhancement` on the whole abstract whose note says "too long, tighten — keep contribution + result, drop related-work paragraph". The planner emits **one** block whose `annotationIds` lists all three marks; the rewrite tightens the abstract while honouring both phrasing concerns.
+The reviewer marked an abstract three times: two specific phrasings inside it (one `elaborate`, one `rephrase`) and one `improve` on the whole abstract whose note says "too long, tighten — keep contribution + result, drop related-work paragraph". The planner emits **one** block whose `annotationIds` lists all three marks; the rewrite tightens the abstract while honouring both phrasing concerns.
 
 JSON block:
 
@@ -88,7 +88,7 @@ JSON block:
     "660e8400-e29b-41d4-a716-446655440002"
   ],
   "file": "paper.tex",
-  "category": "enhancement",
+  "category": "improve",
   "patch": "@@ -10,5 +10,4 @@\n- Abstract\n-\n- We propose a new method. ...\n+ Abstract\n+\n+ We present a contrastive training objective that ...\n",
   "ambiguous": false,
   "reviewerNotes": "paper-reviewer critique here.",

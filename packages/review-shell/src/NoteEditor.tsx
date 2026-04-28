@@ -11,11 +11,12 @@ type Props = {
   disabled?: boolean;
 };
 
-// Grows with content up to its 240px max via CSS; we reset scrollHeight on
-// every change so the textarea matches the text, no layout shift at steady state.
+// Auto-grows with content; preserves any height the user has dragged to.
 function resize(el: HTMLTextAreaElement): void {
+  const current = el.offsetHeight;
   el.style.height = "auto";
-  el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  const natural = el.scrollHeight;
+  el.style.height = `${Math.max(current, Math.min(natural, 480))}px`;
 }
 
 export default function NoteEditor({

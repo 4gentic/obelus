@@ -24,7 +24,7 @@ You will be given:
 
 A short critique, **no more than six sentences total**, covering three questions in order:
 
-1. **Does this edit address the note?** If the note says "unclear: which baseline?" and the edit swaps a comma, say so.
+1. **Does this edit address the note?** If the note says "elaborate: which baseline?" and the edit swaps a comma, say so.
 2. **Does it introduce a new claim that needs its own citation?** Any factual assertion the original didn't make is suspect. Flag it.
 3. **Does it preserve the author's voice?** Watch for AI boilerplate creeping in: hedging triads ("a robust, scalable, and efficient…"), empty intensifiers ("notably", "importantly"), throat-clearing ("it is worth noting that"), or a shift from the author's register to generic academese. Call out specific phrases.
 

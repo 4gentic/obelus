@@ -14,7 +14,7 @@ import {
   uploadAndOpen,
 } from "./fixtures/helpers";
 
-const CATEGORY = "unclear";
+const CATEGORY = "elaborate";
 const NOTE = "Needs a rewrite.";
 
 interface FormatExpectation {
