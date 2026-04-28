@@ -171,6 +171,21 @@ function snapshotPage(
   return { pageIndex, firstIntersectedItem: first, lastIntersectedItem: last };
 }
 
+function findScrollAncestor(el: HTMLElement): HTMLElement {
+  let cur: HTMLElement | null = el.parentElement;
+  while (cur) {
+    const style = cur.ownerDocument?.defaultView?.getComputedStyle(cur);
+    const overflow = (style?.overflowY ?? "") + (style?.overflowX ?? "");
+    if (/(auto|scroll|overlay)/.test(overflow)) return cur;
+    cur = cur.parentElement;
+  }
+  return (
+    (el.ownerDocument?.scrollingElement as HTMLElement | null) ??
+    el.ownerDocument?.documentElement ??
+    el
+  );
+}
+
 export default function SelectionListener({
   onAnchor,
   panMode = false,
@@ -211,8 +226,7 @@ export default function SelectionListener({
     const host = hostRef.current;
     if (!host) return;
     const adapter = host.closest<HTMLElement>(".pdf-adapter");
-    const scroll = host.closest<HTMLElement>(".review-shell__scroll");
-    if (!scroll) return;
+    const scroll = findScrollAncestor(host);
 
     let active = false;
     let originX = 0;
