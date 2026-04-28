@@ -69,9 +69,22 @@
   user-select: text;
 }
 
+/* The native browser Range drifts past the user's drag in the absolutely-
+   positioned PDF text layer, so the geometric draft-rect overlay is the
+   authoritative visualisation once a gesture commits. We let the native paint
+   appear *only* during the active drag (`data-selecting="true"` set by
+   SelectionListener for the lifetime of a mousedown→mouseup gesture) — its
+   transient inaccuracy beats showing nothing — and re-hide it on release so
+   it can't double up under the committed draft rect. */
 .pdf-page__text::selection,
 .pdf-page__text ::selection {
   background: transparent;
+  color: transparent;
+}
+
+.pdf-adapter[data-selecting="true"] .pdf-page__text::selection,
+.pdf-adapter[data-selecting="true"] .pdf-page__text ::selection {
+  background: color-mix(in srgb, var(--rubric) 28%, transparent);
   color: transparent;
 }
 

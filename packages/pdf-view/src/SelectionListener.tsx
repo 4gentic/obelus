@@ -263,6 +263,7 @@ export default function SelectionListener({
     if (panMode) return;
     const host = hostRef.current;
     if (!host) return;
+    const adapter = host.closest<HTMLElement>(".pdf-adapter");
 
     // Only treat mouseup as a selection if the gesture *started* inside the PDF
     // host. Otherwise clicking UI in the review pane (e.g., Discard) while an
@@ -276,6 +277,9 @@ export default function SelectionListener({
       if (started) {
         downX = ev.clientX;
         downY = ev.clientY;
+        // Lift the CSS gate that suppresses the native ::selection paint so
+        // the user can see what they're sweeping. Cleared on mouseup below.
+        adapter?.setAttribute("data-selecting", "true");
       }
     };
 
@@ -284,6 +288,7 @@ export default function SelectionListener({
     const handler = (ev: MouseEvent): void => {
       if (!started) return;
       started = false;
+      adapter?.removeAttribute("data-selecting");
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
@@ -360,6 +365,7 @@ export default function SelectionListener({
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("mouseup", handler);
+      adapter?.removeAttribute("data-selecting");
     };
   }, [onAnchor, panMode]);
 
