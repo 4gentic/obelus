@@ -51,7 +51,8 @@
       "../../../packages/claude-plugin/.claude-plugin": "plugin/.claude-plugin"
     },
     "macOS": {
-      "minimumSystemVersion": "12.0"
+      "minimumSystemVersion": "12.0",
+      "signingIdentity": "-"
     }
   },
   "plugins": {
