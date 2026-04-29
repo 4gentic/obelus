@@ -7,6 +7,7 @@ import type { JSX } from "react";
 type Props = {
   annotation: AnnotationRow;
   top: number;
+  focused?: boolean;
   onSelect?: (id: string) => void;
   onRef?: (id: string, el: HTMLElement | null) => void;
 };
@@ -37,15 +38,20 @@ function isCategory(value: string): value is Category {
   return value in categoryVar;
 }
 
-export default function MarginNote({ annotation, top, onSelect, onRef }: Props): JSX.Element {
+export default function MarginNote({
+  annotation,
+  top,
+  focused,
+  onSelect,
+  onRef,
+}: Props): JSX.Element {
   const cat: Category = isCategory(annotation.category) ? annotation.category : "note";
   const token = categoryVar[cat];
-  const hasThread = annotation.thread.length > 0;
   return (
     <button
       type="button"
       className="margin-note"
-      data-has-thread={hasThread ? "true" : "false"}
+      data-focused={focused ? "true" : undefined}
       style={{ top, ["--chip-color" as string]: `var(${token})` }}
       onClick={() => onSelect?.(annotation.id)}
       ref={(el) => onRef?.(annotation.id, el)}
@@ -53,23 +59,7 @@ export default function MarginNote({ annotation, top, onSelect, onRef }: Props):
       <span className="margin-note__chip cat-tooltip" data-cat-tooltip={descriptionFor(cat)}>
         {categoryLabel[cat]}
       </span>
-      <span className="margin-note__body">
-        {annotation.note.length > 0 ? annotation.note : <em>(no note)</em>}
-      </span>
-      <svg
-        className="margin-note__underline"
-        viewBox="0 0 160 6"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M2 4 C 28 1, 54 5, 82 3 S 138 2, 158 4"
-          fill="none"
-          stroke="var(--chip-color)"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-        />
-      </svg>
+      <span className="margin-note__body">{annotation.note}</span>
     </button>
   );
 }

@@ -1,12 +1,12 @@
-.review-shell__gutter .margin-note {
+.margin-note {
   position: absolute;
   left: 0;
   right: 0;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  align-items: flex-start;
-  padding: var(--space-2) var(--space-3);
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
   margin: 0;
   background: transparent;
   border: none;
@@ -19,11 +19,20 @@
   transition: transform 120ms linear;
 }
 
-.review-shell__gutter .margin-note:hover {
+.margin-note:hover {
   transform: translateY(-2px);
 }
 
-.review-shell__gutter .margin-note__chip {
+.margin-note:focus-visible {
+  outline: none;
+}
+
+.margin-note[data-focused="true"] {
+  border-left-color: var(--rubric);
+}
+
+.margin-note__chip {
+  flex: 0 0 auto;
   font-family: var(--font-mono);
   font-size: var(--step--1);
   color: var(--ink-soft);
@@ -31,35 +40,14 @@
   letter-spacing: 0.04em;
 }
 
-.review-shell__gutter .margin-note__body {
+.margin-note__body {
+  flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--font-body);
   font-size: var(--step-0);
   line-height: 1.5;
   color: var(--ink);
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
-  position: relative;
-}
-
-.review-shell__gutter .margin-note[data-has-thread="true"] .margin-note__body::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  border-top: 2px solid var(--rubric);
-  opacity: 0.55;
-}
-
-.review-shell__gutter .margin-note__underline {
-  width: 100%;
-  height: 6px;
-  opacity: 0;
-  transition: opacity 120ms linear;
-}
-
-.review-shell__gutter .margin-note:hover .margin-note__underline {
-  opacity: 0.85;
+  text-overflow: ellipsis;
 }

@@ -52,9 +52,9 @@ describe("resolveCollisions", () => {
       ["b", 40],
     ]);
     const out = resolveCollisions(d, heights);
-    // a sits at 0, bottom at 40, so b must start at 48 (40 + NOTE_GAP(8))
+    // a sits at 0, bottom at 40, so b must start at 46 (40 + NOTE_GAP(6))
     expect(out.a).toBe(0);
-    expect(out.b).toBe(48);
+    expect(out.b).toBe(46);
   });
 
   it("cascades pushes across many close-together notes", () => {
@@ -70,8 +70,8 @@ describe("resolveCollisions", () => {
     ]);
     const out = resolveCollisions(d, heights);
     expect(out.a).toBe(0);
-    expect(out.b).toBe(58); // a bottom (50) + gap (8)
-    expect(out.c).toBe(96); // b bottom (88) + gap (8)
+    expect(out.b).toBe(56); // a bottom (50) + gap (6)
+    expect(out.c).toBe(92); // b bottom (86) + gap (6)
   });
 
   it("falls back to a safe height estimate when a ref isn't populated", () => {
@@ -82,7 +82,7 @@ describe("resolveCollisions", () => {
     const heights = new Map<string, number>();
     const out = resolveCollisions(d, heights);
     expect(out.a).toBe(0);
-    // fallback 64 + gap 8
-    expect(out.b).toBe(72);
+    // fallback 64 + gap 6
+    expect(out.b).toBe(70);
   });
 });

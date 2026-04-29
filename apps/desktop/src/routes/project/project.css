@@ -2383,48 +2383,6 @@ button.files__row {
   background: var(--paper);
 }
 
-.margin-note {
-  position: absolute;
-  left: var(--space-2);
-  right: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  border: none;
-  border-left: 2px solid var(--rule-soft);
-  background: transparent;
-  font: inherit;
-  font-size: var(--step--1);
-  text-align: left;
-  cursor: pointer;
-  transition: top 120ms ease-out;
-}
-
-.margin-note:hover,
-.margin-note:focus-visible {
-  border-left-color: var(--ink-soft);
-  outline: none;
-}
-
-.margin-note[data-focused="true"] {
-  border-left-color: var(--rubric);
-}
-
-.margin-note__cat {
-  display: block;
-  color: var(--rubric);
-  font-family: var(--font-mono);
-}
-
-.margin-note__page {
-  color: var(--ink-soft);
-  font-family: var(--font-mono);
-}
-
-.margin-note__body {
-  display: block;
-  margin: var(--space-1) 0 0 0;
-  color: var(--ink-soft);
-}
-
 .ask-panel {
   display: flex;
   flex-direction: column;

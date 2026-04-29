@@ -3,7 +3,7 @@ import type { JSX, Ref } from "react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import MarginNote from "./MarginNote";
 
-const NOTE_GAP = 8;
+const NOTE_GAP = 6;
 const FALLBACK_NOTE_HEIGHT = 64;
 
 type MarginGutterProps = {
@@ -54,6 +54,7 @@ export default function MarginGutter({
   const desiredNotes = useMemo<DesiredNote[]>(() => {
     const out: DesiredNote[] = [];
     for (const row of annotations) {
+      if (row.note.length === 0) continue;
       const top = annotationTops.get(row.id);
       if (top === undefined) continue;
       out.push({ row, desiredTop: top - gutterOffsetTop });

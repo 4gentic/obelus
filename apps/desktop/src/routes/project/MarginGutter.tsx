@@ -1,5 +1,5 @@
-import { descriptionFor } from "@obelus/categories";
 import type { AnnotationRow } from "@obelus/repo";
+import { MarginNote } from "@obelus/review-shell";
 import {
   type JSX,
   useCallback,
@@ -12,31 +12,8 @@ import {
 import { useDocumentScroll } from "./document-scroll-context";
 import { useReviewStore } from "./store-context";
 
-const NOTE_GAP = 8;
+const NOTE_GAP = 6;
 const FALLBACK_NOTE_HEIGHT = 64;
-
-// Row-agnostic "where in the paper" label. Switches on the anchor's
-// discriminant. Mirrors `packages/review-shell/src/ReviewPane.tsx::locationLabel`.
-function locationLabel(row: AnnotationRow): string {
-  if (row.anchor.kind === "pdf") return `p. ${row.anchor.page}`;
-  if (row.anchor.kind === "html") {
-    if (row.anchor.sourceHint) {
-      const { lineStart, lineEnd } = row.anchor.sourceHint;
-      return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
-    }
-    const { charOffsetStart, charOffsetEnd } = row.anchor;
-    return `c${charOffsetStart}–${charOffsetEnd}`;
-  }
-  if (row.anchor.kind === "html-element") {
-    if (row.anchor.sourceHint) {
-      const { lineStart, lineEnd } = row.anchor.sourceHint;
-      return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
-    }
-    return row.anchor.file;
-  }
-  const { lineStart, lineEnd } = row.anchor;
-  return lineStart === lineEnd ? `L${lineStart}` : `L${lineStart}–${lineEnd}`;
-}
 
 interface DesiredNote {
   row: AnnotationRow;
@@ -91,6 +68,7 @@ export default function MarginGutter(): JSX.Element {
   const desiredNotes = useMemo<DesiredNote[]>(() => {
     const out: DesiredNote[] = [];
     for (const row of annotations) {
+      if (row.note.length === 0) continue;
       const top = annotationTops.get(row.id);
       if (top === undefined) continue;
       out.push({ row, desiredTop: top - scrollTop });
@@ -122,31 +100,16 @@ export default function MarginGutter(): JSX.Element {
 
   return (
     <aside className="margin-gutter" aria-label="Margin notes">
-      {desiredNotes.map(({ row, desiredTop }) => {
-        const loc = locationLabel(row);
-        const top = resolvedTops[row.id] ?? desiredTop;
-        const isFocused = focusedId === row.id;
-        return (
-          <button
-            key={row.id}
-            type="button"
-            className="margin-note"
-            data-focused={isFocused ? "true" : undefined}
-            style={{ top }}
-            onClick={() => onClickNote(row.id)}
-            ref={(el) => registerNoteRef(row.id, el)}
-          >
-            <span
-              className="margin-note__cat cat-tooltip"
-              data-cat-tooltip={descriptionFor(row.category)}
-            >
-              {row.category}
-            </span>
-            {loc !== "" ? <span className="margin-note__page">{loc}</span> : null}
-            {row.note && <span className="margin-note__body">{row.note}</span>}
-          </button>
-        );
-      })}
+      {desiredNotes.map(({ row, desiredTop }) => (
+        <MarginNote
+          key={row.id}
+          annotation={row}
+          top={resolvedTops[row.id] ?? desiredTop}
+          focused={focusedId === row.id}
+          onSelect={onClickNote}
+          onRef={registerNoteRef}
+        />
+      ))}
     </aside>
   );
 }
