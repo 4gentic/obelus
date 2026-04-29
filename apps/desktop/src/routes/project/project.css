@@ -145,6 +145,8 @@
 .project-shell__center {
   position: relative;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
   border-left: 1px solid var(--rule-soft);
   border-right: 1px solid var(--rule-soft);
   min-width: 0;
@@ -234,14 +236,12 @@
   right: 0;
 }
 
-/* Below 1280px the margin gutter eats the PDF. The Marks tab in the */
-/* review column already mirrors its content, so collapse it first. */
 @media (max-width: 1280px) {
   .project-shell__body {
-    grid-template-columns: 220px minmax(0, 1fr) 0 340px;
+    grid-template-columns: 220px minmax(0, 1fr) 220px 340px;
   }
   .project-shell__body--no-left {
-    grid-template-columns: minmax(0, 1fr) 0 340px;
+    grid-template-columns: minmax(0, 1fr) 220px 340px;
   }
   .project-shell__body--no-pdf,
   .project-shell__body--no-review {
@@ -251,19 +251,15 @@
   .project-shell__body--no-left.project-shell__body--no-review {
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
-  .project-shell__margin {
-    border: none;
-    overflow: hidden;
-  }
 }
 
 /* Below 1024px tighten the side columns so the PDF stays legible. */
 @media (max-width: 1024px) {
   .project-shell__body {
-    grid-template-columns: 180px minmax(0, 1fr) 0 300px;
+    grid-template-columns: 180px minmax(0, 1fr) 180px 300px;
   }
   .project-shell__body--no-left {
-    grid-template-columns: minmax(0, 1fr) 0 300px;
+    grid-template-columns: minmax(0, 1fr) 180px 300px;
   }
   .project-shell__body--no-pdf,
   .project-shell__body--no-review {
@@ -1163,7 +1159,8 @@ button.files__row {
 .source-pane {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .source-pane__banner {
@@ -2760,7 +2757,7 @@ button.files__row {
 .compile-pane {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
   min-height: 0;
 }
 
@@ -2806,6 +2803,8 @@ button.files__row {
 }
 
 .compile-pane__editor {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
