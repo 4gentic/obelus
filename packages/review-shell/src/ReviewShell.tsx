@@ -133,10 +133,15 @@ export default function ReviewShell({
     setGutterOffsetTop(gutterRef.current?.offsetTop ?? 0);
   }, [documentView.annotationTops]);
 
+  // Clicking a margin note focuses the mark; ReviewPane's effect on
+  // focusedAnnotationId handles the scroll. We deliberately don't call
+  // documentView.scrollToAnnotation here — the gutter and the document share a
+  // single scroll container, so a visible gutter note is already at its source
+  // line, and issuing a second smooth scroll just races the pane's
+  // scrollIntoView.
   const focusMark = (id: string): void => {
     onFocusMark(id);
     if (isMobile) setSheetOpen(true);
-    documentView.scrollToAnnotation(id);
   };
 
   return (
