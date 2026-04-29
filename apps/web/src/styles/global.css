@@ -81,11 +81,53 @@ samp {
   color: var(--ink);
 }
 
-/* On the review route, lock the outer viewport so only the PDF column and
-   the review pane scroll. Scoped via :has() so landing and other routes
+/* Paper-friendly scrollbars: invisible at rest, fade in when the pointer is
+   over the scroll container. Closest CSS-only approximation of macOS's
+   "When scrolling" overlay mode — the OS default chunky gray bars (when
+   "Always show" is set) clash with the editorial layout. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+*:hover {
+  scrollbar-color: color-mix(in srgb, var(--ink-soft) 40%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color 180ms ease-out;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--ink-soft) 32%, transparent);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--ink-soft) 55%, transparent);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* On the review route, lock the outer viewport so only the document column
+   and the review pane scroll. Scoped via :has() so landing and other routes
    keep their natural body scroll. */
-html:has(.review),
-body:has(.review) {
+html:has(.review-shell),
+body:has(.review-shell) {
   height: 100dvh;
   overflow: hidden;
 }

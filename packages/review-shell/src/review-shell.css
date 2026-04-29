@@ -21,12 +21,13 @@
     minmax(0, 1fr)
     var(--space-5)
     var(--review-shell-pane-track, fit-content(560px));
+  grid-template-rows: minmax(0, 1fr);
   gap: 0;
-  /* Single shared scroll: doc and pane move together. The page (or PDF) is
-     usually taller than the pane, so the row stretches to the doc and the
-     pane hangs at the top with sticky tabs. */
-  overflow-x: hidden;
-  overflow-y: auto;
+  /* Independent scroll columns: the doc and the pane each own their
+     scrollbar so the marks list stays parked next to whatever you're
+     reading. The grid itself does not scroll — the host viewport (locked
+     to 100dvh by the route) bounds it, and each column hits its own
+     overflow:auto. */
   background: var(--paper);
 }
 
@@ -62,6 +63,10 @@
 
 .review-shell__scroll {
   position: relative;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-5) var(--space-6);
   padding-right: calc(220px + var(--space-6));
 }
@@ -191,8 +196,11 @@
 
 .review-shell__pane {
   min-width: 340px;
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 .review-shell__label {
@@ -266,9 +274,8 @@
     z-index: 20;
     display: flex;
     flex-direction: column;
-    /* The desktop pane no longer has its own scroll (the shell scrolls
-       both columns together). The mobile sheet still needs an internal
-       scroll so the marks list doesn't escape the bottom of the sheet. */
+    /* The mobile sheet keeps its own internal scroll so the marks list
+       doesn't escape the bottom of the sheet. */
     overflow-y: auto;
     overscroll-behavior: contain;
   }

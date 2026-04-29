@@ -665,6 +665,10 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
       onUpdateCategory={props.onUpdateCategory}
       onDelete={props.onDelete}
       onDeleteGroup={props.onDeleteGroup}
+      onJumpToMark={(id) => {
+        props.onFocusMark(id);
+        documentView.scrollToAnnotation(id);
+      }}
       onRubricChange={props.onRubricChange}
       exports={props.exportsBundle}
       exportDisabled={props.exportDisabled}
