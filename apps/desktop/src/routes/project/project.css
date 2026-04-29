@@ -2387,6 +2387,9 @@ button.files__row {
   position: absolute;
   left: var(--space-2);
   right: var(--space-2);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
   border: none;
   border-left: 2px solid var(--rule-soft);
@@ -2409,19 +2412,17 @@ button.files__row {
 }
 
 .margin-note__cat {
-  display: block;
+  flex: 0 0 auto;
   color: var(--rubric);
   font-family: var(--font-mono);
 }
 
-.margin-note__page {
-  color: var(--ink-soft);
-  font-family: var(--font-mono);
-}
-
 .margin-note__body {
-  display: block;
-  margin: var(--space-1) 0 0 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--ink-soft);
 }
 
