@@ -485,18 +485,19 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    function onMousedown(ev: MouseEvent): void {
+    function onPointerDown(ev: PointerEvent): void {
+      if (!ev.isPrimary) return;
       mousedownRef.current = { x: ev.clientX, y: ev.clientY };
       pointerRef.current = { x: ev.clientX, y: ev.clientY };
     }
-    function onMouseMove(ev: MouseEvent): void {
-      // Only track while a button is held (a drag in progress). Without a
-      // button-mask gate, idle mouse movement would fire thousands of
-      // updates per minute for no benefit.
+    function onPointerMove(ev: PointerEvent): void {
+      // Skip hover moves: `buttons === 0` means no mouse button held and no
+      // touch contact. Without the gate, idle mouse movement would fire
+      // thousands of pointerRef updates per minute for no benefit.
       if (ev.buttons === 0) return;
       pointerRef.current = { x: ev.clientX, y: ev.clientY };
     }
-    function onMouseUp(ev: MouseEvent): void {
+    function onPointerUp(ev: PointerEvent): void {
       pointerRef.current = { x: ev.clientX, y: ev.clientY };
     }
     // Image clicks bypass the drag-selection path: `<img>` clicks don't
@@ -518,14 +519,14 @@ export function useMarkdownSelection(options: UseMarkdownSelectionOptions): void
       copyQuoteRef.current = result.quote;
       onSelectionRef.current(result);
     }
-    container.addEventListener("mousedown", onMousedown, true);
-    container.addEventListener("mousemove", onMouseMove, true);
-    container.addEventListener("mouseup", onMouseUp, true);
+    container.addEventListener("pointerdown", onPointerDown, true);
+    container.addEventListener("pointermove", onPointerMove, true);
+    container.addEventListener("pointerup", onPointerUp, true);
     container.addEventListener("click", onClick, true);
     return () => {
-      container.removeEventListener("mousedown", onMousedown, true);
-      container.removeEventListener("mousemove", onMouseMove, true);
-      container.removeEventListener("mouseup", onMouseUp, true);
+      container.removeEventListener("pointerdown", onPointerDown, true);
+      container.removeEventListener("pointermove", onPointerMove, true);
+      container.removeEventListener("pointerup", onPointerUp, true);
       container.removeEventListener("click", onClick, true);
     };
   }, [containerRef]);

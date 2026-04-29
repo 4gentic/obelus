@@ -154,16 +154,16 @@ export function registerTextLayer(textLayerEl: HTMLElement): () => void {
   textLayerEl.append(endOfContent);
   textLayers.set(textLayerEl, endOfContent);
 
-  const onMouseDown = (): void => {
+  const onPointerDown = (): void => {
     textLayerEl.classList.add("selecting");
     // Track this layer as active so the next selectionchange's diff can clear
     // the class if the drag ends up elsewhere.
     activeLayers.add(textLayerEl);
   };
-  textLayerEl.addEventListener("mousedown", onMouseDown);
+  textLayerEl.addEventListener("pointerdown", onPointerDown);
 
   return () => {
-    textLayerEl.removeEventListener("mousedown", onMouseDown);
+    textLayerEl.removeEventListener("pointerdown", onPointerDown);
     textLayers.delete(textLayerEl);
     activeLayers.delete(textLayerEl);
     if (endOfContent.parentNode) endOfContent.parentNode.removeChild(endOfContent);

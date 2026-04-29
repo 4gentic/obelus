@@ -2,7 +2,7 @@
 // the charter bans it for STORED highlight rects — those must use transform
 // matrices because getBoundingClientRect drifts under CSS zoom. The helpers
 // below (pagesForBand, fallbackFromPoint, snapshotPage) use it only for live
-// MOUSE-gesture geometry, resolving cursor coords to text items before any
+// pointer-gesture geometry, resolving cursor coords to text items before any
 // anchor exists. The resulting anchors are then rebuilt via transform-matrix
 // rects in packages/anchor for storage.
 
@@ -194,8 +194,8 @@ export default function SelectionListener({
   const hostRef = useRef<HTMLDivElement | null>(null);
   // The quote we computed geometrically from the user's drag — what they
   // actually selected. The native pdf.js Range gets this wrong (its boundaries
-  // can pin to a much earlier span; see the comment block in the mouseup
-  // handler), so any Cmd+C of the live Selection would copy the wrong text.
+  // can pin to a much earlier span; see the comment block in the commit
+  // body), so any Cmd+C of the live Selection would copy the wrong text.
   // The copy listener below substitutes this quote when the user copies.
   const quoteRef = useRef<string>("");
 
@@ -279,50 +279,78 @@ export default function SelectionListener({
     if (!host) return;
     const adapter = host.closest<HTMLElement>(".pdf-adapter");
 
-    // Only treat mouseup as a selection if the gesture *started* inside the PDF
-    // host. Otherwise clicking UI in the review pane (e.g., Discard) while an
-    // earlier text selection is still live fires this handler and asynchronously
-    // re-creates the draft the click just cleared.
+    // Only treat the release as a selection if the gesture *started* inside
+    // the PDF host. Otherwise clicking UI in the review pane (e.g., Discard)
+    // while an earlier text selection is still live re-fires this handler and
+    // asynchronously re-creates the draft the click just cleared.
     let started = false;
     let downX = 0;
     let downY = 0;
-    const onDown = (ev: MouseEvent): void => {
-      started = ev.target instanceof Node && host.contains(ev.target);
-      if (started) {
-        downX = ev.clientX;
-        downY = ev.clientY;
-        // Lift the CSS gate that suppresses the native ::selection paint so
-        // the user can see what they're sweeping. Cleared on mouseup below.
-        adapter?.setAttribute("data-selecting", "true");
+    // Last range we already emitted, so a stray selectionchange after a
+    // pointerup commit doesn't double-fire, and an idle stable selection
+    // doesn't re-emit on every focus/scroll-induced selectionchange.
+    let lastCommitted: Range | null = null;
+    // Touch handle-drag on iOS doesn't deliver a reliable pointerup — the OS
+    // owns the gesture. We arm a debounce timer on selectionchange and let it
+    // fire ~250ms after the last range mutation as a fallback commit.
+    let fallbackTimer: number | null = null;
+
+    const cancelFallback = (): void => {
+      if (fallbackTimer !== null) {
+        window.clearTimeout(fallbackTimer);
+        fallbackTimer = null;
       }
     };
 
-    // Listen at the document level so we still get the event even if the user
-    // releases the mouse outside the PDF column (e.g., over the Marks pane).
-    const handler = (ev: MouseEvent): void => {
-      if (!started) return;
-      started = false;
-      adapter?.removeAttribute("data-selecting");
+    // Shared commit body. `upCoords` is set when called from a real pointer
+    // gesture (downX/downY are valid); null when called from the
+    // selectionchange fallback, in which case we behave like double-click
+    // word-select — DOM Range endpoints, no geometric fallback, no word-snap.
+    const commit = (upCoords: { x: number; y: number } | null): void => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
+      if (!host.contains(range.commonAncestorContainer)) return;
+
+      if (
+        lastCommitted !== null &&
+        range.compareBoundaryPoints(Range.START_TO_START, lastCommitted) === 0 &&
+        range.compareBoundaryPoints(Range.END_TO_END, lastCommitted) === 0
+      ) {
+        return;
+      }
 
       // Snapshot endpoints SYNCHRONOUSLY before any await — see EndpointSnapshot.
-      // Prefer the mouse drag's geometric endpoints over the DOM Range. Browsers
+      // Prefer the gesture's geometric endpoints over the DOM Range. Browsers
       // misplace Range boundaries in absolutely-positioned text layers: clicking
       // inside a visual line can pin Range.start at the start of a much earlier
       // span, so the selection silently extends well past the user's drag. The
-      // mouse coords describe exactly what the user swept. For no-movement
-      // gestures (double-click word select), fall back to the DOM Range so we
-      // preserve the browser's word expansion.
+      // pointer coords describe exactly what the user swept. For no-movement
+      // gestures (double-click word select, touch handle-drag fallback), fall
+      // back to the DOM Range so we preserve the native expansion.
       const startRaw = snapshotEndpoint(range.startContainer, range.startOffset);
       const endRaw = snapshotEndpoint(range.endContainer, range.endOffset);
-      const didDrag = Math.abs(ev.clientX - downX) > 2 || Math.abs(ev.clientY - downY) > 2;
-      const startEp = didDrag ? (fallbackFromPoint(host, downX, downY) ?? startRaw) : startRaw;
-      const endEp = didDrag ? (fallbackFromPoint(host, ev.clientX, ev.clientY) ?? endRaw) : endRaw;
 
-      const topY = Math.min(downY, ev.clientY);
-      const bottomY = Math.max(downY, ev.clientY);
+      let didDrag = false;
+      let startEp = startRaw;
+      let endEp = endRaw;
+      let topY: number;
+      let bottomY: number;
+      if (upCoords !== null) {
+        didDrag = Math.abs(upCoords.x - downX) > 2 || Math.abs(upCoords.y - downY) > 2;
+        if (didDrag) {
+          startEp = fallbackFromPoint(host, downX, downY) ?? startRaw;
+          endEp = fallbackFromPoint(host, upCoords.x, upCoords.y) ?? endRaw;
+        }
+        topY = Math.min(downY, upCoords.y);
+        bottomY = Math.max(downY, upCoords.y);
+      } else {
+        // Fallback path: derive the y-band from the live range geometry.
+        const rect = range.getBoundingClientRect();
+        topY = rect.top;
+        bottomY = rect.bottom;
+      }
+
       const endpointPages: number[] = [];
       if (startEp.pageIndex !== null) endpointPages.push(startEp.pageIndex);
       if (endEp.pageIndex !== null && endEp.pageIndex !== startEp.pageIndex) {
@@ -372,13 +400,73 @@ export default function SelectionListener({
       // confirmation that the gesture landed. The copy-event override above
       // substitutes the geometric quote when they actually press Cmd+C.
       quoteRef.current = quote;
+      lastCommitted = range.cloneRange();
     };
 
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("mouseup", handler);
+    const onDown = (ev: PointerEvent): void => {
+      if (!ev.isPrimary) return;
+      started = ev.target instanceof Node && host.contains(ev.target);
+      if (started) {
+        downX = ev.clientX;
+        downY = ev.clientY;
+        // Lift the CSS gate that suppresses the native ::selection paint so
+        // the user can see what they're sweeping. Cleared on pointerup below.
+        adapter?.setAttribute("data-selecting", "true");
+      }
+    };
+
+    // Listen at the document level so we still get the event even if the user
+    // releases the pointer outside the PDF column (e.g., over the Marks pane).
+    const onUp = (ev: PointerEvent): void => {
+      cancelFallback();
+      if (!started) return;
+      started = false;
+      adapter?.removeAttribute("data-selecting");
+      commit({ x: ev.clientX, y: ev.clientY });
+    };
+
+    const onCancel = (): void => {
+      cancelFallback();
+      started = false;
+      adapter?.removeAttribute("data-selecting");
+    };
+
+    // Touch fallback: iOS / Android selection-handle drags don't always
+    // deliver pointerup. Reschedule a 250ms timer on every selectionchange;
+    // the timer commits only when no pointer gesture is in progress, which
+    // keeps desktop drags on the precise pointerup path while still capturing
+    // touch handle-drag releases.
+    const onSelectionChange = (): void => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+        cancelFallback();
+        lastCommitted = null;
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      if (!host.contains(range.commonAncestorContainer)) {
+        cancelFallback();
+        return;
+      }
+      cancelFallback();
+      fallbackTimer = window.setTimeout(() => {
+        fallbackTimer = null;
+        if (started) return;
+        adapter?.removeAttribute("data-selecting");
+        commit(null);
+      }, 250);
+    };
+
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onCancel);
+    document.addEventListener("selectionchange", onSelectionChange);
     return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("mouseup", handler);
+      cancelFallback();
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onCancel);
+      document.removeEventListener("selectionchange", onSelectionChange);
       adapter?.removeAttribute("data-selecting");
     };
   }, [onAnchor, panMode]);
