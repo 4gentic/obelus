@@ -2,6 +2,20 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.13](https://github.com/4gentic/obelus/compare/desktop-v0.1.12...desktop-v0.1.13) (2026-04-29)
+
+
+### Features
+
+* **selection:** migrate mouse events to pointer events for touch support ([#139](https://github.com/4gentic/obelus/issues/139)) ([b557fe9](https://github.com/4gentic/obelus/commit/b557fe9106027cbfc9c15e66f33fa03ad9f85af9))
+
+
+### Bug Fixes
+
+* **desktop:** ad-hoc sign macOS bundle to fix "damaged" Gatekeeper popup ([#135](https://github.com/4gentic/obelus/issues/135)) ([bb10051](https://github.com/4gentic/obelus/commit/bb10051c3135e1653b492f3892e05937d84648ba))
+* **desktop:** keep margin gutter visible at narrow widths; kill double scroll ([#140](https://github.com/4gentic/obelus/issues/140)) ([bc22460](https://github.com/4gentic/obelus/commit/bc22460e9095b0fb4c9f17af8b6a3a34914d82c4))
+* **review-shell:** compact margin notes to single-line chip + truncated body ([#141](https://github.com/4gentic/obelus/issues/141)) ([3bd2993](https://github.com/4gentic/obelus/commit/3bd2993d275b39caba5417c4c9eb2d57e71dcbca))
+
 ## [0.1.12](https://github.com/4gentic/obelus/compare/desktop-v0.1.11...desktop-v0.1.12) (2026-04-28)
 
 
