@@ -33,6 +33,7 @@ type Props = {
   onUpdateCategory: (id: string, category: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
+  onJumpToMark: (id: string) => void;
   onRubricChange: (rubric: PaperRubric | null) => Promise<void>;
   exports: ReviewPaneExports;
   exportDisabled: boolean;
@@ -83,6 +84,11 @@ function entryLocationLabel(entry: DisplayEntry): string {
   return parts.join(", ");
 }
 
+// Mirrors apps/desktop/src/routes/project/ReviewList.tsx's INTERACTIVE_SELECTOR.
+// `button` is a catch-all that covers Remove, the next-step copy button, and
+// any future button without enumeration.
+const INTERACTIVE_SELECTOR = ".cat-select__trigger, .cat-select__pop, textarea, button";
+
 type AnnotationItemProps = {
   entry: DisplayEntry;
   focused: boolean;
@@ -90,6 +96,7 @@ type AnnotationItemProps = {
   onUpdateCategory: (id: string, category: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
+  onJumpToMark: (id: string) => void;
 };
 
 function AnnotationItem({
@@ -99,6 +106,7 @@ function AnnotationItem({
   onUpdateCategory,
   onDelete,
   onDeleteGroup,
+  onJumpToMark,
 }: AnnotationItemProps): JSX.Element {
   const first = entry.kind === "single" ? entry.row : entry.rows[0];
   const [local, setLocal] = useState(first.note);
@@ -119,11 +127,16 @@ function AnnotationItem({
     );
 
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard-accessible through pane controls and doc highlight clicks; onClick is a mouse-only shortcut to scroll the document to the source line.
     <li
       className="review-pane__item"
       data-category={category}
       data-focused={focused ? "true" : "false"}
       data-kind={entry.kind}
+      onClick={(ev) => {
+        if ((ev.target as HTMLElement).closest(INTERACTIVE_SELECTOR)) return;
+        onJumpToMark(first.id);
+      }}
     >
       <header className="review-pane__item-head">
         <div className="review-pane__item-head-left">
@@ -395,6 +408,7 @@ export default function ReviewPane({
   onUpdateCategory,
   onDelete,
   onDeleteGroup,
+  onJumpToMark,
   onRubricChange,
   exports,
   exportDisabled,
@@ -514,6 +528,7 @@ export default function ReviewPane({
                   onUpdateCategory={onUpdateCategory}
                   onDelete={onDelete}
                   onDeleteGroup={onDeleteGroup}
+                  onJumpToMark={onJumpToMark}
                 />
               ))}
             </ol>

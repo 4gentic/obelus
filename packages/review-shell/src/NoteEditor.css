@@ -18,8 +18,9 @@
   box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent);
   resize: vertical;
   min-height: 4.5em;
-  max-height: 480px;
-  overflow: auto;
+  /* JS owns max-height and overflow-y: it caps growth at 10 lines and only
+     enables scrolling once the cap is hit. */
+  overflow-y: hidden;
   transition:
     border-color 120ms linear,
     box-shadow 120ms linear;

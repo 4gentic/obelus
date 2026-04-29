@@ -14,12 +14,26 @@ type Props = {
   tall?: boolean;
 };
 
-// Auto-grows with content; preserves any height the user has dragged to.
+// Auto-grows with content up to a 10-line cap; preserves any height the user
+// has dragged to. CSS keeps overflow hidden by default and JS toggles it on
+// only when content exceeds the cap, so a normal short note doesn't render a
+// stray scrollbar from sub-pixel scrollHeight/clientHeight rounding.
+const MAX_VISIBLE_LINES = 10;
+
 function resize(el: HTMLTextAreaElement): void {
+  const styles = getComputedStyle(el);
+  const lineHeight = Number.parseFloat(styles.lineHeight);
+  const padTop = Number.parseFloat(styles.paddingTop);
+  const padBottom = Number.parseFloat(styles.paddingBottom);
+  const borderTop = Number.parseFloat(styles.borderTopWidth);
+  const borderBottom = Number.parseFloat(styles.borderBottomWidth);
+  const maxHeight = lineHeight * MAX_VISIBLE_LINES + padTop + padBottom + borderTop + borderBottom;
+
   const current = el.offsetHeight;
   el.style.height = "auto";
-  const natural = el.scrollHeight;
-  el.style.height = `${Math.max(current, Math.min(natural, 480))}px`;
+  const natural = el.scrollHeight + borderTop + borderBottom;
+  el.style.height = `${Math.max(current, Math.min(natural, maxHeight))}px`;
+  el.style.overflowY = natural > maxHeight ? "auto" : "hidden";
 }
 
 export default function NoteEditor({

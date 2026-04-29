@@ -76,7 +76,7 @@ export const SAMPLE_SEED: ReadonlyArray<SampleAnnotationSeed> = [
   },
   {
     category: "praise",
-    note: "Chiastic — *lino medias / ceris imas* — the line's word order mirrors the layered construction of the wings themselves. A small piece of *ut pictura poesis* the prosody apparatus should call out.",
+    note: "Parallelism — *lino medias / ceris imas* — the line's word order mirrors the layered construction of the wings themselves. A small piece of *ut pictura poesis* the prosody apparatus should call out.",
     quote: "tum lino medias et ceris alligat imas",
     contextBefore:
       "dimittit in artes naturamque novat. nam ponit in ordine pennas a minima coeptas, longam breviore sequenti, ut clivo crevisse putes: sic rustica quondam fistula disparibus paulatim surgit avenis;",

@@ -294,6 +294,9 @@
   border-top: var(--rule-soft);
   border-radius: var(--radius-1);
   transition: background 180ms linear;
+  /* Leave room for the sticky tabs band when scrollIntoView centres a
+     focused card; without this, short cards can land behind the tabs. */
+  scroll-margin-top: var(--space-6);
 }
 
 .review-pane__item:first-child {

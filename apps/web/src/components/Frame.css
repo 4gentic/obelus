@@ -5,9 +5,10 @@
   background: var(--paper);
 }
 
-/* When a .review is present, the frame becomes viewport-bound so the PDF and
-   pane each own their scrollbars instead of the window scrolling too. */
-.frame:has(.review) {
+/* When the review shell is present, the frame becomes viewport-bound so the
+   document column and the pane each own their scrollbars instead of the
+   window scrolling too. */
+.frame:has(.review-shell) {
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
@@ -53,7 +54,7 @@
   flex-direction: column;
 }
 
-.frame:has(.review) .frame__main {
+.frame:has(.review-shell) .frame__main {
   min-height: 0;
   overflow: hidden;
 }
