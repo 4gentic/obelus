@@ -288,17 +288,16 @@ export default function ProjectShell(): JSX.Element {
   );
 
   // Drag only takes effect in layouts that expose the fixed-width columns.
-  // Below 1024 the layout compacts; when --no-pdf is active the margin gutter
-  // collapses and the review pane hides, so user-dragged widths are ignored
-  // until the state clears.
+  // Below 1024 the layout compacts; when --no-pdf is active the columns
+  // collapse, so user-dragged widths are ignored until the state clears.
   const dragApplies = !noPdf && bodyWidth >= 1024;
   const showFilesDivider = dragApplies && !hideLeft;
-  const showMarginDivider = dragApplies && bodyWidth >= 1280 && !hideReview;
+  const showMarginDivider = dragApplies && !hideReview;
   const showReviewDivider = dragApplies && !hideReview;
 
   const bodyStyle: CSSProperties | undefined =
     widths && dragApplies
-      ? { gridTemplateColumns: composeGridColumns({ hideLeft, hideReview, bodyWidth, widths }) }
+      ? { gridTemplateColumns: composeGridColumns({ hideLeft, hideReview, widths }) }
       : undefined;
 
   return (
@@ -392,12 +391,11 @@ export default function ProjectShell(): JSX.Element {
 interface ComposeArgs {
   hideLeft: boolean;
   hideReview: boolean;
-  bodyWidth: number;
   widths: PaneWidths;
 }
 
-function composeGridColumns({ hideLeft, hideReview, bodyWidth, widths }: ComposeArgs): string {
-  const marginPx = hideReview ? "0" : bodyWidth >= 1280 ? `${widths.marginWidth}px` : "0";
+function composeGridColumns({ hideLeft, hideReview, widths }: ComposeArgs): string {
+  const marginPx = hideReview ? "0" : `${widths.marginWidth}px`;
   const reviewPx = hideReview ? "0" : `${widths.reviewWidth}px`;
   if (hideLeft) return `minmax(0, 1fr) ${marginPx} ${reviewPx}`;
   return `${widths.filesWidth}px minmax(0, 1fr) ${marginPx} ${reviewPx}`;
