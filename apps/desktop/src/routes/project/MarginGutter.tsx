@@ -1,5 +1,5 @@
-import { descriptionFor } from "@obelus/categories";
 import type { AnnotationRow } from "@obelus/repo";
+import { MarginNote } from "@obelus/review-shell";
 import {
   type JSX,
   useCallback,
@@ -100,29 +100,16 @@ export default function MarginGutter(): JSX.Element {
 
   return (
     <aside className="margin-gutter" aria-label="Margin notes">
-      {desiredNotes.map(({ row, desiredTop }) => {
-        const top = resolvedTops[row.id] ?? desiredTop;
-        const isFocused = focusedId === row.id;
-        return (
-          <button
-            key={row.id}
-            type="button"
-            className="margin-note"
-            data-focused={isFocused ? "true" : undefined}
-            style={{ top }}
-            onClick={() => onClickNote(row.id)}
-            ref={(el) => registerNoteRef(row.id, el)}
-          >
-            <span
-              className="margin-note__cat cat-tooltip"
-              data-cat-tooltip={descriptionFor(row.category)}
-            >
-              {row.category}
-            </span>
-            <span className="margin-note__body">{row.note}</span>
-          </button>
-        );
-      })}
+      {desiredNotes.map(({ row, desiredTop }) => (
+        <MarginNote
+          key={row.id}
+          annotation={row}
+          top={resolvedTops[row.id] ?? desiredTop}
+          focused={focusedId === row.id}
+          onSelect={onClickNote}
+          onRef={registerNoteRef}
+        />
+      ))}
     </aside>
   );
 }

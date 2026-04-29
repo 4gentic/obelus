@@ -1,4 +1,4 @@
-.review-shell__gutter .margin-note {
+.margin-note {
   position: absolute;
   left: 0;
   right: 0;
@@ -19,11 +19,19 @@
   transition: transform 120ms linear;
 }
 
-.review-shell__gutter .margin-note:hover {
+.margin-note:hover {
   transform: translateY(-2px);
 }
 
-.review-shell__gutter .margin-note__chip {
+.margin-note:focus-visible {
+  outline: none;
+}
+
+.margin-note[data-focused="true"] {
+  border-left-color: var(--rubric);
+}
+
+.margin-note__chip {
   flex: 0 0 auto;
   font-family: var(--font-mono);
   font-size: var(--step--1);
@@ -32,7 +40,7 @@
   letter-spacing: 0.04em;
 }
 
-.review-shell__gutter .margin-note__body {
+.margin-note__body {
   flex: 1 1 auto;
   min-width: 0;
   font-family: var(--font-body);
