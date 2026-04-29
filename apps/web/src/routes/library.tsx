@@ -3,6 +3,7 @@ import type { PaperRow } from "@obelus/repo";
 import { papers, revisions } from "@obelus/repo/web";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { hasBootstrappedSample, seedSamplePaper } from "../lib/sample-paper";
 import "./library.css";
 
 import type { JSX } from "react";
@@ -144,7 +145,16 @@ export default function Library(): JSX.Element {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const list = await papers.list();
+      let list = await papers.list();
+      if (list.length === 0 && !hasBootstrappedSample()) {
+        try {
+          await seedSamplePaper();
+          list = await papers.list();
+        } catch (err) {
+          console.warn("[sample-paper] auto-seed failed", err);
+        }
+      }
+      if (cancelled) return;
       const joined = await Promise.all(
         list.map(async (paper) => {
           const revs = await revisions.listForPaper(paper.id);
@@ -158,6 +168,31 @@ export default function Library(): JSX.Element {
       cancelled = true;
     };
   }, []);
+
+  async function reloadRows(): Promise<void> {
+    const list = await papers.list();
+    const joined = await Promise.all(
+      list.map(async (paper) => {
+        const revs = await revisions.listForPaper(paper.id);
+        const lastEditedAt = revs.at(-1)?.createdAt ?? paper.createdAt;
+        return { paper, lastEditedAt } satisfies Row;
+      }),
+    );
+    setRows(joined);
+  }
+
+  async function onLoadSample(): Promise<void> {
+    setStatus("working");
+    setError(null);
+    try {
+      await seedSamplePaper();
+      await reloadRows();
+      setStatus("idle");
+    } catch (err) {
+      setStatus("error");
+      setError(err instanceof Error ? err.message : "Could not load the sample paper.");
+    }
+  }
 
   async function onFile(file: File): Promise<void> {
     const format = detectFormat(file);
@@ -289,6 +324,13 @@ export default function Library(): JSX.Element {
           <p className="library__empty-msg">No papers yet. Begin with a mark.</p>
           <button type="button" className="library__cta" onClick={pickFile}>
             Open a paper <span aria-hidden="true">&rarr;</span>
+          </button>
+          <button
+            type="button"
+            className="library__sample-link"
+            onClick={() => void onLoadSample()}
+          >
+            Or load the sample paper.
           </button>
           <p className="library__empty-formats">
             PDF · Markdown <em>(Beta)</em> · HTML <em>(Beta)</em>

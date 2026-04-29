@@ -18,7 +18,12 @@ const FORBIDDEN = [
   /segment\.io/,
 ];
 
-const ALLOW_PREFIXES = ["packages/claude-plugin/", "scripts/"];
+const ALLOW_PREFIXES = [
+  "packages/claude-plugin/",
+  "scripts/",
+  // Same-origin sample-PDF fetch; SW-precached, no network egress.
+  "apps/web/src/lib/sample-paper.ts",
+];
 
 const out = execFileSync(
   "git",

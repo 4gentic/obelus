@@ -165,6 +165,31 @@
   color: var(--rubric);
 }
 
+.library__sample-link {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--ink-soft);
+  transition:
+    color 120ms linear,
+    text-decoration-color 120ms linear;
+}
+
+.library__sample-link:hover,
+.library__sample-link:focus-visible {
+  color: var(--rubric);
+  text-decoration-color: var(--rubric);
+  outline: none;
+}
+
 .library__empty-formats {
   font-family: var(--font-mono);
   font-size: 13px;

@@ -1,0 +1,44 @@
+[
+  {
+    "page": 1,
+    "quote": "creverat obprobrium generis",
+    "category": "note",
+    "note": "*obprobrium* preserves the unassimilated prefix where most modern editions normalize to *opprobrium*. Is this an intentional archaism, following an older manuscript tradition, or a typo? Worth a glance from the editor before press."
+  },
+  {
+    "page": 1,
+    "quote": "Daedalus ingenio fabrae celeberrimus artis",
+    "category": "note",
+    "note": "Ovid introduces Daedalus through *ingenium* (wit) rather than *ars* (skill). The choice foreshadows the failure mode: cunning unbound by paternal feeling, or perhaps cunning bound by it too tightly."
+  },
+  {
+    "page": 1,
+    "quote": "ducit in errorem variarum ambage viarum",
+    "category": "rephrase",
+    "note": "*Ambages* carries the technical sense of legal circumlocution before it ever means a winding path. Worth flagging in the apparatus — \"circuitous deceits\" preserves the legal subtext that \"meandering ways\" loses."
+  },
+  {
+    "page": 2,
+    "quote": "tum lino medias et ceris alligat imas",
+    "category": "praise",
+    "note": "Chiastic — *lino medias / ceris imas* — the line's word order mirrors the layered construction of the wings themselves. A small piece of *ut pictura poesis* the prosody apparatus should call out."
+  },
+  {
+    "page": 2,
+    "quote": "stabat et, ignarus sua se tractare pericla",
+    "category": "praise",
+    "note": "The participial *ignarus sua se tractare pericla* compresses the whole tragedy into five words — Icarus already handling the very thing that will kill him, and not knowing it. Ovid does in a phrase what later poets would need a stanza for."
+  },
+  {
+    "page": 2,
+    "quote": "ipse suum corpus motaque pependit in aura",
+    "category": "praise",
+    "note": "Daedalus testing the wings on his own body before fitting Icarus is the moment Ovid is most often accused of skipping. He doesn't skip it. The whole ethical weight of the episode hangs from this one hexameter."
+  },
+  {
+    "page": 3,
+    "quote": "et tellus a nomine dicta sepulti",
+    "category": "praise",
+    "note": "Aetiological closure — Icaria named for Icarus — is conventional; what's striking is the compression. No epitaph, no lament, just toponymy. Read alongside the longer mourning at *Aeneid* VI.30–33."
+  }
+]

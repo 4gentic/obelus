@@ -28,7 +28,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       workbox: {
-        globPatterns: ["**/*.{js,css,html,woff2,wasm,mjs,svg,bcmap,pfb,ttf}"],
+        globPatterns: ["**/*.{js,css,html,woff2,wasm,mjs,svg,bcmap,pfb,ttf,pdf}"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/\.well-known/, /^\/sitemap/, /^\/robots\.txt$/],
       },
