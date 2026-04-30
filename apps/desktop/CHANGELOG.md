@@ -2,6 +2,13 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.14](https://github.com/4gentic/obelus/compare/desktop-v0.1.13...desktop-v0.1.14) (2026-04-30)
+
+
+### Bug Fixes
+
+* **desktop:** show PDF pan tool at all zoom levels ([#143](https://github.com/4gentic/obelus/issues/143)) ([5f96eb4](https://github.com/4gentic/obelus/commit/5f96eb4c6962ec8cca96c95d574c1517c5416950))
+
 ## [0.1.13](https://github.com/4gentic/obelus/compare/desktop-v0.1.12...desktop-v0.1.13) (2026-04-29)
 
 
