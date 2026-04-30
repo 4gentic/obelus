@@ -6,7 +6,6 @@ import {
   PDF_ZOOM_MIN,
   setPdfTool,
   setPdfZoom,
-  usePanCapable,
   usePdfAutoScale,
   usePdfTool,
   usePdfZoom,
@@ -20,7 +19,6 @@ export default function PdfZoomControls({ paperId }: Props): JSX.Element {
   const override = usePdfZoom(paperId);
   const autoScale = usePdfAutoScale(paperId);
   const tool = usePdfTool(paperId);
-  const panCapable = usePanCapable(paperId);
   const effective = override ?? autoScale ?? PDF_ZOOM_BASE;
   const percent = Math.round((effective / PDF_ZOOM_BASE) * 100);
   const atMin = effective <= PDF_ZOOM_MIN + 0.001;
@@ -59,18 +57,16 @@ export default function PdfZoomControls({ paperId }: Props): JSX.Element {
       >
         +
       </button>
-      {panCapable && (
-        <button
-          type="button"
-          className="btn btn--subtle pdf-zoom__btn pdf-zoom__btn--tool"
-          onClick={() => setPdfTool(paperId, panOn ? "select" : "pan")}
-          aria-pressed={panOn}
-          aria-label={panOn ? "Switch to select tool" : "Switch to pan tool"}
-          title={panOn ? "Select tool" : "Pan tool (or hold Space)"}
-        >
-          <HandIcon />
-        </button>
-      )}
+      <button
+        type="button"
+        className="btn btn--subtle pdf-zoom__btn pdf-zoom__btn--tool"
+        onClick={() => setPdfTool(paperId, panOn ? "select" : "pan")}
+        aria-pressed={panOn}
+        aria-label={panOn ? "Switch to select tool" : "Switch to pan tool"}
+        title={panOn ? "Select tool" : "Pan tool (or hold Space)"}
+      >
+        <HandIcon />
+      </button>
     </div>
   );
 }
