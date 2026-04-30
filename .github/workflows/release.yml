@@ -140,3 +140,66 @@ jobs:
             --notes "Rolling pointer to the latest desktop release. Used by the in-app updater. See the desktop-v* releases for actual binaries and changelogs." \
             --latest=false \
             "$WORK/latest.json"
+
+  bump-homebrew-tap:
+    needs: [resolve, build, publish-update-channel]
+    if: needs.resolve.outputs.should-build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+
+      - name: download dmg artifacts and compute sha256
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#desktop-v}"
+          WORK="$(mktemp -d)"
+          gh release download "$TAG" -R "$REPO" \
+            -p "Obelus_${VERSION}_aarch64.dmg" \
+            -p "Obelus_${VERSION}_x64.dmg" \
+            -D "$WORK"
+          SHA_ARM=$(shasum -a 256 "$WORK/Obelus_${VERSION}_aarch64.dmg" | awk '{print $1}')
+          SHA_X64=$(shasum -a 256 "$WORK/Obelus_${VERSION}_x64.dmg"     | awk '{print $1}')
+          {
+            echo "VERSION=$VERSION"
+            echo "SHA_ARM=$SHA_ARM"
+            echo "SHA_X64=$SHA_X64"
+          } >> "$GITHUB_ENV"
+
+      - name: render cask
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          sed \
+            -e "s|{{VERSION}}|${VERSION}|g" \
+            -e "s|{{SHA_ARM64}}|${SHA_ARM}|g" \
+            -e "s|{{SHA_X86_64}}|${SHA_X64}|g" \
+            homebrew/obelus.rb.tmpl > out/obelus.rb
+
+      - name: push to tap repo
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "HOMEBREW_TAP_TOKEN is not set; skipping cask publish."
+            exit 0
+          fi
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/4gentic/homebrew-obelus.git" tap
+          mkdir -p tap/Casks
+          cp out/obelus.rb tap/Casks/obelus.rb
+          cd tap
+          git config user.name  "obelus-release-bot"
+          git config user.email "noreply@4gentic.ai"
+          if git diff --quiet; then
+            echo "Cask already at obelus ${VERSION}; nothing to push."
+            exit 0
+          fi
+          git add Casks/obelus.rb
+          git commit -m "obelus ${VERSION}"
+          git push origin main
