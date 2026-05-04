@@ -1,0 +1,41 @@
+# Source of truth for the Obelus Homebrew Cask.
+# Rendered by .github/workflows/release.yml on every desktop-v* release and
+# pushed to https://github.com/4gentic/homebrew-obelus.
+#
+# zap paths mirror the desktop's writable surface — keep in sync with
+# apps/desktop/src/lib/reset.ts (factoryReset) and the Rust factory_reset
+# command at apps/desktop/src-tauri/src/commands/factory_reset.rs.
+
+cask "obelus" do
+  arch arm: "aarch64", intel: "x64"
+
+  version "{{VERSION}}"
+  sha256 arm:   "{{SHA_ARM64}}",
+         intel: "{{SHA_X86_64}}"
+
+  url "https://github.com/4gentic/obelus/releases/download/desktop-v#{version}/Obelus_#{version}_#{arch}.dmg",
+      verified: "github.com/4gentic/obelus/"
+  name "Obelus"
+  desc "Offline review surface for AI-assisted papers"
+  homepage "https://obelus.4gentic.ai/"
+
+  livecheck do
+    url "https://github.com/4gentic/obelus/releases.atom"
+    regex(/desktop-v(\d+(?:\.\d+)+)/i)
+  end
+
+  auto_updates true
+  depends_on macos: ">= :monterey"
+
+  app "Obelus.app"
+
+  zap trash: [
+    "~/Library/Application Support/app.obelus.desktop",
+    "~/Library/Caches/app.obelus.desktop",
+    "~/Library/HTTPStorages/app.obelus.desktop",
+    "~/Library/Logs/app.obelus.desktop",
+    "~/Library/Preferences/app.obelus.desktop.plist",
+    "~/Library/Saved Application State/app.obelus.desktop.savedState",
+    "~/Library/WebKit/app.obelus.desktop",
+  ]
+end

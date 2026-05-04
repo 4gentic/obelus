@@ -48,6 +48,12 @@ The apps never see the network at runtime. No telemetry, no analytics, no counte
 
 **Desktop app** — Tauri v2 build. Adds source editing in CodeMirror, a git-style diff review pane, project folders, managed Typst and Tectonic *(Beta)* engines, and Claude Code in-app. Downloads land under [Releases](https://github.com/4gentic/obelus/releases) once the v1 pipeline ships.
 
+On macOS you can also install via Homebrew (from our [tap](https://github.com/4gentic/homebrew-obelus)):
+
+```sh
+brew install --cask 4gentic/obelus/obelus
+```
+
 > First launch notes. Desktop builds are unsigned in v1. macOS will refuse the first launch with "cannot be opened because it is from an unidentified developer" — right-click the app → **Open** once, and macOS remembers. Windows SmartScreen shows "Unrecognized app" — click **More info** → **Run anyway**. Linux AppImages run directly. Signed releases are planned post-v1.
 
 **Claude Code plugin** — in your paper repo:

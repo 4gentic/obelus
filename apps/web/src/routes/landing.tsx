@@ -499,6 +499,12 @@ export default function Landing() {
             </a>
           </li>
         </ul>
+        <div className="desktop__brew">
+          <p className="desktop__brew-label">Or, on macOS, install via Homebrew:</p>
+          <pre className="install__code">
+            <code>brew install --cask 4gentic/obelus/obelus</code>
+          </pre>
+        </div>
         <p className="desktop__status">
           Current release: <code>{DESKTOP_TAG}</code>. All desktop releases at{" "}
           <a href="https://github.com/4gentic/obelus/releases?q=desktop" rel="noreferrer noopener">
