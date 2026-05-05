@@ -23,7 +23,7 @@
     "@obelus/anchor": "workspace:*",
     "@obelus/bundle-schema": "workspace:*",
     "@obelus/repo": "workspace:*",
-    "zustand": "5.0.12"
+    "zustand": "5.0.13"
   },
   "devDependencies": {
     "vitest": "4.1.5"
