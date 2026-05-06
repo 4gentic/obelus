@@ -2,6 +2,20 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.15](https://github.com/4gentic/obelus/compare/desktop-v0.1.14...desktop-v0.1.15) (2026-05-06)
+
+
+### Features
+
+* **desktop:** add OpenCode as a second AI engine ([#156](https://github.com/4gentic/obelus/issues/156)) ([5337727](https://github.com/4gentic/obelus/commit/53377276f471d8530c34829ff72d53e061787fcd))
+* **desktop:** pin main file before writer-mode review ([#160](https://github.com/4gentic/obelus/issues/160)) ([b617461](https://github.com/4gentic/obelus/commit/b61746116f78b85b579cca7815dad2f2ddb3ec18))
+* **desktop:** rich transcript pane in jobs dock + no-main-file banner ([#161](https://github.com/4gentic/obelus/issues/161)) ([205561b](https://github.com/4gentic/obelus/commit/205561b3fe5e6143bcf70b629c336cb4ef12f190))
+
+
+### Bug Fixes
+
+* **desktop:** bump tauri Rust crate to 2.11.1 to match @tauri-apps/api ([#159](https://github.com/4gentic/obelus/issues/159)) ([2d93e54](https://github.com/4gentic/obelus/commit/2d93e548bc89da80862dc08e5b8781319186cf8b))
+
 ## [0.1.14](https://github.com/4gentic/obelus/compare/desktop-v0.1.13...desktop-v0.1.14) (2026-04-30)
 
 
