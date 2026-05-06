@@ -19,7 +19,7 @@
     "dev:desktop": "pnpm -C apps/desktop tauri dev",
     "build:desktop": "pnpm -C apps/desktop tauri build",
     "test": "pnpm -r test && pnpm test:scripts",
-    "test:scripts": "node --test \"scripts/__tests__/*.test.mjs\"",
+    "test:scripts": "node --test scripts/__tests__/*.test.mjs",
     "e2e": "pnpm -C apps/web e2e",
     "lint": "biome check .",
     "format": "biome format --write .",
