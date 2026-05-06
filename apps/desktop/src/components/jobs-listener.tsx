@@ -8,6 +8,7 @@ import {
   onClaudeStderr,
   onClaudeStdout,
   PlanFileSchema,
+  parseOpenCodeModelLogLine,
   parseStreamLine,
   type StreamUsage,
 } from "@obelus/claude-sidecar";
@@ -113,10 +114,20 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
 
     // The Claude CLI's stderr carries warnings, errors, and plugin-load
     // diagnostics. It has never had a subscriber — route it to the console so
-    // failed skill runs are inspectable in devtools.
+    // failed skill runs are inspectable in devtools. OpenCode runs with
+    // `--print-logs --log-level INFO`, so stderr also carries the resolved
+    // provider/model on a `service=llm small=false` line; capture it once per
+    // session so the dock can show the actual model the run used.
     void onClaudeStderr((ev) => {
       if (cancelled) return;
       console.debug("[claude-stderr]", { sessionId: ev.sessionId, line: ev.line });
+      if (!sessionModel.has(ev.sessionId)) {
+        const model = parseOpenCodeModelLogLine(ev.line);
+        if (model) {
+          sessionModel.set(ev.sessionId, model);
+          useJobsStore.getState().setModel(ev.sessionId, model);
+        }
+      }
     }).then((fn) => {
       if (cancelled) fn();
       else unlistenStderr = fn;
@@ -139,7 +150,10 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
       }
 
       const model = extractModel(parsed);
-      if (model) sessionModel.set(ev.sessionId, model);
+      if (model) {
+        sessionModel.set(ev.sessionId, model);
+        useJobsStore.getState().setModel(ev.sessionId, model);
+      }
       const usage = extractUsage(parsed);
       if (usage) sessionUsage.set(ev.sessionId, usage);
 
@@ -287,7 +301,7 @@ async function handleExit(
     return;
   }
   if (code !== 0) {
-    const msg = `Claude exited with code ${code ?? "?"}.`;
+    const msg = `Engine exited with code ${code ?? "?"}.`;
     store.markError(sessionId, msg);
     if (reviewSessionId) {
       await markReviewStatus(reviewSessionId, "failed", msg);
@@ -317,7 +331,7 @@ async function handleExit(
           if (changed.length > 0) {
             const list = changed.slice(0, 5).join(", ");
             const more = changed.length > 5 ? ` (+${changed.length - 5} more)` : "";
-            const headline = `Claude edited paper source directly — the plugin's apply-revision skill forbids that. The edits are still in your working tree.`;
+            const headline = `The engine edited paper source directly — the plugin's apply-revision skill forbids that. The edits are still in your working tree.`;
             const details = `Files changed while the review was running: ${list}${more}.\nRun \`git diff\` to inspect, \`git checkout -- <file>\` to revert, then try Start review again.`;
             const detail = `${headline}\n\n${details}`;
             console.warn("[tool-policy-violation]", {
@@ -732,7 +746,7 @@ async function ingestWriteup(
       ? ` Marker pointed at \`${hintPath}\` but the file was not readable.`
       : " No `OBELUS_WROTE:` marker was emitted by the plugin.";
     throw new Error(
-      `Claude finished but no writeup was found for paper ${paperId}.${hintNote} Expected \`writeup-${paperId}-<timestamp>.md\` in the project workspace.`,
+      `The engine finished but no writeup was found for paper ${paperId}.${hintNote} Expected \`writeup-${paperId}-<timestamp>.md\` in the project workspace.`,
     );
   }
   const repo = await getRepository();

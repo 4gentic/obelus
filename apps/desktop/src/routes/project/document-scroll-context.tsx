@@ -84,7 +84,6 @@ export function useRegisterDocumentScroll(
   const ctx = useContext(Ctx);
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: ctx is read via ref to avoid the loop described above.
   useEffect(() => {
     ctxRef.current?.set({ scrollContainer, annotationTops, scrollToAnnotation });
   }, [scrollContainer, annotationTops, scrollToAnnotation]);

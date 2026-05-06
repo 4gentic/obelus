@@ -15,6 +15,11 @@ pub struct AppState {
     // snapshot-during-apply would otherwise race on the blob store, the backup
     // dir, and the paper_edits unique-ordinal index.
     pub root_locks: DashMap<String, Arc<Mutex<()>>>,
+    // Per-project serialization for the OpenCode skill-staging step. Two
+    // concurrent spawns into the same workspace would otherwise race
+    // `clear_existing` + `symlink` on `<workspace>/.claude/skills` and the
+    // second one would error out partway through.
+    pub workspace_locks: DashMap<String, Arc<Mutex<()>>>,
 }
 
 impl AppState {
@@ -24,12 +29,20 @@ impl AppState {
             vouched_paths: DashMap::new(),
             claude_cancellers: DashMap::new(),
             root_locks: DashMap::new(),
+            workspace_locks: DashMap::new(),
         }
     }
 
     pub fn root_lock(&self, root_id: &str) -> Arc<Mutex<()>> {
         self.root_locks
             .entry(root_id.to_string())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
+    }
+
+    pub fn workspace_lock(&self, project_id: &str) -> Arc<Mutex<()>> {
+        self.workspace_locks
+            .entry(project_id.to_string())
             .or_insert_with(|| Arc::new(Mutex::new(())))
             .clone()
     }

@@ -17,7 +17,7 @@ import {
   useMemo,
 } from "react";
 import { workspaceWriteText } from "../../ipc/commands";
-import { AiEngineUnavailable, requireAiEngineReady } from "../../lib/ai-engine";
+import { AiEngineMustPick, AiEngineUnavailable, requireSpawnEngine } from "../../lib/ai-engine";
 import { useJobsStore } from "../../lib/jobs-store";
 import { getRepository } from "../../lib/repo";
 import { createWriteUpStore, type WriteUpStore } from "../../lib/writeup-store";
@@ -148,7 +148,7 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
       }
 
       try {
-        await requireAiEngineReady();
+        const engineStatus = await requireSpawnEngine();
         const { filename, json } = await exportBundleForPaper({ repo, paperId, rootId });
         await workspaceWriteText(project.id, filename, json);
         const paper = await repo.papers.get(paperId);
@@ -167,6 +167,7 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
           ...(rubricWorkspaceRelPath !== undefined ? { rubricWorkspaceRelPath } : {}),
           model: null,
           effort: null,
+          engine: engineStatus.engine,
         });
         await store.getState().load(project.id, paperId);
         store.getState().startDrafting(claudeSessionId);
@@ -179,15 +180,18 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
           startedAt: Date.now(),
           paperId,
           paperTitle,
+          engine: engineStatus.engine,
         });
       } catch (err) {
         progressStore.getState().reset();
         const msg =
-          err instanceof AiEngineUnavailable
-            ? "Claude Code isn't installed. Open Settings to install it, then try again."
-            : err instanceof Error
-              ? err.message
-              : "Could not start write-up.";
+          err instanceof AiEngineMustPick
+            ? "Pick an engine in Settings to draft the writeup."
+            : err instanceof AiEngineUnavailable
+              ? "No AI engine is installed. Open Settings to install Claude Code or OpenCode, then try again."
+              : err instanceof Error
+                ? err.message
+                : "Could not start write-up.";
         store.getState().failDrafting(msg);
       }
     },

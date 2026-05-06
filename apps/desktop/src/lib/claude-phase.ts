@@ -29,9 +29,18 @@ export function isSemanticPhase(phase: string): boolean {
 
 export function describePhase(toolName: string, input: unknown): string {
   const obj = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  // Tool inputs arrive in two key conventions: snake_case (`file_path`) from
+  // Claude Code, camelCase (`filePath`) from OpenCode. Look up both so the
+  // narration is meaningful regardless of which engine produced the event.
   const str = (key: string): string | null => {
     const v = obj[key];
-    return typeof v === "string" ? v : null;
+    if (typeof v === "string") return v;
+    const alt = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+    if (alt !== key) {
+      const v2 = obj[alt];
+      if (typeof v2 === "string") return v2;
+    }
+    return null;
   };
 
   switch (toolName) {

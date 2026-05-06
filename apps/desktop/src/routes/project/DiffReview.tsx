@@ -748,7 +748,7 @@ function ReviewProgressPanel({
       ? "Reading the plan."
       : stage === "working"
         ? "Getting ready."
-        : "Waiting for Claude.");
+        : "Waiting for the engine.");
 
   const thinking = lastThinkingAt !== null && now - lastThinkingAt < 3000;
   const logTail = phaseHistory.slice(-8);

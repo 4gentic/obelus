@@ -240,6 +240,12 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
               </dd>
             </div>
           ) : null}
+          <div>
+            <dt>Model</dt>
+            <dd className="jobs-dock__panel-model" title={job.model ?? undefined}>
+              {job.model ?? <span className="jobs-dock__panel-model--pending">resolving…</span>}
+            </dd>
+          </div>
         </dl>
       </header>
 
@@ -296,7 +302,7 @@ function StallBanner({ job, onCancel, cancelArmed, cancelBind }: StallBannerProp
     <aside className="jobs-dock__stall" role="alert">
       <p className="jobs-dock__stall-headline">No progress for {idleMin} min.</p>
       <p className="jobs-dock__stall-body">
-        The Claude CLI may have lost its network connection — common after the laptop sleeps
+        The engine CLI may have lost its network connection — common after the laptop sleeps
         mid-run. The subprocess is still alive but no stream events are arriving.
       </p>
       <div className="jobs-dock__stall-actions">

@@ -2,13 +2,13 @@
 
 ## The product, in one sentence
 
-Writing AI-assisted papers is cheap; reviewing them is the work. Obelus is an offline, browser-only review surface whose output is a file that Claude Code can apply to your paper source.
+Writing AI-assisted papers is cheap; reviewing them is the work. Obelus is an offline, browser-only review surface whose output is a file that an AI engine — Claude Code or OpenCode — can apply to your paper source.
 
 ## Non-negotiable invariants
 
 1. **Offline-first, no runtime network** — zero network calls at runtime. No telemetry, no analytics, no CDN, no Google Fonts. *Exception:* the user-triggered `engine_install` flow fetches pinned tarballs from the engines' official GitHub Releases (Typst, Tectonic). No implicit, automatic, or background network activity; no silent updates. The choice is the user's and the download is visible. External resources requested by HTML or Markdown papers — every auto-loading attribute the browser would fetch on parse (`src`, `srcset`/`imagesrcset`, `poster`, SVG `href`/`xlink:href`) plus `url()` references inside inline `style` attributes and author `<style>` blocks — are pre-rewritten to a `data:,` placeholder before they reach the rendered DOM, so the browser never starts the fetch. That's the actual enforcement, not the iframe CSP (CSP via `<meta>` is unreliable in WKWebView/Tauri srcdoc iframes). The user can opt-in per-paper via a "trust this paper" affordance — it appears only when blocked URLs were detected, and persists across sessions in `app-state.json` (desktop) / `localStorage` (web). *Known gap:* an interactive paper's *inline* scripts can still call `fetch` / `XHR` / `WebSocket` if the iframe CSP isn't honoured by the WebView; a future hardening will inject a small shim ahead of author content that overrides those globals and proxies through the parent for trust-gated forwarding.
 2. **Paper bytes never leave the device** — PDFs live in OPFS, annotations in IndexedDB via Dexie. `navigator.storage.persist()` is called on first write.
-3. **Format-agnostic handoff** — the review bundle is a JSON contract; the Claude Code plugin detects source format (`.tex` / `.md` / `.typ`) at run time.
+3. **Format-agnostic handoff** — the review bundle is a JSON contract; the plugin detects source format (`.tex` / `.md` / `.typ`) at run time.
 4. **Pristine, OSS-readable code** — the repo is itself a document. Biome clean, strict TS, no dead flags, no backwards-compat shims.
 
 ## Code style
@@ -83,7 +83,7 @@ scripts/            guard-network.mjs and other CI helpers.
 
 ## Web/desktop parity
 
-Obelus's web and desktop apps target the same reviewer use cases; the only intentional divergence is that the desktop shell can invoke Claude Code locally and the web cannot. Whenever a feature, ingest flow, or UI affordance is shared between both surfaces, it must be implemented against a shared `packages/*` module consumed by both apps — not cloned into `apps/web/src/` and `apps/desktop/src/`. When adding a new surface, ask: can this be shared? If it can, it must be.
+Obelus's web and desktop apps target the same reviewer use cases; the only intentional divergence is that the desktop shell can invoke an AI engine (Claude Code or OpenCode) locally and the web cannot. Whenever a feature, ingest flow, or UI affordance is shared between both surfaces, it must be implemented against a shared `packages/*` module consumed by both apps — not cloned into `apps/web/src/` and `apps/desktop/src/`. When adding a new surface, ask: can this be shared? If it can, it must be.
 
 The canonical example is the review surface: PDF and Markdown papers render through adapters (`packages/pdf-view`, `packages/md-view`) that return a shared `DocumentView` contract (`packages/review-shell`). Both apps mount the same highlight overlay, selection capture, and (on web) margin-note stacker — not duplicated code paths. Desktop-only affordances (CodeMirror editor, diff review, ReviewerActionsPanel) stay out of the shared package; the line is "does web have a reason to need this?" — if not, keep it desktop-local.
 
@@ -115,7 +115,7 @@ Two tracks:
 
 **Factory reset is dynamic** — new SQLite tables are covered automatically: `factory_reset` (Rust command in `apps/desktop/src-tauri/src/commands/factory_reset.rs`) discovers tables via `sqlite_master` and wipes every row. Likewise `clearAppState()` wipes every key in `app-state.json`. But if you add a **new kind of store** — a file under `~/Library/Application Support/app.obelus.desktop/` outside the DB, a new Tauri plugin-store path (not `app-state.json`), or (please don't) OPFS/IndexedDB on desktop — you must extend `apps/desktop/src/lib/reset.ts::factoryReset` to clear it, or the next factory reset will leak state.
 
-**Per-project workspace.** Writer-mode artifacts (review bundles, plans, writeups, rubrics, apply backups, `project.json`, compile-error bundles, rendered previews) live under `~/Library/Application Support/app.obelus.desktop/projects/<projectId>/` — never inside the user's paper folder. The desktop spawns Claude Code with `OBELUS_WORKSPACE_DIR=<absolute path to that subdir>`; the plugin's skills require this env var to be set and refuse to run without it. There is no `.obelus/` fallback — the plugin must never write into the user's paper repo. Both `factory_reset` and `repo.projects.forget(id)` cascade into this directory: forget calls `workspace_delete(projectId)` after the SQL delete, and factory_reset removes the entire `projects/` subtree. The Tauri commands that read/write inside the workspace live in `apps/desktop/src-tauri/src/commands/workspace.rs`.
+**Per-project workspace.** Writer-mode artifacts (review bundles, plans, writeups, rubrics, apply backups, `project.json`, compile-error bundles, rendered previews) live under `~/Library/Application Support/app.obelus.desktop/projects/<projectId>/` — never inside the user's paper folder. The desktop spawns the chosen AI engine (Claude Code or OpenCode) with `OBELUS_WORKSPACE_DIR=<absolute path to that subdir>`; the plugin's skills require this env var to be set and refuse to run without it. There is no `.obelus/` fallback — the plugin must never write into the user's paper repo. Both `factory_reset` and `repo.projects.forget(id)` cascade into this directory: forget calls `workspace_delete(projectId)` after the SQL delete, and factory_reset removes the entire `projects/` subtree. The Tauri commands that read/write inside the workspace live in `apps/desktop/src-tauri/src/commands/workspace.rs`.
 
 If you change `ProjectKind`, the bundle schema's `kind` enum, the `annotations` shape, or any persisted row, *both* tracks apply: ship a proper SQLite migration **and** flag the reset for in-flight local state.
 
