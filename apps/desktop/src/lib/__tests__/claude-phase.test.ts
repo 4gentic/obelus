@@ -67,4 +67,18 @@ describe("phaseFromEvent", () => {
     // extractPhaseMarker and is the listener's preferred source.
     expect(phaseFromEvent(assistantText("[obelus:phase] locating-spans"))).toBeNull();
   });
+
+  it("describes a Read with camelCase filePath (OpenCode convention)", () => {
+    // OpenCode emits tool inputs as camelCase; describePhase falls back to the
+    // camel form when the snake form is missing so the narration stays useful.
+    expect(phaseFromEvent(toolUse("Read", { filePath: "/abs/path/main.tex" }))).toBe(
+      "Reading main.tex",
+    );
+  });
+
+  it("describes a NotebookEdit with camelCase notebookPath", () => {
+    expect(phaseFromEvent(toolUse("NotebookEdit", { notebookPath: "/abs/sketch.ipynb" }))).toBe(
+      "Editing sketch.ipynb",
+    );
+  });
 });

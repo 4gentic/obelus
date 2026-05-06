@@ -1,5 +1,6 @@
 import { Store } from "@tauri-apps/plugin-store";
-import type { ClaudeStatus } from "../ipc/commands";
+import type { ClaudeStatus, OpenCodeStatus } from "../ipc/commands";
+import type { AiEngineId } from "../lib/ai-engine";
 import type { ReviewerThoroughness } from "../lib/reviewer-thoroughness";
 
 const STORE_PATH = "app-state.json";
@@ -16,6 +17,11 @@ export interface ClaudeDetectCache {
   checkedAt: string;
 }
 
+export interface OpenCodeDetectCache {
+  status: OpenCodeStatus;
+  checkedAt: string;
+}
+
 export interface WizardCheckpoint {
   folio: 1 | 2 | 3 | 4 | "done";
   seenOnce: boolean;
@@ -27,6 +33,8 @@ type StoreKey =
   | "windowGeometry"
   | "wizard"
   | "claudeDetectCache"
+  | "openCodeDetectCache"
+  | "preferredAiEngine"
   | "lastOpenedProjectId"
   | "currentDeskId"
   | "trustedPapers"
@@ -42,6 +50,12 @@ interface StoreShape {
   windowGeometry: WindowGeometry;
   wizard: WizardCheckpoint;
   claudeDetectCache: ClaudeDetectCache;
+  openCodeDetectCache: OpenCodeDetectCache;
+  // The engine spawn calls go through. Null until the user has either picked
+  // one in Settings or only one engine has been detected ready (in which case
+  // the wizard auto-selects it). Spawn falls back to whichever engine is
+  // ready when this is null.
+  preferredAiEngine: AiEngineId;
   lastOpenedProjectId: string | null;
   currentDeskId: string;
   // Per-paper external-resource trust. Keys are paper IDs (the repo's
