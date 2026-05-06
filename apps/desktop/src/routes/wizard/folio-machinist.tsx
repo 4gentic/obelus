@@ -1,17 +1,58 @@
-import type { JSX } from "react";
+import { type JSX, useEffect } from "react";
 import AiEngineMissing from "../../components/ai-engine-missing";
-import { type AiEngineStatus, aiEngineLabel } from "../../lib/ai-engine";
+import {
+  type AiEngineId,
+  type AiEngineStatus,
+  aiEngineLabel,
+  aiEngineSignInHint,
+  type ClaudeCodeEngineStatus,
+  type OpenCodeEngineStatus,
+} from "../../lib/ai-engine";
 
 interface Props {
-  engine: AiEngineStatus | "checking";
+  claudeCode: ClaudeCodeEngineStatus | "checking";
+  openCode: OpenCodeEngineStatus | "checking";
+  preferred: AiEngineId | null;
+  setPreferred: (id: AiEngineId) => Promise<void>;
   onRecheck: () => void;
   onAdvance: () => void;
 }
 
-export default function FolioMachinist({ engine, onRecheck, onAdvance }: Props): JSX.Element {
-  const checking = engine === "checking";
-  const ready = !checking && engine.ready;
-  const stranded = !checking && !engine.ready;
+function isReady(s: AiEngineStatus | "checking"): s is AiEngineStatus {
+  return s !== "checking" && s.ready;
+}
+
+export default function FolioMachinist({
+  claudeCode,
+  openCode,
+  preferred,
+  setPreferred,
+  onRecheck,
+  onAdvance,
+}: Props): JSX.Element {
+  const checking = claudeCode === "checking" || openCode === "checking";
+  const claudeReady = isReady(claudeCode);
+  const openCodeReady = isReady(openCode);
+  const anyReady = claudeReady || openCodeReady;
+  const stranded = !checking && !anyReady;
+  const bothReady = claudeReady && openCodeReady;
+  // Both engines installed but the user hasn't picked which one to spawn.
+  // Block Continue until they do — there is no defensible default.
+  const mustChoose = bothReady && preferred === null;
+
+  // When only one engine is ready, auto-record it as the preferred so the
+  // user is not asked a question with no real input. The wizard's "Continue"
+  // routes them straight through.
+  useEffect(() => {
+    if (checking) return;
+    if (preferred !== null) return;
+    if (claudeReady && !openCodeReady) {
+      void setPreferred("claudeCode");
+    } else if (openCodeReady && !claudeReady) {
+      void setPreferred("openCode");
+    }
+  }, [checking, preferred, claudeReady, openCodeReady, setPreferred]);
+
   return (
     <article className="folio">
       <header className="folio__head">
@@ -19,13 +60,42 @@ export default function FolioMachinist({ engine, onRecheck, onAdvance }: Props):
         <h1 className="folio__title">First, the machinist.</h1>
       </header>
       <p className="folio__body">
-        Obelus carries no model of its own. The reviewing is done by Claude Code, already on your
-        machine.
+        Obelus carries no model of its own. The reviewing is done by an AI engine, already on your
+        machine. Either of these works:
       </p>
-      <ClaudePanel engine={engine} />
-      <footer className={`folio__foot${ready ? "" : " folio__foot--stack"}`}>
-        {ready ? (
-          <button type="button" className="folio__cta" onClick={onAdvance}>
+
+      <EnginePane id="claudeCode" status={claudeCode} />
+      <EnginePane id="openCode" status={openCode} />
+
+      {bothReady ? (
+        <fieldset className="folio__choice">
+          <legend className="folio__choice-legend">
+            {mustChoose ? "Pick one to continue" : "Use this one for reviews"}
+          </legend>
+          <PreferredOption
+            id="claudeCode"
+            label="Claude Code"
+            preferred={preferred}
+            setPreferred={setPreferred}
+          />
+          <PreferredOption
+            id="openCode"
+            label="OpenCode"
+            preferred={preferred}
+            setPreferred={setPreferred}
+          />
+        </fieldset>
+      ) : null}
+
+      <footer className={`folio__foot${anyReady ? "" : " folio__foot--stack"}`}>
+        {anyReady ? (
+          <button
+            type="button"
+            className="folio__cta"
+            onClick={onAdvance}
+            disabled={mustChoose}
+            title={mustChoose ? "Pick an engine above to continue." : undefined}
+          >
             Continue <span aria-hidden="true">→</span>
           </button>
         ) : (
@@ -36,10 +106,10 @@ export default function FolioMachinist({ engine, onRecheck, onAdvance }: Props):
         {stranded ? (
           <>
             <button type="button" className="folio__skip" onClick={onAdvance}>
-              Continue without it <span aria-hidden="true">→</span>
+              Continue without one <span aria-hidden="true">→</span>
             </button>
             <span className="folio__skip-note">
-              I'll keep going. The review actions unlock once Claude Code is installed.
+              I'll keep going. The review actions unlock once an engine is installed.
             </span>
           </>
         ) : null}
@@ -48,49 +118,122 @@ export default function FolioMachinist({ engine, onRecheck, onAdvance }: Props):
   );
 }
 
-function ClaudePanel({ engine }: { engine: AiEngineStatus | "checking" }): JSX.Element {
-  if (engine === "checking") {
-    return <pre className="folio__pane">{"claude  —  looking\nauth    —  looking"}</pre>;
+function PreferredOption({
+  id,
+  label,
+  preferred,
+  setPreferred,
+}: {
+  id: AiEngineId;
+  label: string;
+  preferred: AiEngineId | null;
+  setPreferred: (id: AiEngineId) => Promise<void>;
+}): JSX.Element {
+  return (
+    <label className={`folio__choice-option${preferred === id ? " folio__choice-option--on" : ""}`}>
+      <input
+        type="radio"
+        name="preferred-engine"
+        value={id}
+        checked={preferred === id}
+        onChange={() => {
+          void setPreferred(id);
+        }}
+        className="visually-hidden"
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+function EnginePane({
+  id,
+  status,
+}: {
+  id: AiEngineId;
+  status: AiEngineStatus | "checking";
+}): JSX.Element {
+  const label = aiEngineLabel(id);
+  const binary = id === "claudeCode" ? "claude" : "opencode";
+  const signIn = aiEngineSignInHint(id);
+
+  if (status === "checking") {
+    return <pre className="folio__pane">{`${binary.padEnd(8)}—  looking\nauth    —  looking`}</pre>;
   }
-  const raw = engine.raw;
-  if (raw.status === "found") {
-    return (
-      <pre className="folio__pane">
-        {`claude  —  found   ${raw.version ?? "(unknown)"}\nauth    —  your shell, your keys`}
-      </pre>
-    );
-  }
-  if (raw.status === "belowFloor") {
+
+  if (status.engine === "claudeCode") {
+    const raw = status.raw;
+    if (raw.status === "found") {
+      return (
+        <pre className="folio__pane">
+          {`${binary.padEnd(8)}—  found   ${raw.version ?? "(unknown)"}\nauth    —  your shell, your keys (sign in: ${signIn})`}
+        </pre>
+      );
+    }
+    if (raw.status === "belowFloor") {
+      return (
+        <div className="folio__pane folio__pane--warn">
+          <pre>{`${binary.padEnd(8)}—  too old (${raw.version ?? "?"})\nfloor   —  ${raw.floor}`}</pre>
+          <div className="folio__pane-extras">
+            <AiEngineMissing
+              engine={id}
+              hostOs={status.hostOs}
+              lead={`Obelus expects a newer ${label}. Re-run the installer for your platform, then check again.`}
+              trailing={null}
+            />
+          </div>
+        </div>
+      );
+    }
+    if (raw.status === "aboveCeiling") {
+      return (
+        <div className="folio__pane folio__pane--warn">
+          <pre>{`${binary.padEnd(8)}—  newer than Obelus expects (${raw.version ?? "?"})`}</pre>
+          <p className="folio__hint">
+            This may still work. We will keep going, but file anything that breaks.
+          </p>
+        </div>
+      );
+    }
+    if (raw.status === "unreadable") {
+      return (
+        <div className="folio__pane folio__pane--warn">
+          <pre>{`${binary.padEnd(8)}—  found, but could not read version`}</pre>
+          <p className="folio__hint">
+            We will try to use it anyway. If things misbehave, run <code>{binary} --version</code>{" "}
+            yourself to confirm it responds.
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="folio__pane folio__pane--warn">
-        <pre>{`claude  —  too old (${raw.version ?? "?"})\nfloor   —  ${raw.floor}`}</pre>
+        <pre>{`${binary.padEnd(8)}—  not found on this machine`}</pre>
         <div className="folio__pane-extras">
           <AiEngineMissing
-            engine={engine.engine}
-            hostOs={engine.hostOs}
-            lead={`Obelus expects a newer ${aiEngineLabel(engine.engine)}. Re-run the installer for your platform, then check again.`}
-            trailing={null}
+            engine={id}
+            hostOs={status.hostOs}
+            lead={`Install ${label}, then check again.`}
           />
         </div>
       </div>
     );
   }
-  if (raw.status === "aboveCeiling") {
+
+  const raw = status.raw;
+  if (raw.status === "found") {
     return (
-      <div className="folio__pane folio__pane--warn">
-        <pre>{`claude  —  newer than Obelus expects (${raw.version ?? "?"})`}</pre>
-        <p className="folio__hint">
-          This may still work. We will keep going, but file anything that breaks.
-        </p>
-      </div>
+      <pre className="folio__pane">
+        {`${binary.padEnd(8)}—  found   ${raw.version ?? "(unknown)"}\nauth    —  your shell, your keys (sign in: ${signIn})`}
+      </pre>
     );
   }
   if (raw.status === "unreadable") {
     return (
       <div className="folio__pane folio__pane--warn">
-        <pre>{"claude  —  found, but could not read version"}</pre>
+        <pre>{`${binary.padEnd(8)}—  found, but could not read version`}</pre>
         <p className="folio__hint">
-          We will try to use it anyway. If things misbehave, run <code>claude --version</code>{" "}
+          We will try to use it anyway. If things misbehave, run <code>{binary} --version</code>{" "}
           yourself to confirm it responds.
         </p>
       </div>
@@ -98,12 +241,12 @@ function ClaudePanel({ engine }: { engine: AiEngineStatus | "checking" }): JSX.E
   }
   return (
     <div className="folio__pane folio__pane--warn">
-      <pre>{"claude  —  not found on this machine"}</pre>
+      <pre>{`${binary.padEnd(8)}—  not found on this machine`}</pre>
       <div className="folio__pane-extras">
         <AiEngineMissing
-          engine={engine.engine}
-          hostOs={engine.hostOs}
-          lead="Install Claude Code, then check again."
+          engine={id}
+          hostOs={status.hostOs}
+          lead={`Install ${label}, then check again.`}
         />
       </div>
     </div>

@@ -104,7 +104,10 @@ export default function Wizard(): JSX.Element {
       <div className="wizard__book">
         {state.folio === 1 ? (
           <FolioMachinist
-            engine={engine.status}
+            claudeCode={engine.claudeCode}
+            openCode={engine.openCode}
+            preferred={engine.preferred}
+            setPreferred={engine.setPreferred}
             onRecheck={() => {
               void engine.recheck();
             }}

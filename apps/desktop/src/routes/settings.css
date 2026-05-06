@@ -104,3 +104,72 @@
 .settings__button--warn {
   color: var(--rubric);
 }
+
+.settings__sub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.settings__sub-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-0);
+  color: var(--ink);
+  margin: 0;
+}
+
+.settings__choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--paper);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}
+
+.settings__choice-legend {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  padding: 0 var(--space-2);
+}
+
+.settings__choice-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border-right: 1px solid var(--rule-soft);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-0);
+  transition:
+    background 120ms linear,
+    color 120ms linear;
+}
+
+.settings__choice-option:last-child {
+  border-right: none;
+}
+
+.settings__choice-option:hover {
+  color: var(--ink);
+  background: color-mix(in oklab, var(--ink) 3%, transparent);
+}
+
+.settings__choice-option--on {
+  color: var(--ink);
+  background: color-mix(in oklab, var(--rubric) 8%, transparent);
+}
+
+.settings__choice-option:focus-within {
+  outline: 2px solid var(--rubric);
+  outline-offset: -2px;
+}
