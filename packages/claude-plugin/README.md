@@ -18,16 +18,26 @@ Two paths:
 
 ### OpenCode
 
-OpenCode discovers skills at `.claude/skills/` and agents at `.opencode/agents/` inside the working directory. Stage them by hand:
+OpenCode discovers skills at `.claude/skills/` and agents at `.opencode/agents/` inside the working directory. The fastest path stages both with one command:
 
 ```sh
 # inside your paper repo
+npx -y github:4gentic/obelus#main obelus-install-opencode
+```
+
+That fetches the latest skills and the OpenCode-shaped `paper-reviewer` agent into `.claude/skills/` and `.opencode/agents/paper-reviewer.md` in your cwd. The script refuses to overwrite a non-Obelus `paper-reviewer.md`, so it's safe to re-run for upgrades.
+
+Then authenticate once via `opencode auth login` (or set `ANTHROPIC_API_KEY` for key-mode). The Obelus desktop app stages these resources automatically when it spawns OpenCode — this command is for standalone CLI use.
+
+#### From a local clone
+
+If you already have the obelus repo checked out, the manual copy is:
+
+```sh
 mkdir -p .claude .opencode/agents
 cp -R <obelus>/packages/claude-plugin/skills .claude/skills
 cp <obelus>/packages/claude-plugin/agents/paper-reviewer.opencode.md .opencode/agents/paper-reviewer.md
 ```
-
-Authenticate via `opencode auth login` (or set `ANTHROPIC_API_KEY` for key-mode). The Obelus desktop app stages these resources automatically when it spawns OpenCode — the manual copy above only matters for standalone CLI use.
 
 Under OpenCode, the user invokes a skill as an English instruction (e.g. *"read `.claude/skills/write-review/SKILL.md` and follow it on `<bundle>`"*) rather than a slash command — OpenCode does not resolve `/obelus:write-review` deterministically the way Claude Code's plugin loader does.
 
@@ -102,7 +112,7 @@ OpenCode support is wired but not exhaustive. Items the desktop integration inte
 - The first end-to-end smoke test (`opencode run` against a real paper) is the user's launch task. Treat OpenCode as wired-but-unverified until that completes.
 - Skill resolution under OpenCode uses an English fallback ("read `.claude/skills/<skill>/SKILL.md` and follow it"). If reliability turns out poor, the fix is to author `.opencode/commands/*.md` shims that wrap each skill invocation.
 - Model and reasoning-effort overrides are not forwarded to OpenCode — its model is configured via `opencode auth login` and `opencode.jsonc`.
-- No `.opencode-plugin/plugin.json` marketplace manifest yet — install via the manual copy described under §Install / OpenCode.
+- No `.opencode-plugin/plugin.json` marketplace manifest yet — install via `npx -y github:4gentic/obelus#main obelus-install-opencode` (or the manual copy under §Install / OpenCode).
 - Auth state is not probed: the desktop's engine pane shows "found" the moment the binary is on `PATH`, regardless of whether you've signed in.
 - Per-spawn engine override is not exposed in the UI — switch engines via Settings → Preferred AI engine.
 

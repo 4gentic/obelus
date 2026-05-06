@@ -249,16 +249,86 @@ function entryContainsId(e: DisplayEntry, id: string | null): boolean {
 
 type Tab = "marks" | "review" | "revise";
 
-function NextStep({ command }: { command: string }): JSX.Element {
+type NextStepEngine = "claudeCode" | "openCode";
+
+const NEXT_STEP_ENGINE_KEY = "obelus.exportEngine";
+
+function readPersistedEngine(): NextStepEngine {
+  try {
+    const value = window.localStorage.getItem(NEXT_STEP_ENGINE_KEY);
+    if (value === "openCode" || value === "claudeCode") return value;
+  } catch {
+    // localStorage unavailable (private browsing, etc.) — fall through
+  }
+  return "claudeCode";
+}
+
+function persistEngine(engine: NextStepEngine): void {
+  try {
+    window.localStorage.setItem(NEXT_STEP_ENGINE_KEY, engine);
+  } catch {
+    // ignore — selection is best-effort cross-session
+  }
+}
+
+function nextStepCommand(
+  skill: "write-review" | "apply-revision",
+  path: string,
+): Record<NextStepEngine, string> {
+  return {
+    claudeCode: `/${skill} ${path}`,
+    openCode: `read .claude/skills/${skill}/SKILL.md and follow it on ${path}`,
+  };
+}
+
+function NextStep({
+  skill,
+  path,
+}: {
+  skill: "write-review" | "apply-revision";
+  path: string;
+}): JSX.Element {
+  const [engine, setEngine] = useState<NextStepEngine>(() => readPersistedEngine());
   const [copied, setCopied] = useState(false);
+  const commands = nextStepCommand(skill, path);
+  const command = commands[engine];
+  const tabs: ReadonlyArray<{ id: NextStepEngine; label: string }> = [
+    { id: "claudeCode", label: "Claude Code" },
+    { id: "openCode", label: "OpenCode" },
+  ];
   const onCopy = (): void => {
     void navigator.clipboard?.writeText(command);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
+  const onPickEngine = (id: NextStepEngine): void => {
+    setEngine(id);
+    persistEngine(id);
+  };
   return (
     <div className="review-pane__next">
-      <p className="review-pane__next-label">Next: in your paper folder, run</p>
+      <div className="review-pane__next-engines" role="tablist" aria-label="Choose your engine">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={engine === tab.id}
+            tabIndex={engine === tab.id ? 0 : -1}
+            className={`review-pane__next-engine${
+              engine === tab.id ? " review-pane__next-engine--active" : ""
+            }`}
+            onClick={() => onPickEngine(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <p className="review-pane__next-label">
+        {engine === "claudeCode"
+          ? "Next: paste into a Claude Code session"
+          : "Next: paste into an OpenCode session"}
+      </p>
       <button
         type="button"
         className="review-pane__next-cmd"
@@ -560,7 +630,7 @@ export default function ReviewPane({
                 <span className="review-pane__actions-chip-hint">obelus-review.json</span>
               </button>
               {reviewExportedName ? (
-                <NextStep command={`/write-review ~/Downloads/${reviewExportedName}`} />
+                <NextStep skill="write-review" path={`~/Downloads/${reviewExportedName}`} />
               ) : null}
             </div>
             <button
@@ -615,7 +685,7 @@ export default function ReviewPane({
                 <span className="review-pane__actions-chip-hint">obelus-revise.json</span>
               </button>
               {reviseExportedName ? (
-                <NextStep command={`/apply-revision ~/Downloads/${reviseExportedName}`} />
+                <NextStep skill="apply-revision" path={`~/Downloads/${reviseExportedName}`} />
               ) : null}
             </div>
             <button
