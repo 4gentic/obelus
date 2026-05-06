@@ -7,8 +7,8 @@ import {
   onClaudeExit,
   onClaudeStderr,
   onClaudeStdout,
-  parseOpenCodeModelLogLine,
   PlanFileSchema,
+  parseOpenCodeModelLogLine,
   parseStreamLine,
   type StreamUsage,
 } from "@obelus/claude-sidecar";
