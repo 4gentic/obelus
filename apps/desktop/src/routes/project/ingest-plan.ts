@@ -263,7 +263,7 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
       const headline =
         orphanedMd.length > 0
           ? `A plan markdown is on disk, but no .json the desktop can ingest.`
-          : `Claude finished without writing a plan file under the project workspace.`;
+          : `The engine finished without writing a plan file under the project workspace.`;
       const details =
         orphanedMd.length > 0
           ? `Found .md plan(s) with no .json sibling: ${orphanedMd.join(", ")}. The .json is the contract; the desktop projects the .md from it. A stray .md without a .json means either a leftover file from a previous run or the skill aborted before its Write call.`
@@ -303,8 +303,8 @@ export async function ingestPlanFile(input: IngestPlanInput): Promise<IngestPlan
     const scannedSummary = scannedPlans.join("; ") || "(none)";
     const wroteAnyPlan = scannedPlans.length > 0;
     const headline = wroteAnyPlan
-      ? "No plan matched this run's bundle — Claude may have decided the marks were already applied in your working tree."
-      : `Claude finished but wrote no plan file matching bundle ${sessionBundleBasename}.`;
+      ? "No plan matched this run's bundle — the engine may have decided the marks were already applied in your working tree."
+      : `The engine finished but wrote no plan file matching bundle ${sessionBundleBasename}.`;
     const detailsLeadIn = wroteAnyPlan
       ? `Session bundle: ${sessionBundleBasename}. The plans on disk reference older bundles.`
       : `The session ended cleanly but no .json plan was written. Check the job log for an OBELUS_WROTE: marker — its absence means the skill never reached its Write call.`;

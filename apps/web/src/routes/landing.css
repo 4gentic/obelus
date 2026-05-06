@@ -670,6 +670,41 @@
   border-radius: var(--radius-1);
 }
 
+.install__engines {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--ink-soft) 35%, transparent);
+}
+
+.install__engine {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  padding: 0 0 calc(var(--space-2) - 1px);
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.install__engine:hover {
+  color: var(--ink);
+}
+
+.install__engine:focus-visible {
+  outline: 2px solid var(--rubric);
+  outline-offset: 2px;
+}
+
+.install__engine--active {
+  color: var(--ink);
+  border-bottom-color: var(--rubric);
+}
+
 .install__code {
   background: var(--panel);
   color: var(--ink);

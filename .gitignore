@@ -30,4 +30,4 @@ apps/desktop/public/standard_fonts/
 .claude/scheduled_tasks.lock
 
 # Local git worktrees
-.worktrees/
+.claude/worktrees/

@@ -3,8 +3,8 @@ import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { useAiEngine } from "../../hooks/use-ai-engine";
-import { isAiEngineReady } from "../../lib/ai-engine";
 import { useJobsStore } from "../../lib/jobs-store";
+import { paperHasSources } from "../../lib/paper-has-sources";
 import { DEFAULT_THOROUGHNESS, type ReviewerThoroughness } from "../../lib/reviewer-thoroughness";
 import { splitHeadline } from "../../lib/split-headline";
 import { getReviewerThoroughness, setReviewerThoroughness } from "../../store/app-state";
@@ -15,6 +15,7 @@ import { type ReviewRunnerMode, useReviewRunner } from "./review-runner-context"
 import { useReviewStore } from "./store-context";
 import ThoroughnessToggle from "./ThoroughnessToggle";
 import { useInlineConfirm } from "./use-inline-confirm";
+import { usePaperBuild } from "./use-paper-build";
 import { descendantsOf, usePaperEdits } from "./use-paper-edits";
 
 const IndicationsSchema = z.string();
@@ -84,7 +85,14 @@ function WriterStartReview({
   const edits = usePaperEdits(repo, paperId);
   const confirm = useInlineConfirm();
   const engine = useAiEngine();
-  const engineReady = isAiEngineReady(engine.status);
+  const engineReady = engine.active !== null;
+  // Gate the run on a known main source file. When the paper row exists, we
+  // refuse to start until paperBuild.mainRelPath is non-empty — otherwise the
+  // agent has nothing to read and the only outcome is an unhelpful "no source
+  // files to patch" note. Lazy md/html papers (paperId === null while open)
+  // ride the existing ensureRevision path; the open file itself is the source.
+  const { build: paperBuild } = usePaperBuild(repo, paperId);
+  const hasSources = paperId === null || paperHasSources(paperBuild);
   const [indications, setIndications] = useState("");
   const [mode, setMode] = useState<ReviewRunnerMode>("writer-fast");
   const [thoroughness, setThoroughnessState] = useState<ReviewerThoroughness>(DEFAULT_THOROUGHNESS);
@@ -140,6 +148,7 @@ function WriterStartReview({
     isPaperOpen &&
     (annotationCount > 0 || trimmedIndications.length > 0) &&
     engineReady &&
+    hasSources &&
     statusKind !== "working" &&
     statusKind !== "running" &&
     statusKind !== "ingesting";
@@ -195,8 +204,19 @@ function WriterStartReview({
     !canStart && statusKind !== "idle" && statusKind !== "done" && statusKind !== "error";
   const modeName = paperId ? `mode-${paperId}` : "mode";
 
+  const showNoMainBanner = isPaperOpen && engineReady && !hasSources && statusKind !== "running";
+
   return (
     <div className="review-column__actions">
+      {showNoMainBanner ? (
+        <aside className="review-column__banner" role="status">
+          <p className="review-column__banner-label">No main file</p>
+          <p className="review-column__banner-body">
+            Click the <span className="review-column__banner-star">☆</span> next to a file in the
+            workspace tree to mark it as the paper's entrypoint. Reviews need a main source to read.
+          </p>
+        </aside>
+      ) : null}
       {isPaperOpen && statusKind !== "running" && (
         <fieldset className="review-column__mode" disabled={modeDisabled}>
           <legend className="visually-hidden">Review thoroughness</legend>
@@ -235,12 +255,21 @@ function WriterStartReview({
       {statusKind !== "running" ? (
         <div className="review-column__launch">
           {isPaperOpen ? (
-            <ThoroughnessToggle
-              value={thoroughness}
-              onChange={updateThoroughness}
-              disabled={modeDisabled}
-              name={paperId ? `thoroughness-${paperId}` : "thoroughness"}
-            />
+            engine.active?.engine === "openCode" ? (
+              <p
+                className="review-column__engine-note"
+                title="OpenCode picks the model from its own auth and opencode.jsonc, not from Obelus."
+              >
+                Models follow your OpenCode config
+              </p>
+            ) : (
+              <ThoroughnessToggle
+                value={thoroughness}
+                onChange={updateThoroughness}
+                disabled={modeDisabled}
+                name={paperId ? `thoroughness-${paperId}` : "thoroughness"}
+              />
+            )
           ) : null}
           <button
             type="button"
@@ -248,7 +277,15 @@ function WriterStartReview({
               confirm.armed ? "btn btn--primary review-column__start--danger" : "btn btn--primary"
             }
             disabled={!canStart}
-            title={engineReady ? undefined : "Install Claude Code from Settings to start a review."}
+            title={
+              !engineReady
+                ? engine.gate === "must-pick"
+                  ? "Pick an engine in Settings to start a review."
+                  : "Install an AI engine from Settings to start a review."
+                : !hasSources
+                  ? "Pick a main file (★ in the file tree) to start a review."
+                  : undefined
+            }
             onClick={() => {
               if (!isOnTip && discards.length > 0 && !confirm.armed) {
                 confirm.arm();

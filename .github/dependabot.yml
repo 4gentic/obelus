@@ -1,7 +1,29 @@
 version: 2
 updates:
+  # Single entry covers every workspace — shared deps (zod, react, zustand, etc.)
+  # land in one grouped PR instead of one per directory.
   - package-ecosystem: npm
-    directory: /
+    directories:
+      - /
+      - /apps/web
+      - /apps/desktop
+      - /packages/anchor
+      - /packages/bundle-builder
+      - /packages/bundle-schema
+      - /packages/categories
+      - /packages/claude-plugin
+      - /packages/claude-plugin-drafter
+      - /packages/claude-sidecar
+      - /packages/design-tokens
+      - /packages/drafter-core
+      - /packages/html-view
+      - /packages/md-view
+      - /packages/pdf-view
+      - /packages/prompts
+      - /packages/repo
+      - /packages/review-shell
+      - /packages/review-store
+      - /packages/source-render
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -10,176 +32,7 @@ updates:
       prefix-development: "chore(deps-dev)"
       include: "scope"
     groups:
-      root-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /apps/web
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      web-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /apps/desktop
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      desktop-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/anchor
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      anchor-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/bundle-builder
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      bundle-builder-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/bundle-schema
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      bundle-schema-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/categories
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      categories-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/claude-plugin
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      claude-plugin-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/claude-sidecar
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      claude-sidecar-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/design-tokens
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      design-tokens-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/pdf-view
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      pdf-view-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/repo
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      repo-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/review-store
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      review-store-deps:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: /packages/source-render
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      source-render-deps:
+      all-npm-deps:
         patterns: ["*"]
 
   - package-ecosystem: github-actions

@@ -29,12 +29,6 @@ export type PdfTool = "select" | "pan";
 export function setPdfZoom(paperId: string, value: number | null): void {
   if (value === null) zoomByPaper.delete(paperId);
   else zoomByPaper.set(paperId, Math.max(PDF_ZOOM_MIN, Math.min(PDF_ZOOM_MAX, value)));
-  // Pan only makes sense when the user has zoomed beyond auto-fit. Reset the
-  // tool whenever we drop back to (or below) the live auto-scale — otherwise
-  // the toggle unmounts but the user is still in pan mode, which feels broken.
-  const z = zoomByPaper.get(paperId);
-  const auto = autoScaleByPaper.get(paperId) ?? PDF_ZOOM_BASE;
-  if (z === undefined || z <= auto + 0.001) toolByPaper.delete(paperId);
   notify();
 }
 
@@ -98,13 +92,4 @@ export function usePdfTool(paperId: string | null): PdfTool {
     [paperId],
   );
   return useSyncExternalStore(sub, getSnapshot, getSnapshot);
-}
-
-// Pan only meaningful when there's content beyond auto-fit. Drives the
-// visibility of the tool toggle in the header.
-export function usePanCapable(paperId: string | null): boolean {
-  const zoom = usePdfZoom(paperId);
-  const auto = usePdfAutoScale(paperId);
-  if (zoom === null) return false;
-  return zoom > (auto ?? PDF_ZOOM_BASE) + 0.001;
 }

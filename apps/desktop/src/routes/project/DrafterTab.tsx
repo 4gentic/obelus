@@ -2,7 +2,7 @@ import { claudeAsk } from "@obelus/claude-sidecar";
 import { formatSpawnInvocation } from "@obelus/prompts";
 import { type JSX, useState } from "react";
 import { useAiEngine } from "../../hooks/use-ai-engine";
-import { AiEngineUnavailable, isAiEngineReady, requireAiEngineReady } from "../../lib/ai-engine";
+import { AiEngineMustPick, AiEngineUnavailable, requireSpawnEngine } from "../../lib/ai-engine";
 import { useProject } from "./context";
 
 // Hidden behind `import.meta.env.VITE_DRAFTER_PREVIEW === "1"` (see
@@ -19,7 +19,7 @@ import { useProject } from "./context";
 export default function DrafterTab(): JSX.Element {
   const { rootId, project } = useProject();
   const engine = useAiEngine();
-  const engineReady = isAiEngineReady(engine.status);
+  const engineReady = engine.active !== null;
   const [status, setStatus] = useState<
     | { kind: "idle" }
     | { kind: "starting" }
@@ -30,7 +30,7 @@ export default function DrafterTab(): JSX.Element {
   async function onRunSpec(): Promise<void> {
     setStatus({ kind: "starting" });
     try {
-      await requireAiEngineReady();
+      const engineStatus = await requireSpawnEngine();
       const promptBody = formatSpawnInvocation({
         kind: "ask",
         promptBody:
@@ -42,15 +42,18 @@ export default function DrafterTab(): JSX.Element {
         promptBody,
         model: null,
         effort: null,
+        engine: engineStatus.engine,
       });
       setStatus({ kind: "started", sessionId });
     } catch (err) {
       const message =
-        err instanceof AiEngineUnavailable
-          ? "Claude Code isn't installed. Open Settings to install it, then try again."
-          : err instanceof Error
-            ? err.message
-            : "Could not reach Claude.";
+        err instanceof AiEngineMustPick
+          ? "Pick an engine in Settings to run drafter."
+          : err instanceof AiEngineUnavailable
+            ? "No AI engine is installed. Open Settings to install Claude Code or OpenCode, then try again."
+            : err instanceof Error
+              ? err.message
+              : "Could not reach the AI engine.";
       setStatus({ kind: "error", message });
     }
   }
@@ -73,7 +76,13 @@ export default function DrafterTab(): JSX.Element {
             className="btn btn--primary"
             onClick={() => void onRunSpec()}
             disabled={status.kind === "starting" || !engineReady}
-            title={engineReady ? undefined : "Install Claude Code from Settings to enable."}
+            title={
+              engineReady
+                ? undefined
+                : engine.gate === "must-pick"
+                  ? "Pick an engine in Settings to enable."
+                  : "Install an AI engine from Settings to enable."
+            }
           >
             {status.kind === "starting" ? "Starting…" : "Run /spec on this paper"}
           </button>
@@ -83,8 +92,10 @@ export default function DrafterTab(): JSX.Element {
               : status.kind === "error"
                 ? status.message
                 : !engineReady
-                  ? "Install Claude Code from Settings to run drafter."
-                  : "Calls Claude with the obelus-drafter plugin's /spec command."}
+                  ? engine.gate === "must-pick"
+                    ? "Pick an engine in Settings to run drafter."
+                    : "Install an AI engine from Settings to run drafter."
+                  : "Runs the obelus-drafter plugin's /spec command via your AI engine."}
           </span>
         </div>
       </div>

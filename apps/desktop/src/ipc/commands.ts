@@ -13,6 +13,20 @@ export interface ClaudeStatus {
   hostOs: HostOs;
 }
 
+// OpenCode shares the structural shape of ClaudeStatus minus the version-bound
+// fields — OpenCode has no pinned floor or ceiling today, so a missing binary
+// reports `notFound` and a present binary that won't print a version reports
+// `unreadable`. Keeping the field names symmetric lets the wizard and Settings
+// render both engines through the same panel components.
+export type OpenCodeState = "found" | "notFound" | "unreadable";
+
+export interface OpenCodeStatus {
+  path: string | null;
+  version: string | null;
+  status: OpenCodeState;
+  hostOs: HostOs;
+}
+
 export type DirEntryKind = "file" | "dir" | "other";
 
 export interface DirEntry {
@@ -22,6 +36,10 @@ export interface DirEntry {
 
 export function detectClaude(): Promise<ClaudeStatus> {
   return invoke<ClaudeStatus>("detect_claude");
+}
+
+export function detectOpenCode(): Promise<OpenCodeStatus> {
+  return invoke<OpenCodeStatus>("detect_opencode");
 }
 
 export interface ClaudeUserSettings {

@@ -6,7 +6,6 @@ import type { JSX, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useAiEngine } from "../../hooks/use-ai-engine";
 import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
-import { isAiEngineReady } from "../../lib/ai-engine";
 import { exportBundleForPaper, exportMdBundleForPaper } from "./build-bundle";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
@@ -51,7 +50,13 @@ export default function ReviewerActionsPanel(): JSX.Element {
   const status = store((s) => s.status);
 
   const engine = useAiEngine();
-  const claudeReady = engine.status === "checking" ? null : isAiEngineReady(engine.status);
+  // Tri-state: null while detection is in flight, true when an engine is
+  // ready to spawn, false when none are. Drives the panel between the
+  // single-engine drafting affordance and the manual-handoff fallback.
+  const engineReady =
+    engine.claudeCode === "checking" || engine.openCode === "checking"
+      ? null
+      : engine.active !== null;
   const [exportState, setExportState] = useState<ExportState>({ kind: "idle" });
   const [savedDraftAt, setSavedDraftAt] = useState<string | null>(null);
   const [draftCopied, setDraftCopied] = useState(false);
@@ -283,13 +288,15 @@ export default function ReviewerActionsPanel(): JSX.Element {
       </header>
       <RubricPanel paper={paperRowForRubric} />
       <p className="reviewer-actions__hint">
-        {claudeReady === true
-          ? "Hand your marks to Claude Code for a journal-style reviewer's letter — draft it here, or copy the command and run it yourself."
-          : "Hand your marks to a coding agent and get back a journal-style reviewer's letter. Pick a handoff below."}
+        {engineReady === true
+          ? "Hand your marks to your AI engine for a journal-style reviewer's letter — draft it here, or copy the command and run it yourself."
+          : engine.gate === "must-pick"
+            ? "Pick an engine in Settings, or hand your marks off manually to any coding agent."
+            : "Hand your marks to a coding agent and get back a journal-style reviewer's letter. Pick a handoff below."}
       </p>
 
-      {claudeReady === true ? (
-        <ClaudeAction
+      {engineReady === true ? (
+        <EngineAction
           streaming={streaming}
           hasBody={hasBody}
           body={body}
@@ -304,7 +311,7 @@ export default function ReviewerActionsPanel(): JSX.Element {
         />
       ) : null}
 
-      {claudeReady === true ? (
+      {engineReady === true ? (
         <p className="reviewer-actions__handoff-label">Or hand off manually</p>
       ) : null}
 
@@ -358,7 +365,7 @@ function ExportChips({
         </>
       ) : null}
       {state.kind === "json" ? (
-        <NextStep command={`${mdOnly ? "/apply-revision" : "/write-review"} ${state.relPath}`} />
+        <NextStep skill={mdOnly ? "apply-revision" : "write-review"} path={state.relPath} />
       ) : null}
       {state.kind === "error" ? (
         <p className="reviewer-actions__status" data-status="error">
@@ -369,7 +376,7 @@ function ExportChips({
   );
 }
 
-interface ClaudeProps {
+interface EngineActionProps {
   streaming: boolean;
   hasBody: boolean;
   body: string;
@@ -383,7 +390,7 @@ interface ClaudeProps {
   error: string | null;
 }
 
-function ClaudeAction({
+function EngineAction({
   streaming,
   hasBody,
   body,
@@ -395,7 +402,7 @@ function ClaudeAction({
   savedAt,
   copied,
   error,
-}: ClaudeProps): JSX.Element {
+}: EngineActionProps): JSX.Element {
   const progressStore = useWriteUpProgress();
   const writeupStore = useWriteUpStore();
   const phase = progressStore((s) => s.phase);
@@ -463,7 +470,7 @@ function ClaudeAction({
           {!streaming ? (
             <div className="reviewer-actions__progress-row reviewer-actions__progress-row--after">
               <p className="reviewer-actions__progress">
-                Claude's full output · {transcript.length.toLocaleString()} chars
+                Full output · {transcript.length.toLocaleString()} chars
               </p>
               <button
                 type="button"
@@ -478,7 +485,7 @@ function ClaudeAction({
           {transcriptOpen ? (
             <div className="reviewer-actions__transcript" aria-live="polite">
               <pre ref={transcriptRef} className="reviewer-actions__transcript-pre">
-                {transcript || "waiting for Claude…"}
+                {transcript || "waiting for the engine…"}
                 {streaming ? <span className="reviewer-actions__caret" aria-hidden="true" /> : null}
               </pre>
             </div>
@@ -509,16 +516,90 @@ function ClaudeAction({
   );
 }
 
-function NextStep({ command }: { command: string }): JSX.Element {
+type NextStepEngine = "claudeCode" | "openCode";
+
+const NEXT_STEP_ENGINE_KEY = "obelus.exportEngine";
+
+function readPersistedEngine(): NextStepEngine {
+  try {
+    const value = window.localStorage.getItem(NEXT_STEP_ENGINE_KEY);
+    if (value === "openCode" || value === "claudeCode") return value;
+  } catch {
+    // localStorage unavailable — fall through to default
+  }
+  return "claudeCode";
+}
+
+function persistEngine(engine: NextStepEngine): void {
+  try {
+    window.localStorage.setItem(NEXT_STEP_ENGINE_KEY, engine);
+  } catch {
+    // ignore — selection is best-effort cross-session
+  }
+}
+
+function nextStepCommand(
+  skill: "write-review" | "apply-revision",
+  path: string,
+): Record<NextStepEngine, string> {
+  return {
+    claudeCode: `/${skill} ${path}`,
+    openCode: `read .claude/skills/${skill}/SKILL.md and follow it on ${path}`,
+  };
+}
+
+function NextStep({
+  skill,
+  path,
+}: {
+  skill: "write-review" | "apply-revision";
+  path: string;
+}): JSX.Element {
+  const [engine, setEngine] = useState<NextStepEngine>(() => readPersistedEngine());
   const [copied, setCopied] = useState(false);
+  const commands = nextStepCommand(skill, path);
+  const command = commands[engine];
+  const tabs: ReadonlyArray<{ id: NextStepEngine; label: string }> = [
+    { id: "claudeCode", label: "Claude Code" },
+    { id: "openCode", label: "OpenCode" },
+  ];
   const onCopy = async (): Promise<void> => {
     await writeText(command);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
+  const onPickEngine = (id: NextStepEngine): void => {
+    setEngine(id);
+    persistEngine(id);
+  };
   return (
     <div className="reviewer-actions__next">
-      <p className="reviewer-actions__next-label">Next: in your paper folder, run</p>
+      <div
+        className="reviewer-actions__next-engines"
+        role="tablist"
+        aria-label="Choose your engine"
+      >
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={engine === tab.id}
+            tabIndex={engine === tab.id ? 0 : -1}
+            className={`reviewer-actions__next-engine${
+              engine === tab.id ? " reviewer-actions__next-engine--active" : ""
+            }`}
+            onClick={() => onPickEngine(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <p className="reviewer-actions__next-label">
+        {engine === "claudeCode"
+          ? "Next: paste into a Claude Code session"
+          : "Next: paste into an OpenCode session"}
+      </p>
       <button
         type="button"
         className="reviewer-actions__next-cmd"

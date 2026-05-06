@@ -8,7 +8,7 @@ import {
 } from "@obelus/claude-sidecar";
 import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { workspaceWriteText } from "../../ipc/commands";
-import { AiEngineUnavailable, requireAiEngineReady } from "../../lib/ai-engine";
+import { AiEngineMustPick, AiEngineUnavailable, requireSpawnEngine } from "../../lib/ai-engine";
 import {
   type BundleLike,
   collectBundleSourcePaths,
@@ -235,14 +235,25 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         return;
       }
 
+      let engineId: "claudeCode" | "openCode";
       try {
-        await requireAiEngineReady();
+        const status = await requireSpawnEngine();
+        engineId = status.engine;
       } catch (err) {
+        if (err instanceof AiEngineMustPick) {
+          setLocal({
+            kind: "error",
+            paperId,
+            message: "Pick an engine in Settings to start a review.",
+          });
+          return;
+        }
         if (err instanceof AiEngineUnavailable) {
           setLocal({
             kind: "error",
             paperId,
-            message: "Claude Code isn't installed. Open Settings to install it, then try again.",
+            message:
+              "No AI engine is installed. Open Settings to install Claude Code or OpenCode, then try again.",
           });
           return;
         }
@@ -324,7 +335,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           bundleId: filename,
         });
 
-        setLocal({ kind: "working", paperId, step: "Spawning Claude…", counts });
+        setLocal({ kind: "working", paperId, step: "Spawning the engine…", counts });
         const tPriorContext = performance.now();
         const priorContext = await buildPriorDraftsPrompt(repo, paperId);
         console.info("[write-perf]", {
@@ -360,6 +371,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           model: effectiveModel,
           effort: effectiveEffort,
           mode,
+          engine: engineId,
         });
         console.info("[write-perf]", {
           step: "spawn",
@@ -389,6 +401,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           reviewSessionId: session.id,
           paperId,
           ...(paper?.title ? { paperTitle: paper.title } : {}),
+          engine: engineId,
         });
         setLocal({ kind: "idle" });
       } catch (err) {
@@ -423,7 +436,8 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
     async (opts: DeepReviewOptions): Promise<void> => {
       const startedAt = Date.now();
       try {
-        await requireAiEngineReady();
+        const status = await requireSpawnEngine();
+        const engineId = status.engine;
         const session = await repo.reviewSessions.get(opts.reviewSessionId);
         if (!session) throw new Error(`review session ${opts.reviewSessionId} not found`);
         const paper = await repo.papers.get(opts.paperId);
@@ -440,6 +454,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           model: effectiveModel,
           effort: effectiveEffort,
           mode: "deep-review",
+          engine: engineId,
         });
         await repo.reviewSessions.setClaudeSessionId(opts.reviewSessionId, claudeSessionId);
         // Bundle was exported in the original session; count fields are N/A.
@@ -468,6 +483,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           reviewSessionId: opts.reviewSessionId,
           paperId: opts.paperId,
           ...(paper?.title ? { paperTitle: paper.title } : {}),
+          engine: engineId,
         });
         console.info("[deep-review-spawn]", {
           reviewSessionId: opts.reviewSessionId,
@@ -479,15 +495,17 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
         });
       } catch (err) {
         const message =
-          err instanceof AiEngineUnavailable
-            ? "Claude Code isn't installed. Open Settings to install it, then try again."
-            : `Could not start deep review: ${
-                err instanceof Error
-                  ? err.message
-                  : typeof err === "string"
-                    ? err
-                    : JSON.stringify(err)
-              }`;
+          err instanceof AiEngineMustPick
+            ? "Pick an engine in Settings to start a deep review."
+            : err instanceof AiEngineUnavailable
+              ? "No AI engine is installed. Open Settings to install Claude Code or OpenCode, then try again."
+              : `Could not start deep review: ${
+                  err instanceof Error
+                    ? err.message
+                    : typeof err === "string"
+                      ? err
+                      : JSON.stringify(err)
+                }`;
         console.warn("[deep-review-start]", {
           reviewSessionId: opts.reviewSessionId,
           paperId: opts.paperId,

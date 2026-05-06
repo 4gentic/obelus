@@ -86,11 +86,21 @@ without an indexed file inventory), fall back per-annotation:
 
 - `anchor.kind === "source"` — `Read` the whole file `anchor.file` referenced
   by the mark, plus the entrypoint if it differs.
-- `anchor.kind === "pdf"` or `"html"` — the desktop did not pre-resolve.
-  **In writer-fast, do not run a fuzzy hunt.** Mark the block `ambiguous: true`
-  with `emptyReason: "ambiguous"` and `reviewerNotes` set to
-  `"Source anchor not pre-resolved — re-run in Rigorous mode for PDF / HTML-anchored marks."`,
-  and skip the source read for that annotation.
+- `anchor.kind === "pdf"` or `"html"` — the desktop captured a region on the
+  rendered page rather than a source line. Resolve it from the `quote` you
+  already have in hand: search the files you Read for an exact match of
+  `quote`, then pick the file by these tie-breakers, in order:
+  1. **Entrypoint wins.** If the bundle's `entrypoint` (or the paper's
+     declared main file) contains the quote, that's the resolved source.
+     This matches user intent: when someone highlights text on the rendered
+     paper, they almost always mean the canonical version.
+  2. **Unique match elsewhere.** If the entrypoint does not contain the
+     quote but exactly one other file does, use that file.
+  3. **Otherwise ambiguous.** Multi-match across non-entrypoint files, or
+     zero matches anywhere → emit `ambiguous: true`, `emptyReason:
+     "ambiguous"`, and a one-sentence `reviewerNotes` naming the cause
+     (`"quote matches N files: a.typ, b.typ"` or `"quote not found in any
+     source file"`). Do not guess.
 
 **Issue every `Read` in a single tool-use turn.** Claude Code dispatches
 parallel tool calls within one assistant turn — listing every read in one

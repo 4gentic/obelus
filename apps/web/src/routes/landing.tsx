@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import tauriConfig from "../../../desktop/src-tauri/tauri.conf.json";
 import "./landing.css";
@@ -59,7 +60,7 @@ export default function Landing() {
             <p className="doors__body">
               Desktop app. One desk per deadline, topic, or collaborator — drafts, reading stacks,
               and co-authors side by side. Edit source in-window, compile Typst locally, and review
-              Claude's edits as a git-style diff.
+              the agent's edits as a git-style diff.
             </p>
             <p className="doors__for">
               <strong>Best for writers running several drafts at once.</strong> Also for reviewers
@@ -312,8 +313,8 @@ export default function Landing() {
         </ol>
         <p className="how__caption">
           The bundle is a plain JSON file. Any coding agent can consume the exported Markdown
-          directly. The optional Claude Code plugin adds a forked-context planner, ambiguity flags,
-          and hunk-by-hunk apply — see <em>Install</em> below.
+          directly. The optional Obelus plugin (Claude Code or OpenCode) adds a forked-context
+          planner, ambiguity flags, and hunk-by-hunk apply — see <em>Install</em> below.
         </p>
       </section>
 
@@ -340,7 +341,8 @@ export default function Landing() {
               Drops a conference PDF on a plane and reads through it without a connection.
             </p>
             <p className="who__outcome">
-              <em>Outcome:</em> a Major/Minor reviewer's letter from <code>/write-review</code>.
+              <em>Outcome:</em> a Major/Minor reviewer's letter — drafted by the agent in one
+              command.
             </p>
           </li>
           <li className="who__row">
@@ -397,14 +399,14 @@ export default function Landing() {
             <dt className="principles__term">Open bundle, optional plugin.</dt>
             <dd className="principles__def">
               The bundle is plain JSON. The exported Markdown is self-describing. Bring any coding
-              agent; the Claude Code plugin is a convenience.
+              agent; the Obelus plugin (Claude Code or OpenCode) is a convenience.
             </dd>
           </div>
           <div className="principles__row">
             <dt className="principles__term">Desktop extras.</dt>
             <dd className="principles__def">
               CodeMirror source editor, git-style diff review (hunk by hunk), project desks, managed
-              Typst and Tectonic <em>(Beta)</em> engines, Claude Code in-app.
+              Typst and Tectonic <em>(Beta)</em> engines, Claude Code or OpenCode in-app.
             </dd>
           </div>
           <div className="principles__row">
@@ -461,8 +463,8 @@ export default function Landing() {
         <h2 className="section__title">Desktop.</h2>
         <p className="desktop__lead">
           Built for writers. The desktop app is fully integrated: source editing happens in-window,
-          Typst compiles locally, and Claude Code runs in-app — reviewing its edits as a git-style
-          diff, one hunk at a time or all at once.
+          Typst compiles locally, and Claude Code or OpenCode runs in-app — reviewing its edits as a
+          git-style diff, one hunk at a time or all at once.
         </p>
         <p className="desktop__lead">
           <strong>One desk per scope.</strong> Keep a desk for each conference deadline, research
@@ -472,10 +474,10 @@ export default function Landing() {
         </p>
         <p className="desktop__lead">
           <strong>Four extras the browser can't carry.</strong> A CodeMirror source editor next to
-          the rendered paper. A git-style diff review pane that walks Claude's edits hunk by hunk.
-          Managed Typst and Tectonic <em>(Beta)</em> engines you install on demand, never in the
-          background. And Claude Code itself, running in-app — the loop closes without leaving the
-          desk.
+          the rendered paper. A git-style diff review pane that walks the agent's edits hunk by
+          hunk. Managed Typst and Tectonic <em>(Beta)</em> engines you install on demand, never in
+          the background. And the AI engine itself — Claude Code or OpenCode — running in-app, the
+          loop closing without leaving the desk.
         </p>
         <ul className="desktop__downloads" aria-label="Download options">
           <li>
@@ -522,18 +524,17 @@ export default function Landing() {
         </aside>
       </section>
 
-      <section className="install" aria-label="Claude Code plugin">
-        <h2 className="section__title">Claude Code plugin (optional).</h2>
+      <section className="install" aria-label="Obelus plugin">
+        <h2 className="section__title">Obelus plugin (optional).</h2>
         <p className="install__lead">
-          Only useful when you're applying the bundle via Claude Code. Ships{" "}
-          <code>/apply-revision</code>, <code>/apply-fix</code>, <code>/write-review</code>, and{" "}
-          <code>/fix-compile</code> — a forked-context planner, single-hunk apply, a reviewer's
-          letter, and LaTeX <em>(Beta)</em> and Typst error recovery. Using a different agent? Skip
-          this: the exported Markdown is self-describing.
+          Only useful when you're applying the bundle via Claude Code or OpenCode. Ships four skills
+          — <code>apply-revision</code>, <code>apply-fix</code>, <code>write-review</code>, and{" "}
+          <code>fix-compile</code> — a forked-context planner, single-hunk apply, a reviewer's
+          letter, and LaTeX <em>(Beta)</em> and Typst error recovery. Claude Code resolves these as
+          slash commands; OpenCode invokes them by name. Using a different agent? Skip this: the
+          exported Markdown is self-describing.
         </p>
-        <pre className="install__code">
-          <code>{"/plugin marketplace add 4gentic/obelus\n/plugin install obelus@4gentic"}</code>
-        </pre>
+        <InstallBlock />
       </section>
 
       <footer className="colophon" role="contentinfo" aria-labelledby="colophon-title">
@@ -579,5 +580,50 @@ export default function Landing() {
         </p>
       </footer>
     </article>
+  );
+}
+
+const INSTALL_COMMANDS = {
+  claudeCode: "/plugin marketplace add 4gentic/obelus\n/plugin install obelus@4gentic",
+  openCode: "npx -y github:4gentic/obelus#main obelus-install-opencode",
+} as const;
+
+type EngineId = keyof typeof INSTALL_COMMANDS;
+
+function InstallBlock() {
+  const [engine, setEngine] = useState<EngineId>("claudeCode");
+  const tabs: ReadonlyArray<{ id: EngineId; label: string }> = [
+    { id: "claudeCode", label: "Claude Code" },
+    { id: "openCode", label: "OpenCode" },
+  ];
+  const panelId = `install-panel-${engine}`;
+  return (
+    <>
+      <div className="install__engines" role="tablist" aria-label="Choose your engine">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            id={`install-tab-${tab.id}`}
+            aria-selected={engine === tab.id}
+            aria-controls={panelId}
+            tabIndex={engine === tab.id ? 0 : -1}
+            className={`install__engine${engine === tab.id ? " install__engine--active" : ""}`}
+            onClick={() => setEngine(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <pre
+        className="install__code"
+        id={panelId}
+        role="tabpanel"
+        aria-labelledby={`install-tab-${engine}`}
+      >
+        <code>{INSTALL_COMMANDS[engine]}</code>
+      </pre>
+    </>
   );
 }

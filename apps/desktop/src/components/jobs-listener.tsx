@@ -8,6 +8,7 @@ import {
   onClaudeStderr,
   onClaudeStdout,
   PlanFileSchema,
+  parseOpenCodeModelLogLine,
   parseStreamLine,
   type StreamUsage,
 } from "@obelus/claude-sidecar";
@@ -34,6 +35,7 @@ import {
 } from "../lib/metrics";
 import { MetricsStream } from "../lib/metrics-stream";
 import { getRepository } from "../lib/repo";
+import { useTranscriptStore } from "../lib/transcript-store";
 import { getActiveBuffersStore } from "../routes/project/active-buffers-store";
 import { ingestPlanFile } from "../routes/project/ingest-plan";
 import { ingestWriteupFile } from "../routes/project/ingest-writeup";
@@ -113,10 +115,20 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
 
     // The Claude CLI's stderr carries warnings, errors, and plugin-load
     // diagnostics. It has never had a subscriber — route it to the console so
-    // failed skill runs are inspectable in devtools.
+    // failed skill runs are inspectable in devtools. OpenCode runs with
+    // `--print-logs --log-level INFO`, so stderr also carries the resolved
+    // provider/model on a `service=llm small=false` line; capture it once per
+    // session so the dock can show the actual model the run used.
     void onClaudeStderr((ev) => {
       if (cancelled) return;
       console.debug("[claude-stderr]", { sessionId: ev.sessionId, line: ev.line });
+      if (!sessionModel.has(ev.sessionId)) {
+        const model = parseOpenCodeModelLogLine(ev.line);
+        if (model) {
+          sessionModel.set(ev.sessionId, model);
+          useJobsStore.getState().setModel(ev.sessionId, model);
+        }
+      }
     }).then((fn) => {
       if (cancelled) fn();
       else unlistenStderr = fn;
@@ -134,12 +146,18 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
       const parsed = parseStreamLine(ev.line);
       if (!parsed) return;
 
+      const eventAtMs = parseTsMs(ev.ts) ?? Date.now();
+      useTranscriptStore.getState().ingest(ev.sessionId, parsed, eventAtMs);
+
       if (!sessionStreamStart.has(ev.sessionId)) {
         sessionStreamStart.set(ev.sessionId, Date.now());
       }
 
       const model = extractModel(parsed);
-      if (model) sessionModel.set(ev.sessionId, model);
+      if (model) {
+        sessionModel.set(ev.sessionId, model);
+        useJobsStore.getState().setModel(ev.sessionId, model);
+      }
       const usage = extractUsage(parsed);
       if (usage) sessionUsage.set(ev.sessionId, usage);
 
@@ -280,6 +298,7 @@ async function handleExit(
 
   if (wasCancelled) {
     store.markCancelled(sessionId);
+    useTranscriptStore.getState().finalize(sessionId, "cancelled", Date.now());
     if (reviewSessionId) {
       await markReviewStatus(reviewSessionId, "discarded", "Cancelled by user.");
     }
@@ -287,8 +306,9 @@ async function handleExit(
     return;
   }
   if (code !== 0) {
-    const msg = `Claude exited with code ${code ?? "?"}.`;
+    const msg = `Engine exited with code ${code ?? "?"}.`;
     store.markError(sessionId, msg);
+    useTranscriptStore.getState().finalize(sessionId, "error", Date.now());
     if (reviewSessionId) {
       await markReviewStatus(reviewSessionId, "failed", msg);
     }
@@ -317,7 +337,7 @@ async function handleExit(
           if (changed.length > 0) {
             const list = changed.slice(0, 5).join(", ");
             const more = changed.length > 5 ? ` (+${changed.length - 5} more)` : "";
-            const headline = `Claude edited paper source directly — the plugin's apply-revision skill forbids that. The edits are still in your working tree.`;
+            const headline = `The engine edited paper source directly — the plugin's apply-revision skill forbids that. The edits are still in your working tree.`;
             const details = `Files changed while the review was running: ${list}${more}.\nRun \`git diff\` to inspect, \`git checkout -- <file>\` to revert, then try Start review again.`;
             const detail = `${headline}\n\n${details}`;
             console.warn("[tool-policy-violation]", {
@@ -326,6 +346,7 @@ async function handleExit(
               changed,
             });
             store.markError(sessionId, detail);
+            useTranscriptStore.getState().finalize(sessionId, "error", Date.now());
             await markReviewStatus(reviewSessionId, "failed", detail);
             return;
           }
@@ -360,6 +381,7 @@ async function handleExit(
         ms: Math.round(performance.now() - tIngestStart),
       });
       store.markDone(sessionId, message);
+      useTranscriptStore.getState().finalize(sessionId, "done", Date.now());
     } else if (job.kind === "compile-fix") {
       // The skill edits source directly. Refresh any open buffers so the
       // editor picks up the new bytes on disk — before verify, so the user
@@ -372,6 +394,7 @@ async function handleExit(
         job.mainRelPath,
       );
       store.markDone(sessionId, message);
+      useTranscriptStore.getState().finalize(sessionId, "done", Date.now());
     } else {
       const ingested = await ingestWriteup(
         sessionId,
@@ -389,12 +412,14 @@ async function handleExit(
         sessionId,
         `Write-up ready. ${bytes.toLocaleString()} bytes from ${artifactLabel(ingested.path)}.`,
       );
+      useTranscriptStore.getState().finalize(sessionId, "done", Date.now());
     }
   } catch (err) {
     const detail =
       err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
     console.warn("[ingest]", { sessionId, kind: job.kind, detail });
     store.markError(sessionId, detail);
+    useTranscriptStore.getState().finalize(sessionId, "error", Date.now());
     if (reviewSessionId) {
       await markReviewStatus(reviewSessionId, "failed", detail);
     }
@@ -732,7 +757,7 @@ async function ingestWriteup(
       ? ` Marker pointed at \`${hintPath}\` but the file was not readable.`
       : " No `OBELUS_WROTE:` marker was emitted by the plugin.";
     throw new Error(
-      `Claude finished but no writeup was found for paper ${paperId}.${hintNote} Expected \`writeup-${paperId}-<timestamp>.md\` in the project workspace.`,
+      `The engine finished but no writeup was found for paper ${paperId}.${hintNote} Expected \`writeup-${paperId}-<timestamp>.md\` in the project workspace.`,
     );
   }
   const repo = await getRepository();

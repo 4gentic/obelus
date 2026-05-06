@@ -1,178 +1,14 @@
 use crate::commands::claude::resolve_claude_path;
 use crate::commands::metrics;
 use crate::commands::preflight;
+use crate::commands::spawn_common::{append_extra_prompt_body, project_root, spawn_and_stream};
 use crate::commands::workspace::workspace_dir_for;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
-use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
-use tauri::{AppHandle, Emitter, Manager, State};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tauri::{AppHandle, Manager, State};
 use tokio::process::Command;
-use tokio::sync::oneshot;
 use uuid::Uuid;
-
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct StreamEvent {
-    session_id: String,
-    line: String,
-    ts: String,
-}
-
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct ExitEvent {
-    session_id: String,
-    code: Option<i32>,
-    cancelled: bool,
-}
-
-fn now_iso() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0);
-    format!("{}ms", ms)
-}
-
-fn project_root(state: &AppState, root_id: &str) -> AppResult<PathBuf> {
-    let id = Uuid::parse_str(root_id).map_err(|_| AppError::UnknownRootId)?;
-    state
-        .allowed_roots
-        .get(&id)
-        .map(|r| r.clone())
-        .ok_or(AppError::UnknownRootId)
-}
-
-// Mirrors `appendExtra` in packages/prompts/src/formatters/format-spawn-invocation.ts.
-// `base` already ends with `\n`; the extra `\n` before the body produces the
-// blank line that separates the skill invocation from the supplementary context.
-fn append_extra_prompt_body(mut base: String, extra: Option<&String>) -> String {
-    if let Some(extra) = extra.filter(|s| !s.trim().is_empty()) {
-        base.push('\n');
-        base.push_str(extra);
-        if !base.ends_with('\n') {
-            base.push('\n');
-        }
-    }
-    base
-}
-
-async fn spawn_streaming(
-    mut cmd: Command,
-    prompt: String,
-    app: AppHandle,
-    state: &AppState,
-) -> AppResult<String> {
-    cmd.stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-
-    let started_at = std::time::Instant::now();
-    let mut child = cmd.spawn().map_err(AppError::from)?;
-    let session_id = Uuid::new_v4();
-    let session_str = session_id.to_string();
-
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(prompt.as_bytes())
-            .await
-            .map_err(AppError::from)?;
-        stdin.flush().await.ok();
-        drop(stdin);
-    }
-
-    if let Some(stdout) = child.stdout.take() {
-        let app_clone = app.clone();
-        let sid = session_str.clone();
-        let started_at_for_stdout = started_at;
-        tokio::spawn(async move {
-            let mut reader = BufReader::new(stdout).lines();
-            let mut first_seen = false;
-            while let Ok(Some(line)) = reader.next_line().await {
-                if !first_seen {
-                    first_seen = true;
-                    eprintln!(
-                        "[claude-session] sessionId={} firstStdoutMs={}",
-                        sid,
-                        started_at_for_stdout.elapsed().as_millis(),
-                    );
-                }
-                let _ = app_clone.emit(
-                    "claude:stdout",
-                    StreamEvent {
-                        session_id: sid.clone(),
-                        line,
-                        ts: now_iso(),
-                    },
-                );
-            }
-        });
-    }
-
-    if let Some(stderr) = child.stderr.take() {
-        let app_clone = app.clone();
-        let sid = session_str.clone();
-        tokio::spawn(async move {
-            let mut reader = BufReader::new(stderr).lines();
-            while let Ok(Some(line)) = reader.next_line().await {
-                let _ = app_clone.emit(
-                    "claude:stderr",
-                    StreamEvent {
-                        session_id: sid.clone(),
-                        line,
-                        ts: now_iso(),
-                    },
-                );
-            }
-        });
-    }
-
-    let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
-    state.claude_cancellers.insert(session_id, cancel_tx);
-
-    let app_wait = app.clone();
-    let sid_wait = session_str.clone();
-    tokio::spawn(async move {
-        let (code, cancelled) = tokio::select! {
-            _ = cancel_rx => {
-                let _ = child.kill().await;
-                (None, true)
-            }
-            result = child.wait() => {
-                let code = result.ok().and_then(|s| s.code());
-                (code, false)
-            }
-        };
-        let state = app_wait.state::<AppState>();
-        state.claude_cancellers.remove(&session_id);
-        // Belt-and-braces wall-clock log: the desktop frontend also emits
-        // `[review-timing]` off the stream, but if that listener ever misses
-        // an event the subprocess's own view is authoritative for total time.
-        let total_ms = started_at.elapsed().as_millis();
-        eprintln!(
-            "[claude-session] sessionId={} totalMs={} exitCode={} cancelled={}",
-            sid_wait,
-            total_ms,
-            code.map(|c| c.to_string()).unwrap_or_else(|| "?".into()),
-            cancelled,
-        );
-        let _ = app_wait.emit(
-            "claude:exit",
-            ExitEvent {
-                session_id: sid_wait,
-                code,
-                cancelled,
-            },
-        );
-    });
-
-    Ok(session_str)
-}
 
 // Default model + effort for the dispatch / locate / minimal-diff-composition
 // skills (apply-revision, plan-writer-fast, write-review, fix-compile). The
@@ -459,7 +295,7 @@ pub async fn claude_spawn(
     );
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
-    let session_id = spawn_streaming(cmd, prompt, app, &state).await?;
+    let session_id = spawn_and_stream(cmd, Some(prompt), "claude-session", app, &state).await?;
 
     let now = crate::commands::time::now_iso_millis();
     let validated_event = serde_json::json!({
@@ -559,7 +395,7 @@ pub async fn claude_draft_writeup(
     );
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
-    spawn_streaming(cmd, prompt, app, &state).await
+    spawn_and_stream(cmd, Some(prompt), "claude-session", app, &state).await
 }
 
 #[tauri::command]
@@ -609,7 +445,7 @@ pub async fn claude_fix_compile(
     );
     cmd.arg("--plugin-dir").arg(&plugin_dir);
 
-    spawn_streaming(cmd, prompt, app, &state).await
+    spawn_and_stream(cmd, Some(prompt), "claude-session", app, &state).await
 }
 
 #[tauri::command]
@@ -637,7 +473,7 @@ pub async fn claude_ask(
         s
     };
     let cmd = claude_command(&claude, &root, &workspace, model.as_deref(), effort.as_deref());
-    spawn_streaming(cmd, body, app, &state).await
+    spawn_and_stream(cmd, Some(body), "claude-session", app, &state).await
 }
 
 #[tauri::command]

@@ -1920,6 +1920,43 @@ button.files__row {
   word-break: break-word;
 }
 
+/* Prominent banner for blocking conditions the disabled Start button can't
+   carry on its own (currently: missing main source file). Sits at the top of
+   the actions column so it's the first thing the user sees once they realise
+   the button isn't responding. Rubric left-rule and small-caps label keep it
+   editorial — no shadcn-style "alert" card. */
+.review-column__banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in oklab, var(--rubric) 8%, var(--panel));
+  border-left: 3px solid var(--rubric);
+  border-radius: var(--radius-1);
+}
+
+.review-column__banner-label {
+  margin: 0;
+  font-family: var(--font-display);
+  font-variant: small-caps;
+  font-size: var(--step--2);
+  letter-spacing: 0.05em;
+  color: var(--rubric);
+}
+
+.review-column__banner-body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.review-column__banner-star {
+  font-family: var(--font-mono);
+  color: var(--rubric);
+}
+
 .review-column__empty {
   display: flex;
   flex-direction: column;
@@ -2933,6 +2970,41 @@ button.files__row {
   border-radius: var(--radius-1);
 }
 
+.reviewer-actions__next-engines {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--ink-soft) 35%, transparent);
+}
+
+.reviewer-actions__next-engine {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  padding: 0 0 calc(var(--space-1) - 1px);
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.reviewer-actions__next-engine:hover {
+  color: var(--ink);
+}
+
+.reviewer-actions__next-engine:focus-visible {
+  outline: 2px solid var(--rubric);
+  outline-offset: 2px;
+}
+
+.reviewer-actions__next-engine--active {
+  color: var(--ink);
+  border-bottom-color: var(--rubric);
+}
+
 .reviewer-actions__next-label {
   font-size: var(--step--1);
   color: var(--ink-soft);
@@ -3252,6 +3324,18 @@ button.files__row {
 .thoroughness-toggle__hint-blurb {
   display: block;
   line-height: 1.4;
+}
+
+.review-column__engine-note {
+  margin: 0 auto 0 0;
+  padding: 4px 0;
+  align-self: center;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  letter-spacing: 0.01em;
+  line-height: 1.2;
 }
 
 .review-column__start--danger {

@@ -6,7 +6,13 @@ import { useCallback, useEffect, useState } from "react";
 import AiEngineMissing from "../components/ai-engine-missing";
 import EngineBlock from "../components/engine-block";
 import { useAiEngine } from "../hooks/use-ai-engine";
-import { ACTIVE_AI_ENGINE, aiEngineLabel } from "../lib/ai-engine";
+import {
+  type AiEngineId,
+  aiEngineLabel,
+  aiEngineSignInHint,
+  type ClaudeCodeEngineStatus,
+  type OpenCodeEngineStatus,
+} from "../lib/ai-engine";
 import { factoryReset, wizardReset } from "../lib/reset";
 import { checkForUpdate, downloadAndInstall, type UpdaterState } from "../lib/updater";
 import "./settings.css";
@@ -45,7 +51,7 @@ export default function Settings(): JSX.Element {
 
   async function onWizardReset(): Promise<void> {
     const ok = await ask(
-      "Reset wizard clears the wizard checkpoint and Claude-detect cache, then re-runs the wizard. Your projects and annotations stay. Continue?",
+      "Reset wizard clears the wizard checkpoint and the engine-detect caches, then re-runs the wizard. Your projects and annotations stay. Continue?",
       { title: "Reset wizard", kind: "info", okLabel: "Reset wizard", cancelLabel: "Cancel" },
     );
     if (!ok) return;
@@ -91,29 +97,37 @@ export default function Settings(): JSX.Element {
       </header>
 
       <article className="settings__block">
-        <h2 className="settings__block-title">{aiEngineLabel(ACTIVE_AI_ENGINE)}</h2>
-        {engine.status === "checking" ? (
-          <p className="settings__body">Looking.</p>
-        ) : engine.status.raw.status === "found" ? (
-          <pre className="settings__pane">
-            {`path     ${engine.status.raw.path ?? "—"}\nversion  ${engine.status.raw.version ?? "—"}`}
-          </pre>
-        ) : (
-          <div className="settings__pane settings__pane--warn">
-            <pre>{`status   ${engine.status.raw.status}\nfloor    ${engine.status.raw.floor}`}</pre>
-            <div className="settings__pane-extras">
-              <AiEngineMissing
-                engine={engine.status.engine}
-                hostOs={engine.status.hostOs}
-                lead={
-                  engine.status.raw.status === "notFound"
-                    ? `${aiEngineLabel(engine.status.engine)} is not installed on this machine.`
-                    : `${aiEngineLabel(engine.status.engine)} is installed but not at a version Obelus accepts.`
-                }
-              />
-            </div>
-          </div>
-        )}
+        <h2 className="settings__block-title">AI engines</h2>
+        <p className="settings__body">
+          Either Claude Code or OpenCode is enough to use Obelus. Install whichever you prefer; if
+          both are present, pick the one to use for reviews.
+        </p>
+        <ClaudeCodeSettingsPane status={engine.claudeCode} />
+        <OpenCodeSettingsPane status={engine.openCode} />
+        {engine.claudeCode !== "checking" &&
+        engine.openCode !== "checking" &&
+        engine.claudeCode.ready &&
+        engine.openCode.ready ? (
+          <fieldset className="settings__choice">
+            <legend className="settings__choice-legend">
+              {engine.preferred === null
+                ? "Pick one — Obelus needs this set to start a review."
+                : "Preferred engine"}
+            </legend>
+            <PreferredOption
+              id="claudeCode"
+              label="Claude Code"
+              preferred={engine.preferred}
+              setPreferred={engine.setPreferred}
+            />
+            <PreferredOption
+              id="openCode"
+              label="OpenCode"
+              preferred={engine.preferred}
+              setPreferred={engine.setPreferred}
+            />
+          </fieldset>
+        ) : null}
         <button
           type="button"
           className="settings__button"
@@ -192,7 +206,7 @@ export default function Settings(): JSX.Element {
       <article className="settings__block">
         <h2 className="settings__block-title">Reset wizard</h2>
         <p className="settings__body">
-          Clears the wizard checkpoint and the Claude-detect cache, then re-runs the wizard. Your
+          Clears the wizard checkpoint and the engine-detect caches, then re-runs the wizard. Your
           projects and annotations stay.
         </p>
         <button
@@ -242,5 +256,117 @@ export default function Settings(): JSX.Element {
         </p>
       </article>
     </section>
+  );
+}
+
+function ClaudeCodeSettingsPane({
+  status,
+}: {
+  status: ClaudeCodeEngineStatus | "checking";
+}): JSX.Element {
+  const id: AiEngineId = "claudeCode";
+  const label = aiEngineLabel(id);
+  if (status === "checking") {
+    return (
+      <div className="settings__sub">
+        <h3 className="settings__sub-title">{label}</h3>
+        <p className="settings__body">Looking.</p>
+      </div>
+    );
+  }
+  const raw = status.raw;
+  return (
+    <div className="settings__sub">
+      <h3 className="settings__sub-title">{label}</h3>
+      {raw.status === "found" ? (
+        <pre className="settings__pane">
+          {`path     ${raw.path ?? "—"}\nversion  ${raw.version ?? "—"}\nsign in  ${aiEngineSignInHint(id)}`}
+        </pre>
+      ) : (
+        <div className="settings__pane settings__pane--warn">
+          <pre>{`status   ${raw.status}\nfloor    ${raw.floor}`}</pre>
+          <div className="settings__pane-extras">
+            <AiEngineMissing
+              engine={id}
+              hostOs={status.hostOs}
+              lead={
+                raw.status === "notFound"
+                  ? `${label} is not installed on this machine.`
+                  : `${label} is installed but not at a version Obelus accepts.`
+              }
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OpenCodeSettingsPane({
+  status,
+}: {
+  status: OpenCodeEngineStatus | "checking";
+}): JSX.Element {
+  const id: AiEngineId = "openCode";
+  const label = aiEngineLabel(id);
+  if (status === "checking") {
+    return (
+      <div className="settings__sub">
+        <h3 className="settings__sub-title">{label}</h3>
+        <p className="settings__body">Looking.</p>
+      </div>
+    );
+  }
+  const raw = status.raw;
+  return (
+    <div className="settings__sub">
+      <h3 className="settings__sub-title">{label}</h3>
+      {raw.status === "found" ? (
+        <pre className="settings__pane">
+          {`path     ${raw.path ?? "—"}\nversion  ${raw.version ?? "—"}\nsign in  ${aiEngineSignInHint(id)}`}
+        </pre>
+      ) : (
+        <div className="settings__pane settings__pane--warn">
+          <pre>{`status   ${raw.status}`}</pre>
+          <div className="settings__pane-extras">
+            <AiEngineMissing
+              engine={id}
+              hostOs={status.hostOs}
+              lead={`${label} is not installed on this machine.`}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreferredOption({
+  id,
+  label,
+  preferred,
+  setPreferred,
+}: {
+  id: AiEngineId;
+  label: string;
+  preferred: AiEngineId | null;
+  setPreferred: (id: AiEngineId) => Promise<void>;
+}): JSX.Element {
+  return (
+    <label
+      className={`settings__choice-option${preferred === id ? " settings__choice-option--on" : ""}`}
+    >
+      <input
+        type="radio"
+        name="settings-preferred-engine"
+        value={id}
+        checked={preferred === id}
+        onChange={() => {
+          void setPreferred(id);
+        }}
+        className="visually-hidden"
+      />
+      <span>{label}</span>
+    </label>
   );
 }

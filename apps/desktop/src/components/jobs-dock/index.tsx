@@ -1,12 +1,15 @@
 import { claudeCancel } from "@obelus/claude-sidecar";
 import { type JSX, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { type JobRecord, STALL_THRESHOLD_MS, useJobsStore } from "../lib/jobs-store";
-import { emitOpenFile } from "../lib/open-file-event";
-import { getRepository } from "../lib/repo";
-import { splitHeadline } from "../lib/split-headline";
-import { useInlineConfirm } from "../routes/project/use-inline-confirm";
-import "./jobs-dock.css";
+import { type JobRecord, STALL_THRESHOLD_MS, useJobsStore } from "../../lib/jobs-store";
+import { emitOpenFile } from "../../lib/open-file-event";
+import { getRepository } from "../../lib/repo";
+import { splitHeadline } from "../../lib/split-headline";
+import { useTranscriptStore } from "../../lib/transcript-store";
+import { useInlineConfirm } from "../../routes/project/use-inline-confirm";
+import "./index.css";
+import { JobTranscript } from "./transcript";
+import "./transcript.css";
 
 export default function JobsDock(): JSX.Element | null {
   const jobs = useJobsStore((s) => s.jobs);
@@ -76,7 +79,9 @@ export default function JobsDock(): JSX.Element | null {
           job={expanded}
           onClose={() => setExpandedId(null)}
           onDismiss={() => {
-            useJobsStore.getState().dismiss(expanded.claudeSessionId);
+            const sid = expanded.claudeSessionId;
+            useTranscriptStore.getState().dismiss(sid);
+            useJobsStore.getState().dismiss(sid);
           }}
         />
       ) : null}
@@ -240,6 +245,12 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
               </dd>
             </div>
           ) : null}
+          <div>
+            <dt>Model</dt>
+            <dd className="jobs-dock__panel-model" title={job.model ?? undefined}>
+              {job.model ?? <span className="jobs-dock__panel-model--pending">resolving…</span>}
+            </dd>
+          </div>
         </dl>
       </header>
 
@@ -252,7 +263,7 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
         />
       ) : null}
 
-      <PhaseLog job={job} />
+      <JobTranscript job={job} />
 
       {job.message ? <JobMessage message={job.message} /> : null}
 
@@ -296,7 +307,7 @@ function StallBanner({ job, onCancel, cancelArmed, cancelBind }: StallBannerProp
     <aside className="jobs-dock__stall" role="alert">
       <p className="jobs-dock__stall-headline">No progress for {idleMin} min.</p>
       <p className="jobs-dock__stall-body">
-        The Claude CLI may have lost its network connection — common after the laptop sleeps
+        The engine CLI may have lost its network connection — common after the laptop sleeps
         mid-run. The subprocess is still alive but no stream events are arriving.
       </p>
       <div className="jobs-dock__stall-actions">
@@ -313,53 +324,6 @@ function StallBanner({ job, onCancel, cancelArmed, cancelBind }: StallBannerProp
         </button>
       </div>
     </aside>
-  );
-}
-
-function PhaseLog({ job }: { job: JobRecord }): JSX.Element {
-  const entries = job.phaseHistory;
-  if (entries.length === 0) {
-    return (
-      <p className="jobs-dock__panel-empty">
-        {isLive(job) ? "Waiting for the first tool call…" : "No phase activity was recorded."}
-      </p>
-    );
-  }
-  // Per-row duration is `next.at − cur.at` for terminal rows; for the active
-  // row (last entry while the job is live) it is `now − cur.at` and ticks via
-  // the dock's existing 1s setInterval. After exit, the active row freezes on
-  // its final span (`endedAt − cur.at`).
-  const tail = entries.slice(-16);
-  const live = isLive(job);
-  const referenceEnd = job.endedAt ?? Date.now();
-  const lastIndex = entries.length - 1;
-  return (
-    <ol className="jobs-dock__phases">
-      {tail.map((entry, i) => {
-        const indexInHistory = entries.length - tail.length + i;
-        const isActive = live && indexInHistory === lastIndex;
-        const next = entries[indexInHistory + 1];
-        const endAt = next ? next.at : referenceEnd;
-        const durationMs = Math.max(0, endAt - entry.at);
-        return (
-          <li
-            key={`${entry.at}:${entry.phase}`}
-            className={isActive ? "jobs-dock__phase--active" : undefined}
-          >
-            <time className="jobs-dock__phase-when">{formatHMS(entry.at)}</time>
-            <div className="jobs-dock__phase-body">
-              <span className="jobs-dock__phase-what">{entry.phase}</span>
-              <span className="jobs-dock__phase-dur">
-                {isActive ? `running · ${formatElapsed(durationMs)}` : formatElapsed(durationMs)}
-              </span>
-              {isActive && job.currentTool ? (
-                <span className="jobs-dock__phase-now">{job.currentTool}</span>
-              ) : null}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 
@@ -434,12 +398,4 @@ function formatElapsed(ms: number): string {
   const m = Math.floor(s / 60);
   const rem = s % 60;
   return `${m}m ${rem.toString().padStart(2, "0")}s`;
-}
-
-function formatHMS(ms: number): string {
-  const d = new Date(ms);
-  const hh = d.getHours().toString().padStart(2, "0");
-  const mm = d.getMinutes().toString().padStart(2, "0");
-  const ss = d.getSeconds().toString().padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
 }
