@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { useAiEngine } from "../../hooks/use-ai-engine";
 import { useJobsStore } from "../../lib/jobs-store";
+import { paperHasSources } from "../../lib/paper-has-sources";
 import { DEFAULT_THOROUGHNESS, type ReviewerThoroughness } from "../../lib/reviewer-thoroughness";
 import { splitHeadline } from "../../lib/split-headline";
 import { getReviewerThoroughness, setReviewerThoroughness } from "../../store/app-state";
@@ -14,6 +15,7 @@ import { type ReviewRunnerMode, useReviewRunner } from "./review-runner-context"
 import { useReviewStore } from "./store-context";
 import ThoroughnessToggle from "./ThoroughnessToggle";
 import { useInlineConfirm } from "./use-inline-confirm";
+import { usePaperBuild } from "./use-paper-build";
 import { descendantsOf, usePaperEdits } from "./use-paper-edits";
 
 const IndicationsSchema = z.string();
@@ -84,6 +86,13 @@ function WriterStartReview({
   const confirm = useInlineConfirm();
   const engine = useAiEngine();
   const engineReady = engine.active !== null;
+  // Gate the run on a known main source file. When the paper row exists, we
+  // refuse to start until paperBuild.mainRelPath is non-empty — otherwise the
+  // agent has nothing to read and the only outcome is an unhelpful "no source
+  // files to patch" note. Lazy md/html papers (paperId === null while open)
+  // ride the existing ensureRevision path; the open file itself is the source.
+  const { build: paperBuild } = usePaperBuild(repo, paperId);
+  const hasSources = paperId === null || paperHasSources(paperBuild);
   const [indications, setIndications] = useState("");
   const [mode, setMode] = useState<ReviewRunnerMode>("writer-fast");
   const [thoroughness, setThoroughnessState] = useState<ReviewerThoroughness>(DEFAULT_THOROUGHNESS);
@@ -139,6 +148,7 @@ function WriterStartReview({
     isPaperOpen &&
     (annotationCount > 0 || trimmedIndications.length > 0) &&
     engineReady &&
+    hasSources &&
     statusKind !== "working" &&
     statusKind !== "running" &&
     statusKind !== "ingesting";
@@ -257,11 +267,13 @@ function WriterStartReview({
             }
             disabled={!canStart}
             title={
-              engineReady
-                ? undefined
-                : engine.gate === "must-pick"
+              !engineReady
+                ? engine.gate === "must-pick"
                   ? "Pick an engine in Settings to start a review."
                   : "Install an AI engine from Settings to start a review."
+                : !hasSources
+                  ? "Pick a main file (★ in the file tree) to start a review."
+                  : undefined
             }
             onClick={() => {
               if (!isOnTip && discards.length > 0 && !confirm.armed) {
@@ -299,6 +311,12 @@ function WriterStartReview({
         </div>
       )}
       {!isPaperOpen && <p className="review-column__hint">Open a paper to start a review.</p>}
+      {isPaperOpen && engineReady && !hasSources && statusKind !== "running" && (
+        <p className="review-column__hint">
+          No main source file detected. Click the ☆ next to a file in the tree to mark it as the
+          paper's entrypoint.
+        </p>
+      )}
       {isPaperOpen &&
         !isOnTip &&
         current &&
