@@ -937,7 +937,36 @@ function resolveAuthMode() {
   return "subscription";
 }
 
+function resolveEngine() {
+  const raw = (process.env.OBELUS_E2E_ENGINE || "claudeCode").trim();
+  if (raw !== "claudeCode" && raw !== "openCode") {
+    console.error(
+      `[plugin:e2e] OBELUS_E2E_ENGINE=${raw} not recognized (expected "claudeCode" or "openCode").`,
+    );
+    process.exit(2);
+  }
+  return raw;
+}
+
 function preflight() {
+  const engine = resolveEngine();
+  if (engine === "openCode") {
+    const probe = spawnSync("opencode", ["--version"], { encoding: "utf8" });
+    if (probe.status !== 0) {
+      console.error("[plugin:e2e] opencode CLI not found on PATH.");
+      console.error("  Install: brew install sst/tap/opencode");
+      console.error("           curl -fsSL https://opencode.ai/install | bash");
+      process.exit(2);
+    }
+    // OpenCode handles auth internally via either ANTHROPIC_API_KEY or
+    // `opencode auth login`. There is no `--bare` analogue, so the harness's
+    // auth `mode` is informational only when the engine is OpenCode.
+    const mode = process.env.ANTHROPIC_API_KEY ? "api-key" : "oauth";
+    console.log(
+      `[plugin:e2e] engine: openCode  auth: ${mode} (run \`opencode auth login\` if requests stall)`,
+    );
+    return { engine, mode };
+  }
   const probe = spawnSync("claude", ["--version"], { encoding: "utf8" });
   if (probe.status !== 0) {
     console.error("[plugin:e2e] claude CLI not found on PATH.");
@@ -947,17 +976,17 @@ function preflight() {
   const mode = resolveAuthMode();
   if (mode === "api-key") {
     console.log(
-      "[plugin:e2e] auth: api-key (--bare; reads ANTHROPIC_API_KEY / Bedrock / Vertex env)",
+      "[plugin:e2e] engine: claudeCode  auth: api-key (--bare; reads ANTHROPIC_API_KEY / Bedrock / Vertex env)",
     );
   } else {
     console.log(
-      "[plugin:e2e] auth: subscription (reads OAuth/keychain — run `claude /login` once if unset)",
+      "[plugin:e2e] engine: claudeCode  auth: subscription (reads OAuth/keychain — run `claude /login` once if unset)",
     );
   }
-  return mode;
+  return { engine, mode };
 }
 
-function buildArgs(prompt, mode) {
+function buildClaudeArgs(prompt, mode) {
   const args = ["-p"];
   if (mode === "api-key") args.push("--bare");
   args.push(
@@ -974,11 +1003,128 @@ function buildArgs(prompt, mode) {
   return args;
 }
 
-function runScenario(s, mode) {
+function buildOpenCodeArgs(prompt, dir) {
+  return [
+    "run",
+    "--dir",
+    dir,
+    "--dangerously-skip-permissions",
+    "--format",
+    "json",
+    openCodePrompt(prompt),
+  ];
+}
+
+// Rewrites a Claude-shaped prompt (`/obelus:<skill> <args> [— ...continuation]`)
+// into engine-neutral English for OpenCode. The skill files are staged at
+// `<dir>/.claude/skills/<skill>/SKILL.md` so the agent can read them by path.
+// Two special cases the scenarios use today:
+//   - `/obelus:write-review ./bundle.json --out`  vs.  `/obelus:write-review ./bundle.json`
+//   - the em-dash continuation that chains `/skill apply-fix` onto apply-revision.
+function openCodePrompt(claudePrompt) {
+  const trimmed = claudePrompt.trim();
+  // Match the leading invocation; the rest may contain an em-dash continuation.
+  const leadMatch = trimmed.match(/^\/obelus:([a-z-]+)\s+(\S+)(.*)$/);
+  if (!leadMatch) return trimmed;
+  const skill = leadMatch[1];
+  const arg = leadMatch[2];
+  const tail = leadMatch[3] ?? "";
+  const out = [
+    `Read .claude/skills/${skill}/SKILL.md inside this directory and follow it on input \`${arg}\`.`,
+  ];
+  if (skill === "write-review") {
+    if (/--out\b/.test(tail)) {
+      out.push(
+        "Out-of-band mode: write the reviewer letter as `writeup-<paperId>-<iso>.md` inside $OBELUS_WORKSPACE_DIR; the final stdout line must be `OBELUS_WROTE: <absolute-path-to-that-file>`.",
+      );
+    } else {
+      out.push(
+        "Inline mode: emit the reviewer letter as the final assistant message; do NOT write a file and do NOT emit any `OBELUS_WROTE:` marker.",
+      );
+    }
+  } else if (skill === "apply-revision") {
+    out.push(
+      "Write the plan as `plan-<iso>.json` inside $OBELUS_WORKSPACE_DIR; end with `OBELUS_WROTE: <absolute-path-to-that-file>`.",
+    );
+  } else if (skill === "fix-compile") {
+    out.push(
+      "Write the plan as `plan-<iso>.json` inside $OBELUS_WORKSPACE_DIR; end with `OBELUS_WROTE: <absolute-path-to-that-file>`.",
+    );
+  }
+  // Normalise the em-dash continuation into a plain follow-up sentence.
+  const continuation = tail.replace(/^\s*[—-]+\s*/, "").trim();
+  if (continuation) {
+    const rewritten = continuation.replace(
+      /\/skill\s+([a-z-]+)/gi,
+      "the `$1` skill (read .claude/skills/$1/SKILL.md inside this directory)",
+    );
+    out.push(rewritten);
+  }
+  return out.join("\n");
+}
+
+// Stages the plugin's skills + the OpenCode subagent into the per-scenario
+// directory so OpenCode discovers them on its own. Mirrors what
+// `apps/desktop/src-tauri/src/commands/opencode_session.rs::stage_opencode_resources`
+// does at runtime for a real desktop spawn.
+function stageOpenCodeResources(dir) {
+  const skillsSrc = resolve(pluginDir, "skills");
+  const skillsDst = resolve(dir, ".claude", "skills");
+  if (existsSync(skillsDst)) rmSync(skillsDst, { recursive: true, force: true });
+  mkdirSync(dirname(skillsDst), { recursive: true });
+  cpSync(skillsSrc, skillsDst, { recursive: true });
+
+  const agentSrc = resolve(pluginDir, "agents", "paper-reviewer.opencode.md");
+  const agentDst = resolve(dir, ".opencode", "agents", "paper-reviewer.md");
+  mkdirSync(dirname(agentDst), { recursive: true });
+  cpSync(agentSrc, agentDst);
+}
+
+// `opencode run --format json` emits NDJSON events on stdout. We tolerate
+// several plausible shapes — `{type: "message", content: [{type:"text", text}]}`,
+// `{type: "assistant", message: {content: [...]}}`, `{type:"text", text}` —
+// and concatenate every assistant text fragment we find, returning the same
+// `{ result, is_error }` envelope the Claude assertions read.
+function parseOpenCodeStdout(stdout) {
+  let assistantText = "";
+  let isError = false;
+  for (const raw of stdout.split("\n")) {
+    const trimmed = raw.trim();
+    if (!trimmed.startsWith("{")) continue;
+    let obj;
+    try {
+      obj = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    if (!obj || typeof obj !== "object") continue;
+    if (obj.is_error === true || obj.type === "error") isError = true;
+    assistantText += extractOpenCodeText(obj);
+  }
+  return { result: assistantText, is_error: isError };
+}
+
+function extractOpenCodeText(obj) {
+  if (typeof obj.text === "string" && obj.type === "text") return obj.text;
+  const candidate =
+    obj.role === "assistant" || obj.type === "message" || obj.type === "assistant" ? obj : null;
+  const content = candidate?.content ?? candidate?.message?.content;
+  if (!Array.isArray(content)) return "";
+  let out = "";
+  for (const c of content) {
+    if (c && typeof c === "object" && c.type === "text" && typeof c.text === "string") {
+      out += c.text;
+    }
+  }
+  return out;
+}
+
+function runScenario(s, engine, mode) {
   const dir = resolve(tmpRoot, s.name);
   if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   s.stage(dir);
+  if (engine === "openCode") stageOpenCodeResources(dir);
 
   const workspaceDir = resolve(tmpRoot, `${s.name}-workspace`);
   if (existsSync(workspaceDir)) rmSync(workspaceDir, { recursive: true, force: true });
@@ -986,8 +1132,12 @@ function runScenario(s, mode) {
 
   const env = { ...process.env, OBELUS_WORKSPACE_DIR: workspaceDir };
 
+  const bin = engine === "openCode" ? "opencode" : "claude";
+  const args =
+    engine === "openCode" ? buildOpenCodeArgs(s.prompt, dir) : buildClaudeArgs(s.prompt, mode);
+
   const started = Date.now();
-  const cp = spawnSync("claude", buildArgs(s.prompt, mode), {
+  const cp = spawnSync(bin, args, {
     cwd: dir,
     env,
     encoding: "utf8",
@@ -1001,26 +1151,30 @@ function runScenario(s, mode) {
   }
   if (cp.status !== 0) {
     const tail = (cp.stderr || cp.stdout || "").slice(-240).trim().replace(/\s+/g, " ");
-    return { ...meta(s), ok: false, reason: `claude exited ${cp.status}: ${tail}`, durationMs };
+    return { ...meta(s), ok: false, reason: `${bin} exited ${cp.status}: ${tail}`, durationMs };
   }
 
   let parsed;
-  try {
-    parsed = JSON.parse(cp.stdout);
-  } catch (e) {
-    return {
-      ...meta(s),
-      ok: false,
-      reason: `stdout not valid JSON (${e.message.slice(0, 80)})`,
-      durationMs,
-    };
+  if (engine === "openCode") {
+    parsed = parseOpenCodeStdout(cp.stdout);
+  } else {
+    try {
+      parsed = JSON.parse(cp.stdout);
+    } catch (e) {
+      return {
+        ...meta(s),
+        ok: false,
+        reason: `stdout not valid JSON (${e.message.slice(0, 80)})`,
+        durationMs,
+      };
+    }
   }
 
   const output = typeof parsed.result === "string" ? parsed.result : "";
 
   if (parsed.is_error) {
     const r = output ? output.slice(0, 200) : "(no result text)";
-    return { ...meta(s), ok: false, reason: `claude reported is_error: ${r}`, durationMs, output };
+    return { ...meta(s), ok: false, reason: `${bin} reported is_error: ${r}`, durationMs, output };
   }
 
   const { ok, reason } = s.assert(parsed, dir, workspaceDir);
@@ -1064,7 +1218,7 @@ function printSummary(results) {
 }
 
 function main() {
-  const mode = preflight();
+  const { engine, mode } = preflight();
 
   if (existsSync(tmpRoot)) rmSync(tmpRoot, { recursive: true, force: true });
   mkdirSync(tmpRoot, { recursive: true });
@@ -1085,7 +1239,7 @@ function main() {
   const results = [];
   for (const s of selected) {
     console.log(`[plugin:e2e] ${s.id} ${s.name} — ${s.prompt}`);
-    results.push(runScenario(s, mode));
+    results.push(runScenario(s, engine, mode));
   }
 
   printSummary(results);
