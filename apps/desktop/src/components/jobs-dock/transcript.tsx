@@ -1,4 +1,4 @@
-import { type JSX, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type JSX, useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { JobRecord } from "../../lib/jobs-store";
 import type { TranscriptBlock } from "../../lib/transcript-reducer";
 import { useTranscriptBlocks, useTranscriptStats } from "../../lib/transcript-store";
@@ -22,16 +22,24 @@ export function JobTranscript({ job }: { job: JobRecord }): JSX.Element {
 
   // Track whether the user is near the bottom; new content auto-scrolls only
   // when they are. If they scrolled up to read earlier content, leave them.
-  useEffect(() => {
+  // The scroller mounts only after the first block arrives — past the empty-
+  // state branch — so attach via a callback ref so the listener follows the
+  // node's lifetime instead of a one-shot mount effect.
+  const onScroll = useCallback((): void => {
     const el = scrollerRef.current;
     if (!el) return;
-    const onScroll = (): void => {
-      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-      stickToBottomRef.current = distance <= NEAR_BOTTOM_PX;
-    };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distance <= NEAR_BOTTOM_PX;
   }, []);
+  const setScroller = useCallback(
+    (el: HTMLDivElement | null): void => {
+      const prev = scrollerRef.current;
+      if (prev) prev.removeEventListener("scroll", onScroll);
+      scrollerRef.current = el;
+      if (el) el.addEventListener("scroll", onScroll, { passive: true });
+    },
+    [onScroll],
+  );
 
   // Re-pin the scroll on every block-list change. The early return on
   // `blockCount === 0` is the body reference Biome needs; the value also
@@ -59,7 +67,7 @@ export function JobTranscript({ job }: { job: JobRecord }): JSX.Element {
 
   return (
     <div className="jobs-dock__transcript">
-      <div className="jobs-dock__transcript-scroller" ref={scrollerRef}>
+      <div className="jobs-dock__transcript-scroller" ref={setScroller}>
         {hidden > 0 ? (
           <button
             type="button"

@@ -14,8 +14,7 @@ import {
 import { describePhase } from "./claude-phase";
 
 // Hard caps. Numbers chosen so a long deep-review (~600 events) stays well
-// under ~5 MB heap per session — see the plan in
-// `.claude/plans/i-took-a-look-swirling-allen.md` §6.
+// under ~5 MB heap per session.
 export const MAX_BLOCKS = 400;
 export const MAX_TEXT_LIVE_BYTES = 8_000;
 export const MAX_TEXT_KEEP_BYTES = 4_000;
