@@ -632,6 +632,18 @@
   color: var(--ink);
 }
 
+.desktop__brew {
+  margin: 0 0 var(--space-5);
+  max-width: 60ch;
+}
+
+.desktop__brew-label {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  margin: 0 0 var(--space-2);
+}
+
 @media (max-width: 640px) {
   .desktop__downloads {
     grid-template-columns: 1fr;
