@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClaudeStatus, HostOs, OpenCodeStatus } from "../../ipc/commands";
+import { detectClaude, detectOpenCode } from "../../ipc/commands";
+import { getAppState, setAppState } from "../../store/app-state";
 import {
   AiEngineMustPick,
   AiEngineUnavailable,
@@ -10,6 +12,7 @@ import {
   gateForEngine,
   isAiEngineReady,
   type OpenCodeEngineStatus,
+  requireSpawnEngine,
   resolveSpawnEngine,
 } from "../ai-engine";
 
@@ -18,6 +21,21 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 vi.mock("@tauri-apps/plugin-store", () => ({
   Store: { load: vi.fn(async () => ({ get: vi.fn(), set: vi.fn(), save: vi.fn() })) },
+}));
+
+// Mock the immediate dependencies of requireSpawnEngine so the cached/fresh
+// fall-through and the throw branches can be driven from individual tests.
+vi.mock("../../ipc/commands", async () => {
+  const actual = await vi.importActual<typeof import("../../ipc/commands")>("../../ipc/commands");
+  return {
+    ...actual,
+    detectClaude: vi.fn(),
+    detectOpenCode: vi.fn(),
+  };
+});
+vi.mock("../../store/app-state", () => ({
+  getAppState: vi.fn(),
+  setAppState: vi.fn(),
 }));
 
 function makeClaudeRaw(state: ClaudeStatus["status"], hostOs: HostOs = "linux"): ClaudeStatus {
@@ -267,6 +285,66 @@ describe("ai-engine", () => {
       expect(hints.map((h) => h.label)).toEqual(["Scoop", "npm"]);
       expect(hints[0]?.command).toBe("scoop install opencode");
       expect(hints[0]?.preferred).toBe(true);
+    });
+  });
+
+  describe("requireSpawnEngine", () => {
+    beforeEach(() => {
+      vi.mocked(detectClaude).mockReset();
+      vi.mocked(detectOpenCode).mockReset();
+      vi.mocked(getAppState).mockReset();
+      vi.mocked(setAppState).mockReset();
+      // Default: empty cache, no preference, writes succeed.
+      vi.mocked(getAppState).mockImplementation(async () => undefined as never);
+      vi.mocked(setAppState).mockResolvedValue(undefined);
+    });
+
+    it("returns the only ready engine when one is found and no preference is set", async () => {
+      vi.mocked(detectClaude).mockResolvedValue(makeClaudeRaw("found"));
+      vi.mocked(detectOpenCode).mockResolvedValue(makeOpenCodeRaw("notFound"));
+
+      const result = await requireSpawnEngine();
+
+      expect(result.engine).toBe("claudeCode");
+      expect(result.ready).toBe(true);
+    });
+
+    it("throws AiEngineUnavailable when no engine is ready", async () => {
+      vi.mocked(detectClaude).mockResolvedValue(makeClaudeRaw("notFound"));
+      vi.mocked(detectOpenCode).mockResolvedValue(makeOpenCodeRaw("notFound"));
+
+      await expect(requireSpawnEngine()).rejects.toBeInstanceOf(AiEngineUnavailable);
+    });
+
+    it("throws AiEngineMustPick when both ready and no preference is set", async () => {
+      vi.mocked(detectClaude).mockResolvedValue(makeClaudeRaw("found"));
+      vi.mocked(detectOpenCode).mockResolvedValue(makeOpenCodeRaw("found"));
+
+      await expect(requireSpawnEngine()).rejects.toBeInstanceOf(AiEngineMustPick);
+    });
+
+    it("falls through from a stale cache to a fresh detect when the cache reports no ready engine", async () => {
+      // Cache reports both engines as notFound. Live detect finds Claude.
+      // The fall-through is the only way the call can resolve to a ready
+      // status — proving requireSpawnEngine doesn't trust a stale cache.
+      const checkedAt = new Date().toISOString();
+      vi.mocked(getAppState).mockImplementation(async (key: string) => {
+        if (key === "claudeDetectCache") {
+          return { status: makeClaudeRaw("notFound"), checkedAt } as never;
+        }
+        if (key === "openCodeDetectCache") {
+          return { status: makeOpenCodeRaw("notFound"), checkedAt } as never;
+        }
+        return undefined as never;
+      });
+      vi.mocked(detectClaude).mockResolvedValue(makeClaudeRaw("found"));
+      vi.mocked(detectOpenCode).mockResolvedValue(makeOpenCodeRaw("notFound"));
+
+      const result = await requireSpawnEngine();
+
+      expect(result.engine).toBe("claudeCode");
+      expect(detectClaude).toHaveBeenCalled();
+      expect(detectOpenCode).toHaveBeenCalled();
     });
   });
 });
