@@ -263,6 +263,20 @@
   color: var(--ink);
 }
 
+.jobs-dock__panel-model {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jobs-dock__panel-model--pending {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
 .jobs-dock__phases {
   list-style: none;
   margin: 0;

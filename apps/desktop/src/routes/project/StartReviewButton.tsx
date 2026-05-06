@@ -3,7 +3,6 @@ import type { JSX } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { useAiEngine } from "../../hooks/use-ai-engine";
-import { isAiEngineReady } from "../../lib/ai-engine";
 import { useJobsStore } from "../../lib/jobs-store";
 import { DEFAULT_THOROUGHNESS, type ReviewerThoroughness } from "../../lib/reviewer-thoroughness";
 import { splitHeadline } from "../../lib/split-headline";
@@ -84,7 +83,7 @@ function WriterStartReview({
   const edits = usePaperEdits(repo, paperId);
   const confirm = useInlineConfirm();
   const engine = useAiEngine();
-  const engineReady = isAiEngineReady(engine.status);
+  const engineReady = engine.active !== null;
   const [indications, setIndications] = useState("");
   const [mode, setMode] = useState<ReviewRunnerMode>("writer-fast");
   const [thoroughness, setThoroughnessState] = useState<ReviewerThoroughness>(DEFAULT_THOROUGHNESS);
@@ -235,12 +234,21 @@ function WriterStartReview({
       {statusKind !== "running" ? (
         <div className="review-column__launch">
           {isPaperOpen ? (
-            <ThoroughnessToggle
-              value={thoroughness}
-              onChange={updateThoroughness}
-              disabled={modeDisabled}
-              name={paperId ? `thoroughness-${paperId}` : "thoroughness"}
-            />
+            engine.active?.engine === "openCode" ? (
+              <p
+                className="review-column__engine-note"
+                title="OpenCode picks the model from its own auth and opencode.jsonc, not from Obelus."
+              >
+                Models follow your OpenCode config
+              </p>
+            ) : (
+              <ThoroughnessToggle
+                value={thoroughness}
+                onChange={updateThoroughness}
+                disabled={modeDisabled}
+                name={paperId ? `thoroughness-${paperId}` : "thoroughness"}
+              />
+            )
           ) : null}
           <button
             type="button"
@@ -248,7 +256,13 @@ function WriterStartReview({
               confirm.armed ? "btn btn--primary review-column__start--danger" : "btn btn--primary"
             }
             disabled={!canStart}
-            title={engineReady ? undefined : "Install Claude Code from Settings to start a review."}
+            title={
+              engineReady
+                ? undefined
+                : engine.gate === "must-pick"
+                  ? "Pick an engine in Settings to start a review."
+                  : "Install an AI engine from Settings to start a review."
+            }
             onClick={() => {
               if (!isOnTip && discards.length > 0 && !confirm.armed) {
                 confirm.arm();

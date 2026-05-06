@@ -11,7 +11,7 @@ import {
 } from "@obelus/claude-sidecar";
 import { type JSX, useEffect, useRef, useState } from "react";
 import { useAiEngine } from "../../hooks/use-ai-engine";
-import { AiEngineUnavailable, isAiEngineReady, requireAiEngineReady } from "../../lib/ai-engine";
+import { AiEngineMustPick, AiEngineUnavailable, requireSpawnEngine } from "../../lib/ai-engine";
 import { useAskStore } from "./ask-store-context";
 import { buildAskPrompt } from "./build-ask-prompt";
 import { useProject } from "./context";
@@ -24,7 +24,7 @@ export default function AskPanel(): JSX.Element {
   const reviewStore = useReviewStore();
   const askStore = useAskStore();
   const engine = useAiEngine();
-  const engineReady = isAiEngineReady(engine.status);
+  const engineReady = engine.active !== null;
 
   const threadId = askStore((s) => s.threadId);
   const messages = askStore((s) => s.messages);
@@ -102,7 +102,7 @@ export default function AskPanel(): JSX.Element {
         return;
       }
       if (ev.code !== 0) {
-        void askStore.getState().failAssistant(`Claude exited with code ${ev.code ?? "?"}.`);
+        void askStore.getState().failAssistant(`Engine exited with code ${ev.code ?? "?"}.`);
         return;
       }
       void askStore.getState().finishAssistant();
@@ -145,7 +145,7 @@ export default function AskPanel(): JSX.Element {
     });
 
     try {
-      await requireAiEngineReady();
+      const engineStatus = await requireSpawnEngine();
       await askStore.getState().appendUser(question);
       const claudeSessionId = await claudeAsk({
         rootId,
@@ -153,15 +153,18 @@ export default function AskPanel(): JSX.Element {
         promptBody,
         model: null,
         effort: null,
+        engine: engineStatus.engine,
       });
       await askStore.getState().startAssistant(claudeSessionId);
     } catch (err) {
       const msg =
-        err instanceof AiEngineUnavailable
-          ? "Claude Code isn't installed. Open Settings to install it, then try again."
-          : err instanceof Error
-            ? err.message
-            : "Could not reach Claude.";
+        err instanceof AiEngineMustPick
+          ? "Pick an engine in Settings to ask."
+          : err instanceof AiEngineUnavailable
+            ? "No AI engine is installed. Open Settings to install Claude Code or OpenCode, then try again."
+            : err instanceof Error
+              ? err.message
+              : "Could not reach the AI engine.";
       await askStore.getState().failAssistant(msg);
     }
   }
@@ -186,17 +189,17 @@ export default function AskPanel(): JSX.Element {
         {messages.length === 0 && status.kind !== "streaming" ? (
           <div className="ask-panel__empty">
             <p>Ask anything about this project.</p>
-            <p>Claude reads, never writes — for changes use the diff.</p>
+            <p>Your AI engine reads, never writes — for changes use the diff.</p>
           </div>
         ) : (
           messages.map((m) => (
             <article key={m.id} className={`ask-msg ask-msg--${m.role}`}>
-              <header className="ask-msg__role">{m.role === "user" ? "you" : "claude"}</header>
+              <header className="ask-msg__role">{m.role === "user" ? "you" : "engine"}</header>
               <div className="ask-msg__body">
                 {m.body || (
                   <span className="ask-msg__placeholder">
                     {status.kind === "streaming" && status.assistantId === m.id
-                      ? "Claude is reading. First words in a moment."
+                      ? "Reading. First words in a moment."
                       : m.cancelled
                         ? "(cancelled)"
                         : ""}
@@ -240,7 +243,13 @@ export default function AskPanel(): JSX.Element {
               type="submit"
               className="btn btn--primary"
               disabled={!threadId || draft.trim().length === 0 || !engineReady}
-              title={engineReady ? undefined : "Install Claude Code from Settings to ask."}
+              title={
+                engineReady
+                  ? undefined
+                  : engine.gate === "must-pick"
+                    ? "Pick an engine in Settings to ask."
+                    : "Install an AI engine from Settings to ask."
+              }
             >
               Ask
             </button>

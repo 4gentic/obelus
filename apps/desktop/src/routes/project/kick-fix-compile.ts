@@ -6,7 +6,7 @@ import { claudeFixCompile } from "@obelus/claude-sidecar";
 import type { Repository } from "@obelus/repo";
 import { getVersion } from "@tauri-apps/api/app";
 import { workspaceWriteText } from "../../ipc/commands";
-import { requireAiEngineReady } from "../../lib/ai-engine";
+import { requireSpawnEngine } from "../../lib/ai-engine";
 import { useJobsStore } from "../../lib/jobs-store";
 
 export type FixCompileTrigger = "apply" | "manual";
@@ -92,9 +92,10 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     return;
   }
 
-  // Throws AiEngineUnavailable upstream when the engine isn't installed.
-  // The CompilePane catch surfaces the error message to the user.
-  await requireAiEngineReady();
+  // Throws AiEngineUnavailable when no engine is installed, AiEngineMustPick
+  // when both are installed and no preference is set. The CompilePane catch
+  // surfaces the error message to the user.
+  const engineStatus = await requireSpawnEngine();
 
   const paper = await repo.papers.get(paperId).catch(() => undefined);
   if (!paper) {
@@ -148,6 +149,7 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     paperId,
     model: null,
     effort: null,
+    engine: engineStatus.engine,
   });
   await repo.reviewSessions.setClaudeSessionId(fixSession.id, claudeSessionId);
 
