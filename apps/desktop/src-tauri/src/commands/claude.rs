@@ -1,6 +1,6 @@
 use semver::Version;
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -28,15 +28,17 @@ pub enum HostOs {
     Other,
 }
 
-fn host_os() -> HostOs {
-    if cfg!(target_os = "macos") {
-        HostOs::Macos
-    } else if cfg!(target_os = "linux") {
-        HostOs::Linux
-    } else if cfg!(target_os = "windows") {
-        HostOs::Windows
-    } else {
-        HostOs::Other
+impl HostOs {
+    pub fn current() -> Self {
+        if cfg!(target_os = "macos") {
+            HostOs::Macos
+        } else if cfg!(target_os = "linux") {
+            HostOs::Linux
+        } else if cfg!(target_os = "windows") {
+            HostOs::Windows
+        } else {
+            HostOs::Other
+        }
     }
 }
 
@@ -63,7 +65,7 @@ pub async fn detect_claude() -> ClaudeStatus {
                 status: ClaudeState::Unreadable,
                 floor: CLAUDE_FLOOR.into(),
                 ceil_exclusive: CLAUDE_CEIL_EXCLUSIVE.into(),
-                host_os: host_os(),
+                host_os: HostOs::current(),
             },
         },
         None => ClaudeStatus {
@@ -72,7 +74,7 @@ pub async fn detect_claude() -> ClaudeStatus {
             status: ClaudeState::NotFound,
             floor: CLAUDE_FLOOR.into(),
             ceil_exclusive: CLAUDE_CEIL_EXCLUSIVE.into(),
-            host_os: host_os(),
+            host_os: HostOs::current(),
         },
     }
 }
@@ -105,7 +107,7 @@ pub async fn resolve_claude_path() -> Option<PathBuf> {
     None
 }
 
-async fn read_version(path: &PathBuf) -> Option<String> {
+async fn read_version(path: &Path) -> Option<String> {
     let fut = Command::new(path).arg("--version").output();
     let output = timeout(PROBE_TIMEOUT, fut).await.ok()?.ok()?;
     if !output.status.success() {
@@ -126,7 +128,7 @@ fn parse_version(text: &str) -> Option<String> {
     None
 }
 
-fn classify(path: &PathBuf, version: &str) -> ClaudeStatus {
+fn classify(path: &Path, version: &str) -> ClaudeStatus {
     let parsed = Version::parse(version).ok();
     let state = match parsed {
         Some(v) => {
@@ -148,6 +150,6 @@ fn classify(path: &PathBuf, version: &str) -> ClaudeStatus {
         status: state,
         floor: CLAUDE_FLOOR.into(),
         ceil_exclusive: CLAUDE_CEIL_EXCLUSIVE.into(),
-        host_os: host_os(),
+        host_os: HostOs::current(),
     }
 }

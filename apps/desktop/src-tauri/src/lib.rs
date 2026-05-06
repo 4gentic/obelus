@@ -25,6 +25,8 @@ use commands::{
     },
     latex::compile_latex,
     metrics::metrics_append,
+    opencode::detect_opencode,
+    opencode_session::{opencode_ask, opencode_draft_writeup, opencode_fix_compile, opencode_spawn},
     plan_render::plan_render_md,
     project::authorize_project_root,
     project_meta::project_scan,
@@ -55,6 +57,11 @@ pub fn run() {
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             detect_claude,
+            detect_opencode,
+            opencode_spawn,
+            opencode_ask,
+            opencode_draft_writeup,
+            opencode_fix_compile,
             open_folder_picker,
             open_paper_picker,
             open_rubric_picker,
