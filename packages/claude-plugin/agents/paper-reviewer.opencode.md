@@ -13,6 +13,24 @@ permission:
   external_directory: deny
 ---
 
+<!--
+  STATUS: not wired at runtime in the desktop today.
+
+  The desktop's `opencode_session.rs::stage_opencode_resources` stages only
+  `skills/`, not this agent file. OpenCode discovers agents under
+  `<--dir>/.opencode/agents/` (= the user's paper root), and we deliberately
+  refuse to write into the user's repo. The plugin-e2e harness stages this
+  file at `<scenario>/.opencode/agents/paper-reviewer.md` to exercise the
+  shape, but production OpenCode runs do not invoke a per-edit critique
+  subagent — the SKILL.md alone produces the plan.
+
+  Tracked in `docs/opencode-followups.md` §3 (deliberate skip) and §7 (the
+  `.opencode/commands/*.md` shim path that would let the desktop stage
+  commands referencing this agent without polluting the user's working
+  tree). Edit this file freely; just know its only consumer today is the
+  e2e harness.
+-->
+
 # Paper reviewer
 
 You are a meticulous academic reviewer who stress-tests one proposed paper edit at a time and returns a critique of at most six sentences.

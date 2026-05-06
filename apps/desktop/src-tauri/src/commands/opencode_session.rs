@@ -77,7 +77,19 @@ async fn copy_dir_recursive(src: &Path, dst: &Path) -> AppResult<()> {
     Ok(())
 }
 
-async fn stage_opencode_resources(plugin_dir: &Path, workspace: &Path) -> AppResult<()> {
+// Stages the bundled plugin's `skills/` tree into `<workspace>/.claude/skills/`
+// so OpenCode can resolve each SKILL.md by absolute path. Per-project mutex
+// serializes concurrent spawns into the same workspace — two spawns landing
+// inside the `clear_existing → symlink` window would otherwise leave a
+// half-staged tree for whichever spawn arrived second.
+async fn stage_opencode_resources(
+    plugin_dir: &Path,
+    workspace: &Path,
+    state: &AppState,
+    project_id: &str,
+) -> AppResult<()> {
+    let lock = state.workspace_lock(project_id);
+    let _guard = lock.lock().await;
     let skills_src = plugin_dir.join("skills");
     let skills_dst = workspace.join(".claude").join("skills");
     link_or_copy_dir(&skills_src, &skills_dst).await?;
@@ -133,9 +145,13 @@ pub async fn opencode_spawn(
     bundle_workspace_rel_path: String,
     extra_prompt_body: Option<String>,
     // `model` and `effort` are accepted for IPC parity with claude_spawn but
-    // are not forwarded to OpenCode. See build_opencode_command.
-    _model: Option<String>,
-    _effort: Option<String>,
+    // are not forwarded to OpenCode — its model is configured via
+    // `opencode auth login` and `opencode.jsonc`. We log a one-line notice on
+    // every spawn that received non-null values so the discard is visible in
+    // `[opencode-session]` stderr; users on the Advanced disclosure can see
+    // their selection is a no-op rather than silently taking no effect.
+    model: Option<String>,
+    effort: Option<String>,
     mode: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
@@ -154,7 +170,14 @@ pub async fn opencode_spawn(
         .resolve("plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
 
-    stage_opencode_resources(&plugin_dir, &workspace).await?;
+    stage_opencode_resources(&plugin_dir, &workspace, &state, &project_id).await?;
+
+    if model.is_some() || effort.is_some() {
+        eprintln!(
+            "[opencode-session] ignoring model={:?} effort={:?} (configure via opencode.jsonc / opencode auth login)",
+            model, effort,
+        );
+    }
 
     let writer_fast = matches!(mode.as_deref(), Some("writer-fast"));
     let deep_review = matches!(mode.as_deref(), Some("deep-review"));
@@ -223,10 +246,18 @@ pub async fn opencode_spawn(
             bundle = bundle_abs.display(),
         )
     } else {
+        // Mirrors the apply-revision prompt in `claude_session.rs` (the
+        // rigorous else-branch). The "STILL invoke plan-fix" clause is
+        // load-bearing: a model that decides edits are already in the working
+        // tree must still emit a plan with every block `ambiguous: true` —
+        // otherwise the desktop reports "no plan matched session bundle X".
+        // The tool policy is split into two clauses to avoid the comma-list
+        // misread ("Edit, Write" parsed as two banned tools); the skill needs
+        // Write to land its plan inside the workspace.
         format!(
             "Workspace (write all output here): {workspace_abs}\n\
              Run skill `{skill_name}` — read {workspace_abs}/.claude/skills/{skill_name}/SKILL.md and follow it on bundle {bundle}.\n\
-             Tool policy: write only inside the workspace. Do NOT use Edit, Write, or any tool that mutates a source file under the project working tree. Every run must end with `OBELUS_WROTE: {workspace_abs}/plan-<iso>.json`.\n",
+             Tool policy: write only inside the workspace. Do NOT use Edit on any source file, and do NOT use Write outside the workspace — the desktop UI applies plans. If you conclude the bundle's edits are already in the working tree, STILL invoke plan-fix with every block ambiguous:true and a reviewer note explaining the no-op; every run must end with `OBELUS_WROTE: {workspace_abs}/plan-<iso>.json`.\n",
             workspace_abs = workspace_abs,
             skill_name = skill_name,
             bundle = bundle_abs.display(),
@@ -331,7 +362,7 @@ pub async fn opencode_ask(
         .path()
         .resolve("plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
-    stage_opencode_resources(&plugin_dir, &workspace).await?;
+    stage_opencode_resources(&plugin_dir, &workspace, &state, &project_id).await?;
 
     let body = if prompt_body.ends_with('\n') {
         prompt_body
@@ -373,12 +404,18 @@ pub async fn opencode_draft_writeup(
         .path()
         .resolve("plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
-    stage_opencode_resources(&plugin_dir, &workspace).await?;
+    stage_opencode_resources(&plugin_dir, &workspace, &state, &project_id).await?;
 
+    // The `--out` flag is a positional argument the write-review skill parses
+    // out of its input (see `write-review/SKILL.md`'s arg grammar). Narrating
+    // it as English ("with --out") would let the skill default to inline
+    // mode and emit the letter into the transcript with no `OBELUS_WROTE:`
+    // marker — desktop never sees the file. Pass it as part of the input.
     let workspace_abs = workspace.display();
     let mut base = format!(
         "Workspace (write all output here): {workspace_abs}\n\
-         Run skill `write-review` — read {workspace_abs}/.claude/skills/write-review/SKILL.md and follow it on bundle {bundle} with --out (write the reviewer letter as a file under the workspace, do not stream the letter inline).\n\
+         Run skill `write-review` — read {workspace_abs}/.claude/skills/write-review/SKILL.md and follow it on input `{bundle} --out`.\n\
+         Out-of-band mode: write the reviewer letter as `writeup-{paper_id}-<iso>.md` inside the workspace; the final stdout line must be `OBELUS_WROTE: <absolute-path-to-that-file>`. Do not stream the letter inline.\n\
          paperId: {paper_id}\n\
          paperTitle: {paper_title}\n",
         workspace_abs = workspace_abs,
@@ -421,7 +458,7 @@ pub async fn opencode_fix_compile(
         .path()
         .resolve("plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| AppError::Other(format!("plugin resource missing: {e}")))?;
-    stage_opencode_resources(&plugin_dir, &workspace).await?;
+    stage_opencode_resources(&plugin_dir, &workspace, &state, &project_id).await?;
 
     let workspace_abs = workspace.display();
     let prompt = format!(

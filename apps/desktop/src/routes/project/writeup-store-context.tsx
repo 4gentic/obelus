@@ -180,6 +180,7 @@ export function WriteUpStoreProvider({ children }: { children: ReactNode }): JSX
           startedAt: Date.now(),
           paperId,
           paperTitle,
+          engine: engineStatus.engine,
         });
       } catch (err) {
         progressStore.getState().reset();

@@ -401,6 +401,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           reviewSessionId: session.id,
           paperId,
           ...(paper?.title ? { paperTitle: paper.title } : {}),
+          engine: engineId,
         });
         setLocal({ kind: "idle" });
       } catch (err) {
@@ -482,6 +483,7 @@ export function ReviewRunnerProvider({ children }: { children: ReactNode }): JSX
           reviewSessionId: opts.reviewSessionId,
           paperId: opts.paperId,
           ...(paper?.title ? { paperTitle: paper.title } : {}),
+          engine: engineId,
         });
         console.info("[deep-review-spawn]", {
           reviewSessionId: opts.reviewSessionId,

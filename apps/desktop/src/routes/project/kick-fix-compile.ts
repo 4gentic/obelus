@@ -165,6 +165,7 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     ...(paper.title ? { paperTitle: paper.title } : {}),
     compiler,
     mainRelPath,
+    engine: engineStatus.engine,
   });
 
   console.info("[fix-compile-start]", {

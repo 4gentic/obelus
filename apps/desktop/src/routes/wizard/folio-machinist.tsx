@@ -39,6 +39,12 @@ export default function FolioMachinist({
   // Both engines installed but the user hasn't picked which one to spawn.
   // Block Continue until they do — there is no defensible default.
   const mustChoose = bothReady && preferred === null;
+  // The auto-select effect below records the only ready engine as preferred
+  // when the other is missing. Surface that decision under the ready pane so
+  // the user can see what Obelus chose on their behalf — silent auto-select
+  // makes it look like nothing happened.
+  const onlyClaudeReady = claudeReady && !openCodeReady;
+  const onlyOpenCodeReady = openCodeReady && !claudeReady;
 
   // When only one engine is ready, auto-record it as the preferred so the
   // user is not asked a question with no real input. The wizard's "Continue"
@@ -64,8 +70,8 @@ export default function FolioMachinist({
         machine. Either of these works:
       </p>
 
-      <EnginePane id="claudeCode" status={claudeCode} />
-      <EnginePane id="openCode" status={openCode} />
+      <EnginePane id="claudeCode" status={claudeCode} autoSelected={onlyClaudeReady} />
+      <EnginePane id="openCode" status={openCode} autoSelected={onlyOpenCodeReady} />
 
       {bothReady ? (
         <fieldset className="folio__choice">
@@ -149,13 +155,16 @@ function PreferredOption({
 function EnginePane({
   id,
   status,
+  autoSelected = false,
 }: {
   id: AiEngineId;
   status: AiEngineStatus | "checking";
+  autoSelected?: boolean;
 }): JSX.Element {
   const label = aiEngineLabel(id);
   const binary = id === "claudeCode" ? "claude" : "opencode";
   const signIn = aiEngineSignInHint(id);
+  const autoNote = autoSelected ? <p className="folio__hint">Obelus will use this one.</p> : null;
 
   if (status === "checking") {
     return <pre className="folio__pane">{`${binary.padEnd(8)}—  looking\nauth    —  looking`}</pre>;
@@ -165,9 +174,12 @@ function EnginePane({
     const raw = status.raw;
     if (raw.status === "found") {
       return (
-        <pre className="folio__pane">
-          {`${binary.padEnd(8)}—  found   ${raw.version ?? "(unknown)"}\nauth    —  your shell, your keys (sign in: ${signIn})`}
-        </pre>
+        <div>
+          <pre className="folio__pane">
+            {`${binary.padEnd(8)}—  found   ${raw.version ?? "(unknown)"}\nauth    —  your shell, your keys (sign in: ${signIn})`}
+          </pre>
+          {autoNote}
+        </div>
       );
     }
     if (raw.status === "belowFloor") {
@@ -203,6 +215,7 @@ function EnginePane({
             We will try to use it anyway. If things misbehave, run <code>{binary} --version</code>{" "}
             yourself to confirm it responds.
           </p>
+          {autoNote}
         </div>
       );
     }
@@ -223,9 +236,12 @@ function EnginePane({
   const raw = status.raw;
   if (raw.status === "found") {
     return (
-      <pre className="folio__pane">
-        {`${binary.padEnd(8)}—  found   ${raw.version ?? "(unknown)"}\nauth    —  your shell, your keys (sign in: ${signIn})`}
-      </pre>
+      <div>
+        <pre className="folio__pane">
+          {`${binary.padEnd(8)}—  found   ${raw.version ?? "(unknown)"}\nauth    —  your shell, your keys (sign in: ${signIn})`}
+        </pre>
+        {autoNote}
+      </div>
     );
   }
   if (raw.status === "unreadable") {
@@ -236,6 +252,7 @@ function EnginePane({
           We will try to use it anyway. If things misbehave, run <code>{binary} --version</code>{" "}
           yourself to confirm it responds.
         </p>
+        {autoNote}
       </div>
     );
   }

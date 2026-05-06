@@ -1,7 +1,8 @@
 import { create, type StoreApi, type UseBoundStore } from "zustand";
+import type { AiEngineId } from "./ai-engine";
 
-// The global registry of Claude-backed jobs that survive route navigation.
-// Scoped to the app process: if the app quits, the child `claude` process
+// The global registry of engine-backed jobs that survive route navigation.
+// Scoped to the app process: if the app quits, the child engine process
 // dies too, so there is no state to persist beyond the session.
 
 export type JobKind = "review" | "writeup" | "compile-fix";
@@ -86,6 +87,13 @@ export interface JobRecord {
   // multiple providers and the desktop never passes `--model`. Empty until the
   // first stream event that carries a model field.
   model?: string;
+  // Which AI engine spawned this job. Set at register time from the
+  // `requireSpawnEngine()` result. Optional because the WebView-refresh
+  // reattach path (`review-runner.tsx`) reconstructs the record from the
+  // SQLite review session, which does not persist the engine — for that case
+  // we cannot recover the value and leave it undefined. New runs always set
+  // it.
+  engine?: AiEngineId;
 }
 
 export interface RegisterInput {
@@ -101,6 +109,7 @@ export interface RegisterInput {
   paperTitle?: string;
   compiler?: string;
   mainRelPath?: string;
+  engine?: AiEngineId;
 }
 
 export interface JobsState {
@@ -147,6 +156,7 @@ export const useJobsStore: JobsStore = create<JobsState>()((set, get) => ({
       ...(input.paperTitle !== undefined ? { paperTitle: input.paperTitle } : {}),
       ...(input.compiler !== undefined ? { compiler: input.compiler } : {}),
       ...(input.mainRelPath !== undefined ? { mainRelPath: input.mainRelPath } : {}),
+      ...(input.engine !== undefined ? { engine: input.engine } : {}),
     };
     set((s) => ({ jobs: { ...s.jobs, [input.claudeSessionId]: record } }));
   },
