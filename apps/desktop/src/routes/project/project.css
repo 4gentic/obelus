@@ -1920,6 +1920,43 @@ button.files__row {
   word-break: break-word;
 }
 
+/* Prominent banner for blocking conditions the disabled Start button can't
+   carry on its own (currently: missing main source file). Sits at the top of
+   the actions column so it's the first thing the user sees once they realise
+   the button isn't responding. Rubric left-rule and small-caps label keep it
+   editorial — no shadcn-style "alert" card. */
+.review-column__banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in oklab, var(--rubric) 8%, var(--panel));
+  border-left: 3px solid var(--rubric);
+  border-radius: var(--radius-1);
+}
+
+.review-column__banner-label {
+  margin: 0;
+  font-family: var(--font-display);
+  font-variant: small-caps;
+  font-size: var(--step--2);
+  letter-spacing: 0.05em;
+  color: var(--rubric);
+}
+
+.review-column__banner-body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.review-column__banner-star {
+  font-family: var(--font-mono);
+  color: var(--rubric);
+}
+
 .review-column__empty {
   display: flex;
   flex-direction: column;

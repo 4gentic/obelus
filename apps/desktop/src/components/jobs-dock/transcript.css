@@ -1,0 +1,289 @@
+.jobs-dock__transcript {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.jobs-dock__transcript-scroller {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  overflow-y: auto;
+  /* Grow into whatever room the panel offers (panel is capped at 70vh, the
+     header + footer eat the rest). `min-height: 0` is the unlock that lets a
+     flex child shrink below its content. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* --- Text blocks --- */
+
+.jobs-dock__transcript-text {
+  margin: 0;
+  padding-left: var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.55;
+  color: var(--ink);
+  border-left: 2px solid transparent;
+  white-space: pre-wrap;
+}
+
+.jobs-dock__transcript-text--streaming {
+  border-left-color: var(--rubric);
+}
+
+.jobs-dock__transcript-caret {
+  display: inline-block;
+  width: 0.4em;
+  height: 1em;
+  background: var(--ink);
+  margin-left: 2px;
+  vertical-align: -2px;
+  animation: jobs-dock__transcript-caret-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes jobs-dock__transcript-caret-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jobs-dock__transcript-caret {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* --- Thinking blocks --- */
+
+.jobs-dock__transcript-thinking {
+  padding-left: var(--space-3);
+  border-left: 1px solid color-mix(in oklab, var(--ink-soft) 50%, transparent);
+}
+
+.jobs-dock__transcript-thinking-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.jobs-dock__transcript-thinking-preview {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  font-style: italic;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.jobs-dock__transcript-thinking-body {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  font-style: italic;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-height: 30vh;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* --- Tool blocks --- */
+
+.jobs-dock__transcript-tool {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--ink-soft);
+}
+
+.jobs-dock__transcript-tool-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.jobs-dock__transcript-tool-name {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink);
+  flex: 0 0 auto;
+}
+
+.jobs-dock__transcript-tool-caption {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.jobs-dock__transcript-tool-status {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+}
+
+.jobs-dock__transcript-tool-status--pending {
+  color: var(--ink-soft);
+}
+
+.jobs-dock__transcript-tool-status--error {
+  color: var(--rubric);
+}
+
+.jobs-dock__transcript-tool-result {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+}
+
+.jobs-dock__transcript-tool-body {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--panel);
+  border: var(--rule-soft);
+  border-radius: var(--radius-1);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  line-height: 1.4;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 12em;
+  overflow-y: auto;
+}
+
+.jobs-dock__transcript-tool-body-overflow {
+  color: var(--ink-soft);
+}
+
+/* --- Tool group blocks --- */
+
+.jobs-dock__transcript-tool-group {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--ink-soft);
+}
+
+.jobs-dock__transcript-tool-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.jobs-dock__transcript-tool-group-head:hover {
+  background: color-mix(in oklab, var(--panel) 50%, transparent);
+}
+
+.jobs-dock__transcript-tool-group-members {
+  margin: var(--space-1) 0 0;
+  padding: 0 0 0 var(--space-3);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.jobs-dock__transcript-tool-group-members > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+/* --- Status blocks --- */
+
+.jobs-dock__transcript-status {
+  margin: 0;
+  font-family: var(--font-display);
+  font-variant: small-caps;
+  font-size: var(--step--2);
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.jobs-dock__transcript-status--exit {
+  padding-top: var(--space-2);
+  border-top: var(--rule-soft);
+}
+
+.jobs-dock__transcript-status--overflow {
+  padding: var(--space-1) 0;
+}
+
+/* --- Show-earlier disclosure --- */
+
+.jobs-dock__transcript-show-earlier {
+  align-self: center;
+  background: none;
+  border: 0;
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-display);
+  font-variant: small-caps;
+  font-size: var(--step--2);
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.jobs-dock__transcript-show-earlier:hover {
+  color: var(--ink);
+}
+
+/* --- Footer --- */
+
+.jobs-dock__transcript-footer {
+  margin: 0;
+  padding: var(--space-1) var(--space-6);
+  border-top: var(--rule-soft);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+.jobs-dock__transcript-section-label {
+  font-family: var(--font-display);
+  font-variant: small-caps;
+  font-size: var(--step--2);
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  flex: 0 0 auto;
+}
