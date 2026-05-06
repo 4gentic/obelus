@@ -35,6 +35,7 @@ import {
 } from "../lib/metrics";
 import { MetricsStream } from "../lib/metrics-stream";
 import { getRepository } from "../lib/repo";
+import { useTranscriptStore } from "../lib/transcript-store";
 import { getActiveBuffersStore } from "../routes/project/active-buffers-store";
 import { ingestPlanFile } from "../routes/project/ingest-plan";
 import { ingestWriteupFile } from "../routes/project/ingest-writeup";
@@ -144,6 +145,9 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
 
       const parsed = parseStreamLine(ev.line);
       if (!parsed) return;
+
+      const eventAtMs = parseTsMs(ev.ts) ?? Date.now();
+      useTranscriptStore.getState().ingest(ev.sessionId, parsed, eventAtMs);
 
       if (!sessionStreamStart.has(ev.sessionId)) {
         sessionStreamStart.set(ev.sessionId, Date.now());
@@ -294,6 +298,7 @@ async function handleExit(
 
   if (wasCancelled) {
     store.markCancelled(sessionId);
+    useTranscriptStore.getState().finalize(sessionId, "cancelled", Date.now());
     if (reviewSessionId) {
       await markReviewStatus(reviewSessionId, "discarded", "Cancelled by user.");
     }
@@ -303,6 +308,7 @@ async function handleExit(
   if (code !== 0) {
     const msg = `Engine exited with code ${code ?? "?"}.`;
     store.markError(sessionId, msg);
+    useTranscriptStore.getState().finalize(sessionId, "error", Date.now());
     if (reviewSessionId) {
       await markReviewStatus(reviewSessionId, "failed", msg);
     }
@@ -340,6 +346,7 @@ async function handleExit(
               changed,
             });
             store.markError(sessionId, detail);
+            useTranscriptStore.getState().finalize(sessionId, "error", Date.now());
             await markReviewStatus(reviewSessionId, "failed", detail);
             return;
           }
@@ -374,6 +381,7 @@ async function handleExit(
         ms: Math.round(performance.now() - tIngestStart),
       });
       store.markDone(sessionId, message);
+      useTranscriptStore.getState().finalize(sessionId, "done", Date.now());
     } else if (job.kind === "compile-fix") {
       // The skill edits source directly. Refresh any open buffers so the
       // editor picks up the new bytes on disk — before verify, so the user
@@ -386,6 +394,7 @@ async function handleExit(
         job.mainRelPath,
       );
       store.markDone(sessionId, message);
+      useTranscriptStore.getState().finalize(sessionId, "done", Date.now());
     } else {
       const ingested = await ingestWriteup(
         sessionId,
@@ -403,12 +412,14 @@ async function handleExit(
         sessionId,
         `Write-up ready. ${bytes.toLocaleString()} bytes from ${artifactLabel(ingested.path)}.`,
       );
+      useTranscriptStore.getState().finalize(sessionId, "done", Date.now());
     }
   } catch (err) {
     const detail =
       err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
     console.warn("[ingest]", { sessionId, kind: job.kind, detail });
     store.markError(sessionId, detail);
+    useTranscriptStore.getState().finalize(sessionId, "error", Date.now());
     if (reviewSessionId) {
       await markReviewStatus(reviewSessionId, "failed", detail);
     }

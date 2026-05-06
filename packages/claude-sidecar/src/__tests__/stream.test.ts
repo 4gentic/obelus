@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   extractAssistantText,
+  extractDeltaText,
+  extractDeltaThinking,
   extractModel,
+  extractThinkingText,
   extractToolUses,
   extractUsage,
   isResult,
   type ParsedStreamEvent,
   parseOpenCodeModelLogLine,
   parseStreamLine,
+  parseToolResults,
 } from "../index";
 
 function mustParse(line: string): ParsedStreamEvent {
@@ -210,6 +214,158 @@ describe("opencode normalisation", () => {
     // OpenCode does not embed model info in step_start parts; the resolved
     // provider+model arrives via stderr (see parseOpenCodeModelLogLine).
     expect(extractModel(parsed)).toBeNull();
+  });
+});
+
+describe("extractThinkingText", () => {
+  it("concatenates text from thinking blocks in an assistant message", () => {
+    const parsed = mustParse(
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "thinking", thinking: "First, I need to understand " },
+            { type: "thinking", thinking: "what the author is claiming." },
+            { type: "text", text: "Reviewing section 3…" },
+          ],
+        },
+      }),
+    );
+    expect(extractThinkingText(parsed)).toBe(
+      "First, I need to understand what the author is claiming.",
+    );
+  });
+
+  it("returns empty string when no thinking blocks are present", () => {
+    const parsed = mustParse(
+      JSON.stringify({
+        type: "assistant",
+        message: { content: [{ type: "text", text: "ok" }] },
+      }),
+    );
+    expect(extractThinkingText(parsed)).toBe("");
+  });
+
+  it("returns empty string for non-assistant events", () => {
+    const parsed = mustParse(
+      JSON.stringify({
+        type: "stream_event",
+        event: { type: "content_block_stop", index: 0 },
+      }),
+    );
+    expect(extractThinkingText(parsed)).toBe("");
+  });
+});
+
+describe("extractDeltaThinking", () => {
+  it("pulls thinking from thinking_delta in a stream_event", () => {
+    const parsed = mustParse(
+      JSON.stringify({
+        type: "stream_event",
+        event: {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "thinking_delta", thinking: "weighing two readings" },
+        },
+      }),
+    );
+    expect(extractDeltaThinking(parsed)).toBe("weighing two readings");
+  });
+
+  it("does not match text_delta events", () => {
+    const parsed = mustParse(
+      JSON.stringify({
+        type: "stream_event",
+        event: {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "text_delta", text: "prose" },
+        },
+      }),
+    );
+    expect(extractDeltaThinking(parsed)).toBe("");
+    expect(extractDeltaText(parsed)).toBe("prose");
+  });
+
+  it("returns empty string for non-stream_event events", () => {
+    const parsed = mustParse(JSON.stringify({ type: "result", subtype: "success" }));
+    expect(extractDeltaThinking(parsed)).toBe("");
+  });
+});
+
+describe("parseToolResults", () => {
+  it("extracts tool_result blocks from a user event with string content", () => {
+    const parsed = mustParse(
+      JSON.stringify({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_01",
+              content: "Found 12 matches",
+            },
+          ],
+        },
+      }),
+    );
+    const results = parseToolResults(parsed);
+    expect(results).toHaveLength(1);
+    expect(results[0]).toEqual({
+      toolUseId: "toolu_01",
+      content: "Found 12 matches",
+      isError: false,
+    });
+  });
+
+  it("flattens an array-of-text content payload", () => {
+    const parsed = mustParse(
+      JSON.stringify({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_02",
+              content: [
+                { type: "text", text: "line one\n" },
+                { type: "text", text: "line two" },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    expect(parseToolResults(parsed)[0]?.content).toBe("line one\nline two");
+  });
+
+  it("marks error results", () => {
+    const parsed = mustParse(
+      JSON.stringify({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_03",
+              is_error: true,
+              content: "permission denied",
+            },
+          ],
+        },
+      }),
+    );
+    expect(parseToolResults(parsed)[0]?.isError).toBe(true);
+  });
+
+  it("returns empty for events with no tool_result blocks", () => {
+    const parsed = mustParse(
+      JSON.stringify({
+        type: "assistant",
+        message: { content: [{ type: "text", text: "hi" }] },
+      }),
+    );
+    expect(parseToolResults(parsed)).toEqual([]);
   });
 });
 

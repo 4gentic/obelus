@@ -136,65 +136,12 @@ fn depth_of(rel: &str) -> usize {
     rel.split('/').count().saturating_sub(1)
 }
 
-fn score_tex_candidate(rel: &str) -> i64 {
-    // Lower is better.
-    let base = Path::new(rel)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
-    let mut score = (depth_of(rel) as i64) * 100;
-    score += rel.len() as i64;
-    if base == "main.tex" {
-        score -= 10_000;
-    } else if base == "paper.tex" {
-        score -= 9_000;
-    } else if base == "manuscript.tex" {
-        score -= 8_000;
-    } else if base == "thesis.tex" {
-        score -= 7_000;
-    }
-    score
-}
-
-fn score_typ_candidate(rel: &str) -> i64 {
-    let base = Path::new(rel)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
-    let mut score = (depth_of(rel) as i64) * 100;
-    score += rel.len() as i64;
-    if base == "main.typ" {
-        score -= 10_000;
-    } else if base == "paper.typ" {
-        score -= 9_000;
-    } else if base == "report.typ" {
-        score -= 8_000;
-    }
-    score
-}
-
-fn score_md_candidate(rel: &str, size: u64) -> i64 {
-    let base = Path::new(rel)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
-    // Skip obvious non-manuscript markdown.
-    let is_chrome = matches!(
-        base.to_ascii_lowercase().as_str(),
-        "readme.md" | "changelog.md" | "license.md" | "contributing.md" | "code_of_conduct.md",
-    );
-    let mut score = (depth_of(rel) as i64) * 100;
-    // Larger files score lower (better). Cap contribution so depth still matters.
-    score -= (size.min(1_000_000) as i64) / 1024;
-    if is_chrome {
-        score += 1_000_000;
-    }
-    if base == "paper.md" {
-        score -= 10_000;
-    } else if base == "manuscript.md" {
-        score -= 9_000;
-    }
-    score
+// Filename is intentionally not a signal here — a `notes.tex` carrying
+// `\documentclass` is more authoritative than a `main.tex` that doesn't, and
+// we refuse to guess based on names. Within a format, ties break by depth
+// (shallower wins) then by path length (shorter wins).
+fn score_candidate(rel: &str) -> i64 {
+    (depth_of(rel) as i64) * 100 + rel.len() as i64
 }
 
 async fn file_contains(abs: &Path, needle: &str, max_bytes: usize) -> bool {
@@ -214,8 +161,14 @@ async fn file_contains(abs: &Path, needle: &str, max_bytes: usize) -> bool {
 }
 
 async fn detect_main(root: &Path, files: &[ScannedFile]) -> (Option<String>, Option<String>) {
-    // Returns (format, main_rel_path). Prefers the format whose best candidate
-    // actually signals a document entrypoint; ties broken by most recent mtime.
+    // Returns (format, main_rel_path). A candidate qualifies only when its
+    // content carries a document-entrypoint marker — `\documentclass` for
+    // .tex, `#set document(` or `#show:` for .typ. Markdown has no analogous
+    // signal and is therefore not auto-detected; the user pins via the ★
+    // button on the file row when reviewing a markdown manuscript.
+    //
+    // When both .tex and .typ candidates exist, ties break by most recent
+    // mtime (the file the user has been editing).
 
     async fn best_tex(root: &Path, files: &[ScannedFile]) -> Option<(String, i64)> {
         let mut best: Option<(String, i64)> = None;
@@ -224,7 +177,7 @@ async fn detect_main(root: &Path, files: &[ScannedFile]) -> (Option<String>, Opt
             if !file_contains(&abs, r"\documentclass", 32 * 1024).await {
                 continue;
             }
-            let score = score_tex_candidate(&f.rel_path);
+            let score = score_candidate(&f.rel_path);
             match best {
                 Some((_, bs)) if bs <= score => {}
                 _ => best = Some((f.rel_path.clone(), score)),
@@ -242,22 +195,7 @@ async fn detect_main(root: &Path, files: &[ScannedFile]) -> (Option<String>, Opt
             if !has_doc {
                 continue;
             }
-            let score = score_typ_candidate(&f.rel_path);
-            match best {
-                Some((_, bs)) if bs <= score => {}
-                _ => best = Some((f.rel_path.clone(), score)),
-            }
-        }
-        best
-    }
-
-    fn best_md(files: &[ScannedFile]) -> Option<(String, i64)> {
-        let mut best: Option<(String, i64)> = None;
-        for f in files.iter().filter(|f| f.format == "md") {
-            let score = score_md_candidate(&f.rel_path, f.size);
-            if score >= 900_000 {
-                continue;
-            }
+            let score = score_candidate(&f.rel_path);
             match best {
                 Some((_, bs)) if bs <= score => {}
                 _ => best = Some((f.rel_path.clone(), score)),
@@ -268,37 +206,26 @@ async fn detect_main(root: &Path, files: &[ScannedFile]) -> (Option<String>, Opt
 
     let tex = best_tex(root, files).await;
     let typ = best_typ(root, files).await;
-    let md = best_md(files);
 
-    let mut winners: Vec<(&'static str, String, i64, i64)> = Vec::new();
-    if let Some((rel, score)) = tex {
+    let mut winners: Vec<(&'static str, String, i64)> = Vec::new();
+    if let Some((rel, _)) = tex {
         let mtime = files
             .iter()
             .find(|f| f.rel_path == rel)
             .map(|f| f.mtime_ms)
             .unwrap_or(0);
-        winners.push(("tex", rel, score, mtime));
+        winners.push(("tex", rel, mtime));
     }
-    if let Some((rel, score)) = typ {
+    if let Some((rel, _)) = typ {
         let mtime = files
             .iter()
             .find(|f| f.rel_path == rel)
             .map(|f| f.mtime_ms)
             .unwrap_or(0);
-        winners.push(("typ", rel, score, mtime));
-    }
-    if let Some((rel, score)) = md {
-        let mtime = files
-            .iter()
-            .find(|f| f.rel_path == rel)
-            .map(|f| f.mtime_ms)
-            .unwrap_or(0);
-        winners.push(("md", rel, score, mtime));
+        winners.push(("typ", rel, mtime));
     }
 
-    // Pick the most recently modified candidate to break format ties; within a
-    // single format this collapses to the sole winner.
-    let Some((fmt, rel, _, _)) = winners.into_iter().max_by_key(|w| w.3) else {
+    let Some((fmt, rel, _)) = winners.into_iter().max_by_key(|w| w.2) else {
         return (None, None);
     };
     (Some(fmt.to_string()), Some(rel))
@@ -478,6 +405,63 @@ mod tests {
         let (fmt, main) = detect_main(&root, &files).await;
         assert_eq!(fmt.as_deref(), Some("tex"));
         assert_eq!(main.as_deref(), Some("main.tex"));
+    }
+
+    #[tokio::test]
+    async fn content_beats_filename_for_tex() {
+        // A non-canonical name that carries the marker must win over a
+        // canonical name that doesn't. Filenames are not a signal.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        write(&root.join("main.tex"), "\\section{not the entrypoint}").await;
+        write(
+            &root.join("notes.tex"),
+            r"\documentclass{article}\begin{document}hi\end{document}",
+        )
+        .await;
+        let files = walk_project(&root).await.unwrap();
+        let (fmt, main) = detect_main(&root, &files).await;
+        assert_eq!(fmt.as_deref(), Some("tex"));
+        assert_eq!(main.as_deref(), Some("notes.tex"));
+    }
+
+    #[tokio::test]
+    async fn detects_main_typ_via_set_document() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        write(&root.join("notes.typ"), "#set document(title: \"x\")\n= Hi").await;
+        write(&root.join("snippet.typ"), "= just a heading").await;
+        let files = walk_project(&root).await.unwrap();
+        let (fmt, main) = detect_main(&root, &files).await;
+        assert_eq!(fmt.as_deref(), Some("typ"));
+        assert_eq!(main.as_deref(), Some("notes.typ"));
+    }
+
+    #[tokio::test]
+    async fn markdown_is_never_auto_detected() {
+        // Markdown carries no entrypoint signal; we refuse to guess. Even with
+        // a single .md present, detect_main returns None — the user must pin.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        write(&root.join("paper.md"), "# Title\n\nbody").await;
+        let files = walk_project(&root).await.unwrap();
+        let (fmt, main) = detect_main(&root, &files).await;
+        assert_eq!(fmt, None);
+        assert_eq!(main, None);
+    }
+
+    #[tokio::test]
+    async fn no_main_when_no_file_carries_marker() {
+        // Tex / typ files exist but neither carries its entrypoint marker —
+        // detection must abstain rather than fall back to a name guess.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        write(&root.join("main.tex"), "\\section{partial}").await;
+        write(&root.join("paper.typ"), "= a heading\nplain prose").await;
+        let files = walk_project(&root).await.unwrap();
+        let (fmt, main) = detect_main(&root, &files).await;
+        assert_eq!(fmt, None);
+        assert_eq!(main, None);
     }
 
     #[tokio::test]

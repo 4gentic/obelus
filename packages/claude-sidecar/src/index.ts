@@ -244,12 +244,29 @@ function normaliseOpenCodeEvent(
     const tool = typeof part.tool === "string" ? part.tool : "";
     if (!tool) return null;
     const state = recordAt(part, "state") ?? {};
+    // OpenCode emits a tool_use part on each state transition (running →
+    // completed). Only the terminal state carries `output`, so emit just the
+    // completed snapshot — running events would otherwise duplicate the row
+    // in any consumer that keys on the synthesised tool_use.
+    if (typeof state.status === "string" && state.status !== "completed") {
+      return { type, raw: rec };
+    }
     const input = state.input;
     const name = OPENCODE_TOOL_NAMES[tool] ?? capitaliseFirst(tool);
+    const callId = typeof part.callID === "string" ? part.callID : null;
+    const toolUseBlock: Record<string, unknown> = { type: "tool_use", name, input: input ?? {} };
+    if (callId) toolUseBlock.id = callId;
     const synthesised: Record<string, unknown> = {
       type: "assistant",
-      message: { content: [{ type: "tool_use", name, input: input ?? {} }] },
+      message: { content: [toolUseBlock] },
     };
+    // Surface the tool's output inline. OpenCode's `--format json` ships the
+    // result on the same event as the tool_use rather than in a separate
+    // user/tool_result event, so consumers that close pending tool blocks on
+    // the result-event side need an alternate signal.
+    if (typeof state.output === "string") {
+      synthesised._inline_tool_result = { isError: false, preview: state.output };
+    }
     return { type: "assistant", raw: synthesised };
   }
 
@@ -369,6 +386,17 @@ export function hasThinkingBlock(event: ParsedStreamEvent): boolean {
   return contentBlocks(event).some((b) => b.type === "thinking");
 }
 
+export function extractThinkingText(event: ParsedStreamEvent): string {
+  if (event.type !== "assistant") return "";
+  let out = "";
+  for (const block of contentBlocks(event)) {
+    if (block.type === "thinking" && typeof block.thinking === "string") {
+      out += block.thinking as string;
+    }
+  }
+  return out;
+}
+
 export function isResult(event: ParsedStreamEvent): boolean {
   return event.type === "result";
 }
@@ -386,6 +414,22 @@ export function extractDeltaText(event: ParsedStreamEvent): string {
   const deltaRec = delta as Record<string, unknown>;
   if (deltaRec.type !== "text_delta") return "";
   return typeof deltaRec.text === "string" ? (deltaRec.text as string) : "";
+}
+
+// Sibling of `extractDeltaText` for `thinking_delta` blocks, which the API
+// emits when extended thinking is on. The delta payload's text lives under
+// `thinking`, not `text`.
+export function extractDeltaThinking(event: ParsedStreamEvent): string {
+  if (event.type !== "stream_event") return "";
+  const inner = event.raw.event;
+  if (!inner || typeof inner !== "object") return "";
+  const rec = inner as Record<string, unknown>;
+  if (rec.type !== "content_block_delta") return "";
+  const delta = rec.delta;
+  if (!delta || typeof delta !== "object") return "";
+  const deltaRec = delta as Record<string, unknown>;
+  if (deltaRec.type !== "thinking_delta") return "";
+  return typeof deltaRec.thinking === "string" ? (deltaRec.thinking as string) : "";
 }
 
 export function extractResultText(event: ParsedStreamEvent): string | null {
@@ -454,4 +498,60 @@ export function isContentBlockStop(event: ParsedStreamEvent): boolean {
   const inner = event.raw.event;
   if (!inner || typeof inner !== "object") return false;
   return (inner as Record<string, unknown>).type === "content_block_stop";
+}
+
+export interface InlineToolResult {
+  readonly isError: boolean;
+  readonly preview: string;
+}
+
+// Some engines (OpenCode today) emit the tool_use and its result on a single
+// stream event rather than via a follow-up tool_result. The normaliser stamps
+// `_inline_tool_result` on those events so consumers don't have to engine-
+// branch — call this on every parsed event after handling tool_use, and if a
+// non-null result is returned, close the tool block we just pushed.
+export function extractInlineToolResult(event: ParsedStreamEvent): InlineToolResult | null {
+  const r = event.raw._inline_tool_result;
+  if (!r || typeof r !== "object") return null;
+  const rec = r as Record<string, unknown>;
+  const isError = rec.isError === true;
+  const preview = typeof rec.preview === "string" ? (rec.preview as string) : "";
+  return { isError, preview };
+}
+
+export interface StreamToolResult {
+  readonly toolUseId: string;
+  readonly content: string;
+  readonly isError: boolean;
+}
+
+// Tool results arrive as content blocks inside `user` events. Each block is
+// `{ type: "tool_result", tool_use_id, content, is_error? }`. `content` is
+// either a string or an array of `{ type: "text", text }` blocks; both shapes
+// appear across CLI versions so callers shouldn't have to branch on them.
+export function parseToolResults(event: ParsedStreamEvent): ReadonlyArray<StreamToolResult> {
+  if (event.type !== "user") return [];
+  const out: StreamToolResult[] = [];
+  for (const block of contentBlocks(event)) {
+    if (block.type !== "tool_result") continue;
+    const id = typeof block.tool_use_id === "string" ? block.tool_use_id : "";
+    if (!id) continue;
+    const isError = block.is_error === true;
+    let content = "";
+    const c = block.content;
+    if (typeof c === "string") {
+      content = c;
+    } else if (Array.isArray(c)) {
+      for (const part of c) {
+        if (part && typeof part === "object") {
+          const rec = part as Record<string, unknown>;
+          if (rec.type === "text" && typeof rec.text === "string") {
+            content += rec.text as string;
+          }
+        }
+      }
+    }
+    out.push({ toolUseId: id, content, isError });
+  }
+  return out;
 }
