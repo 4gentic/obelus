@@ -71,3 +71,18 @@ Settings UI disclose this before the user triggers the install.
 ### Typst
 
 Self-contained. No network activity after install.
+
+## Out-of-scope: AI engines
+
+Claude Code and OpenCode are **not** Obelus-managed installs. Users get them
+via Homebrew (`brew install sst/tap/opencode`), `npm i -g @anthropic-ai/claude-code`,
+or each project's own download path, and authenticate them through their own
+shells (`claude /login`, `opencode auth login`). The desktop's
+**Settings → AI engine** pane reads the binary off `PATH` and shows the
+detected version; it does not fetch, install, or update either engine.
+
+This file covers compile engines only — the integrity-floor argument
+(pinned tarballs from official Releases) does not apply to AI engines, which
+ship through their own package managers. If a future Obelus release ever
+auto-installs an AI engine, document its pinned versions here alongside Typst
+and Tectonic.

@@ -24,10 +24,10 @@ permission:
   shape, but production OpenCode runs do not invoke a per-edit critique
   subagent — the SKILL.md alone produces the plan.
 
-  Tracked in `docs/opencode-followups.md` §3 (deliberate skip) and §7 (the
+  See `packages/claude-plugin/README.md` § Known limitations for the
   `.opencode/commands/*.md` shim path that would let the desktop stage
   commands referencing this agent without polluting the user's working
-  tree). Edit this file freely; just know its only consumer today is the
+  tree. Edit this file freely; just know its only consumer today is the
   e2e harness.
 -->
 

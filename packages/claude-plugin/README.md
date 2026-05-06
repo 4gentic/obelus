@@ -1,8 +1,10 @@
-# Obelus — Claude Code plugin
+# Obelus — review-bundle plugin (Claude Code & OpenCode)
 
-Applies an [Obelus](https://github.com/4gentic/obelus) bundle to the paper source in your repository, or turns it into a reviewer write-up. Works with LaTeX, Markdown, and Typst. Runs entirely inside Claude Code; the plugin itself makes no network calls.
+Applies an [Obelus](https://github.com/4gentic/obelus) bundle to the paper source in your repository, or turns it into a reviewer write-up. Works with LaTeX, Markdown, and Typst. Runs inside Claude Code or OpenCode; the plugin itself makes no network calls.
 
 ## Install
+
+### Claude Code
 
 Two paths:
 
@@ -14,9 +16,24 @@ Two paths:
    The plugin ships in `packages/claude-plugin/` of that monorepo.
 2. **Copy.** Drop this folder at `.claude/plugins/obelus/` inside your paper repo. Restart Claude Code so it picks up the new plugin.
 
+### OpenCode
+
+OpenCode discovers skills at `.claude/skills/` and agents at `.opencode/agents/` inside the working directory. Stage them by hand:
+
+```sh
+# inside your paper repo
+mkdir -p .claude .opencode/agents
+cp -R <obelus>/packages/claude-plugin/skills .claude/skills
+cp <obelus>/packages/claude-plugin/agents/paper-reviewer.opencode.md .opencode/agents/paper-reviewer.md
+```
+
+Authenticate via `opencode auth login` (or set `ANTHROPIC_API_KEY` for key-mode). The Obelus desktop app stages these resources automatically when it spawns OpenCode — the manual copy above only matters for standalone CLI use.
+
+Under OpenCode, the user invokes a skill as an English instruction (e.g. *"read `.claude/skills/write-review/SKILL.md` and follow it on `<bundle>`"*) rather than a slash command — OpenCode does not resolve `/obelus:write-review` deterministically the way Claude Code's plugin loader does.
+
 ## Where outputs land
 
-Each skill writes its artifacts under `$OBELUS_WORKSPACE_DIR` — an env var that points to a writable directory **outside** your paper repo. The Obelus desktop app sets this automatically when it spawns Claude Code (an absolute path under its per-project app-data folder); standalone CLI users must export it themselves before invoking a skill:
+Each skill writes its artifacts under `$OBELUS_WORKSPACE_DIR` — an env var that points to a writable directory **outside** your paper repo. The Obelus desktop app sets this automatically when it spawns the chosen engine (an absolute path under its per-project app-data folder); standalone CLI users must export it themselves before invoking a skill:
 
 ```sh
 export OBELUS_WORKSPACE_DIR="$HOME/.local/share/obelus/runs/$(date +%Y%m%d-%H%M%S)"
@@ -77,6 +94,17 @@ The harness sets `$OBELUS_WORKSPACE_DIR` to a per-scenario tmpdir outside the pa
 Auth is auto-detected: `ANTHROPIC_API_KEY` → metered mode with `--bare`; otherwise the harness reads the keychain OAuth from `claude /login` (no per-call cost). Temp dirs default to `$TMPDIR/obelus-plugin-e2e/` so subscription mode doesn't pull the repo's `CLAUDE.md` into the test sessions. The same suite runs weekly on GitHub Actions (`.github/workflows/plugin-e2e.yml`) and opens a rolling issue on regression.
 
 See `scripts/plugin-e2e.mjs` for the harness and `.claude/commands/plugin-e2e.md` for the full how-to.
+
+## Known limitations & deferred work
+
+OpenCode support is wired but not exhaustive. Items the desktop integration intentionally defers today:
+
+- The first end-to-end smoke test (`opencode run` against a real paper) is the user's launch task. Treat OpenCode as wired-but-unverified until that completes.
+- Skill resolution under OpenCode uses an English fallback ("read `.claude/skills/<skill>/SKILL.md` and follow it"). If reliability turns out poor, the fix is to author `.opencode/commands/*.md` shims that wrap each skill invocation.
+- Model and reasoning-effort overrides are not forwarded to OpenCode — its model is configured via `opencode auth login` and `opencode.jsonc`.
+- No `.opencode-plugin/plugin.json` marketplace manifest yet — install via the manual copy described under §Install / OpenCode.
+- Auth state is not probed: the desktop's engine pane shows "found" the moment the binary is on `PATH`, regardless of whether you've signed in.
+- Per-spawn engine override is not exposed in the UI — switch engines via Settings → Preferred AI engine.
 
 ## License
 
