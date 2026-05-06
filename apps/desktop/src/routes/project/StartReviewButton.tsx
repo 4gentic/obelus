@@ -204,8 +204,19 @@ function WriterStartReview({
     !canStart && statusKind !== "idle" && statusKind !== "done" && statusKind !== "error";
   const modeName = paperId ? `mode-${paperId}` : "mode";
 
+  const showNoMainBanner = isPaperOpen && engineReady && !hasSources && statusKind !== "running";
+
   return (
     <div className="review-column__actions">
+      {showNoMainBanner ? (
+        <aside className="review-column__banner" role="status">
+          <p className="review-column__banner-label">No main file</p>
+          <p className="review-column__banner-body">
+            Click the <span className="review-column__banner-star">☆</span> next to a file in the
+            workspace tree to mark it as the paper's entrypoint. Reviews need a main source to read.
+          </p>
+        </aside>
+      ) : null}
       {isPaperOpen && statusKind !== "running" && (
         <fieldset className="review-column__mode" disabled={modeDisabled}>
           <legend className="visually-hidden">Review thoroughness</legend>
@@ -311,12 +322,6 @@ function WriterStartReview({
         </div>
       )}
       {!isPaperOpen && <p className="review-column__hint">Open a paper to start a review.</p>}
-      {isPaperOpen && engineReady && !hasSources && statusKind !== "running" && (
-        <p className="review-column__hint">
-          No main source file detected. Click the ☆ next to a file in the tree to mark it as the
-          paper's entrypoint.
-        </p>
-      )}
       {isPaperOpen &&
         !isOnTip &&
         current &&
