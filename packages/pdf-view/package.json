@@ -33,7 +33,7 @@
   "devDependencies": {
     "@types/react": "19.2.14",
     "pdfjs-dist": "5.7.284",
-    "react": "19.2.5",
-    "vitest": "4.1.5"
+    "react": "19.2.6",
+    "vitest": "4.1.6"
   }
 }
