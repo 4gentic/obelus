@@ -30,6 +30,10 @@ pub struct LatexCompileReport {
     // (the managed-install fallback). The UI can use this to warn when a
     // pdflatex-configured paper silently ran through XeTeX.
     pub engine: &'static str,
+    // The process exit code. `0` is a clean compile; non-zero is a compile
+    // failure carrying its diagnostic in `stderr`. `Err` is reserved for "no
+    // engine found" / spawn failure — "couldn't run", not "ran and rejected".
+    pub exit_code: i32,
 }
 
 enum LatexEngine {
@@ -116,36 +120,42 @@ pub async fn compile_latex(
 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let exit_code = output.status.code().unwrap_or(-1);
 
-    if !output.status.success() {
-        let mut combined = String::new();
-        if !stdout.trim().is_empty() {
-            combined.push_str(&tail_lines(&stdout, 40));
-        }
-        if !stderr.trim().is_empty() {
-            if !combined.is_empty() {
-                combined.push('\n');
-            }
-            combined.push_str(&tail_lines(&stderr, 40));
-        }
-        let msg = if combined.trim().is_empty() {
-            format!("{engine_label} exited with code {:?}", output.status.code())
-        } else {
-            combined
-        };
-        return Err(AppError::Other(msg));
+    if exit_code == 0 {
+        // The engine writes the PDF itself; re-read + atomic-write so the final
+        // file lands via the same fsync + rename path as every other on-disk
+        // artefact the app produces.
+        let bytes = tokio::fs::read(&output_abs).await.map_err(AppError::from)?;
+        atomic_write(&output_abs, &bytes).await?;
+        return Ok(LatexCompileReport {
+            output_rel_path: output_rel,
+            stderr,
+            engine: engine_label,
+            exit_code,
+        });
     }
 
-    // The engine writes the PDF itself; re-read + atomic-write so the final
-    // file lands via the same fsync + rename path as every other on-disk
-    // artefact the app produces.
-    let bytes = tokio::fs::read(&output_abs).await.map_err(AppError::from)?;
-    atomic_write(&output_abs, &bytes).await?;
+    // Non-zero exit is a compile failure, not a host error. LaTeX writes most
+    // diagnostics to stdout, so surface the tail of both streams as `stderr` for
+    // the caller's error banner / fix-compile bundle. An empty diagnostic is
+    // left for the caller to render as "exited with code N".
+    let mut combined = String::new();
+    if !stdout.trim().is_empty() {
+        combined.push_str(&tail_lines(&stdout, 40));
+    }
+    if !stderr.trim().is_empty() {
+        if !combined.is_empty() {
+            combined.push('\n');
+        }
+        combined.push_str(&tail_lines(&stderr, 40));
+    }
 
     Ok(LatexCompileReport {
         output_rel_path: output_rel,
-        stderr,
+        stderr: combined,
         engine: engine_label,
+        exit_code,
     })
 }
 
