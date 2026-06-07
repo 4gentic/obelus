@@ -220,6 +220,9 @@ export function workspaceRemovePaperFiles(projectId: string, paperId: string): P
 export interface TypstCompileReport {
   outputRelPath: string;
   stderr: string;
+  // 0 is a clean compile; non-zero is a compile failure whose diagnostic is in
+  // `stderr`. A rejected promise means the engine couldn't run at all.
+  exitCode: number;
 }
 
 export function compileTypst(rootId: string, relPath: string): Promise<TypstCompileReport> {
@@ -230,6 +233,7 @@ export interface LatexCompileReport {
   outputRelPath: string;
   stderr: string;
   engine: "latexmk" | "tectonic";
+  exitCode: number;
 }
 
 export type LatexCompiler = "latexmk" | "pdflatex" | "xelatex";

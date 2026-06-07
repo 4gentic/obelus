@@ -256,6 +256,7 @@ Rules:
 - `format` and `entrypoint` are required strings — empty string `""` when not determinable, never missing keys.
 - `patch` is a single-hunk unified diff (`@@ -L,N +L,N @@\n- before\n+ after\n`) **terminated with `\n`**. Empty string when no edit (`praise`, `note` with no requested edit, `ambiguous: true`).
 - Every body line in the patch ends with `\n` — that is the unified-diff format. A patch missing the final `\n` corrupts the apply step. **Scan each `blocks[i].patch` before writing; if the last character is not `\n`, append one.**
+- Copy every context and `- before` line **verbatim and in full** from the current source — never truncate or abbreviate a long line into a shorter anchor, or the hunk won't match. The desktop recomputes the `@@` line counts on apply and can anchor on a unique deletion block, so spend your care on exact line content, not header arithmetic.
 - `reviewerNotes` is an empty string for writer-fast unless `ambiguous: true` or the block has a non-null `emptyReason` (in which case it carries the explanation). The Rigorous path is what populates `reviewerNotes` from the `paper-reviewer` subagent.
 - `emptyReason` is `null` when `patch !== ""` and one of `"praise"` / `"ambiguous"` / `"no-edit-requested"` when `patch === ""`. The desktop's Zod validator rejects mismatches.
 

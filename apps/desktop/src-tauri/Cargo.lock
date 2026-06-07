@@ -2839,7 +2839,7 @@ dependencies = [
 
 [[package]]
 name = "obelus-desktop"
-version = "0.1.14"
+version = "0.1.15"
 dependencies = [
  "dashmap",
  "diffy",
