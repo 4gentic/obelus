@@ -21,7 +21,7 @@
     "@codemirror/language": "6.12.3",
     "@codemirror/search": "6.7.0",
     "@codemirror/state": "6.6.0",
-    "@codemirror/view": "6.41.1",
+    "@codemirror/view": "6.42.1",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@fontsource-variable/newsreader": "5.2.10",
     "@fontsource-variable/source-serif-4": "5.2.9",
@@ -51,20 +51,20 @@
     "@tauri-apps/plugin-updater": "2.10.1",
     "diff": "9.0.0",
     "pdfjs-dist": "5.7.284",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
     "react-router-dom": "7.15.0",
     "zod": "4.4.3",
     "zustand": "5.0.13"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "2.11.0",
+    "@tauri-apps/cli": "2.11.1",
     "@types/diff": "8.0.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.1",
     "typescript": "6.0.3",
-    "vite": "8.0.10",
-    "vitest": "4.1.5"
+    "vite": "8.0.12",
+    "vitest": "4.1.6"
   }
 }
