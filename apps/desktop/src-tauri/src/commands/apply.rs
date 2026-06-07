@@ -225,14 +225,29 @@ fn apply_patches_to_bytes(current: &[u8], patches: &[String], rel_path: &str) ->
 
     for (idx, patch_text) in patches.iter().enumerate() {
         let normalized = ensure_trailing_newline(patch_text);
-        let patch = match diffy::Patch::from_bytes(normalized.as_bytes()) {
+        // The engine routinely miscounts the `@@ -a,b +c,d @@` line counts;
+        // diffy rejects such a hunk at parse time even when the body is correct.
+        // Recompute the counts from the body before parsing — a deterministic
+        // repair of a redundant checksum, not a guess (the body, not the header,
+        // decides what changes).
+        let header_fixed = recompute_hunk_header_counts(normalized.as_ref());
+        let patch = match diffy::Patch::from_bytes(header_fixed.as_bytes()) {
             Ok(p) => p,
             Err(e) => {
-                failures.push(HunkFailure {
-                    file: rel_path.to_owned(),
-                    index: idx + 1,
-                    reason: format!("parse: {e}"),
-                });
+                // Recompute already fixed count mismatches, so a parse failure
+                // here is a genuinely malformed body. The deletion-anchored
+                // fallback parses the body itself; try it before giving up.
+                let stripped = strip_op_separator_space(header_fixed.as_ref());
+                if let Some(next) = apply_deletion_anchored(&working, &stripped) {
+                    working = next;
+                    applied += 1;
+                } else {
+                    failures.push(HunkFailure {
+                        file: rel_path.to_owned(),
+                        index: idx + 1,
+                        reason: format!("parse: {e}"),
+                    });
+                }
                 continue;
             }
         };
@@ -249,7 +264,7 @@ fn apply_patches_to_bytes(current: &[u8], patches: &[String], rel_path: &str) ->
                 // against the actual file bytes. Retry with the space
                 // stripped on `-`/`+` lines only; context (` …`) lines are
                 // left alone because the leading space is their operator.
-                let stripped = strip_op_separator_space(normalized.as_ref());
+                let stripped = strip_op_separator_space(header_fixed.as_ref());
                 let retry = diffy::Patch::from_bytes(stripped.as_bytes())
                     .ok()
                     .and_then(|p| diffy::apply_bytes(&working, &p).ok());
@@ -259,14 +274,24 @@ fn apply_patches_to_bytes(current: &[u8], patches: &[String], rel_path: &str) ->
                         applied += 1;
                     }
                     None => {
-                        // Surface the ORIGINAL error — the as-written form
-                        // is what the reviewer emitted, so the real mismatch
-                        // lives there. The retry is a silent recovery path.
-                        failures.push(HunkFailure {
-                            file: rel_path.to_owned(),
-                            index: idx + 1,
-                            reason: primary.to_string(),
-                        });
+                        // Last resort: the engine sometimes truncates a long
+                        // wrapped source line when copying boundary context, so
+                        // diffy can match neither position nor context even
+                        // though the deletion block is verbatim. Anchor on that
+                        // block instead — but only when it is unique.
+                        if let Some(next) = apply_deletion_anchored(&working, &stripped) {
+                            working = next;
+                            applied += 1;
+                        } else {
+                            // Surface the ORIGINAL error — the as-written form
+                            // is what the reviewer emitted, so the real mismatch
+                            // lives there. The retries are silent recovery paths.
+                            failures.push(HunkFailure {
+                                file: rel_path.to_owned(),
+                                index: idx + 1,
+                                reason: primary.to_string(),
+                            });
+                        }
                     }
                 }
             }
@@ -323,9 +348,170 @@ fn strip_op_separator_space(patch: &str) -> String {
     out
 }
 
+// Rewrite every hunk header's line counts (`@@ -a,b +c,d @@`) to match its body.
+// diffy 0.4.2 rejects a hunk whose header counts disagree with the body
+// ("Hunk header does not match hunk") — a check the engine fails often, since it
+// hand-counts the header. The counts are a redundant checksum: diffy applies the
+// body and searches for the context, so deriving them from the body is exact,
+// not a heuristic. Start positions and any `@@ … @@` function-context suffix are
+// preserved verbatim. Body classification mirrors diffy's `hunk_lines` tokenizer:
+// a leading space or a bare empty line is context (counts on both sides), `-` is
+// a deletion (old only), `+` an insertion (new only), and a `\ No newline…`
+// marker is not counted.
+fn recompute_hunk_header_counts(patch: &str) -> std::borrow::Cow<'_, str> {
+    let lines: Vec<&str> = patch.split_inclusive('\n').collect();
+    let mut out = String::with_capacity(patch.len());
+    let mut changed = false;
+
+    for (i, line) in lines.iter().enumerate() {
+        let Some((old_start, new_start, tail)) = parse_hunk_header(line) else {
+            out.push_str(line);
+            continue;
+        };
+
+        let (mut old_count, mut new_count) = (0usize, 0usize);
+        for body in &lines[i + 1..] {
+            match body.as_bytes().first() {
+                Some(b'@') => break,
+                Some(b' ') | Some(b'\n') => {
+                    old_count += 1;
+                    new_count += 1;
+                }
+                Some(b'-') => old_count += 1,
+                Some(b'+') => new_count += 1,
+                // A `\ No newline…` marker and any malformed body line add no
+                // count; diffy rejects a genuinely malformed body regardless.
+                _ => {}
+            }
+        }
+
+        let newline = if line.ends_with('\n') { "\n" } else { "" };
+        let rebuilt = format!("@@ -{old_start},{old_count} +{new_start},{new_count} @@{tail}{newline}");
+        if rebuilt != *line {
+            changed = true;
+        }
+        out.push_str(&rebuilt);
+    }
+
+    if changed {
+        std::borrow::Cow::Owned(out)
+    } else {
+        std::borrow::Cow::Borrowed(patch)
+    }
+}
+
+// Parse a `@@ -a[,b] +c[,d] @@[ suffix]` header line, returning the old start,
+// new start, and the verbatim tail after ` @@` (e.g. "" or " fn foo"). Returns
+// None for non-header or unparseable lines so they pass through untouched; the
+// start fields must be non-empty digit runs so a recomputed header never becomes
+// something diffy would reject when the original start was already malformed.
+fn parse_hunk_header(line: &str) -> Option<(&str, &str, &str)> {
+    let line = line.strip_suffix('\n').unwrap_or(line);
+    let rest = line.strip_prefix("@@ ")?;
+    let idx = rest.find(" @@")?;
+    let ranges = &rest[..idx];
+    let tail = &rest[idx + 3..];
+    let (r1, r2) = ranges.split_once(' ')?;
+    let old_start = r1.strip_prefix('-')?.split(',').next()?;
+    let new_start = r2.strip_prefix('+')?.split(',').next()?;
+    let is_digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    if !is_digits(old_start) || !is_digits(new_start) {
+        return None;
+    }
+    Some((old_start, new_start, tail))
+}
+
+// Apply a single hunk by its deletion block when diffy can't match the context.
+// When every context line sits at the hunk boundaries (none interleaved between
+// the `-`/`+` lines), the deleted lines alone define an unambiguous edit: find
+// the verbatim, line-aligned, UNIQUE occurrence of the deleted block in `working`
+// and replace it with the inserted block. The uniqueness + line-alignment guards
+// keep this sound — it drops only the unreliable boundary context (which the
+// engine may have truncated), never guessing placement. Returns None (so the
+// caller keeps the original failure) for any shape that isn't safe: interior
+// context, an empty deletion block (a pure insertion has no anchor), or a block
+// that occurs zero or more than once.
+fn apply_deletion_anchored(working: &[u8], normalized_patch: &str) -> Option<Vec<u8>> {
+    let lines: Vec<&str> = normalized_patch.split_inclusive('\n').collect();
+    let header_idx = lines.iter().position(|l| l.starts_with("@@ "))?;
+
+    let mut del = String::new();
+    let mut ins = String::new();
+    let mut seen_core = false;
+    let mut trailing_context = false;
+    for line in &lines[header_idx + 1..] {
+        match line.as_bytes().first() {
+            Some(b'@') => break,
+            Some(b'-') => {
+                if trailing_context {
+                    return None; // context interleaved between deletions
+                }
+                seen_core = true;
+                del.push_str(&line[1..]);
+            }
+            Some(b'+') => {
+                if trailing_context {
+                    return None;
+                }
+                seen_core = true;
+                ins.push_str(&line[1..]);
+            }
+            // Context (leading space or a bare empty line) is allowed only at
+            // the boundaries; mark it so a later core line trips the guard.
+            Some(b' ') | Some(b'\n') => {
+                if seen_core {
+                    trailing_context = true;
+                }
+            }
+            Some(b'\\') => {}
+            _ => return None,
+        }
+    }
+
+    if del.is_empty() {
+        return None;
+    }
+
+    let occurrences = find_line_aligned(working, del.as_bytes());
+    if occurrences.len() != 1 {
+        return None;
+    }
+    let start = occurrences[0];
+    let end = start + del.len();
+    let mut result = Vec::with_capacity(working.len() - del.len() + ins.len());
+    result.extend_from_slice(&working[..start]);
+    result.extend_from_slice(ins.as_bytes());
+    result.extend_from_slice(&working[end..]);
+    Some(result)
+}
+
+// Byte offsets where `needle` occurs in `haystack` AND the match starts at a line
+// boundary (file start or just after a `\n`) and ends at one (file end or the
+// match's last byte is `\n`). Line alignment stops an anchor from landing inside
+// a longer line.
+fn find_line_aligned(haystack: &[u8], needle: &[u8]) -> Vec<usize> {
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return Vec::new();
+    }
+    let ends_with_newline = needle[needle.len() - 1] == b'\n';
+    haystack
+        .windows(needle.len())
+        .enumerate()
+        .filter(|&(i, window)| {
+            window == needle
+                && (i == 0 || haystack[i - 1] == b'\n')
+                && (ends_with_newline || i + needle.len() == haystack.len())
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{apply_patches_to_bytes, ensure_trailing_newline, strip_op_separator_space};
+    use super::{
+        apply_deletion_anchored, apply_patches_to_bytes, ensure_trailing_newline,
+        recompute_hunk_header_counts, strip_op_separator_space,
+    };
 
     #[test]
     fn leaves_well_formed_patches_alone() {
@@ -478,6 +664,114 @@ mod tests {
             String::from_utf8(out.working).unwrap(),
             "ALPHA\nBETA\ngamma\n"
         );
+    }
+
+    #[test]
+    fn recompute_leaves_correct_header_borrowed() {
+        let p = "@@ -1,2 +1,2 @@\n context\n-del\n+ins\n";
+        let out = recompute_hunk_header_counts(p);
+        assert!(matches!(out, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(out.as_ref(), p);
+    }
+
+    #[test]
+    fn recompute_fixes_wrong_new_count() {
+        // The real 09-conclusion shape: header claims +N,3 but the body has one
+        // context + one insertion = 2 new-side lines.
+        let p = "@@ -24,4 +24,3 @@\n keep\n-a\n-b\n-c\n+x\n";
+        assert_eq!(
+            recompute_hunk_header_counts(p).as_ref(),
+            "@@ -24,4 +24,2 @@\n keep\n-a\n-b\n-c\n+x\n"
+        );
+    }
+
+    #[test]
+    fn recompute_fixes_wrong_old_count_and_both() {
+        let p = "@@ -3,9 +3,9 @@\n keep\n-gone\n+new\n";
+        assert_eq!(
+            recompute_hunk_header_counts(p).as_ref(),
+            "@@ -3,2 +3,2 @@\n keep\n-gone\n+new\n"
+        );
+    }
+
+    #[test]
+    fn recompute_expands_omitted_counts() {
+        let p = "@@ -5 +5 @@\n-a\n+b\n";
+        assert_eq!(recompute_hunk_header_counts(p).as_ref(), "@@ -5,1 +5,1 @@\n-a\n+b\n");
+    }
+
+    #[test]
+    fn recompute_preserves_function_context_and_counts_blank_lines() {
+        // A bare empty line counts as context (diffy treats `\n` as context).
+        let p = "@@ -1,9 +1,9 @@ Section 2\n foo\n\n+bar\n";
+        assert_eq!(
+            recompute_hunk_header_counts(p).as_ref(),
+            "@@ -1,2 +1,3 @@ Section 2\n foo\n\n+bar\n"
+        );
+    }
+
+    #[test]
+    fn recompute_leaves_non_header_lines_untouched() {
+        let p = "not a patch at all\n";
+        let out = recompute_hunk_header_counts(p);
+        assert!(matches!(out, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(out.as_ref(), p);
+    }
+
+    #[test]
+    fn miscounted_header_applies_after_recompute() {
+        // Header counts are wrong (9,9) but the body is correct; diffy alone
+        // would reject this at parse time. End-to-end it now applies.
+        let source = b"l1\nl2\nl3\n";
+        let patch = "@@ -1,9 +1,9 @@\n l1\n-l2\n+L2\n l3\n".to_owned();
+        let out = apply_patches_to_bytes(source, &[patch], "paper.txt");
+        assert_eq!(out.applied, 1, "failures: {:?}", out.failures);
+        assert_eq!(out.failures.len(), 0);
+        assert_eq!(String::from_utf8(out.working).unwrap(), "l1\nL2\nl3\n");
+    }
+
+    #[test]
+    fn deletion_anchored_lands_truncated_leading_context() {
+        // The 06-empirical shape: the engine copied only the tail of a long
+        // wrapped source line as the leading context, so diffy can match
+        // neither position nor context — but the deletion block is verbatim and
+        // unique, so the fallback lands it.
+        let source =
+            b"a long unwrapped paragraph that ends with the source frameworks.\n== Heading\n\nbody one\nbody two\nafter\n";
+        let patch = "@@ -1,99 +1,99 @@\n the source frameworks.\n+\n+*Open problem.*\n-== Heading\n-\n-body one\n-body two\n".to_owned();
+        let out = apply_patches_to_bytes(source, &[patch], "paper.txt");
+        assert_eq!(out.applied, 1, "failures: {:?}", out.failures);
+        assert_eq!(
+            String::from_utf8(out.working).unwrap(),
+            "a long unwrapped paragraph that ends with the source frameworks.\n\n*Open problem.*\nafter\n"
+        );
+    }
+
+    #[test]
+    fn deletion_anchored_refuses_non_unique_block() {
+        // The deletion block appears twice — anchoring would be ambiguous, so
+        // the fallback declines and the hunk is reported as a failure.
+        let source = b"X\nDUP\nY\nDUP\nZ\n";
+        let patch = "@@ -1,99 +1,99 @@\n wrong context\n-DUP\n+CHANGED\n".to_owned();
+        let out = apply_patches_to_bytes(source, &[patch], "paper.txt");
+        assert_eq!(out.applied, 0);
+        assert_eq!(out.failures.len(), 1);
+        assert_eq!(out.working.as_slice(), source);
+    }
+
+    #[test]
+    fn deletion_anchored_refuses_interior_context() {
+        // Context interleaved between deletions can't be dropped safely.
+        let working = b"keep\nfirst\nmid\nsecond\ntail\n";
+        let patch = "@@ -1,9 +1,9 @@\n bad anchor\n-first\n mid\n-second\n+done\n";
+        assert!(apply_deletion_anchored(working, patch).is_none());
+    }
+
+    #[test]
+    fn deletion_anchored_refuses_pure_insertion() {
+        let working = b"alpha\nbeta\n";
+        let patch = "@@ -1,9 +1,9 @@\n bad anchor\n+inserted\n";
+        assert!(apply_deletion_anchored(working, patch).is_none());
     }
 }
 

@@ -25,6 +25,9 @@ export interface KickFixCompileArgs {
   compiler: string;
   mainRelPath: string;
   stderr: string;
+  // The compiler's real exit code when it ran and rejected the source; absent
+  // when the compiler couldn't run at all (no diagnostic exit code exists).
+  exitCode?: number;
   trigger: FixCompileTrigger;
 }
 
@@ -77,6 +80,7 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     compiler,
     mainRelPath,
     stderr,
+    exitCode,
     trigger,
   } = args;
 
@@ -116,7 +120,7 @@ export async function kickFixCompile(args: KickFixCompileArgs): Promise<void> {
     paperId,
     compiler: bundleCompiler,
     stderr,
-    exitCode: 1,
+    ...(exitCode === undefined ? {} : { exitCode }),
     trigger,
   };
 

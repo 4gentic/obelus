@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { useState } from "react";
 import { useAiEngine } from "../../hooks/use-ai-engine";
 import { AiEngineMustPick, AiEngineUnavailable } from "../../lib/ai-engine";
+import { errorMessage } from "../../lib/errors";
 import { useProject } from "./context";
 import { kickFixCompile } from "./kick-fix-compile";
 import SourcePane from "./SourcePane";
@@ -14,6 +15,9 @@ import { useCompanionPaperId } from "./use-companion-paper";
 export interface CompileReport {
   outputRelPath: string;
   stderr: string;
+  // 0 is a clean compile; non-zero is a compile failure whose diagnostic is in
+  // `stderr`. A rejected promise means the engine couldn't run at all.
+  exitCode: number;
 }
 
 interface Props {
@@ -32,7 +36,9 @@ type CompileState =
   | { kind: "idle" }
   | { kind: "compiling" }
   | { kind: "done"; outputRelPath: string; warnings: string }
-  | { kind: "error"; message: string }
+  // `stderr`/`exitCode` are present for a real compile failure (carried into the
+  // fix-compile bundle) and absent when the compiler couldn't run at all.
+  | { kind: "error"; message: string; stderr?: string; exitCode?: number }
   | { kind: "fixing" };
 
 export default function CompilePane({
@@ -56,6 +62,15 @@ export default function CompilePane({
     setState({ kind: "compiling" });
     try {
       const report = await compile(rootId, relPath);
+      if (report.exitCode !== 0) {
+        setState({
+          kind: "error",
+          message: report.stderr || `exited with code ${report.exitCode}`,
+          stderr: report.stderr,
+          exitCode: report.exitCode,
+        });
+        return;
+      }
       setState({
         kind: "done",
         outputRelPath: report.outputRelPath,
@@ -69,16 +84,15 @@ export default function CompilePane({
       setOpenFilePath(null);
       requestAnimationFrame(() => setOpenFilePath(report.outputRelPath));
     } catch (err) {
-      setState({
-        kind: "error",
-        message: err instanceof Error ? err.message : String(err),
-      });
+      // A rejected promise is the "couldn't run" path (engine unresolved /
+      // spawn failure); the message carries the real reason.
+      setState({ kind: "error", message: errorMessage(err) });
     }
   };
 
   const askFix = async (): Promise<void> => {
     if (state.kind !== "error" || fixPaperId === null) return;
-    const errorMessage = state.message;
+    const { message, stderr, exitCode } = state;
     setState({ kind: "fixing" });
     try {
       await kickFixCompile({
@@ -96,7 +110,8 @@ export default function CompilePane({
         // markdown file in a sibling directory) and would mis-target the
         // repair.
         mainRelPath: relPath,
-        stderr: errorMessage,
+        stderr: stderr ?? message,
+        ...(exitCode === undefined ? {} : { exitCode }),
         trigger: "manual",
       });
       setState({ kind: "idle" });
@@ -106,9 +121,7 @@ export default function CompilePane({
           ? "Pick an engine in Settings to enable AI fixes."
           : err instanceof AiEngineUnavailable
             ? "No AI engine is installed. Open Settings to install Claude Code or OpenCode, then try again."
-            : err instanceof Error
-              ? err.message
-              : "Could not start compile-fix.";
+            : errorMessage(err, "Could not start compile-fix.");
       setState({ kind: "error", message });
     }
   };
