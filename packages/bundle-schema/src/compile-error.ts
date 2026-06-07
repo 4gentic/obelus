@@ -40,7 +40,9 @@ export const CompileErrorBundle = z.object({
   compiler: PaperBuildCompiler,
   engineVersion: z.string().optional(),
   stderr: z.string(),
-  exitCode: z.number().int(),
+  // Present when the compiler ran and rejected the source; absent when it
+  // couldn't run at all (no diagnostic exit code exists).
+  exitCode: z.number().int().optional(),
   trigger: CompileErrorTrigger,
 });
 

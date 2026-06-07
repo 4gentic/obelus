@@ -18,6 +18,11 @@ use tokio::process::Command;
 pub struct TypstCompileReport {
     pub output_rel_path: String,
     pub stderr: String,
+    // The process exit code. `0` is a clean compile; non-zero is a compile
+    // failure carrying its diagnostic in `stderr`. `Err` is reserved for the
+    // engine being unresolvable or unspawnable — "couldn't run", not "ran and
+    // rejected the source".
+    pub exit_code: i32,
 }
 
 fn pdf_rel_for(source_rel: &str) -> String {
@@ -69,23 +74,21 @@ pub async fn compile_typst(
         .map_err(|e| AppError::Other(format!("typst spawn: {e}")))?;
 
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    if !output.status.success() {
-        return Err(AppError::Other(if stderr.trim().is_empty() {
-            format!("typst exited with code {:?}", output.status.code())
-        } else {
-            stderr
-        }));
-    }
+    let exit_code = output.status.code().unwrap_or(-1);
 
-    // `typst compile` writes the file itself, but we re-read + atomic-write to
-    // ensure the final PDF lands via the same fsync + rename path as every
-    // other on-disk artefact the app produces.
-    let bytes = tokio::fs::read(&output_abs).await.map_err(AppError::from)?;
-    atomic_write(&output_abs, &bytes).await?;
+    // `typst compile` writes the PDF itself; on success we re-read + atomic-write
+    // so the final bytes land via the same fsync + rename path as every other
+    // on-disk artefact. On a non-zero exit there is no fresh PDF to promote — we
+    // still return the report so the caller can show `stderr`.
+    if exit_code == 0 {
+        let bytes = tokio::fs::read(&output_abs).await.map_err(AppError::from)?;
+        atomic_write(&output_abs, &bytes).await?;
+    }
 
     Ok(TypstCompileReport {
         output_rel_path: output_rel,
         stderr,
+        exit_code,
     })
 }
 
