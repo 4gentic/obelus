@@ -25,6 +25,7 @@ import {
 import { artifactLabel } from "../lib/artifact-label";
 import { sourcesDiffSincePresnap, takeSnapshotForSession } from "../lib/bundle-sources";
 import { extractPhaseMarker, phaseFromEvent, SEMANTIC_PHASE_PREFIX } from "../lib/claude-phase";
+import { errorMessage } from "../lib/errors";
 import { type PhaseKind, useJobsStore } from "../lib/jobs-store";
 import {
   appendMetric,
@@ -693,25 +694,41 @@ async function verifyCompileFix(
   }
 
   const fileLabel = mainRelPath.split("/").pop() ?? mainRelPath;
+
+  // A clean spawn that exits non-zero now resolves (it is a compile failure,
+  // not a host error), so checking the resolved promise is no longer enough —
+  // branch on `exitCode`. A rejected promise is the "couldn't run" path.
+  const recompile = async (): Promise<{ exitCode: number; stderr: string } | "unwired"> => {
+    if (compiler === "typst") return compileTypst(rootId, mainRelPath);
+    if (isLatexCompiler(compiler)) return compileLatex(rootId, mainRelPath, compiler);
+    return "unwired";
+  };
+
+  let result: { exitCode: number; stderr: string } | "unwired";
   try {
-    if (compiler === "typst") {
-      await compileTypst(rootId, mainRelPath);
-    } else if (isLatexCompiler(compiler)) {
-      await compileLatex(rootId, mainRelPath, compiler);
-    } else {
-      console.info("[verify-compile-fix]", {
-        sessionId: reviewSessionId,
-        verified: false,
-        reason: `compiler-${compiler}-not-wired`,
-      });
-      await repo.reviewSessions.complete(reviewSessionId);
-      return `Fix applied. Click Compile to verify (${compiler} auto-verify is not wired).`;
-    }
+    result = await recompile();
   } catch (err) {
-    const stderr = err instanceof Error ? err.message : String(err);
+    const stderr = errorMessage(err);
     console.info("[verify-compile-fix]", { sessionId: reviewSessionId, verified: false, stderr });
     throw new Error(`Fix attempt did not clear the compile error:\n${stderr}`);
   }
+
+  if (result === "unwired") {
+    console.info("[verify-compile-fix]", {
+      sessionId: reviewSessionId,
+      verified: false,
+      reason: `compiler-${compiler}-not-wired`,
+    });
+    await repo.reviewSessions.complete(reviewSessionId);
+    return `Fix applied. Click Compile to verify (${compiler} auto-verify is not wired).`;
+  }
+
+  if (result.exitCode !== 0) {
+    const stderr = result.stderr || `exited with code ${result.exitCode}`;
+    console.info("[verify-compile-fix]", { sessionId: reviewSessionId, verified: false, stderr });
+    throw new Error(`Fix attempt did not clear the compile error:\n${stderr}`);
+  }
+
   console.info("[verify-compile-fix]", { sessionId: reviewSessionId, verified: true });
   await repo.reviewSessions.complete(reviewSessionId);
   return `Fix applied. ${fileLabel} now compiles cleanly.`;
