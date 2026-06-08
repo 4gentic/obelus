@@ -891,6 +891,19 @@ button.files__row {
   background: color-mix(in oklab, var(--ink) 6%, transparent);
 }
 
+/* Page indicator sized to the toolbar row; .pagenav base lives in
+   @obelus/review-shell/review-shell.css so web and desktop stay identical. */
+.pdf-pagenav {
+  flex: 0 0 auto;
+  align-items: center;
+  font-size: var(--step--2);
+  margin-right: var(--space-2);
+}
+
+.pdf-pagenav .pagenav__input {
+  height: 20px;
+}
+
 .paper-actions-wrap {
   flex: 0 0 auto;
   display: inline-flex;

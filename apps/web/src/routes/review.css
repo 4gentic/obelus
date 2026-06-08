@@ -26,6 +26,19 @@
   transition: color 120ms linear;
 }
 
+/* Title and the optional page indicator group on the right; the field's own
+   `.pagenav` base styles come from @obelus/review-shell/review-shell.css. */
+.review-crumb__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.review-crumb__pagenav {
+  flex: 0 0 auto;
+}
+
 .review-crumb__back:hover {
   color: var(--rubric);
 }

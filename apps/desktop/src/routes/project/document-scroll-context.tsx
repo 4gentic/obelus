@@ -1,3 +1,4 @@
+import type { PageNavProvider } from "@obelus/review-shell";
 import {
   createContext,
   type JSX,
@@ -15,10 +16,16 @@ import {
 // without being rendered inside its scroll container. PdfPane / MdReviewSurface
 // / HtmlReviewSurface call `useRegisterDocumentScroll` to publish; consumers
 // call `useDocumentScroll`. When no paper is open the value stays empty.
+//
+// `pages` carries the optional page-nav provider so the header toolbar — a
+// sibling of the document body — can drive the page indicator. The provider
+// identity is stable for the document's lifetime, so it passes the
+// shallow-equality bail below and never re-renders consumers on a scroll tick.
 export interface DocumentScrollState {
   scrollContainer: HTMLElement | null;
   annotationTops: ReadonlyMap<string, number>;
   scrollToAnnotation: (id: string) => void;
+  pages: PageNavProvider | null;
 }
 
 const EMPTY_TOPS: ReadonlyMap<string, number> = new Map();
@@ -28,6 +35,7 @@ const EMPTY_STATE: DocumentScrollState = {
   scrollContainer: null,
   annotationTops: EMPTY_TOPS,
   scrollToAnnotation: NOOP_SCROLL,
+  pages: null,
 };
 
 interface ContextValue {
@@ -51,7 +59,8 @@ export function DocumentScrollProvider({ children }: { children: ReactNode }): J
       if (
         prev.scrollContainer === target.scrollContainer &&
         prev.annotationTops === target.annotationTops &&
-        prev.scrollToAnnotation === target.scrollToAnnotation
+        prev.scrollToAnnotation === target.scrollToAnnotation &&
+        prev.pages === target.pages
       ) {
         return prev;
       }
@@ -80,13 +89,14 @@ export function useRegisterDocumentScroll(
   scrollContainer: HTMLElement | null,
   annotationTops: ReadonlyMap<string, number>,
   scrollToAnnotation: (id: string) => void,
+  pages: PageNavProvider | null,
 ): void {
   const ctx = useContext(Ctx);
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
   useEffect(() => {
-    ctxRef.current?.set({ scrollContainer, annotationTops, scrollToAnnotation });
-  }, [scrollContainer, annotationTops, scrollToAnnotation]);
+    ctxRef.current?.set({ scrollContainer, annotationTops, scrollToAnnotation, pages });
+  }, [scrollContainer, annotationTops, scrollToAnnotation, pages]);
   useEffect(() => {
     return () => ctxRef.current?.set(null);
   }, []);

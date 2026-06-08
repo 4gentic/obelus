@@ -147,6 +147,47 @@
   outline-offset: 0;
 }
 
+/* Page indicator + go-to-page input. Shared by the desktop PDF toolbar and the
+   web breadcrumb; host chrome supplies sizing via an extra class. Mono numerals,
+   tabular figures so the width doesn't jitter as the page count climbs. */
+.pagenav {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.pagenav__input {
+  width: 3ch;
+  min-width: 3ch;
+  box-sizing: content-box;
+  text-align: right;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-1);
+  padding: 0 2px;
+}
+
+.pagenav__input:hover {
+  border-color: color-mix(in srgb, var(--ink-soft) 40%, transparent);
+}
+
+.pagenav__input:focus {
+  outline: none;
+  border-color: var(--ink-soft);
+  background: var(--panel);
+}
+
+.pagenav__total {
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
 /* Hover description for category chips. The highlights themselves are
    pointer-events:none to preserve text selection over the document, so the
    tooltip is hosted by the margin note chip and the picker chip. */
