@@ -131,7 +131,15 @@ export default function ReviewList(): JSX.Element {
   }, [focusedId]);
 
   if (annotations.length === 0) {
-    return <p className="review-column__hint">No marks yet. Select text to begin.</p>;
+    return (
+      <div className="review-list__empty">
+        <p className="review-list__empty-lead">No marks yet.</p>
+        <p className="review-list__empty-sub">
+          Select a passage in the document to mark it, or write a note below and start a review of
+          the whole paper.
+        </p>
+      </div>
+    );
   }
 
   return (

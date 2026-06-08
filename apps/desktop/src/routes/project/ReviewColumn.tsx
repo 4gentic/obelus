@@ -1,13 +1,23 @@
 import type { JSX } from "react";
-import { type ComponentType, lazy, Suspense, useEffect, useRef, useState } from "react";
+import {
+  type ComponentType,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { fsWriteBytes } from "../../ipc/commands";
 import { exportMdBundleForPaper } from "./build-bundle";
 import { useProject } from "./context";
 import DiffReview from "./DiffReview";
 import { useDiffStore } from "./diff-store-context";
 import { useOpenPaper } from "./OpenPaper";
+import ReviewConsole from "./ReviewConsole";
 import ReviewDraft from "./ReviewDraft";
 import ReviewerActionsPanel from "./ReviewerActionsPanel";
+import ReviewFindings from "./ReviewFindings";
 import ReviewList from "./ReviewList";
 import { useReviewRunner } from "./review-runner-context";
 import StartReviewButton from "./StartReviewButton";
@@ -23,17 +33,23 @@ import type { ForkInfo } from "./use-diff-actions";
 const DrafterTab: ComponentType | null =
   import.meta.env.VITE_DRAFTER_PREVIEW === "1" ? lazy(() => import("./DrafterTab")) : null;
 
-type WriterView = "marks" | "diff" | "drafter";
+type WriterView = "marks" | "review" | "diff" | "drafter";
 type ReviewerView = "marks" | "review" | "drafter";
 
-interface Props {
+interface FocusControls {
+  reviewFocused: boolean;
+  focusAvailable: boolean;
+  onToggleFocus: () => void;
+}
+
+interface Props extends FocusControls {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
   onDiscard: () => void | Promise<void>;
   forkInfo: ForkInfo | null;
 }
 
-interface WriterProps {
+interface WriterProps extends FocusControls {
   onApply: () => void | Promise<void>;
   onRepass: () => void | Promise<void>;
   onDiscard: () => void | Promise<void>;
@@ -42,21 +58,58 @@ interface WriterProps {
 
 const BUSY_TAB_TITLE = "Review in progress — switch back when it finishes.";
 
+function FocusToggle({
+  reviewFocused,
+  focusAvailable,
+  onToggleFocus,
+}: FocusControls): JSX.Element | null {
+  if (!focusAvailable) return null;
+  return (
+    <button
+      type="button"
+      className="review-column__focus"
+      aria-pressed={reviewFocused}
+      title={reviewFocused ? "Restore the document" : "Expand review over the document"}
+      onClick={onToggleFocus}
+    >
+      {reviewFocused ? "⤡" : "⤢"}
+    </button>
+  );
+}
+
 export default function ReviewColumn({
   onApply,
   onRepass,
   onDiscard,
   forkInfo,
+  reviewFocused,
+  focusAvailable,
+  onToggleFocus,
 }: Props): JSX.Element {
   const { project } = useProject();
+  const focus = { reviewFocused, focusAvailable, onToggleFocus };
   return project.kind === "reviewer" ? (
-    <ReviewerColumn />
+    <ReviewerColumn {...focus} />
   ) : (
-    <WriterColumn onApply={onApply} onRepass={onRepass} onDiscard={onDiscard} forkInfo={forkInfo} />
+    <WriterColumn
+      onApply={onApply}
+      onRepass={onRepass}
+      onDiscard={onDiscard}
+      forkInfo={forkInfo}
+      {...focus}
+    />
   );
 }
 
-function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): JSX.Element {
+function WriterColumn({
+  onApply,
+  onRepass,
+  onDiscard,
+  forkInfo,
+  reviewFocused,
+  focusAvailable,
+  onToggleFocus,
+}: WriterProps): JSX.Element {
   const store = useReviewStore();
   const diffStore = useDiffStore();
   const runner = useReviewRunner();
@@ -66,25 +119,31 @@ function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): 
   const runnerKind = runner.status.kind;
   const [view, setView] = useState<WriterView>("marks");
 
-  useEffect(() => {
-    if (
-      sessionId !== null ||
-      runnerKind === "working" ||
-      runnerKind === "running" ||
-      runnerKind === "ingesting"
-    ) {
-      setView("diff");
-    }
-  }, [sessionId, runnerKind]);
-
-  const paperOpen = openPaper.kind === "ready" || openPaper.kind === "ready-md";
   const runnerBusy =
     runnerKind === "working" || runnerKind === "running" || runnerKind === "ingesting";
-  const diffAvailable = sessionId !== null || runnerBusy;
-  const resolvedView: WriterView = view === "diff" && !diffAvailable ? "marks" : view;
-  const fallbackWhenNoPaper: WriterView = diffAvailable ? "diff" : "marks";
+
+  // A run starts → land on Review so the user watches the reviewer work and
+  // reads its findings, rather than staring at a bare progress bar.
+  useEffect(() => {
+    if (sessionId !== null || runnerBusy) setView("review");
+  }, [sessionId, runnerBusy]);
+
+  const paperOpen = openPaper.kind === "ready" || openPaper.kind === "ready-md";
+  const reviewAvailable = sessionId !== null || runnerBusy;
+  const resolvedView: WriterView =
+    (view === "diff" || view === "review") && !reviewAvailable ? "marks" : view;
+  const fallbackWhenNoPaper: WriterView = reviewAvailable ? "review" : "marks";
   const effectiveView: WriterView = paperOpen ? resolvedView : fallbackWhenNoPaper;
-  const lockNonDiffTabs = runnerBusy;
+  const lockSetupTabs = runnerBusy;
+
+  const openDiff = useCallback(
+    (hunkId: string) => {
+      const idx = diffStore.getState().hunks.findIndex((h) => h.id === hunkId);
+      if (idx >= 0) diffStore.getState().focus(idx);
+      setView("diff");
+    },
+    [diffStore],
+  );
 
   return (
     <aside className="review-column">
@@ -95,12 +154,21 @@ function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): 
               type="button"
               className={`review-column__tab${effectiveView === "marks" ? " review-column__tab--on" : ""}`}
               onClick={() => setView("marks")}
-              disabled={lockNonDiffTabs}
-              title={lockNonDiffTabs ? BUSY_TAB_TITLE : undefined}
+              disabled={lockSetupTabs}
+              title={lockSetupTabs ? BUSY_TAB_TITLE : undefined}
             >
               Marks
             </button>
-            {diffAvailable && (
+            {reviewAvailable && (
+              <button
+                type="button"
+                className={`review-column__tab${effectiveView === "review" ? " review-column__tab--on" : ""}`}
+                onClick={() => setView("review")}
+              >
+                Review
+              </button>
+            )}
+            {reviewAvailable && (
               <button
                 type="button"
                 className={`review-column__tab${effectiveView === "diff" ? " review-column__tab--on" : ""}`}
@@ -114,14 +182,19 @@ function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): 
                 type="button"
                 className={`review-column__tab${effectiveView === "drafter" ? " review-column__tab--on" : ""}`}
                 onClick={() => setView("drafter")}
-                disabled={lockNonDiffTabs}
-                title={lockNonDiffTabs ? BUSY_TAB_TITLE : undefined}
+                disabled={lockSetupTabs}
+                title={lockSetupTabs ? BUSY_TAB_TITLE : undefined}
               >
                 Draft
               </button>
             )}
           </>
         )}
+        <FocusToggle
+          reviewFocused={reviewFocused}
+          focusAvailable={focusAvailable}
+          onToggleFocus={onToggleFocus}
+        />
       </nav>
       {effectiveView === "marks" ? (
         <>
@@ -129,6 +202,12 @@ function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): 
           <MdExportChip />
           {selected ? <ReviewDraft /> : <ReviewList />}
         </>
+      ) : effectiveView === "review" ? (
+        runnerBusy ? (
+          <ReviewConsole running />
+        ) : (
+          <ReviewFindings onOpenDiff={openDiff} />
+        )
       ) : effectiveView === "drafter" && DrafterTab !== null ? (
         <Suspense fallback={null}>
           <DrafterTab />
@@ -145,7 +224,11 @@ function WriterColumn({ onApply, onRepass, onDiscard, forkInfo }: WriterProps): 
   );
 }
 
-function ReviewerColumn(): JSX.Element {
+function ReviewerColumn({
+  reviewFocused,
+  focusAvailable,
+  onToggleFocus,
+}: FocusControls): JSX.Element {
   const store = useReviewStore();
   const openPaper = useOpenPaper();
   const selected = store((s) => s.selectedAnchor);
@@ -198,6 +281,11 @@ function ReviewerColumn(): JSX.Element {
             )}
           </>
         )}
+        <FocusToggle
+          reviewFocused={reviewFocused}
+          focusAvailable={focusAvailable}
+          onToggleFocus={onToggleFocus}
+        />
       </nav>
       {effectiveView === "marks" ? (
         selected ? (
