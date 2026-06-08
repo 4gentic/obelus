@@ -8,6 +8,19 @@ export type FindMatch = {
   rects: ReadonlyArray<Bbox>;
 };
 
+// A search hit with its full text-item range recovered — the shape re-anchoring
+// needs. `searchPdfDocument` projects this down to `FindMatch`; both share one
+// search/index path so find and re-anchor can never drift. `endOffset` is
+// exclusive (the convention `Anchor` and `rectsFromAnchor` expect).
+export type DetailedMatch = {
+  pageIndex: number;
+  startItem: number;
+  startOffset: number;
+  endItem: number;
+  endOffset: number;
+  rects: ReadonlyArray<Bbox>;
+};
+
 export type FindOptions = {
   caseSensitive?: boolean;
   signal?: AbortSignal;
@@ -85,7 +98,7 @@ export function indexPage(rawItems: ReadonlyArray<TextItem | TextMarkedContent>)
   return { items, text: text.join(""), itemForChar, offsetForChar };
 }
 
-async function getPageIndex(doc: PDFDocumentProxy, pageIndex: number): Promise<PageIndex> {
+export async function getPageIndex(doc: PDFDocumentProxy, pageIndex: number): Promise<PageIndex> {
   let docEntry = cache.get(doc);
   if (!docEntry) {
     docEntry = new Map();
@@ -108,16 +121,16 @@ function caseFold(s: string, caseSensitive: boolean): string {
   return caseSensitive ? s : s.toLocaleLowerCase();
 }
 
-export async function searchPdfDocument(
+export async function searchPdfDocumentDetailed(
   doc: PDFDocumentProxy,
   rawQuery: string,
   opts: FindOptions = {},
-): Promise<FindMatch[]> {
+): Promise<DetailedMatch[]> {
   const query = rawQuery;
   if (query.length === 0) return [];
   const caseSensitive = opts.caseSensitive === true;
   const needle = caseFold(query, caseSensitive);
-  const matches: FindMatch[] = [];
+  const matches: DetailedMatch[] = [];
   const pageCount = doc.numPages;
   const pagesWithMatches: number[] = [];
 
@@ -144,19 +157,14 @@ export async function searchPdfDocument(
           from = hit + 1;
           continue;
         }
+        const endOffset = endCharOffset + 1;
         const rects = rectsFromAnchor(
-          {
-            pageIndex,
-            startItem,
-            startOffset,
-            endItem,
-            endOffset: endCharOffset + 1,
-          },
+          { pageIndex, startItem, startOffset, endItem, endOffset },
           entry.items,
           viewport,
         );
         if (rects.length > 0) {
-          matches.push({ pageIndex, matchIndex: matches.length, rects });
+          matches.push({ pageIndex, startItem, startOffset, endItem, endOffset, rects });
           matchesOnPage += 1;
         }
         from = hit + 1;
@@ -165,11 +173,6 @@ export async function searchPdfDocument(
     } finally {
       page.cleanup();
     }
-  }
-
-  for (let i = 0; i < matches.length; i += 1) {
-    const m = matches[i];
-    if (m) matches[i] = { ...m, matchIndex: i };
   }
 
   console.info("[find-pdf]", {
@@ -181,4 +184,19 @@ export async function searchPdfDocument(
   });
 
   return matches;
+}
+
+// Thin projection of the detailed search for the FindBar, which needs only
+// rects and a sequential match index.
+export async function searchPdfDocument(
+  doc: PDFDocumentProxy,
+  rawQuery: string,
+  opts: FindOptions = {},
+): Promise<FindMatch[]> {
+  const detailed = await searchPdfDocumentDetailed(doc, rawQuery, opts);
+  return detailed.map((match, matchIndex) => ({
+    pageIndex: match.pageIndex,
+    matchIndex,
+    rects: match.rects,
+  }));
 }

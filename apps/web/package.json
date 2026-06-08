@@ -24,6 +24,7 @@
     "@obelus/categories": "workspace:*",
     "@obelus/design-tokens": "workspace:*",
     "@obelus/html-view": "workspace:*",
+    "@obelus/marks-transfer": "workspace:*",
     "@obelus/md-view": "workspace:*",
     "@obelus/pdf-view": "workspace:*",
     "@obelus/repo": "workspace:*",

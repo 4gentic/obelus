@@ -7,6 +7,7 @@ import "./md-review-surface.css";
 import { useRegisterDocumentScroll } from "./document-scroll-context";
 import { findScrollAncestor } from "./find-scroll-ancestor";
 import { useFindStore } from "./find-store-context";
+import { useRegisterReanchor } from "./reanchor-context";
 import { useReviewStore } from "./store-context";
 import { useVerifyOnSave } from "./use-verify-on-save";
 
@@ -72,6 +73,7 @@ export default function MdReviewSurface({ path, text, trusted, onTrust }: Props)
     documentView.scrollToAnnotation,
     documentView.pages ?? null,
   );
+  useRegisterReanchor(documentView.reanchor);
 
   const showBanner =
     !trusted && !bannerDismissed && blockedUris.length > 0 && onTrust !== undefined;

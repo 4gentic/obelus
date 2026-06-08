@@ -1,6 +1,6 @@
 import { type Anchor, type Bbox, extract, rectsFromAnchor } from "@obelus/anchor";
 import { type AnnotationRow, isPdfAnchored } from "@obelus/repo";
-import type { DocumentView, PageNavProvider } from "@obelus/review-shell";
+import type { DocumentView, PageNavProvider, ReanchorProvider } from "@obelus/review-shell";
 import type { DraftInput, PdfDraftSlice } from "@obelus/review-store";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { TextItem } from "pdfjs-dist/types/src/display/api";
@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import PdfDocument from "./PdfDocument";
+import { reanchorPdfMark } from "./reanchor";
 import SelectionListener from "./SelectionListener";
 
 function findScrollAncestor(el: HTMLElement): HTMLElement {
@@ -515,11 +516,28 @@ export function usePdfDocumentView({
     </div>
   );
 
+  const reanchor = useMemo<ReanchorProvider>(
+    () => ({
+      reanchor: async (target) => {
+        const pageHint = target.anchor.kind === "pdf" ? target.anchor.page : undefined;
+        const result = await reanchorPdfMark(doc, {
+          quote: target.quote,
+          contextBefore: target.contextBefore,
+          contextAfter: target.contextAfter,
+          ...(pageHint !== undefined ? { pageHint } : {}),
+        });
+        return result.ok ? result.anchor : null;
+      },
+    }),
+    [doc],
+  );
+
   return {
     content,
     annotationTops,
     scrollToAnnotation,
     editable: false,
     pages,
+    reanchor,
   };
 }

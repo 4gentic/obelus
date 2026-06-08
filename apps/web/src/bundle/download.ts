@@ -1,5 +1,5 @@
 import type { BundleKind, PromptRubric } from "@obelus/bundle-builder";
-import type { Bundle } from "@obelus/bundle-schema";
+import type { Bundle, MarksArchive } from "@obelus/bundle-schema";
 import { suggestBundleFilename } from "./build";
 import { formatClipboardPrompt, formatReviewClipboardPrompt } from "./clipboard";
 
@@ -88,4 +88,23 @@ export async function exportReviewBundleMarkdown(
   await saveBlob(blob, suggestedName, "Obelus review write-up (Markdown)", {
     "text/markdown": [".md"],
   });
+}
+
+function marksArchiveFilename(archive: MarksArchive): string {
+  const slug = archive.document.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return `marks-${slug || "export"}.json`;
+}
+
+export async function exportMarksArchiveFile(archive: MarksArchive): Promise<string | null> {
+  const suggestedName = marksArchiveFilename(archive);
+  const json = JSON.stringify(archive, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const ok = await saveBlob(blob, suggestedName, "Obelus marks", {
+    "application/json": [".json"],
+  });
+  return ok ? suggestedName : null;
 }

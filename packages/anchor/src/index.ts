@@ -11,7 +11,7 @@ export {
 } from "./anchor";
 export type { Rect } from "./coords";
 export { textItemToRect } from "./coords";
-export { CONTEXT_WINDOW, extract } from "./extract";
+export { CONTEXT_WINDOW, computeBbox, extract } from "./extract";
 export { imageElementToHtmlAnchor, selectionToHtmlAnchor, verifyHtmlAnchor } from "./html";
 export { findImageTarget, quoteForImage } from "./image";
 export { rectsFromAnchor } from "./rects";

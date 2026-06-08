@@ -10,6 +10,7 @@ export type { ReviewPaneExports } from "./ReviewPane";
 export { default as ReviewPane } from "./ReviewPane";
 export { default as ReviewShell } from "./ReviewShell";
 export { default as RubricPanel } from "./RubricPanel";
+export type { ReanchorProvider, ReanchorTarget } from "./reanchor";
 export type { TrustBannerProps } from "./TrustBanner";
 export { default as TrustBanner } from "./TrustBanner";
 export type { DocumentView } from "./types";
