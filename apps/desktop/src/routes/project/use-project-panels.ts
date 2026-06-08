@@ -3,17 +3,24 @@ import {
   getProjectPanelState,
   type ProjectPanelState,
   setProjectPanelHidden,
+  setProjectReviewFocused,
 } from "../../store/app-state";
 
 export interface ProjectPanels {
   filesHidden: boolean;
   reviewHidden: boolean;
+  reviewFocused: boolean;
   toggleFiles(): void;
   toggleReview(): void;
   showReview(): void;
+  toggleReviewFocus(): void;
 }
 
-const DEFAULTS: ProjectPanelState = { filesHidden: false, reviewHidden: false };
+const DEFAULTS: ProjectPanelState = {
+  filesHidden: false,
+  reviewHidden: false,
+  reviewFocused: false,
+};
 
 // Hydrates from `app-state.json` once per project. The first paint uses
 // defaults (both panels visible) — flicker only matters if a user shipped a
@@ -66,14 +73,33 @@ export function useProjectPanels(projectId: string): ProjectPanels {
     });
   }, [projectId]);
 
+  const toggleReviewFocus = useCallback(() => {
+    dirtyRef.current = true;
+    setState((prev) => {
+      const next = { ...prev, reviewFocused: !prev.reviewFocused };
+      void setProjectReviewFocused(projectId, next.reviewFocused);
+      return next;
+    });
+  }, [projectId]);
+
   return useMemo(
     () => ({
       filesHidden: state.filesHidden,
       reviewHidden: state.reviewHidden,
+      reviewFocused: state.reviewFocused,
       toggleFiles,
       toggleReview,
       showReview,
+      toggleReviewFocus,
     }),
-    [state.filesHidden, state.reviewHidden, toggleFiles, toggleReview, showReview],
+    [
+      state.filesHidden,
+      state.reviewHidden,
+      state.reviewFocused,
+      toggleFiles,
+      toggleReview,
+      showReview,
+      toggleReviewFocus,
+    ],
   );
 }

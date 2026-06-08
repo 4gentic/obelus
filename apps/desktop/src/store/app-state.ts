@@ -44,6 +44,10 @@ type StoreKey =
 export interface ProjectPanelState {
   filesHidden: boolean;
   reviewHidden: boolean;
+  // Review-focus expands the review column over the document so the diff and
+  // the review console get a legible reading width. A wide-screen affordance,
+  // persisted so it survives a restart like the hide flags.
+  reviewFocused: boolean;
 }
 
 interface StoreShape {
@@ -69,8 +73,9 @@ interface StoreShape {
   // THOROUGHNESS_SPAWN at spawn time.
   reviewerThoroughness: ReviewerThoroughness;
   // Per-project panel visibility (files column on the left, review column on
-  // the right). Absent entry → both panels visible (the default). Persisted
-  // so users who hide a panel keep it hidden across restarts.
+  // the right) plus the review-focus flag. Absent entry → both panels visible,
+  // not focused (the default). Persisted so users keep their layout across
+  // restarts.
   panelsByProject: Record<string, ProjectPanelState>;
 }
 
@@ -153,11 +158,19 @@ export async function setReviewerThoroughness(value: ReviewerThoroughness): Prom
   await setAppState("reviewerThoroughness", value);
 }
 
+const DEFAULT_PANEL_STATE: ProjectPanelState = {
+  filesHidden: false,
+  reviewHidden: false,
+  reviewFocused: false,
+};
+
 export async function getProjectPanelState(
   projectId: string,
 ): Promise<ProjectPanelState | undefined> {
-  const map = await getAppState("panelsByProject");
-  return map?.[projectId];
+  const stored = (await getAppState("panelsByProject"))?.[projectId];
+  // `reviewFocused` post-dates the first ship of this key; entries written
+  // before it default to not-focused.
+  return stored ? { ...DEFAULT_PANEL_STATE, ...stored } : undefined;
 }
 
 export async function setProjectPanelHidden(
@@ -166,13 +179,21 @@ export async function setProjectPanelHidden(
   hidden: boolean,
 ): Promise<void> {
   const existing = (await getAppState("panelsByProject")) ?? {};
-  const current = existing[projectId] ?? { filesHidden: false, reviewHidden: false };
+  const current = { ...DEFAULT_PANEL_STATE, ...existing[projectId] };
   const next: ProjectPanelState =
-    side === "files"
-      ? { filesHidden: hidden, reviewHidden: current.reviewHidden }
-      : { filesHidden: current.filesHidden, reviewHidden: hidden };
+    side === "files" ? { ...current, filesHidden: hidden } : { ...current, reviewHidden: hidden };
   if (next.filesHidden === current.filesHidden && next.reviewHidden === current.reviewHidden) {
     return;
   }
   await setAppState("panelsByProject", { ...existing, [projectId]: next });
+}
+
+export async function setProjectReviewFocused(projectId: string, focused: boolean): Promise<void> {
+  const existing = (await getAppState("panelsByProject")) ?? {};
+  const current = { ...DEFAULT_PANEL_STATE, ...existing[projectId] };
+  if (current.reviewFocused === focused) return;
+  await setAppState("panelsByProject", {
+    ...existing,
+    [projectId]: { ...current, reviewFocused: focused },
+  });
 }
