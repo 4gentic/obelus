@@ -176,6 +176,7 @@ export default function HunkBlock(props: Props): JSX.Element {
           <span className="hunk-block__apply-failure-reason">{hunk.applyFailure.reason}</span>
         </p>
       )}
+      {hunk.reviewerNotes !== "" && <p className="diff-block__notes">{hunk.reviewerNotes}</p>}
       <DiffLines
         patch={hunk.modifiedPatchText ?? hunk.patch}
         sourceText={sourceText}
