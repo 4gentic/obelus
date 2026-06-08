@@ -15,23 +15,36 @@ type Props = {
 };
 
 // "current / total" with an always-editable current. The displayed value tracks
-// the live page as the user scrolls, except while the input is focused — then a
-// local draft holds the keystrokes so a scroll tick can't clobber what's being
-// typed. Enter or blur commits via goTo (which clamps); Escape abandons.
+// the live page as the user scrolls until the user types; the draft then holds
+// the keystrokes so a scroll tick can't clobber what's being typed. Enter or
+// click-away commits via goTo (which clamps); Escape abandons.
+//
+// `commit` reads the draft from a ref, not state: Enter and Escape call
+// `input.blur()`, which fires `onBlur` synchronously — before the matching
+// `setDraft` has flushed. A state-closure read would see the pre-blur value, so
+// Escape would navigate instead of abandoning. The ref is the single source of
+// truth for commit; Escape clears it first so its own blur-commit is a no-op.
 export default function PageNavField({ provider, className }: Props): JSX.Element {
   const current = useSyncExternalStore(provider.subscribe, provider.current, provider.current);
   const [draft, setDraft] = useState<string | null>(null);
+  const draftRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const value = draft ?? String(current);
 
+  const setDraftValue = useCallback((next: string | null): void => {
+    draftRef.current = next;
+    setDraft(next);
+  }, []);
+
   const commit = useCallback((): void => {
-    if (draft !== null) {
-      const next = Number.parseInt(draft, 10);
+    const pending = draftRef.current;
+    if (pending !== null) {
+      const next = Number.parseInt(pending, 10);
       if (Number.isFinite(next)) provider.goTo(next);
     }
-    setDraft(null);
-  }, [draft, provider]);
+    setDraftValue(null);
+  }, [provider, setDraftValue]);
 
   const onKeyDown = useCallback(
     (ev: KeyboardEvent<HTMLInputElement>): void => {
@@ -41,11 +54,11 @@ export default function PageNavField({ provider, className }: Props): JSX.Elemen
         inputRef.current?.blur();
       } else if (ev.key === "Escape") {
         ev.preventDefault();
-        setDraft(null);
+        setDraftValue(null);
         inputRef.current?.blur();
       }
     },
-    [commit],
+    [commit, setDraftValue],
   );
 
   return (
@@ -58,8 +71,7 @@ export default function PageNavField({ provider, className }: Props): JSX.Elemen
         pattern="[0-9]*"
         aria-label={`Page ${current} of ${provider.count}`}
         value={value}
-        onFocus={() => setDraft(String(current))}
-        onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
+        onChange={(e) => setDraftValue(e.target.value.replace(/[^0-9]/g, ""))}
         onBlur={commit}
         onKeyDown={onKeyDown}
       />
