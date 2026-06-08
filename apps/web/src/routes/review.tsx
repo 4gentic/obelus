@@ -4,7 +4,14 @@ import "@obelus/md-view/md.css";
 import { loadDocument, usePdfDocumentView } from "@obelus/pdf-view";
 import type { AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
 import { getHtml, getMdText, getPdf, papers, revisions } from "@obelus/repo/web";
-import { type DocumentView, ReviewPane, ReviewShell, TrustBanner } from "@obelus/review-shell";
+import {
+  type DocumentView,
+  PageNavField,
+  type PageNavProvider,
+  ReviewPane,
+  ReviewShell,
+  TrustBanner,
+} from "@obelus/review-shell";
 import type { DraftInput, ReviewState } from "@obelus/review-store";
 import "@obelus/review-shell/review-shell.css";
 import type { PDFDocumentProxy } from "pdfjs-dist";
@@ -686,7 +693,13 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
       ) : null}
       <ReviewShell
         label={`Review ${state.paper.id}`}
-        header={<ReviewBreadcrumb paper={state.paper} onRename={props.onRenamePaper} />}
+        header={
+          <ReviewBreadcrumb
+            paper={state.paper}
+            onRename={props.onRenamePaper}
+            pages={documentView.pages ?? null}
+          />
+        }
         documentView={documentView}
         annotations={props.annotations}
         pane={pane}
@@ -700,9 +713,10 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
 type ReviewBreadcrumbProps = {
   paper: PaperRow;
   onRename: (title: string) => void;
+  pages: PageNavProvider | null;
 };
 
-function ReviewBreadcrumb({ paper, onRename }: ReviewBreadcrumbProps): JSX.Element {
+function ReviewBreadcrumb({ paper, onRename, pages }: ReviewBreadcrumbProps): JSX.Element {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -726,38 +740,43 @@ function ReviewBreadcrumb({ paper, onRename }: ReviewBreadcrumbProps): JSX.Eleme
       <Link to="/app" className="review-crumb__back">
         <span aria-hidden="true">←</span> Library
       </Link>
-      {editing ? (
-        <input
-          ref={inputRef}
-          className="review-crumb__input"
-          type="text"
-          value={value}
-          aria-label="Paper title"
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commit();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              cancel();
-            }
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          className="review-crumb__title"
-          onClick={() => {
-            setValue(paper.title);
-            setEditing(true);
-          }}
-          aria-label={`Rename ${paper.title}`}
-        >
-          {paper.title}
-        </button>
-      )}
+      <div className="review-crumb__meta">
+        {editing ? (
+          <input
+            ref={inputRef}
+            className="review-crumb__input"
+            type="text"
+            value={value}
+            aria-label="Paper title"
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancel();
+              }
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="review-crumb__title"
+            onClick={() => {
+              setValue(paper.title);
+              setEditing(true);
+            }}
+            aria-label={`Rename ${paper.title}`}
+          >
+            {paper.title}
+          </button>
+        )}
+        {pages && pages.count > 1 ? (
+          <PageNavField provider={pages} className="review-crumb__pagenav" />
+        ) : null}
+      </div>
     </nav>
   );
 }

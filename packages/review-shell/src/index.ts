@@ -4,6 +4,8 @@ export type { FindProvider, FindSearchOptions } from "./find";
 export { default as MarginGutter, resolveCollisions } from "./MarginGutter";
 export { default as MarginNote } from "./MarginNote";
 export { default as NoteEditor } from "./NoteEditor";
+export { default as PageNavField } from "./PageNavField";
+export type { PageNavProvider } from "./page-nav";
 export type { ReviewPaneExports } from "./ReviewPane";
 export { default as ReviewPane } from "./ReviewPane";
 export { default as ReviewShell } from "./ReviewShell";
