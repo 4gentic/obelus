@@ -81,7 +81,12 @@ export default function HtmlReviewSurface({
     const el = paneRef.current;
     setScrollEl(el ? findScrollAncestor(el) : null);
   }, []);
-  useRegisterDocumentScroll(scrollEl, documentView.annotationTops, documentView.scrollToAnnotation);
+  useRegisterDocumentScroll(
+    scrollEl,
+    documentView.annotationTops,
+    documentView.scrollToAnnotation,
+    documentView.pages ?? null,
+  );
 
   const showBanner =
     !trusted && !bannerDismissed && blockedUris.length > 0 && onTrust !== undefined;

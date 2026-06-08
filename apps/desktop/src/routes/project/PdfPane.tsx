@@ -104,7 +104,12 @@ export default function PdfPane({ doc, paperId }: Props): JSX.Element {
     const el = paneRef.current;
     setScrollEl(el ? findScrollAncestor(el) : null);
   }, []);
-  useRegisterDocumentScroll(scrollEl, documentView.annotationTops, documentView.scrollToAnnotation);
+  useRegisterDocumentScroll(
+    scrollEl,
+    documentView.annotationTops,
+    documentView.scrollToAnnotation,
+    documentView.pages ?? null,
+  );
 
   // Held-Space pan override. Only fires when the PDF is mounted (paperId set)
   // and the user isn't typing into a form/editor. Window blur clears so
