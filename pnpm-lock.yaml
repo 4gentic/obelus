@@ -410,6 +410,9 @@ importers:
       '@obelus/bundle-schema':
         specifier: workspace:*
         version: link:../bundle-schema
+      '@obelus/categories':
+        specifier: workspace:*
+        version: link:../categories
       '@obelus/repo':
         specifier: workspace:*
         version: link:../repo
