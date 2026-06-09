@@ -79,6 +79,14 @@ export function openRubricPicker(): Promise<PickedRubric | null> {
   return invoke<PickedRubric | null>("open_rubric_picker");
 }
 
+// Picks a marks-archive JSON and returns its text, read entirely in Rust (see
+// open_marks_picker) so the renderer needs no fs/dialog JS permission — the
+// native picker is the trust boundary, mirroring fsWriteTextAbs on export.
+// Resolves null when the user cancels.
+export function openMarksPicker(): Promise<string | null> {
+  return invoke<string | null>("open_marks_picker");
+}
+
 // Re-vouches a path from the on-device projects table for this session.
 // See the Rust-side doc comment in commands/project.rs for the threat model.
 export function authorizeProjectRoot(path: string): Promise<string> {
