@@ -1,27 +1,39 @@
 import { classifyHtml, useHtmlDocumentView } from "@obelus/html-view";
 import { useMdDocumentView } from "@obelus/md-view";
 import "@obelus/md-view/md.css";
+import { type MarksArchiveMark, parseMarksArchive } from "@obelus/bundle-schema";
+import { DEFAULT_CATEGORIES } from "@obelus/categories";
+import { buildMarksArchive, importMarksArchive } from "@obelus/marks-transfer";
 import { loadDocument, usePdfDocumentView } from "@obelus/pdf-view";
-import type { AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
-import { getHtml, getMdText, getPdf, papers, revisions } from "@obelus/repo/web";
+import type { AnchorFields, AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
+import {
+  annotations as annotationsRepo,
+  getHtml,
+  getMdText,
+  getPdf,
+  papers,
+  revisions,
+} from "@obelus/repo/web";
 import {
   type DocumentView,
   PageNavField,
   type PageNavProvider,
   ReviewPane,
+  type ReviewPaneExports,
   ReviewShell,
   TrustBanner,
 } from "@obelus/review-shell";
 import type { DraftInput, ReviewState } from "@obelus/review-store";
 import "@obelus/review-shell/review-shell.css";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { buildBundle } from "../bundle/build";
 import { copyClipboardPrompt, copyReviewClipboardPrompt } from "../bundle/clipboard";
 import {
   exportBundleFile,
   exportBundleMarkdown,
+  exportMarksArchiveFile,
   exportReviewBundleMarkdown,
 } from "../bundle/download";
 import { buildHtmlBundleJson, downloadHtmlBundle } from "../bundle/html-bundle";
@@ -34,6 +46,12 @@ import type { JSX } from "react";
 import { useOpfsAssetResolver } from "./use-opfs-asset-resolver";
 
 type Status = "idle" | "working" | "done" | "error";
+
+// Matches the tool.version the bundle export already stamps (the bundle-builder
+// default), so marks archives and review bundles agree on provenance.
+const MARKS_TOOL_VERSION = "0.1.0";
+
+type MarksReanchor = (mark: MarksArchiveMark) => Promise<AnchorFields | null>;
 
 type LoadState =
   | { kind: "loading" }
@@ -393,6 +411,88 @@ export default function Review(): JSX.Element {
     }
   };
 
+  const onExportMarks = async (): Promise<string | null> => {
+    setStatus("working");
+    setMessage(null);
+    try {
+      const archive = buildMarksArchive({
+        rows: annotations,
+        document: {
+          format: paper.format,
+          title: paper.title,
+          pdfSha256: revision.pdfSha256,
+          ...(state.kind === "ready-pdf" ? { pageCount: state.pageCount } : {}),
+        },
+        categories: DEFAULT_CATEGORIES.map((c) => ({ slug: c.id, label: c.label })),
+        toolVersion: MARKS_TOOL_VERSION,
+      });
+      const name = await exportMarksArchiveFile(archive);
+      if (name) {
+        setStatus("done");
+        setMessage(`Marks exported (${annotations.length}).`);
+      } else {
+        setStatus("idle");
+      }
+      return name;
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Export failed");
+      return null;
+    }
+  };
+
+  const runMarksImport = async (file: File, reanchor: MarksReanchor | undefined): Promise<void> => {
+    setStatus("working");
+    setMessage(null);
+    try {
+      let raw: unknown;
+      try {
+        raw = JSON.parse(await file.text());
+      } catch {
+        setStatus("error");
+        setMessage("That file isn't valid JSON.");
+        return;
+      }
+      const parsed = parseMarksArchive(raw);
+      if (!parsed.ok) {
+        setStatus("error");
+        setMessage(`Not a marks archive — ${parsed.error}`);
+        return;
+      }
+      const { rows, report } = await importMarksArchive({
+        archive: parsed.archive,
+        targetRevisionId: revision.id,
+        targetPdfSha256: revision.pdfSha256,
+        targetFormat: paper.format,
+        targetCategorySlugs: new Set(DEFAULT_CATEGORIES.map((c) => c.id)),
+        ...(reanchor ? { reanchor } : {}),
+        newId: () => crypto.randomUUID(),
+      });
+      await annotationsRepo.bulkPut(revision.id, rows);
+      await load(revision.id);
+      console.info("[ingest-marks]", {
+        targetRevisionId: revision.id,
+        sourceTitle: parsed.archive.document.title,
+        sourceFormat: parsed.archive.document.format,
+        targetFormat: paper.format,
+        hashMatch: report.hashMatch,
+        markCount: parsed.archive.marks.length,
+        matched: report.matched,
+        reanchored: report.reanchored,
+        flagged: report.flagged,
+        skipped: report.skipped,
+        flaggedIds: report.flaggedIds,
+        droppedIds: report.droppedIds,
+        unknownCategories: report.unknownCategories,
+      });
+      setStatus(report.hashMatch === "format-mismatch" && rows.length === 0 ? "error" : "done");
+      setMessage(report.message);
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Import failed");
+    }
+  };
+
   return (
     <ReviewContent
       state={state}
@@ -422,7 +522,9 @@ export default function Review(): JSX.Element {
         onExportReviewMarkdown: () => void onExportReviewMarkdown(),
         onCopy: () => void onCopy(),
         onCopyReview: () => void onCopyReview(),
+        onExportMarks,
       }}
+      runMarksImport={(file, reanchor) => void runMarksImport(file, reanchor)}
       exportDisabled={status === "working"}
       onRenamePaper={(t) => void onRenamePaper(t)}
       onRenderError={setRenderError}
@@ -468,7 +570,8 @@ type ReviewContentProps = {
   onDelete: (id: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
   onRubricChange: (r: PaperRubric | null) => Promise<void>;
-  exportsBundle: import("@obelus/review-shell").ReviewPaneExports;
+  exportsBundle: Omit<import("@obelus/review-shell").ReviewPaneExports, "onImportMarks">;
+  runMarksImport: (file: File, reanchor: MarksReanchor | undefined) => void;
   exportDisabled: boolean;
   onRenamePaper: (title: string) => void;
   onRenderError: (message: string | null) => void;
@@ -656,6 +759,20 @@ function ReviewContent(props: ReviewContentProps): JSX.Element {
 
 function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }): JSX.Element {
   const { state, documentView } = props;
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const provider = documentView.reanchor;
+  const reanchor: MarksReanchor | undefined = provider
+    ? (mark) => provider.reanchor(mark)
+    : undefined;
+  const onMarksFile = (ev: ChangeEvent<HTMLInputElement>): void => {
+    const file = ev.target.files?.[0];
+    ev.target.value = "";
+    if (file) props.runMarksImport(file, reanchor);
+  };
+  const exports: ReviewPaneExports = {
+    ...props.exportsBundle,
+    onImportMarks: () => fileInputRef.current?.click(),
+  };
   const pane = (
     <ReviewPane
       annotations={props.annotations}
@@ -677,7 +794,7 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
         documentView.scrollToAnnotation(id);
       }}
       onRubricChange={props.onRubricChange}
-      exports={props.exportsBundle}
+      exports={exports}
       exportDisabled={props.exportDisabled}
       statusMessage={props.message}
       statusTone={props.status}
@@ -686,6 +803,13 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
 
   return (
     <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={onMarksFile}
+      />
       {props.renderError !== null ? (
         <p className="review-crumb__render-error" role="alert">
           Render failed: {props.renderError}

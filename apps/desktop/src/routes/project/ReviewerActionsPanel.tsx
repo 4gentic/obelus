@@ -1,7 +1,11 @@
 import { formatReviewPrompt, type PromptAnnotation } from "@obelus/bundle-builder";
+import { type MarksArchiveMark, parseMarksArchive } from "@obelus/bundle-schema";
+import { DEFAULT_CATEGORIES } from "@obelus/categories";
+import { buildMarksArchive, importMarksArchive } from "@obelus/marks-transfer";
 import type { PaperRow } from "@obelus/repo";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { save } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 import type { JSX, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useAiEngine } from "../../hooks/use-ai-engine";
@@ -10,7 +14,11 @@ import { exportBundleForPaper, exportMdBundleForPaper } from "./build-bundle";
 import { useProject } from "./context";
 import { useOpenPaper } from "./OpenPaper";
 import RubricPanel from "./RubricPanel";
+import { useReanchor } from "./reanchor-context";
+import { useReviewStore } from "./store-context";
 import { useWriteUpProgress, useWriteUpRunner, useWriteUpStore } from "./writeup-store-context";
+
+const MARKS_TOOL_VERSION = "0.1.0";
 
 function slugify(name: string): string {
   const dot = name.lastIndexOf(".");
@@ -38,6 +46,11 @@ type ExportState =
   | { kind: "markdown"; path: string }
   | { kind: "copied" };
 
+type MarksStatus =
+  | { kind: "idle" }
+  | { kind: "error"; message: string }
+  | { kind: "ok"; message: string };
+
 export default function ReviewerActionsPanel(): JSX.Element {
   const { project, repo, rootId } = useProject();
   const openPaper = useOpenPaper();
@@ -58,9 +71,12 @@ export default function ReviewerActionsPanel(): JSX.Element {
       ? null
       : engine.active !== null;
   const [exportState, setExportState] = useState<ExportState>({ kind: "idle" });
+  const [marksStatus, setMarksStatus] = useState<MarksStatus>({ kind: "idle" });
   const [savedDraftAt, setSavedDraftAt] = useState<string | null>(null);
   const [draftCopied, setDraftCopied] = useState(false);
   const outputRef = useRef<HTMLDivElement | null>(null);
+  const reviewStore = useReviewStore();
+  const reanchorProvider = useReanchor();
 
   const pdfReady = openPaper.kind === "ready";
   const mdReady = openPaper.kind === "ready-md" && openPaper.paper !== null;
@@ -136,6 +152,111 @@ export default function ReviewerActionsPanel(): JSX.Element {
       setExportState({
         kind: "error",
         message: err instanceof Error ? err.message : "Could not export bundle.",
+      });
+    }
+  }
+
+  async function onExportMarks(): Promise<void> {
+    if (!paperReady || !paperId || !activePaper) return;
+    setMarksStatus({ kind: "idle" });
+    try {
+      const revisions = await repo.revisions.listForPaper(paperId);
+      const latest = revisions[revisions.length - 1];
+      if (!latest) {
+        setMarksStatus({ kind: "error", message: "Paper has no revision yet." });
+        return;
+      }
+      const rows = await repo.annotations.listForRevision(latest.id);
+      const archive = buildMarksArchive({
+        rows,
+        document: {
+          format: activePaper.format,
+          title: activePaper.title,
+          pdfSha256: activePaper.pdfSha256,
+          ...(activePaper.pageCount !== undefined ? { pageCount: activePaper.pageCount } : {}),
+        },
+        categories: DEFAULT_CATEGORIES.map((c) => ({ slug: c.id, label: c.label })),
+        toolVersion: MARKS_TOOL_VERSION,
+      });
+      const defaultName = `marks-${slugify(paperTitle || "paper")}-${timestampForFilename()}.json`;
+      const picked = await save({
+        defaultPath: defaultName,
+        filters: [{ name: "Marks", extensions: ["json"] }],
+      });
+      if (!picked) return;
+      await fsWriteTextAbs(picked, JSON.stringify(archive, null, 2));
+      setMarksStatus({
+        kind: "ok",
+        message: `Exported ${archive.marks.length} marks to ${picked}`,
+      });
+    } catch (err) {
+      setMarksStatus({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Could not export marks.",
+      });
+    }
+  }
+
+  async function onImportMarks(): Promise<void> {
+    if (!paperReady || !paperId || !activePaper) return;
+    setMarksStatus({ kind: "idle" });
+    try {
+      const picked = await open({ filters: [{ name: "Marks", extensions: ["json"] }] });
+      if (typeof picked !== "string") return;
+      const text = await readTextFile(picked);
+      let raw: unknown;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        setMarksStatus({ kind: "error", message: "Not valid JSON." });
+        return;
+      }
+      const parsed = parseMarksArchive(raw);
+      if (!parsed.ok) {
+        setMarksStatus({ kind: "error", message: parsed.error });
+        return;
+      }
+      const archive = parsed.archive;
+      const revisions = await repo.revisions.listForPaper(paperId);
+      const latest = revisions[revisions.length - 1];
+      if (!latest) {
+        setMarksStatus({ kind: "error", message: "Paper has no revision yet." });
+        return;
+      }
+      const reanchor = reanchorProvider
+        ? (mark: MarksArchiveMark) => reanchorProvider.reanchor(mark)
+        : undefined;
+      const { rows: importedRows, report } = await importMarksArchive({
+        archive,
+        targetRevisionId: latest.id,
+        targetPdfSha256: activePaper.pdfSha256,
+        targetFormat: activePaper.format,
+        targetCategorySlugs: new Set(DEFAULT_CATEGORIES.map((c) => c.id)),
+        ...(reanchor ? { reanchor } : {}),
+        newId: () => crypto.randomUUID(),
+      });
+      await repo.annotations.bulkPut(latest.id, importedRows);
+      await reviewStore.getState().load(latest.id);
+      console.info("[ingest-marks]", {
+        targetRevisionId: latest.id,
+        sourceTitle: archive.document.title,
+        sourceFormat: archive.document.format,
+        targetFormat: activePaper.format,
+        hashMatch: report.hashMatch,
+        markCount: archive.marks.length,
+        matched: report.matched,
+        reanchored: report.reanchored,
+        flagged: report.flagged,
+        skipped: report.skipped,
+        flaggedIds: report.flaggedIds,
+        droppedIds: report.droppedIds,
+        unknownCategories: report.unknownCategories,
+      });
+      setMarksStatus({ kind: "ok", message: report.message });
+    } catch (err) {
+      setMarksStatus({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Could not import marks.",
       });
     }
   }
@@ -274,7 +395,10 @@ export default function ReviewerActionsPanel(): JSX.Element {
           onExportJSON={() => void onExportJSON()}
           onExportMarkdown={() => void onExportMarkdown()}
           onCopyPrompt={() => void onCopyPrompt()}
+          onExportMarks={() => void onExportMarks()}
+          onImportMarks={() => void onImportMarks()}
           state={exportState}
+          marksStatus={marksStatus}
           mdOnly
         />
       </section>
@@ -319,7 +443,10 @@ export default function ReviewerActionsPanel(): JSX.Element {
         onExportJSON={() => void onExportJSON()}
         onExportMarkdown={() => void onExportMarkdown()}
         onCopyPrompt={() => void onCopyPrompt()}
+        onExportMarks={() => void onExportMarks()}
+        onImportMarks={() => void onImportMarks()}
         state={exportState}
+        marksStatus={marksStatus}
       />
     </section>
   );
@@ -329,7 +456,10 @@ interface ChipsProps {
   onExportJSON: () => void;
   onExportMarkdown: () => void;
   onCopyPrompt: () => void;
+  onExportMarks: () => void;
+  onImportMarks: () => void;
   state: ExportState;
+  marksStatus: MarksStatus;
   mdOnly?: boolean;
 }
 
@@ -337,7 +467,10 @@ function ExportChips({
   onExportJSON,
   onExportMarkdown,
   onCopyPrompt,
+  onExportMarks,
+  onImportMarks,
   state,
+  marksStatus,
   mdOnly = false,
 }: ChipsProps): JSX.Element {
   return (
@@ -364,12 +497,25 @@ function ExportChips({
           </button>
         </>
       ) : null}
+      <button type="button" className="reviewer-actions__chip" onClick={onExportMarks}>
+        <span className="reviewer-actions__chip-label">Export marks</span>
+        <span className="reviewer-actions__chip-hint">marks-&lt;ts&gt;.json</span>
+      </button>
+      <button type="button" className="reviewer-actions__chip" onClick={onImportMarks}>
+        <span className="reviewer-actions__chip-label">Import marks</span>
+        <span className="reviewer-actions__chip-hint">choose a file…</span>
+      </button>
       {state.kind === "json" ? (
         <NextStep skill={mdOnly ? "apply-revision" : "write-review"} path={state.relPath} />
       ) : null}
       {state.kind === "error" ? (
         <p className="reviewer-actions__status" data-status="error">
           {state.message}
+        </p>
+      ) : null}
+      {marksStatus.kind !== "idle" ? (
+        <p className="reviewer-actions__status" data-status={marksStatus.kind}>
+          {marksStatus.message}
         </p>
       ) : null}
     </fieldset>

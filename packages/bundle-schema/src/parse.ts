@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { formatError } from "./format-error.js";
 import { type Bundle, Bundle as BundleSchema } from "./schema.js";
 
 export type ParseResult =
@@ -23,11 +23,4 @@ export function parseBundle(input: unknown): ParseResult {
   const result = BundleSchema.safeParse(input);
   if (result.success) return { ok: true, version: BUNDLE_VERSION_LITERAL, bundle: result.data };
   return formatError(result.error);
-}
-
-function formatError(error: z.ZodError): ParseResult {
-  const first = error.issues[0];
-  const path = first ? first.path.join(".") : "(root)";
-  const message = first ? first.message : "unknown error";
-  return { ok: false, error: `${path}: ${message}` };
 }

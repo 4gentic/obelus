@@ -68,7 +68,7 @@ export const Anchor = z.discriminatedUnion("kind", [
   HtmlElementAnchor,
 ]);
 
-const ThreadEntry = z.object({
+export const ThreadEntry = z.object({
   at: z.string().datetime({ offset: false }),
   body: z.string(),
 });

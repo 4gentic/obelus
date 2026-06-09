@@ -16,6 +16,10 @@ export type ReviewPaneExports = {
   onExportMarkdown: () => void;
   onCopy: () => void;
   onCopyReview: () => void;
+  // Portable marks archive: export this paper's marks to a JSON the other app
+  // (or another session) can import; import a JSON onto the open paper.
+  onExportMarks: () => Promise<string | null>;
+  onImportMarks: () => void;
 };
 
 type Props = {
@@ -603,6 +607,30 @@ export default function ReviewPane({
               ))}
             </ol>
           )}
+          <fieldset className="review-pane__actions" aria-label="Transfer marks">
+            <button
+              type="button"
+              className="review-pane__actions-chip"
+              onClick={() => void exports.onExportMarks()}
+              disabled={annotations.length === 0}
+            >
+              <span className="review-pane__actions-chip-label">Export marks</span>
+              <span className="review-pane__actions-chip-hint">portable .json</span>
+            </button>
+            <button
+              type="button"
+              className="review-pane__actions-chip"
+              onClick={exports.onImportMarks}
+            >
+              <span className="review-pane__actions-chip-label">Import marks</span>
+              <span className="review-pane__actions-chip-hint">onto this paper</span>
+            </button>
+          </fieldset>
+          {statusMessage ? (
+            <p className="review-pane__status" data-status={statusTone}>
+              {statusMessage}
+            </p>
+          ) : null}
         </section>
       ) : tab === "review" ? (
         <section
