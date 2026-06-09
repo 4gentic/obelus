@@ -22,30 +22,27 @@ const row = (id: string): AnnotationRow => ({
 
 function fakeWriter() {
   return {
-    clearForRevision: vi.fn().mockResolvedValue(undefined),
+    replaceForRevision: vi.fn().mockResolvedValue(undefined),
     bulkPut: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 describe("applyImportedMarks", () => {
-  it("replace clears the revision before writing the imported rows", async () => {
+  it("replace hands the rows to the atomic swap, never a bare bulkPut", async () => {
     const writer = fakeWriter();
     const rows = [row("a"), row("b")];
     await applyImportedMarks(writer, "rev-T", rows, "replace");
 
-    expect(writer.clearForRevision).toHaveBeenCalledWith("rev-T");
-    expect(writer.bulkPut).toHaveBeenCalledWith("rev-T", rows);
-    expect(writer.clearForRevision.mock.invocationCallOrder[0]).toBeLessThan(
-      writer.bulkPut.mock.invocationCallOrder[0] as number,
-    );
+    expect(writer.replaceForRevision).toHaveBeenCalledWith("rev-T", rows);
+    expect(writer.bulkPut).not.toHaveBeenCalled();
   });
 
-  it("merge writes the imported rows without clearing", async () => {
+  it("merge writes the imported rows alongside, without replacing", async () => {
     const writer = fakeWriter();
     const rows = [row("a")];
     await applyImportedMarks(writer, "rev-T", rows, "merge");
 
-    expect(writer.clearForRevision).not.toHaveBeenCalled();
+    expect(writer.replaceForRevision).not.toHaveBeenCalled();
     expect(writer.bulkPut).toHaveBeenCalledWith("rev-T", rows);
   });
 });
