@@ -8,6 +8,7 @@ use tokio::sync::oneshot;
 use uuid::Uuid;
 
 const MAX_RUBRIC_BYTES: u64 = 256 * 1024;
+const MAX_MARKS_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -130,4 +131,44 @@ pub async fn open_rubric_picker(app: AppHandle) -> AppResult<Option<PickedRubric
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "rubric.md".to_string());
     Ok(Some(PickedRubric { name, content }))
+}
+
+// Picks a marks-archive JSON and returns its text, reading entirely in Rust so
+// the renderer needs no fs/dialog JS permission (the FS plugin is Rust-only and
+// `dialog:allow-open` is not granted). Mirrors `open_rubric_picker`: a one-shot
+// import, so the picked file's parent is deliberately not registered as a root.
+#[tauri::command]
+pub async fn open_marks_picker(app: AppHandle) -> AppResult<Option<String>> {
+    let (tx, rx) = oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter("Marks", &["json"])
+        .pick_file(move |picked| {
+            let path = picked.and_then(|p| p.as_path().map(PathBuf::from));
+            let _ = tx.send(path);
+        });
+    let Some(file_path) = rx.await.ok().flatten() else {
+        return Ok(None);
+    };
+    let canon = file_path
+        .canonicalize()
+        .map_err(|e| AppError::Other(format!("marks path could not be canonicalized: {e}")))?;
+    if !canon.is_file() {
+        return Err(AppError::Other("marks path is not a file".into()));
+    }
+    let metadata = tokio::fs::metadata(&canon)
+        .await
+        .map_err(|e| AppError::Other(format!("marks metadata: {e}")))?;
+    if metadata.len() > MAX_MARKS_BYTES {
+        return Err(AppError::Other(format!(
+            "marks file exceeds maximum size of {} bytes",
+            MAX_MARKS_BYTES
+        )));
+    }
+    let bytes = tokio::fs::read(&canon)
+        .await
+        .map_err(|e| AppError::Other(format!("marks read: {e}")))?;
+    String::from_utf8(bytes)
+        .map(Some)
+        .map_err(|_| AppError::Other("marks file is not valid UTF-8".into()))
 }

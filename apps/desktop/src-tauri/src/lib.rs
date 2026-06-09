@@ -12,7 +12,7 @@ use commands::{
     },
     claude_user_settings::read_claude_user_settings,
     db_tx::db_tx_batch,
-    dialog::{open_folder_picker, open_paper_picker, open_rubric_picker},
+    dialog::{open_folder_picker, open_marks_picker, open_paper_picker, open_rubric_picker},
     engines::{engine_install, engine_list, engine_status, engine_uninstall},
     factory_reset::factory_reset,
     fs_scoped::{
@@ -65,6 +65,7 @@ pub fn run() {
             open_folder_picker,
             open_paper_picker,
             open_rubric_picker,
+            open_marks_picker,
             authorize_project_root,
             fs_read_file,
             fs_read_dir,
