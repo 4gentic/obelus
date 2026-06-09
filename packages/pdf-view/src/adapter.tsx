@@ -1,11 +1,20 @@
 import { type Anchor, type Bbox, extract, rectsFromAnchor } from "@obelus/anchor";
 import { type AnnotationRow, isPdfAnchored } from "@obelus/repo";
-import type { DocumentView } from "@obelus/review-shell";
+import type { DocumentView, PageNavProvider, ReanchorProvider } from "@obelus/review-shell";
 import type { DraftInput, PdfDraftSlice } from "@obelus/review-store";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { TextItem } from "pdfjs-dist/types/src/display/api";
-import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import PdfDocument from "./PdfDocument";
+import { reanchorPdfMark } from "./reanchor";
 import SelectionListener from "./SelectionListener";
 
 function findScrollAncestor(el: HTMLElement): HTMLElement {
@@ -27,6 +36,13 @@ const BASE_SCALE = 1.25;
 const SAFETY_MIN_SCALE = 0.25;
 const FIT_MAX_SCALE = 2;
 const PDF_POINT_WIDTH = 612;
+
+// Page-indicator reference line: a quarter-viewport below the top (capped), so
+// "current page" flips once the next page's top enters the upper reading band.
+const PAGE_REF_FRACTION = 0.25;
+const PAGE_REF_MAX_PX = 120;
+// Breathing room above a jumped-to page so its top isn't flush to the viewport.
+const GO_TO_TOP_PAD = 8;
 
 // Render-time padding around stored rects so highlights cover the visual
 // line-box (cap-line + leading + descender) the way Acrobat does, not just the
@@ -155,6 +171,19 @@ type Params = {
 
 type PageRect = { top: number; left: number };
 
+// 1-indexed page under the reference line. "Last page whose slot top has crossed
+// the line" — monotonic in `top`, needs no per-page height, and reads the way a
+// reader expects (you're on page N until N+1's top reaches the upper band).
+function pageAtRefLine(rects: ReadonlyArray<PageRect>, refLine: number): number {
+  let current = 1;
+  for (let i = 0; i < rects.length; i += 1) {
+    const rect = rects[i];
+    if (rect && rect.top <= refLine) current = i + 1;
+    else break;
+  }
+  return current;
+}
+
 export function usePdfDocumentView({
   doc,
   annotations,
@@ -174,6 +203,14 @@ export function usePdfDocumentView({
   const [pageRects, setPageRects] = useState<PageRect[]>([]);
   const pageCount = doc.numPages;
   const scale = zoomOverride ?? autoScale;
+
+  // Page-nav state lives in refs, not React state: the scroll listener reads the
+  // freshest pageRects without re-binding, and chrome subscribes through the
+  // provider's own listener set so a scroll frame re-renders only the indicator,
+  // never the gutter or marks list that share document-scroll-context.
+  const pageRectsRef = useRef<PageRect[]>([]);
+  const currentPageRef = useRef(1);
+  const pageListenersRef = useRef(new Set<() => void>());
 
   // Auto-fit measurement runs regardless of `zoomOverride` so the host store
   // always has a current fit-to-width baseline to step from. The render path
@@ -246,6 +283,73 @@ export function usePdfDocumentView({
       }
     },
     [annotationTops],
+  );
+
+  const recomputeCurrentPage = useCallback((): void => {
+    const el = containerRef.current;
+    const scroll = el ? findScrollAncestor(el) : null;
+    if (!scroll) return;
+    const refLine =
+      scroll.scrollTop + Math.min(PAGE_REF_MAX_PX, scroll.clientHeight * PAGE_REF_FRACTION);
+    const next = pageAtRefLine(pageRectsRef.current, refLine);
+    if (next !== currentPageRef.current) {
+      currentPageRef.current = next;
+      for (const listener of pageListenersRef.current) listener();
+    }
+  }, []);
+
+  // Keep the listener's view of pageRects fresh, and re-derive the current page
+  // after every re-measure (zoom/resize can move it under a static scrollTop).
+  useLayoutEffect(() => {
+    pageRectsRef.current = pageRects;
+    recomputeCurrentPage();
+  }, [pageRects, recomputeCurrentPage]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    const scroll = el ? findScrollAncestor(el) : null;
+    if (!scroll) return;
+    let raf = 0;
+    const onScroll = (): void => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        recomputeCurrentPage();
+      });
+    };
+    scroll.addEventListener("scroll", onScroll, { passive: true });
+    recomputeCurrentPage();
+    return () => {
+      scroll.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [recomputeCurrentPage]);
+
+  const goToPage = useCallback((page: number): void => {
+    const el = containerRef.current;
+    const scroll = el ? findScrollAncestor(el) : null;
+    if (!scroll) return;
+    const rects = pageRectsRef.current;
+    if (rects.length === 0) return;
+    const clamped = Math.max(1, Math.min(rects.length, Math.round(page)));
+    const rect = rects[clamped - 1];
+    if (!rect) return;
+    scroll.scrollTo({ top: Math.max(0, rect.top - GO_TO_TOP_PAD), behavior: "smooth" });
+  }, []);
+
+  const pages = useMemo<PageNavProvider>(
+    () => ({
+      count: pageCount,
+      current: () => currentPageRef.current,
+      subscribe: (listener: () => void): (() => void) => {
+        pageListenersRef.current.add(listener);
+        return () => {
+          pageListenersRef.current.delete(listener);
+        };
+      },
+      goTo: goToPage,
+    }),
+    [pageCount, goToPage],
   );
 
   const handleAnchor = useCallback(
@@ -412,10 +516,28 @@ export function usePdfDocumentView({
     </div>
   );
 
+  const reanchor = useMemo<ReanchorProvider>(
+    () => ({
+      reanchor: async (target) => {
+        const pageHint = target.anchor.kind === "pdf" ? target.anchor.page : undefined;
+        const result = await reanchorPdfMark(doc, {
+          quote: target.quote,
+          contextBefore: target.contextBefore,
+          contextAfter: target.contextAfter,
+          ...(pageHint !== undefined ? { pageHint } : {}),
+        });
+        return result.ok ? result.anchor : null;
+      },
+    }),
+    [doc],
+  );
+
   return {
     content,
     annotationTops,
     scrollToAnnotation,
     editable: false,
+    pages,
+    reanchor,
   };
 }

@@ -8,28 +8,10 @@ import { useAiEngine } from "../../hooks/use-ai-engine";
 import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
 import { exportBundleForPaper, exportMdBundleForPaper } from "./build-bundle";
 import { useProject } from "./context";
+import { slugify, timestampForFilename } from "./filename";
 import { useOpenPaper } from "./OpenPaper";
 import RubricPanel from "./RubricPanel";
 import { useWriteUpProgress, useWriteUpRunner, useWriteUpStore } from "./writeup-store-context";
-
-function slugify(name: string): string {
-  const dot = name.lastIndexOf(".");
-  const stem = dot > 0 ? name.slice(0, dot) : name;
-  return (
-    stem
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || "review"
-  );
-}
-
-function timestampForFilename(now: Date = new Date()): string {
-  const pad = (n: number): string => n.toString().padStart(2, "0");
-  return (
-    `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
-    `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
-  );
-}
 
 type ExportState =
   | { kind: "idle" }

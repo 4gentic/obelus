@@ -2,6 +2,7 @@ import type { DiffHunkApplyFailure, DiffHunkRow } from "@obelus/repo";
 import { useCallback, useMemo } from "react";
 import { applyHunks, type HunkFailure } from "../../ipc/commands";
 import type { DiffState } from "../../lib/diff-store";
+import { errorMessage } from "../../lib/errors";
 import { autoCompileAfterDraftChange } from "./auto-compile";
 import { useBuffersStore } from "./buffers-store-context";
 import { buildRepassPrompt } from "./build-repass-prompt";
@@ -111,13 +112,14 @@ function kickAutoCompile(deps: {
             originSessionId: deps.sessionId,
             compiler: outcome.compiler,
             mainRelPath: outcome.mainRelPath,
-            stderr: outcome.message,
+            stderr: outcome.stderr ?? outcome.message,
+            ...(outcome.exitCode === undefined ? {} : { exitCode: outcome.exitCode }),
             trigger: "apply",
           }).catch((err) => {
             console.warn("[fix-compile-start]", {
               originSessionId: deps.sessionId,
               paperId: deps.paperId,
-              error: err instanceof Error ? err.message : String(err),
+              error: errorMessage(err),
             });
           });
         }

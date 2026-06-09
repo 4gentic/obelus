@@ -2,6 +2,28 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.17](https://github.com/4gentic/obelus/compare/desktop-v0.1.16...desktop-v0.1.17) (2026-06-09)
+
+
+### Features
+
+* **desktop:** rebalance the review column with a live console, findings, and focus mode ([#175](https://github.com/4gentic/obelus/issues/175)) ([0387c82](https://github.com/4gentic/obelus/commit/0387c8235bda2e2f5bc53b0725db7789733bf3e1))
+* **marks:** export/import review marks across web and desktop ([#176](https://github.com/4gentic/obelus/issues/176)) ([c3b454a](https://github.com/4gentic/obelus/commit/c3b454af8b2c41ffbd1709b306dded27f9597312))
+* **marks:** replace-or-merge prompt when importing onto a paper with marks ([#178](https://github.com/4gentic/obelus/issues/178)) ([b2bac34](https://github.com/4gentic/obelus/commit/b2bac34e4236ff5f5abcd0455c2e6dfb200cf42a))
+* **review:** PDF page indicator with go-to-page input ([#173](https://github.com/4gentic/obelus/issues/173)) ([897045f](https://github.com/4gentic/obelus/commit/897045fdc02a05698ec0b21b2ec5595170fe3fa3))
+
+
+### Bug Fixes
+
+* **desktop:** pin sqlx to 0.8 to restore the desktop build ([#172](https://github.com/4gentic/obelus/issues/172)) ([cffa043](https://github.com/4gentic/obelus/commit/cffa04356d210d91205ef18342b61ca826ead0a5))
+
+## [0.1.16](https://github.com/4gentic/obelus/compare/desktop-v0.1.15...desktop-v0.1.16) (2026-06-07)
+
+
+### Bug Fixes
+
+* **desktop:** surface real compile diagnostics and recover miscounted/truncated patch hunks ([#169](https://github.com/4gentic/obelus/issues/169)) ([e432eaa](https://github.com/4gentic/obelus/commit/e432eaa63594c88d7d8085d0edc4e1f9432a45f7))
+
 ## [0.1.15](https://github.com/4gentic/obelus/compare/desktop-v0.1.14...desktop-v0.1.15) (2026-05-06)
 
 

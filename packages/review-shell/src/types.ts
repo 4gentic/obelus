@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import type { FindProvider } from "./find";
+import type { PageNavProvider } from "./page-nav";
+import type { ReanchorProvider } from "./reanchor";
 
 // Adapter-facing contract. A DocumentView provides three things:
 //   (1) a ReactNode the shell mounts inside its scroll container; this node
@@ -17,10 +19,19 @@ import type { FindProvider } from "./find";
 // `find` is the optional in-document search backend. The host wires the
 // returned provider to the shared find-store so a single FindBar drives
 // search across PDF, MD, and HTML surfaces.
+//
+// `pages` is the optional page-navigation backend for paginated surfaces (PDF).
+// Chrome outside the scroll container reads it to show "current / total" and to
+// jump to a page; non-paginated surfaces omit it.
+//
+// `reanchor` is the optional re-anchoring backend used when importing a marks
+// archive whose document has drifted. Only the PDF surface provides it today.
 export interface DocumentView {
   readonly content: ReactNode;
   readonly annotationTops: ReadonlyMap<string, number>;
   readonly scrollToAnnotation: (annotationId: string) => void;
   readonly editable: boolean;
   readonly find?: FindProvider;
+  readonly pages?: PageNavProvider;
+  readonly reanchor?: ReanchorProvider;
 }

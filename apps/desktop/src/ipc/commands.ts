@@ -79,6 +79,14 @@ export function openRubricPicker(): Promise<PickedRubric | null> {
   return invoke<PickedRubric | null>("open_rubric_picker");
 }
 
+// Picks a marks-archive JSON and returns its text, read entirely in Rust (see
+// open_marks_picker) so the renderer needs no fs/dialog JS permission — the
+// native picker is the trust boundary, mirroring fsWriteTextAbs on export.
+// Resolves null when the user cancels.
+export function openMarksPicker(): Promise<string | null> {
+  return invoke<string | null>("open_marks_picker");
+}
+
 // Re-vouches a path from the on-device projects table for this session.
 // See the Rust-side doc comment in commands/project.rs for the threat model.
 export function authorizeProjectRoot(path: string): Promise<string> {
@@ -220,6 +228,9 @@ export function workspaceRemovePaperFiles(projectId: string, paperId: string): P
 export interface TypstCompileReport {
   outputRelPath: string;
   stderr: string;
+  // 0 is a clean compile; non-zero is a compile failure whose diagnostic is in
+  // `stderr`. A rejected promise means the engine couldn't run at all.
+  exitCode: number;
 }
 
 export function compileTypst(rootId: string, relPath: string): Promise<TypstCompileReport> {
@@ -230,6 +241,7 @@ export interface LatexCompileReport {
   outputRelPath: string;
   stderr: string;
   engine: "latexmk" | "tectonic";
+  exitCode: number;
 }
 
 export type LatexCompiler = "latexmk" | "pdflatex" | "xelatex";

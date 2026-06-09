@@ -1,19 +1,7 @@
-import type { PageViewport, PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
-import type { TextItem, TextMarkedContent } from "pdfjs-dist/types/src/display/api";
+import type { TextMarkedContent } from "pdfjs-dist/types/src/display/api";
 import { describe, expect, it } from "vitest";
-import { indexPage, searchPdfDocument } from "./find";
-
-function ti(str: string, eol = false): TextItem {
-  return {
-    str,
-    dir: "ltr",
-    width: str.length,
-    height: 1,
-    transform: [1, 0, 0, 1, 0, 0],
-    fontName: "mock",
-    hasEOL: eol,
-  };
-}
+import { mockDoc, mockViewport, ti } from "./__fixtures__/mock-pdf";
+import { indexPage, searchPdfDocument, searchPdfDocumentDetailed } from "./find";
 
 describe("indexPage", () => {
   it("maps characters of a single item to (item, offset)", () => {
@@ -56,36 +44,6 @@ describe("indexPage", () => {
     expect(idx.text).toBe("a b");
   });
 });
-
-type MockPage = {
-  items: TextItem[];
-  viewport: PageViewport;
-};
-
-function mockViewport(): PageViewport {
-  const vp = {
-    convertToViewportRectangle: (rect: readonly [number, number, number, number]) =>
-      [rect[0], rect[1], rect[2], rect[3]] as [number, number, number, number],
-  };
-  return vp as unknown as PageViewport;
-}
-
-function mockDoc(pages: MockPage[]): PDFDocumentProxy {
-  const doc = {
-    numPages: pages.length,
-    getPage: (n: number): Promise<PDFPageProxy> => {
-      const page = pages[n - 1];
-      if (!page) return Promise.reject(new Error(`page ${n} missing`));
-      const proxy = {
-        getTextContent: () => Promise.resolve({ items: page.items, styles: {}, lang: null }),
-        getViewport: () => page.viewport,
-        cleanup: () => {},
-      };
-      return Promise.resolve(proxy as unknown as PDFPageProxy);
-    },
-  };
-  return doc as unknown as PDFDocumentProxy;
-}
 
 describe("searchPdfDocument", () => {
   it("finds ASCII matches case-insensitively by default", async () => {
@@ -147,5 +105,33 @@ describe("searchPdfDocument", () => {
   it("returns empty array for an empty query", async () => {
     const doc = mockDoc([{ items: [ti("hello")], viewport: mockViewport() }]);
     expect(await searchPdfDocument(doc, "")).toEqual([]);
+  });
+});
+
+describe("searchPdfDocumentDetailed", () => {
+  it("recovers the text-item range of a match (endOffset exclusive)", async () => {
+    const doc = mockDoc([{ items: [ti("hello"), ti("world")], viewport: mockViewport() }]);
+    const matches = await searchPdfDocumentDetailed(doc, "hello world");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.startItem).toBe(0);
+    expect(matches[0]?.startOffset).toBe(0);
+    expect(matches[0]?.endItem).toBe(1);
+    expect(matches[0]?.endOffset).toBe(5);
+  });
+
+  it("agrees with searchPdfDocument on page and count", async () => {
+    const doc = mockDoc([
+      { items: [ti("intro section")], viewport: mockViewport() },
+      { items: [ti("conclusion section")], viewport: mockViewport() },
+    ]);
+    const detailed = await searchPdfDocumentDetailed(doc, "section");
+    const plain = await searchPdfDocument(doc, "section");
+    expect(detailed.map((m) => m.pageIndex)).toEqual(plain.map((m) => m.pageIndex));
+    expect(detailed).toHaveLength(plain.length);
+  });
+
+  it("discards a match that straddles a synthetic word break", async () => {
+    const doc = mockDoc([{ items: [ti("hello"), ti("world")], viewport: mockViewport() }]);
+    expect(await searchPdfDocumentDetailed(doc, "helloworld")).toEqual([]);
   });
 });

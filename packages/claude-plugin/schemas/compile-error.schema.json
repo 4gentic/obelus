@@ -101,7 +101,6 @@
     "paperId",
     "compiler",
     "stderr",
-    "exitCode",
     "trigger"
   ],
   "additionalProperties": false

@@ -149,7 +149,7 @@ function collectAfter(
 
 // Tight bbox over every text-item the selection touches. Pure in the text-item
 // data (items + viewport), independent of DOM layout.
-function computeBbox(
+export function computeBbox(
   items: ReadonlyArray<TextItem>,
   viewport: PageViewport,
   startItem: number,

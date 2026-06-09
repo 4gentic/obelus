@@ -6,6 +6,7 @@ import { useRegisterDocumentScroll } from "./document-scroll-context";
 import { findScrollAncestor } from "./find-scroll-ancestor";
 import { useFindStore, usePdfFindRectsStore } from "./find-store-context";
 import { setPdfAutoScale, usePdfTool, usePdfZoom } from "./pdf-zoom-store";
+import { useRegisterReanchor } from "./reanchor-context";
 import { useReviewStore } from "./store-context";
 
 interface Props {
@@ -104,7 +105,13 @@ export default function PdfPane({ doc, paperId }: Props): JSX.Element {
     const el = paneRef.current;
     setScrollEl(el ? findScrollAncestor(el) : null);
   }, []);
-  useRegisterDocumentScroll(scrollEl, documentView.annotationTops, documentView.scrollToAnnotation);
+  useRegisterDocumentScroll(
+    scrollEl,
+    documentView.annotationTops,
+    documentView.scrollToAnnotation,
+    documentView.pages ?? null,
+  );
+  useRegisterReanchor(documentView.reanchor);
 
   // Held-Space pan override. Only fires when the PDF is mounted (paperId set)
   // and the user isn't typing into a form/editor. Window blur clears so

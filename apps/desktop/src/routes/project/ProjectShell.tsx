@@ -21,6 +21,7 @@ import { bumpPdfZoom, setPdfZoom } from "./pdf-zoom-store";
 import QuickOpenPalette from "./QuickOpenPalette";
 import { useQuickOpenStore } from "./quick-open-store-context";
 import ReviewColumn from "./ReviewColumn";
+import { ReanchorContextProvider } from "./reanchor-context";
 import { useReviewStore } from "./store-context";
 import { useDiffActions } from "./use-diff-actions";
 import { useWorkingTreeDivergence } from "./use-divergence";
@@ -237,11 +238,10 @@ export default function ProjectShell(): JSX.Element {
   const hideLeft = reviewerForcesHidden || panels.filesHidden;
   const hideReview = panels.reviewHidden;
   const noPdf = openPaper.kind === "none";
-  const classes = ["project-shell__body"];
-  if (noPdf) classes.push("project-shell__body--no-pdf");
-  if (hideLeft) classes.push("project-shell__body--no-left");
-  if (hideReview) classes.push("project-shell__body--no-review");
-  const bodyClass = classes.join(" ");
+  // An empty margin gutter is dead space: with no marks there are no margin
+  // notes to align, so the column collapses to a spine and the document
+  // reclaims the width. It reappears the moment a mark exists.
+  const annotationCount = reviewStore((s) => s.annotations.length);
 
   // Auto-show the review pane on selection or mark focus. We track the most
   // recent "trigger" — either a new draft anchor (sweep-mark) OR a focused
@@ -291,14 +291,41 @@ export default function ProjectShell(): JSX.Element {
   // Below 1024 the layout compacts; when --no-pdf is active the columns
   // collapse, so user-dragged widths are ignored until the state clears.
   const dragApplies = !noPdf && bodyWidth >= 1024;
+  // Review-focus is a wide-screen affordance — at narrow widths there is no
+  // document width to trade away, so the persisted flag stays dormant.
+  const focusActive = panels.reviewFocused && dragApplies;
+  const marginCollapsed = !noPdf && !hideReview && !panels.reviewFocused && annotationCount === 0;
   const showFilesDivider = dragApplies && !hideLeft;
-  const showMarginDivider = dragApplies && !hideReview;
-  const showReviewDivider = dragApplies && !hideReview;
+  const showMarginDivider = dragApplies && !hideReview && !focusActive;
+  const showReviewDivider = dragApplies && !hideReview && !focusActive;
 
-  const bodyStyle: CSSProperties | undefined =
-    widths && dragApplies
-      ? { gridTemplateColumns: composeGridColumns({ hideLeft, hideReview, widths }) }
-      : undefined;
+  // The inline grid is authoritative at >=1024 (`dragApplies`): it carries the
+  // user's dragged widths, the proportional default on wide monitors, the
+  // margin-collapse spine, and the focus layout — so the CSS `@media` tiers
+  // only own the narrow / no-document fallbacks.
+  const effectiveWidths = widths ?? defaultPaneWidths(bodyWidth);
+  const bodyStyle: CSSProperties | undefined = dragApplies
+    ? {
+        gridTemplateColumns: composeGridColumns({
+          hideLeft,
+          hideReview,
+          focusActive,
+          marginCollapsed,
+          widths: effectiveWidths,
+        }),
+      }
+    : undefined;
+
+  const bodyClass = [
+    "project-shell__body",
+    noPdf ? "project-shell__body--no-pdf" : "",
+    hideLeft ? "project-shell__body--no-left" : "",
+    hideReview ? "project-shell__body--no-review" : "",
+    marginCollapsed ? "project-shell__body--margin-collapsed" : "",
+    focusActive ? "project-shell__body--review-focus" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className="project-shell">
@@ -322,83 +349,121 @@ export default function ProjectShell(): JSX.Element {
       )}
       <EnsureRevisionProvider value={lazyEnsureRevision}>
         <DocumentScrollProvider>
-          <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
-            {project.kind === "writer" && !hideLeft ? (
-              <div className="project-shell__files">
-                <FilesColumn />
-                {showFilesDivider ? (
-                  <PaneDivider
-                    side="files"
-                    bodyRef={bodyRef}
-                    hideLeft={hideLeft}
-                    valueNow={widths?.filesWidth}
-                    onChange={onFilesResize}
-                  />
-                ) : null}
-              </div>
-            ) : null}
-            <main className="project-shell__center">
-              <div className="find-bar-anchor">
-                <FindBar />
-              </div>
-              <div className="quick-open-anchor">
-                <QuickOpenPalette />
-              </div>
-              <CenterPane />
-            </main>
-            <div className="project-shell__margin">
-              {showMarginDivider ? (
-                <PaneDivider
-                  side="margin"
-                  bodyRef={bodyRef}
-                  hideLeft={hideLeft}
-                  valueNow={widths?.marginWidth}
-                  onChange={onMarginResize}
-                />
+          <ReanchorContextProvider>
+            <div className={bodyClass} ref={bodyRef} style={bodyStyle}>
+              {project.kind === "writer" && !hideLeft ? (
+                <div className="project-shell__files">
+                  <FilesColumn />
+                  {showFilesDivider ? (
+                    <PaneDivider
+                      side="files"
+                      bodyRef={bodyRef}
+                      hideLeft={hideLeft}
+                      valueNow={widths?.filesWidth}
+                      onChange={onFilesResize}
+                    />
+                  ) : null}
+                </div>
               ) : null}
-              <div className="project-shell__margin-scroll">
-                <MarginGutter />
-              </div>
-            </div>
-            {!hideReview && (
-              <div className="project-shell__review">
-                {showReviewDivider ? (
+              <main className="project-shell__center">
+                <div className="find-bar-anchor">
+                  <FindBar />
+                </div>
+                <div className="quick-open-anchor">
+                  <QuickOpenPalette />
+                </div>
+                <CenterPane />
+              </main>
+              <div className="project-shell__margin">
+                {showMarginDivider ? (
                   <PaneDivider
-                    side="review"
+                    side="margin"
                     bodyRef={bodyRef}
                     hideLeft={hideLeft}
-                    valueNow={widths?.reviewWidth}
-                    onChange={onReviewResize}
+                    valueNow={widths?.marginWidth}
+                    onChange={onMarginResize}
                   />
                 ) : null}
-                <div className="project-shell__review-scroll">
-                  <ReviewColumn
-                    onApply={apply}
-                    onRepass={repass}
-                    onDiscard={discard}
-                    forkInfo={forkInfo}
-                  />
+                <div className="project-shell__margin-scroll">
+                  <MarginGutter />
                 </div>
               </div>
-            )}
-          </div>
+              {!hideReview && (
+                <div className="project-shell__review">
+                  {showReviewDivider ? (
+                    <PaneDivider
+                      side="review"
+                      bodyRef={bodyRef}
+                      hideLeft={hideLeft}
+                      valueNow={widths?.reviewWidth}
+                      onChange={onReviewResize}
+                    />
+                  ) : null}
+                  <div className="project-shell__review-scroll">
+                    <ReviewColumn
+                      onApply={apply}
+                      onRepass={repass}
+                      onDiscard={discard}
+                      forkInfo={forkInfo}
+                      reviewFocused={focusActive}
+                      focusAvailable={dragApplies}
+                      onToggleFocus={panels.toggleReviewFocus}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </ReanchorContextProvider>
         </DocumentScrollProvider>
       </EnsureRevisionProvider>
     </div>
   );
 }
 
+const MARGIN_SPINE_PX = 16;
+
 interface ComposeArgs {
   hideLeft: boolean;
   hideReview: boolean;
+  focusActive: boolean;
+  marginCollapsed: boolean;
   widths: PaneWidths;
 }
 
-function composeGridColumns({ hideLeft, hideReview, widths }: ComposeArgs): string {
-  const marginPx = hideReview ? "0" : `${widths.marginWidth}px`;
-  const reviewPx = hideReview ? "0" : `${widths.reviewWidth}px`;
-  if (hideLeft) return `minmax(0, 1fr) ${marginPx} ${reviewPx}`;
-  return `${widths.filesWidth}px minmax(0, 1fr) ${marginPx} ${reviewPx}`;
+function composeGridColumns({
+  hideLeft,
+  hideReview,
+  focusActive,
+  marginCollapsed,
+  widths,
+}: ComposeArgs): string {
+  const filesPrefix = hideLeft ? "" : `${widths.filesWidth}px `;
+  // Focus hands the document's and margin's width to the review column.
+  if (focusActive && !hideReview) return `${filesPrefix}0 0 minmax(0, 1fr)`;
+  if (hideReview) return `${filesPrefix}minmax(0, 1fr) 0 0`;
+  const marginPx = marginCollapsed ? `${MARGIN_SPINE_PX}px` : `${widths.marginWidth}px`;
+  return `${filesPrefix}minmax(0, 1fr) ${marginPx} ${widths.reviewWidth}px`;
+}
+
+// Mirrors the `@media` width tiers in project.css so the inline grid matches
+// the CSS fallback before the user drags a divider: the review column grows
+// proportionally on wide monitors, where its fixed 340px felt starved.
+function defaultPaneWidths(bodyWidth: number): PaneWidths {
+  if (bodyWidth >= 1920) {
+    return {
+      filesWidth: 240,
+      marginWidth: 240,
+      reviewWidth: Math.max(480, Math.round(bodyWidth * 0.36)),
+    };
+  }
+  if (bodyWidth >= 1600) {
+    return {
+      filesWidth: 220,
+      marginWidth: 220,
+      reviewWidth: Math.max(420, Math.round(bodyWidth * 0.32)),
+    };
+  }
+  return { filesWidth: 220, marginWidth: 220, reviewWidth: 340 };
 }
 
 interface DivergenceBannerProps {

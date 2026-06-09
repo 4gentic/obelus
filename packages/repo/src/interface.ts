@@ -112,6 +112,11 @@ export interface AnnotationsRepo {
   ): Promise<AnnotationRow[]>;
   bulkPut(revisionId: string, rows: AnnotationRow[]): Promise<void>;
   remove(id: string): Promise<void>;
+  // Atomically swaps the revision's marks: in one transaction, deletes every
+  // existing annotation (resolved rows included) and writes `rows`, so a failed
+  // write rolls back the delete rather than leaving the revision wiped. Backs the
+  // "replace all marks" path of the marks-archive importer.
+  replaceForRevision(revisionId: string, rows: AnnotationRow[]): Promise<void>;
   markResolvedInEdit(ids: ReadonlyArray<string>, editId: string): Promise<void>;
   // Used by the writer-mode save-verify path and the external-change watcher
   // to record each mark's last verification outcome. Only updates the

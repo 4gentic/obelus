@@ -1,5 +1,6 @@
 import type { Repository } from "@obelus/repo";
 import { compileLatex, compileTypst, type LatexCompiler } from "../../ipc/commands";
+import { errorMessage } from "../../lib/errors";
 
 export type AutoCompileTrigger = "apply" | "switch";
 
@@ -12,6 +13,11 @@ export type AutoCompileOutcome =
       // fix-compile follow-up). Absent for noop/hint branches.
       compiler?: string;
       mainRelPath?: string;
+      // The compiler's real diagnostic and exit code, present when it ran and
+      // rejected the source. Absent when it couldn't run at all (the `catch`
+      // path), where `exitCode` is unknown.
+      stderr?: string;
+      exitCode?: number;
     }
   | { kind: "hint"; message: string }
   | { kind: "noop" };
@@ -69,15 +75,21 @@ async function runForCompiler(args: {
   if (compiler === "typst") {
     try {
       const report = await compileTypst(rootId, mainRelPath);
+      if (report.exitCode === 0) {
+        return { kind: "compiled", outputRelPath: report.outputRelPath, stderr: report.stderr };
+      }
       return {
-        kind: "compiled",
-        outputRelPath: report.outputRelPath,
+        kind: "error",
+        message: report.stderr || `typst exited with code ${report.exitCode}`,
+        compiler: "typst",
+        mainRelPath,
         stderr: report.stderr,
+        exitCode: report.exitCode,
       };
     } catch (err) {
       return {
         kind: "error",
-        message: err instanceof Error ? err.message : "Typst compile failed.",
+        message: errorMessage(err, "Typst compile failed."),
         compiler: "typst",
         mainRelPath,
       };
@@ -87,15 +99,21 @@ async function runForCompiler(args: {
   if (LATEX_COMPILERS.has(compiler)) {
     try {
       const report = await compileLatex(rootId, mainRelPath, compiler as LatexCompiler);
+      if (report.exitCode === 0) {
+        return { kind: "compiled", outputRelPath: report.outputRelPath, stderr: report.stderr };
+      }
       return {
-        kind: "compiled",
-        outputRelPath: report.outputRelPath,
+        kind: "error",
+        message: report.stderr || `${compiler} exited with code ${report.exitCode}`,
+        compiler,
+        mainRelPath,
         stderr: report.stderr,
+        exitCode: report.exitCode,
       };
     } catch (err) {
       return {
         kind: "error",
-        message: err instanceof Error ? err.message : `${compiler} compile failed.`,
+        message: errorMessage(err, `${compiler} compile failed.`),
         compiler,
         mainRelPath,
       };

@@ -24,6 +24,7 @@
     "@obelus/categories": "workspace:*",
     "@obelus/design-tokens": "workspace:*",
     "@obelus/html-view": "workspace:*",
+    "@obelus/marks-transfer": "workspace:*",
     "@obelus/md-view": "workspace:*",
     "@obelus/pdf-view": "workspace:*",
     "@obelus/repo": "workspace:*",
@@ -31,22 +32,22 @@
     "@obelus/review-store": "workspace:*",
     "dexie": "4.4.2",
     "pdfjs-dist": "5.7.284",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
     "react-router-dom": "7.15.0",
     "zod": "4.4.3",
     "zustand": "5.0.13"
   },
   "devDependencies": {
-    "@playwright/test": "1.59.1",
+    "@playwright/test": "1.60.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.1",
     "happy-dom": "20.9.0",
     "typescript": "6.0.3",
-    "vite": "8.0.10",
+    "vite": "8.0.12",
     "vite-plugin-pwa": "1.3.0",
-    "vitest": "4.1.5",
+    "vitest": "4.1.6",
     "workbox-window": "7.4.1"
   }
 }

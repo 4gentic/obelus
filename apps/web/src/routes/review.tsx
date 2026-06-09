@@ -1,20 +1,42 @@
 import { classifyHtml, useHtmlDocumentView } from "@obelus/html-view";
 import { useMdDocumentView } from "@obelus/md-view";
 import "@obelus/md-view/md.css";
+import { type MarksArchive, type MarksArchiveMark, parseMarksArchive } from "@obelus/bundle-schema";
+import {
+  buildMarksArchiveForExport,
+  type ImportMode,
+  runMarksImport,
+} from "@obelus/marks-transfer";
 import { loadDocument, usePdfDocumentView } from "@obelus/pdf-view";
-import type { AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
-import { getHtml, getMdText, getPdf, papers, revisions } from "@obelus/repo/web";
-import { type DocumentView, ReviewPane, ReviewShell, TrustBanner } from "@obelus/review-shell";
+import type { AnchorFields, AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
+import {
+  annotations as annotationsRepo,
+  getHtml,
+  getMdText,
+  getPdf,
+  papers,
+  revisions,
+} from "@obelus/repo/web";
+import {
+  type DocumentView,
+  PageNavField,
+  type PageNavProvider,
+  ReviewPane,
+  type ReviewPaneExports,
+  ReviewShell,
+  TrustBanner,
+} from "@obelus/review-shell";
 import type { DraftInput, ReviewState } from "@obelus/review-store";
 import "@obelus/review-shell/review-shell.css";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { buildBundle } from "../bundle/build";
 import { copyClipboardPrompt, copyReviewClipboardPrompt } from "../bundle/clipboard";
 import {
   exportBundleFile,
   exportBundleMarkdown,
+  exportMarksArchiveFile,
   exportReviewBundleMarkdown,
 } from "../bundle/download";
 import { buildHtmlBundleJson, downloadHtmlBundle } from "../bundle/html-bundle";
@@ -27,6 +49,16 @@ import type { JSX } from "react";
 import { useOpfsAssetResolver } from "./use-opfs-asset-resolver";
 
 type Status = "idle" | "working" | "done" | "error";
+
+type MarksReanchor = (mark: MarksArchiveMark) => Promise<AnchorFields | null>;
+
+// A parsed archive held back while the reviewer decides replace-vs-merge, shown
+// only when the paper already has marks.
+type PendingImport = {
+  archive: MarksArchive;
+  reanchor: MarksReanchor | undefined;
+  existing: number;
+};
 
 type LoadState =
   | { kind: "loading" }
@@ -61,6 +93,7 @@ export default function Review(): JSX.Element {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
 
   const annotations = useReviewStore((s) => s.annotations);
   const selectedAnchor = useReviewStore((s) => s.selectedAnchor);
@@ -386,6 +419,116 @@ export default function Review(): JSX.Element {
     }
   };
 
+  const onExportMarks = async (): Promise<string | null> => {
+    setStatus("working");
+    setMessage(null);
+    try {
+      const archive = buildMarksArchiveForExport({
+        rows: annotations,
+        format: paper.format,
+        title: paper.title,
+        pdfSha256: revision.pdfSha256,
+        ...(state.kind === "ready-pdf" ? { pageCount: state.pageCount } : {}),
+      });
+      const name = await exportMarksArchiveFile(archive);
+      if (name) {
+        setStatus("done");
+        setMessage(`Marks exported (${annotations.length}).`);
+      } else {
+        setStatus("idle");
+      }
+      return name;
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Export failed");
+      return null;
+    }
+  };
+
+  const completeMarksImport = async (
+    archive: MarksArchive,
+    reanchor: MarksReanchor | undefined,
+    mode: ImportMode,
+    existing: number,
+  ): Promise<void> => {
+    setPendingImport(null);
+    setStatus("working");
+    setMessage(null);
+    try {
+      const { report, tone } = await runMarksImport({
+        archive,
+        writer: annotationsRepo,
+        targetRevisionId: revision.id,
+        targetPdfSha256: revision.pdfSha256,
+        targetFormat: paper.format,
+        mode,
+        existingCount: existing,
+        ...(reanchor ? { reanchor } : {}),
+        newId: () => crypto.randomUUID(),
+      });
+      await load(revision.id);
+      setStatus(tone);
+      setMessage(report.message);
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Import failed");
+    }
+  };
+
+  const beginMarksImport = async (
+    file: File,
+    reanchor: MarksReanchor | undefined,
+  ): Promise<void> => {
+    setStatus("working");
+    setMessage(null);
+    setPendingImport(null);
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await file.text());
+    } catch {
+      setStatus("error");
+      setMessage("That file isn't valid JSON.");
+      return;
+    }
+    const parsed = parseMarksArchive(raw);
+    if (!parsed.ok) {
+      setStatus("error");
+      setMessage(`Not a marks archive — ${parsed.error}`);
+      return;
+    }
+    try {
+      const existing = (
+        await annotationsRepo.listForRevision(revision.id, { includeResolved: true })
+      ).length;
+      if (existing === 0) {
+        await completeMarksImport(parsed.archive, reanchor, "merge", 0);
+        return;
+      }
+      setStatus("idle");
+      setPendingImport({ archive: parsed.archive, reanchor, existing });
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Import failed");
+    }
+  };
+
+  const onConfirmImport = (mode: ImportMode): void => {
+    if (pendingImport) {
+      void completeMarksImport(
+        pendingImport.archive,
+        pendingImport.reanchor,
+        mode,
+        pendingImport.existing,
+      );
+    }
+  };
+
+  const onCancelImport = (): void => {
+    setPendingImport(null);
+    setStatus("idle");
+    setMessage(null);
+  };
+
   return (
     <ReviewContent
       state={state}
@@ -415,7 +558,12 @@ export default function Review(): JSX.Element {
         onExportReviewMarkdown: () => void onExportReviewMarkdown(),
         onCopy: () => void onCopy(),
         onCopyReview: () => void onCopyReview(),
+        onExportMarks,
       }}
+      runMarksImport={(file, reanchor) => void beginMarksImport(file, reanchor)}
+      pendingImport={pendingImport}
+      onConfirmImport={onConfirmImport}
+      onCancelImport={onCancelImport}
       exportDisabled={status === "working"}
       onRenamePaper={(t) => void onRenamePaper(t)}
       onRenderError={setRenderError}
@@ -461,7 +609,11 @@ type ReviewContentProps = {
   onDelete: (id: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
   onRubricChange: (r: PaperRubric | null) => Promise<void>;
-  exportsBundle: import("@obelus/review-shell").ReviewPaneExports;
+  exportsBundle: Omit<import("@obelus/review-shell").ReviewPaneExports, "onImportMarks">;
+  runMarksImport: (file: File, reanchor: MarksReanchor | undefined) => void;
+  pendingImport: PendingImport | null;
+  onConfirmImport: (mode: ImportMode) => void;
+  onCancelImport: () => void;
   exportDisabled: boolean;
   onRenamePaper: (title: string) => void;
   onRenderError: (message: string | null) => void;
@@ -649,6 +801,20 @@ function ReviewContent(props: ReviewContentProps): JSX.Element {
 
 function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }): JSX.Element {
   const { state, documentView } = props;
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const provider = documentView.reanchor;
+  const reanchor: MarksReanchor | undefined = provider
+    ? (mark) => provider.reanchor(mark)
+    : undefined;
+  const onMarksFile = (ev: ChangeEvent<HTMLInputElement>): void => {
+    const file = ev.target.files?.[0];
+    ev.target.value = "";
+    if (file) props.runMarksImport(file, reanchor);
+  };
+  const exports: ReviewPaneExports = {
+    ...props.exportsBundle,
+    onImportMarks: () => fileInputRef.current?.click(),
+  };
   const pane = (
     <ReviewPane
       annotations={props.annotations}
@@ -670,15 +836,33 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
         documentView.scrollToAnnotation(id);
       }}
       onRubricChange={props.onRubricChange}
-      exports={props.exportsBundle}
+      exports={exports}
       exportDisabled={props.exportDisabled}
       statusMessage={props.message}
       statusTone={props.status}
+      pendingImport={
+        props.pendingImport
+          ? {
+              incoming: props.pendingImport.archive.marks.length,
+              existing: props.pendingImport.existing,
+              onReplace: () => props.onConfirmImport("replace"),
+              onMerge: () => props.onConfirmImport("merge"),
+              onCancel: props.onCancelImport,
+            }
+          : null
+      }
     />
   );
 
   return (
     <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={onMarksFile}
+      />
       {props.renderError !== null ? (
         <p className="review-crumb__render-error" role="alert">
           Render failed: {props.renderError}
@@ -686,7 +870,13 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
       ) : null}
       <ReviewShell
         label={`Review ${state.paper.id}`}
-        header={<ReviewBreadcrumb paper={state.paper} onRename={props.onRenamePaper} />}
+        header={
+          <ReviewBreadcrumb
+            paper={state.paper}
+            onRename={props.onRenamePaper}
+            pages={documentView.pages ?? null}
+          />
+        }
         documentView={documentView}
         annotations={props.annotations}
         pane={pane}
@@ -700,9 +890,10 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
 type ReviewBreadcrumbProps = {
   paper: PaperRow;
   onRename: (title: string) => void;
+  pages: PageNavProvider | null;
 };
 
-function ReviewBreadcrumb({ paper, onRename }: ReviewBreadcrumbProps): JSX.Element {
+function ReviewBreadcrumb({ paper, onRename, pages }: ReviewBreadcrumbProps): JSX.Element {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -726,38 +917,43 @@ function ReviewBreadcrumb({ paper, onRename }: ReviewBreadcrumbProps): JSX.Eleme
       <Link to="/app" className="review-crumb__back">
         <span aria-hidden="true">←</span> Library
       </Link>
-      {editing ? (
-        <input
-          ref={inputRef}
-          className="review-crumb__input"
-          type="text"
-          value={value}
-          aria-label="Paper title"
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commit();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              cancel();
-            }
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          className="review-crumb__title"
-          onClick={() => {
-            setValue(paper.title);
-            setEditing(true);
-          }}
-          aria-label={`Rename ${paper.title}`}
-        >
-          {paper.title}
-        </button>
-      )}
+      <div className="review-crumb__meta">
+        {editing ? (
+          <input
+            ref={inputRef}
+            className="review-crumb__input"
+            type="text"
+            value={value}
+            aria-label="Paper title"
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancel();
+              }
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="review-crumb__title"
+            onClick={() => {
+              setValue(paper.title);
+              setEditing(true);
+            }}
+            aria-label={`Rename ${paper.title}`}
+          >
+            {paper.title}
+          </button>
+        )}
+        {pages && pages.count > 1 ? (
+          <PageNavField provider={pages} className="review-crumb__pagenav" />
+        ) : null}
+      </div>
     </nav>
   );
 }

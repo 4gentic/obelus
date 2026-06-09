@@ -6,8 +6,16 @@ export {
   CompileErrorTool,
   CompileErrorTrigger,
 } from "./compile-error.js";
+export {
+  MARKS_ARCHIVE_VERSION,
+  MarksArchive,
+  MarksArchiveDocument,
+  MarksArchiveMark,
+} from "./marks-archive.js";
 export type { ParseResult } from "./parse.js";
 export { parseBundle } from "./parse.js";
+export type { MarksArchiveParseResult } from "./parse-marks-archive.js";
+export { parseMarksArchive } from "./parse-marks-archive.js";
 export {
   PaperBuildCompiler,
   PaperBuildFormat,

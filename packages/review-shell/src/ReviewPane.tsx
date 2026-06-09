@@ -3,6 +3,7 @@ import type { DraftInput } from "@obelus/review-store";
 import { useEffect, useMemo, useRef, useState } from "react";
 import CategoryPicker from "./CategoryPicker";
 import CategorySelect from "./CategorySelect";
+import MarksTransferBar from "./MarksTransferBar";
 import NoteEditor from "./NoteEditor";
 import RubricPanel from "./RubricPanel";
 import "./ReviewPane.css";
@@ -16,6 +17,10 @@ export type ReviewPaneExports = {
   onExportMarkdown: () => void;
   onCopy: () => void;
   onCopyReview: () => void;
+  // Portable marks archive: export this paper's marks to a JSON the other app
+  // (or another session) can import; import a JSON onto the open paper.
+  onExportMarks: () => Promise<string | null>;
+  onImportMarks: () => void;
 };
 
 type Props = {
@@ -39,6 +44,13 @@ type Props = {
   exportDisabled: boolean;
   statusMessage: string | null;
   statusTone: "idle" | "working" | "done" | "error";
+  pendingImport?: {
+    incoming: number;
+    existing: number;
+    onReplace: () => void;
+    onMerge: () => void;
+    onCancel: () => void;
+  } | null;
 };
 
 type DisplayEntry =
@@ -484,6 +496,7 @@ export default function ReviewPane({
   exportDisabled,
   statusMessage,
   statusTone,
+  pendingImport,
 }: Props): JSX.Element {
   const entries = useMemo(() => buildDisplayEntries(annotations), [annotations]);
   const itemsRef = useRef<HTMLOListElement | null>(null);
@@ -603,6 +616,13 @@ export default function ReviewPane({
               ))}
             </ol>
           )}
+          <MarksTransferBar
+            onExport={() => void exports.onExportMarks()}
+            onImport={exports.onImportMarks}
+            exportDisabled={annotations.length === 0 || exportDisabled}
+            status={{ message: statusMessage, error: statusTone === "error" }}
+            pendingImport={pendingImport ?? null}
+          />
         </section>
       ) : tab === "review" ? (
         <section
