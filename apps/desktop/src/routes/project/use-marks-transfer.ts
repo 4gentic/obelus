@@ -1,10 +1,8 @@
 import { type MarksArchive, type MarksArchiveMark, parseMarksArchive } from "@obelus/bundle-schema";
-import { DEFAULT_CATEGORIES } from "@obelus/categories";
 import {
-  applyImportedMarks,
-  buildMarksArchive,
+  buildMarksArchiveForExport,
   type ImportMode,
-  importMarksArchive,
+  runMarksImport,
 } from "@obelus/marks-transfer";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
@@ -15,8 +13,6 @@ import { useOpenPaper } from "./OpenPaper";
 import { useReanchor } from "./reanchor-context";
 import { useReviewStore } from "./store-context";
 
-const MARKS_TOOL_VERSION = "0.1.0";
-
 export type MarksStatus =
   | { kind: "idle" }
   | { kind: "error"; message: string }
@@ -25,6 +21,7 @@ export type MarksStatus =
       kind: "confirm-import";
       archive: MarksArchive;
       latestId: string;
+      latestPdfSha256: string;
       existingCount: number;
     };
 
@@ -78,16 +75,12 @@ export function useMarksTransfer(): MarksTransfer {
         return;
       }
       const rows = await repo.annotations.listForRevision(latest.id);
-      const archive = buildMarksArchive({
+      const archive = buildMarksArchiveForExport({
         rows,
-        document: {
-          format: activePaper.format,
-          title: activePaper.title,
-          pdfSha256: activePaper.pdfSha256,
-          ...(activePaper.pageCount !== undefined ? { pageCount: activePaper.pageCount } : {}),
-        },
-        categories: DEFAULT_CATEGORIES.map((c) => ({ slug: c.id, label: c.label })),
-        toolVersion: MARKS_TOOL_VERSION,
+        format: activePaper.format,
+        title: activePaper.title,
+        pdfSha256: latest.pdfSha256,
+        ...(activePaper.pageCount !== undefined ? { pageCount: activePaper.pageCount } : {}),
       });
       const defaultName = `marks-${slugify(paperTitle || "paper")}-${timestampForFilename()}.json`;
       const picked = await save({
@@ -137,10 +130,16 @@ export function useMarksTransfer(): MarksTransfer {
         await repo.annotations.listForRevision(latest.id, { includeResolved: true })
       ).length;
       if (existingCount === 0) {
-        await completeImport(archive, latest.id, 0, "merge");
+        await completeImport(archive, latest.id, latest.pdfSha256, 0, "merge");
         return;
       }
-      setMarksStatus({ kind: "confirm-import", archive, latestId: latest.id, existingCount });
+      setMarksStatus({
+        kind: "confirm-import",
+        archive,
+        latestId: latest.id,
+        latestPdfSha256: latest.pdfSha256,
+        existingCount,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.info("[ingest-marks]", { paperId, failed: true, error: message });
@@ -151,6 +150,7 @@ export function useMarksTransfer(): MarksTransfer {
   async function completeImport(
     archive: MarksArchive,
     latestId: string,
+    targetPdfSha256: string,
     existingCount: number,
     mode: ImportMode,
   ): Promise<void> {
@@ -160,35 +160,19 @@ export function useMarksTransfer(): MarksTransfer {
       const reanchor = reanchorProvider
         ? (mark: MarksArchiveMark) => reanchorProvider.reanchor(mark)
         : undefined;
-      const { rows: importedRows, report } = await importMarksArchive({
+      const { report, tone } = await runMarksImport({
         archive,
+        writer: repo.annotations,
         targetRevisionId: latestId,
-        targetPdfSha256: activePaper.pdfSha256,
+        targetPdfSha256,
         targetFormat: activePaper.format,
-        targetCategorySlugs: new Set(DEFAULT_CATEGORIES.map((c) => c.id)),
+        mode,
+        existingCount,
         ...(reanchor ? { reanchor } : {}),
         newId: () => crypto.randomUUID(),
       });
-      await applyImportedMarks(repo.annotations, latestId, importedRows, mode);
       await reviewStore.getState().load(latestId);
-      console.info("[ingest-marks]", {
-        targetRevisionId: latestId,
-        sourceTitle: archive.document.title,
-        sourceFormat: archive.document.format,
-        targetFormat: activePaper.format,
-        mode,
-        cleared: mode === "replace" ? existingCount : 0,
-        hashMatch: report.hashMatch,
-        markCount: archive.marks.length,
-        matched: report.matched,
-        reanchored: report.reanchored,
-        flagged: report.flagged,
-        skipped: report.skipped,
-        flaggedIds: report.flaggedIds,
-        droppedIds: report.droppedIds,
-        unknownCategories: report.unknownCategories,
-      });
-      setMarksStatus({ kind: "ok", message: report.message });
+      setMarksStatus({ kind: tone === "error" ? "error" : "ok", message: report.message });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.info("[ingest-marks]", { paperId, failed: true, error: message });
@@ -198,7 +182,13 @@ export function useMarksTransfer(): MarksTransfer {
 
   function onConfirmImport(mode: ImportMode): void {
     if (marksStatus.kind !== "confirm-import") return;
-    void completeImport(marksStatus.archive, marksStatus.latestId, marksStatus.existingCount, mode);
+    void completeImport(
+      marksStatus.archive,
+      marksStatus.latestId,
+      marksStatus.latestPdfSha256,
+      marksStatus.existingCount,
+      mode,
+    );
   }
 
   function onCancelImport(): void {

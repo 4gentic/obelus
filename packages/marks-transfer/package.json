@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@obelus/bundle-schema": "workspace:*",
+    "@obelus/categories": "workspace:*",
     "@obelus/repo": "workspace:*"
   },
   "devDependencies": {

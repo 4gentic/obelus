@@ -136,6 +136,33 @@ describe("importMarksArchive", () => {
     expect(report.message).toContain("Cannot import");
   });
 
+  it("skips an incompatible anchor even when the document formats agree", async () => {
+    const sourceMark = pdfMark({
+      id: "src-bad",
+      anchor: {
+        kind: "source",
+        file: "main.tex",
+        lineStart: 1,
+        colStart: 0,
+        lineEnd: 1,
+        colEnd: 4,
+      },
+    });
+    const { rows, report } = await importMarksArchive({
+      archive: archiveOf([pdfMark(), sourceMark]),
+      targetRevisionId: "rev-T",
+      targetPdfSha256: "a".repeat(64),
+      targetFormat: "pdf",
+      targetCategorySlugs: new Set(["elaborate"]),
+      newId,
+    });
+    expect(report.hashMatch).toBe("exact");
+    expect(report.skipped).toBe(1);
+    expect(report.droppedIds).toEqual(["src-bad"]);
+    expect(rows).toHaveLength(1);
+    expect(report.message).toContain("skipped 1 incompatible");
+  });
+
   it("remaps a shared groupId to one stable fresh id", async () => {
     const { rows } = await importMarksArchive({
       archive: archiveOf([

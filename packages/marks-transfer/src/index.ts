@@ -12,3 +12,12 @@ export {
   importMarksArchive,
   type ReanchorFn,
 } from "./import.js";
+export {
+  buildMarksArchiveForExport,
+  type ExportMarksInput,
+  type ImportTone,
+  MARKS_TOOL_VERSION,
+  type RunMarksImportInput,
+  type RunMarksImportOutcome,
+  runMarksImport,
+} from "./orchestrate.js";
