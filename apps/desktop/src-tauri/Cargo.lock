@@ -2509,14 +2509,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
-name = "lzma-sys"
-version = "0.1.20"
+name = "lzma-rs"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fda04ab3764e6cde78b9974eec4f779acaba7c4e84b36eca3cf77c581b85d27"
+checksum = "297e814c836ae64db86b36cf2a557ba54368d03f6afcd7d947c266692f71115e"
 dependencies = [
- "cc",
- "libc",
- "pkg-config",
+ "byteorder",
+ "crc",
 ]
 
 [[package]]
@@ -2833,7 +2832,7 @@ dependencies = [
 
 [[package]]
 name = "obelus-desktop"
-version = "0.1.16"
+version = "0.1.17"
 dependencies = [
  "dashmap",
  "diffy",
@@ -2841,6 +2840,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "jsonschema",
+ "lzma-rs",
  "reqwest 0.12.28",
  "semver",
  "serde",
@@ -2863,7 +2863,6 @@ dependencies = [
  "tokio",
  "uuid",
  "which",
- "xz2",
  "zip 8.6.0",
 ]
 
@@ -7437,15 +7436,6 @@ checksum = "32e45ad4206f6d2479085147f02bc2ef834ac85886624a23575ae137c8aa8156"
 dependencies = [
  "libc",
  "rustix",
-]
-
-[[package]]
-name = "xz2"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "388c44dc09d76f1536602ead6d325eb532f5c122f17782bd57fb47baeeb767e2"
-dependencies = [
- "lzma-sys",
 ]
 
 [[package]]

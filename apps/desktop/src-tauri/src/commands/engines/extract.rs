@@ -5,9 +5,8 @@
 
 use flate2::read::GzDecoder;
 use std::fs::{File, OpenOptions};
-use std::io::{copy, Read};
+use std::io::{copy, BufReader, Cursor, Read};
 use std::path::Path;
-use xz2::read::XzDecoder;
 use zip::ZipArchive;
 
 use super::manifest::ArchiveKind;
@@ -54,7 +53,16 @@ fn extract_tar(
     let file = File::open(archive).map_err(AppError::from)?;
     let reader: Box<dyn Read> = match compression {
         Compression::Gz => Box::new(GzDecoder::new(file)),
-        Compression::Xz => Box::new(XzDecoder::new(file)),
+        // lzma-rs is pure-Rust and decode-only, with a whole-stream API rather
+        // than a streaming Read: inflate the xz into memory, then hand tar a
+        // cursor. Engine tarballs are tens of MB, so the transient buffer is
+        // cheap — and there is no C liblzma to link against a host dylib.
+        Compression::Xz => {
+            let mut decoded = Vec::new();
+            lzma_rs::xz_decompress(&mut BufReader::new(file), &mut decoded)
+                .map_err(|e| AppError::Other(format!("xz: {e}")))?;
+            Box::new(Cursor::new(decoded))
+        }
     };
     let mut tar = tar::Archive::new(reader);
     for entry in tar.entries().map_err(AppError::from)? {
@@ -130,5 +138,24 @@ mod tests {
     #[cfg(windows)]
     fn path_matches_normalises_backslashes_on_windows() {
         assert!(path_matches(Path::new(r"typst-x86_64-pc-windows-msvc\typst.exe"), "typst-x86_64-pc-windows-msvc/typst.exe"));
+    }
+
+    // Fixture produced by xz-utils (`tar -cf … && xz -9`) — the same toolchain
+    // Typst's release pipeline uses — so this exercises the pure-Rust decoder
+    // against a real xz stream end to end, with no C liblzma in the build.
+    #[test]
+    fn extracts_entry_from_xz_tarball() {
+        let xz = include_bytes!("fixtures/typst-sample.tar.xz");
+        let dir = std::env::temp_dir().join(format!("obelus-xz-extract-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let archive = dir.join("typst-sample.tar.xz");
+        std::fs::write(&archive, xz).unwrap();
+        let dest = dir.join("typst");
+
+        extract_binary(&archive, ArchiveKind::TarXz, "typst-aarch64-apple-darwin/typst", &dest)
+            .unwrap();
+
+        assert_eq!(std::fs::read(&dest).unwrap(), b"fake typst binary for extract test\n");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
