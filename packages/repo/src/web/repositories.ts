@@ -191,6 +191,11 @@ export const annotations = {
     await getDb().annotations.delete(id);
   },
 
+  async clearForRevision(revisionId: string): Promise<void> {
+    const deleted = await getDb().annotations.where("revisionId").equals(revisionId).delete();
+    console.info("[clear-marks]", { revisionId, deleted });
+  },
+
   async markResolvedInEdit(ids: ReadonlyArray<string>, editId: string): Promise<void> {
     if (ids.length === 0) return;
     const db = getDb();

@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import MarksImportPrompt from "./MarksImportPrompt";
 import "./MarksTransferBar.css";
 
 type Props = {
@@ -6,6 +7,17 @@ type Props = {
   onImport: () => void;
   exportDisabled: boolean;
   status: { message: string | null; error: boolean };
+  // When an import lands on a paper that already has marks, the caller hands the
+  // replace-vs-merge choice down here; the prompt stands in for the status line
+  // until the reviewer decides. Data and handlers travel together so the prompt
+  // can never render without the means to resolve it.
+  pendingImport?: {
+    incoming: number;
+    existing: number;
+    onReplace: () => void;
+    onMerge: () => void;
+    onCancel: () => void;
+  } | null;
 };
 
 // The colophon for the Marks panel: a quiet mono footer that carries the
@@ -17,6 +29,7 @@ export default function MarksTransferBar({
   onImport,
   exportDisabled,
   status,
+  pendingImport,
 }: Props): JSX.Element {
   return (
     <fieldset className="marks-transfer" aria-label="Transfer marks">
@@ -45,7 +58,15 @@ export default function MarksTransferBar({
           Import
         </button>
       </div>
-      {status.message ? (
+      {pendingImport ? (
+        <MarksImportPrompt
+          incoming={pendingImport.incoming}
+          existing={pendingImport.existing}
+          onReplace={pendingImport.onReplace}
+          onMerge={pendingImport.onMerge}
+          onCancel={pendingImport.onCancel}
+        />
+      ) : status.message ? (
         <p className="marks-transfer__status" data-error={status.error ? "true" : undefined}>
           {status.message}
         </p>

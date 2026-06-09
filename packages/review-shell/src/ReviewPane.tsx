@@ -44,6 +44,13 @@ type Props = {
   exportDisabled: boolean;
   statusMessage: string | null;
   statusTone: "idle" | "working" | "done" | "error";
+  pendingImport?: {
+    incoming: number;
+    existing: number;
+    onReplace: () => void;
+    onMerge: () => void;
+    onCancel: () => void;
+  } | null;
 };
 
 type DisplayEntry =
@@ -489,6 +496,7 @@ export default function ReviewPane({
   exportDisabled,
   statusMessage,
   statusTone,
+  pendingImport,
 }: Props): JSX.Element {
   const entries = useMemo(() => buildDisplayEntries(annotations), [annotations]);
   const itemsRef = useRef<HTMLOListElement | null>(null);
@@ -613,6 +621,7 @@ export default function ReviewPane({
             onImport={exports.onImportMarks}
             exportDisabled={annotations.length === 0 || exportDisabled}
             status={{ message: statusMessage, error: statusTone === "error" }}
+            pendingImport={pendingImport ?? null}
           />
         </section>
       ) : tab === "review" ? (
