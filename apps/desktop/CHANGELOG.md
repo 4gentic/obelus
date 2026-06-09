@@ -2,6 +2,13 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.18](https://github.com/4gentic/obelus/compare/desktop-v0.1.17...desktop-v0.1.18) (2026-06-09)
+
+
+### Bug Fixes
+
+* **desktop:** decode Typst tarballs with pure-Rust lzma-rs (no host liblzma) ([#179](https://github.com/4gentic/obelus/issues/179)) ([0ec280e](https://github.com/4gentic/obelus/commit/0ec280e2403399a683059cd4111836c2fffed9f7))
+
 ## [0.1.17](https://github.com/4gentic/obelus/compare/desktop-v0.1.16...desktop-v0.1.17) (2026-06-09)
 
 
