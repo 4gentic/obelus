@@ -3,6 +3,7 @@ import type { DraftInput } from "@obelus/review-store";
 import { useEffect, useMemo, useRef, useState } from "react";
 import CategoryPicker from "./CategoryPicker";
 import CategorySelect from "./CategorySelect";
+import MarksTransferBar from "./MarksTransferBar";
 import NoteEditor from "./NoteEditor";
 import RubricPanel from "./RubricPanel";
 import "./ReviewPane.css";
@@ -43,6 +44,13 @@ type Props = {
   exportDisabled: boolean;
   statusMessage: string | null;
   statusTone: "idle" | "working" | "done" | "error";
+  pendingImport?: {
+    incoming: number;
+    existing: number;
+    onReplace: () => void;
+    onMerge: () => void;
+    onCancel: () => void;
+  } | null;
 };
 
 type DisplayEntry =
@@ -488,6 +496,7 @@ export default function ReviewPane({
   exportDisabled,
   statusMessage,
   statusTone,
+  pendingImport,
 }: Props): JSX.Element {
   const entries = useMemo(() => buildDisplayEntries(annotations), [annotations]);
   const itemsRef = useRef<HTMLOListElement | null>(null);
@@ -607,30 +616,13 @@ export default function ReviewPane({
               ))}
             </ol>
           )}
-          <fieldset className="review-pane__actions" aria-label="Transfer marks">
-            <button
-              type="button"
-              className="review-pane__actions-chip"
-              onClick={() => void exports.onExportMarks()}
-              disabled={annotations.length === 0}
-            >
-              <span className="review-pane__actions-chip-label">Export marks</span>
-              <span className="review-pane__actions-chip-hint">portable .json</span>
-            </button>
-            <button
-              type="button"
-              className="review-pane__actions-chip"
-              onClick={exports.onImportMarks}
-            >
-              <span className="review-pane__actions-chip-label">Import marks</span>
-              <span className="review-pane__actions-chip-hint">onto this paper</span>
-            </button>
-          </fieldset>
-          {statusMessage ? (
-            <p className="review-pane__status" data-status={statusTone}>
-              {statusMessage}
-            </p>
-          ) : null}
+          <MarksTransferBar
+            onExport={() => void exports.onExportMarks()}
+            onImport={exports.onImportMarks}
+            exportDisabled={annotations.length === 0 || exportDisabled}
+            status={{ message: statusMessage, error: statusTone === "error" }}
+            pendingImport={pendingImport ?? null}
+          />
         </section>
       ) : tab === "review" ? (
         <section

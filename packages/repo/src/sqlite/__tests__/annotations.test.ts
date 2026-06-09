@@ -75,6 +75,26 @@ describe("buildAnnotationsRepo", () => {
     expect(db.execute).toHaveBeenCalledWith("DELETE FROM annotations WHERE id = $1", ["a1"]);
   });
 
+  it("replaceForRevision() runs DELETE then the INSERTs in one db_tx_batch", async () => {
+    invokeMock.mockClear();
+    const db = mockDb();
+    const repo = buildAnnotationsRepo(db as never);
+    await repo.replaceForRevision("rev-1", [makeRow()]);
+    // Atomicity is the whole point: no standalone db.execute DELETE — the delete
+    // and the write share a single transactional batch so a failed write rolls
+    // the delete back with it.
+    expect(db.execute).not.toHaveBeenCalled();
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, args] = invokeMock.mock.calls[0] as [
+      string,
+      { stmts: { sql: string; params: unknown[] }[] },
+    ];
+    expect(cmd).toBe("db_tx_batch");
+    expect(args.stmts[0]?.sql).toMatch(/DELETE FROM annotations WHERE revision_id/);
+    expect(args.stmts[0]?.params[0]).toBe("rev-1");
+    expect(args.stmts[1]?.sql).toMatch(/INSERT INTO annotations/);
+  });
+
   it("bulkPut() writes staleness as the last parameter (null when unset)", async () => {
     invokeMock.mockClear();
     const db = mockDb();

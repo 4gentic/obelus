@@ -86,6 +86,12 @@ function buildMessage(p: {
     const imported = p.matched + p.reanchored + p.flagged;
     base = `Imported ${imported} mark${plural(imported)} — re-anchored ${p.reanchored}, flagged ${p.flagged} for review (the document differs from the original).`;
   }
+  // Same-format imports skip only when an archive is internally inconsistent
+  // (a mark whose anchor kind doesn't fit its document). Rare, but report it
+  // rather than let the count silently disagree.
+  if (p.skipped > 0) {
+    base += ` · skipped ${p.skipped} incompatible mark${plural(p.skipped)}.`;
+  }
   if (p.unknownCount > 0) {
     base += ` · ${p.unknownCount} mark${plural(p.unknownCount)} use categories not in this project.`;
   }
@@ -125,7 +131,10 @@ export async function importMarksArchive(
   let skipped = 0;
 
   for (const mark of archive.marks) {
-    if (formatMismatch && !anchorAppliesToFormat(mark.anchor, targetFormat)) {
+    // Runs even when the document formats agree: a hand-built archive can pair
+    // a `pdf` document with a `source` mark, and a wrong-kind anchor must never
+    // reach a revision of the other format.
+    if (!anchorAppliesToFormat(mark.anchor, targetFormat)) {
       droppedIds.push(mark.id);
       skipped += 1;
       continue;

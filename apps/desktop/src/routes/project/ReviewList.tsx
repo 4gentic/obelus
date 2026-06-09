@@ -1,11 +1,12 @@
 import type { AnnotationRow } from "@obelus/repo";
-import { CategorySelect, NoteEditor } from "@obelus/review-shell";
+import { CategorySelect, MarksTransferBar, NoteEditor } from "@obelus/review-shell";
 import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useDocumentScroll } from "./document-scroll-context";
 import { markLocationLabel } from "./mark-location-label";
 import { useReviewStore } from "./store-context";
 import { trimQuoteMiddle } from "./trim-quote";
+import { useMarksTransfer } from "./use-marks-transfer";
 
 const INTERACTIVE_SELECTOR =
   ".cat-select__trigger, .cat-select__pop, textarea, .review-list__remove";
@@ -120,6 +121,7 @@ export default function ReviewList(): JSX.Element {
   const updateAnnotation = store((s) => s.updateAnnotation);
   const deleteAnnotation = store((s) => s.deleteAnnotation);
   const { scrollToAnnotation } = useDocumentScroll();
+  const { onExportMarks, onImportMarks, marksStatus, pendingImport } = useMarksTransfer();
   const listRef = useRef<HTMLOListElement | null>(null);
 
   useEffect(() => {
@@ -130,31 +132,51 @@ export default function ReviewList(): JSX.Element {
     if (target) target.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [focusedId]);
 
+  const transfer = (
+    <MarksTransferBar
+      onExport={() => void onExportMarks()}
+      onImport={() => void onImportMarks()}
+      exportDisabled={annotations.length === 0}
+      status={{
+        message:
+          marksStatus.kind === "ok" || marksStatus.kind === "error" ? marksStatus.message : null,
+        error: marksStatus.kind === "error",
+      }}
+      pendingImport={pendingImport}
+    />
+  );
+
   if (annotations.length === 0) {
     return (
-      <div className="review-list__empty">
-        <p className="review-list__empty-lead">No marks yet.</p>
-        <p className="review-list__empty-sub">
-          Select a passage in the document to mark it, or write a note below and start a review of
-          the whole paper.
-        </p>
-      </div>
+      <>
+        <div className="review-list__empty">
+          <p className="review-list__empty-lead">No marks yet.</p>
+          <p className="review-list__empty-sub">
+            Select a passage in the document to mark it, or write a note below and start a review of
+            the whole paper.
+          </p>
+        </div>
+        {transfer}
+      </>
     );
   }
 
   return (
-    <ol className="review-list" ref={listRef}>
-      {annotations.map((a) => (
-        <ReviewItem
-          key={a.id}
-          a={a}
-          focused={focusedId === a.id}
-          setFocused={setFocused}
-          scrollToAnnotation={scrollToAnnotation}
-          updateAnnotation={updateAnnotation}
-          deleteAnnotation={deleteAnnotation}
-        />
-      ))}
-    </ol>
+    <>
+      <ol className="review-list" ref={listRef}>
+        {annotations.map((a) => (
+          <ReviewItem
+            key={a.id}
+            a={a}
+            focused={focusedId === a.id}
+            setFocused={setFocused}
+            scrollToAnnotation={scrollToAnnotation}
+            updateAnnotation={updateAnnotation}
+            deleteAnnotation={deleteAnnotation}
+          />
+        ))}
+      </ol>
+      {transfer}
+    </>
   );
 }

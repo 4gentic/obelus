@@ -68,6 +68,41 @@ function toAnchorJson(row: AnnotationRow): string {
   return JSON.stringify(row.anchor);
 }
 
+function annotationInsertStmt(revisionId: string, row: AnnotationRow): TxStmt {
+  return {
+    sql: `INSERT INTO annotations (id, revision_id, category, quote,
+                                   context_before, context_after,
+                                   anchor_json,
+                                   note, thread_json, group_id, created_at,
+                                   staleness)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          ON CONFLICT(id) DO UPDATE SET
+            category = excluded.category,
+            quote = excluded.quote,
+            context_before = excluded.context_before,
+            context_after = excluded.context_after,
+            anchor_json = excluded.anchor_json,
+            note = excluded.note,
+            thread_json = excluded.thread_json,
+            group_id = excluded.group_id,
+            staleness = excluded.staleness`,
+    params: [
+      row.id,
+      revisionId,
+      row.category,
+      row.quote,
+      row.contextBefore,
+      row.contextAfter,
+      toAnchorJson(row),
+      row.note,
+      JSON.stringify(row.thread),
+      row.groupId ?? null,
+      row.createdAt,
+      row.staleness ?? null,
+    ],
+  };
+}
+
 export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
   const SELECT_COLS = `id, revision_id, category, quote, context_before, context_after,
                        anchor_json, note, thread_json, group_id, created_at,
@@ -118,38 +153,7 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
 
     async bulkPut(revisionId: string, rows: AnnotationRow[]): Promise<void> {
       if (rows.length === 0) return;
-      const stmts: TxStmt[] = rows.map((row) => ({
-        sql: `INSERT INTO annotations (id, revision_id, category, quote,
-                                       context_before, context_after,
-                                       anchor_json,
-                                       note, thread_json, group_id, created_at,
-                                       staleness)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-              ON CONFLICT(id) DO UPDATE SET
-                category = excluded.category,
-                quote = excluded.quote,
-                context_before = excluded.context_before,
-                context_after = excluded.context_after,
-                anchor_json = excluded.anchor_json,
-                note = excluded.note,
-                thread_json = excluded.thread_json,
-                group_id = excluded.group_id,
-                staleness = excluded.staleness`,
-        params: [
-          row.id,
-          revisionId,
-          row.category,
-          row.quote,
-          row.contextBefore,
-          row.contextAfter,
-          toAnchorJson(row),
-          row.note,
-          JSON.stringify(row.thread),
-          row.groupId ?? null,
-          row.createdAt,
-          row.staleness ?? null,
-        ],
-      }));
+      const stmts = rows.map((row) => annotationInsertStmt(revisionId, row));
       try {
         await dbTxBatch(stmts);
       } catch (err) {
@@ -173,6 +177,29 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
 
     async remove(id: string): Promise<void> {
       await db.execute("DELETE FROM annotations WHERE id = $1", [id]);
+    },
+
+    async replaceForRevision(revisionId: string, rows: AnnotationRow[]): Promise<void> {
+      // DELETE + INSERTs in one transaction: if a write throws, the delete rolls
+      // back with it, so a failed import can't strand the revision with neither
+      // the reviewer's old marks nor the imported ones.
+      const stmts: TxStmt[] = [
+        { sql: "DELETE FROM annotations WHERE revision_id = $1", params: [revisionId] },
+        ...rows.map((row) => annotationInsertStmt(revisionId, row)),
+      ];
+      try {
+        await dbTxBatch(stmts);
+      } catch (err) {
+        console.warn("[persist-mark]", {
+          outcome: "replace-threw",
+          revisionId,
+          rowCount: rows.length,
+          ids: rows.map((r) => r.id),
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+      console.info("[clear-marks]", { revisionId, replacedWith: rows.length });
     },
 
     async markResolvedInEdit(ids: ReadonlyArray<string>, editId: string): Promise<void> {

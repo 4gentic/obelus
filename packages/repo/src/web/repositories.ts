@@ -191,6 +191,19 @@ export const annotations = {
     await getDb().annotations.delete(id);
   },
 
+  async replaceForRevision(revisionId: string, rows: AnnotationRow[]): Promise<void> {
+    // Delete + write in one rw transaction so a failed put rolls the delete back
+    // with it — a thrown import can't leave the revision wiped of its old marks.
+    const db = getDb();
+    const stamped = rows.map((r) => ({ ...r, revisionId }));
+    let deleted = 0;
+    await db.transaction("rw", db.annotations, async () => {
+      deleted = await db.annotations.where("revisionId").equals(revisionId).delete();
+      await db.annotations.bulkPut(stamped);
+    });
+    console.info("[clear-marks]", { revisionId, deleted, replacedWith: rows.length });
+  },
+
   async markResolvedInEdit(ids: ReadonlyArray<string>, editId: string): Promise<void> {
     if (ids.length === 0) return;
     const db = getDb();

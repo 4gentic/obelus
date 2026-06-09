@@ -1,3 +1,4 @@
+import { parseMarksArchive } from "@obelus/bundle-schema";
 import type { AnnotationRow } from "@obelus/repo";
 import { describe, expect, it } from "vitest";
 import { buildMarksArchive } from "../build.js";
@@ -82,5 +83,17 @@ describe("buildMarksArchive", () => {
       now: fixedNow,
     });
     expect(ungrouped.marks[0]).not.toHaveProperty("groupId");
+  });
+
+  it("round-trips through the wire: a built archive re-parses cleanly", () => {
+    const archive = buildMarksArchive({
+      rows: [pdfRow({ groupId: "00000000-0000-4000-8000-000000000002" })],
+      document: { format: "pdf", title: "Paper", pdfSha256: "a".repeat(64), pageCount: 9 },
+      categories: [{ slug: "elaborate", label: "Elaborate" }],
+      toolVersion: "0.2.0",
+      now: fixedNow,
+    });
+    const result = parseMarksArchive(JSON.parse(JSON.stringify(archive)));
+    expect(result.ok).toBe(true);
   });
 });
