@@ -1,0 +1,78 @@
+/*
+ * Inline choice shown when a marks import lands on a paper that already has
+ * marks. Editorial palette only — no gradients, no modal. Mirrors the
+ * trust-banner: a margin-note-toned decision the reviewer makes in place.
+ */
+
+.marks-import-prompt {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  margin: 0 0 var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--panel, #ede5d3);
+  color: var(--ink, #2b2a26);
+  border-left: 2px solid var(--rubric, #b84a2e);
+  border-radius: 0;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  line-height: 1.5;
+}
+
+.marks-import-prompt__body {
+  margin: 0;
+}
+
+.marks-import-prompt__actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.marks-import-prompt__primary {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  background: var(--ink, #2b2a26);
+  color: var(--paper, #f6f1e7);
+  border: 1px solid var(--ink, #2b2a26);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.marks-import-prompt__primary:hover {
+  background: var(--rubric, #b84a2e);
+  border-color: var(--rubric, #b84a2e);
+}
+
+.marks-import-prompt__secondary {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  background: none;
+  color: var(--ink, #2b2a26);
+  border: 1px solid var(--ink, #2b2a26);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.marks-import-prompt__secondary:hover {
+  background: var(--ink, #2b2a26);
+  color: var(--paper, #f6f1e7);
+}
+
+.marks-import-prompt__dismiss {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ink-soft, #6b655a);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+}
+
+.marks-import-prompt__dismiss:hover {
+  color: var(--ink, #2b2a26);
+}

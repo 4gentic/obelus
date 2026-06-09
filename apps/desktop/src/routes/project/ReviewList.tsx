@@ -121,7 +121,7 @@ export default function ReviewList(): JSX.Element {
   const updateAnnotation = store((s) => s.updateAnnotation);
   const deleteAnnotation = store((s) => s.deleteAnnotation);
   const { scrollToAnnotation } = useDocumentScroll();
-  const { onExportMarks, onImportMarks, marksStatus } = useMarksTransfer();
+  const { onExportMarks, onImportMarks, marksStatus, pendingImport } = useMarksTransfer();
   const listRef = useRef<HTMLOListElement | null>(null);
 
   useEffect(() => {
@@ -138,9 +138,11 @@ export default function ReviewList(): JSX.Element {
       onImport={() => void onImportMarks()}
       exportDisabled={annotations.length === 0}
       status={{
-        message: marksStatus.kind === "idle" ? null : marksStatus.message,
+        message:
+          marksStatus.kind === "ok" || marksStatus.kind === "error" ? marksStatus.message : null,
         error: marksStatus.kind === "error",
       }}
+      pendingImport={pendingImport}
     />
   );
 

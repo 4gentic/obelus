@@ -1,9 +1,14 @@
 import { classifyHtml, useHtmlDocumentView } from "@obelus/html-view";
 import { useMdDocumentView } from "@obelus/md-view";
 import "@obelus/md-view/md.css";
-import { type MarksArchiveMark, parseMarksArchive } from "@obelus/bundle-schema";
+import { type MarksArchive, type MarksArchiveMark, parseMarksArchive } from "@obelus/bundle-schema";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
-import { buildMarksArchive, importMarksArchive } from "@obelus/marks-transfer";
+import {
+  applyImportedMarks,
+  buildMarksArchive,
+  type ImportMode,
+  importMarksArchive,
+} from "@obelus/marks-transfer";
 import { loadDocument, usePdfDocumentView } from "@obelus/pdf-view";
 import type { AnchorFields, AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
 import {
@@ -53,6 +58,14 @@ const MARKS_TOOL_VERSION = "0.1.0";
 
 type MarksReanchor = (mark: MarksArchiveMark) => Promise<AnchorFields | null>;
 
+// A parsed archive held back while the reviewer decides replace-vs-merge, shown
+// only when the paper already has marks.
+type PendingImport = {
+  archive: MarksArchive;
+  reanchor: MarksReanchor | undefined;
+  existing: number;
+};
+
 type LoadState =
   | { kind: "loading" }
   | { kind: "missing" }
@@ -86,6 +99,7 @@ export default function Review(): JSX.Element {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
 
   const annotations = useReviewStore((s) => s.annotations);
   const selectedAnchor = useReviewStore((s) => s.selectedAnchor);
@@ -441,26 +455,18 @@ export default function Review(): JSX.Element {
     }
   };
 
-  const runMarksImport = async (file: File, reanchor: MarksReanchor | undefined): Promise<void> => {
+  const completeMarksImport = async (
+    archive: MarksArchive,
+    reanchor: MarksReanchor | undefined,
+    mode: ImportMode,
+    existing: number,
+  ): Promise<void> => {
+    setPendingImport(null);
     setStatus("working");
     setMessage(null);
     try {
-      let raw: unknown;
-      try {
-        raw = JSON.parse(await file.text());
-      } catch {
-        setStatus("error");
-        setMessage("That file isn't valid JSON.");
-        return;
-      }
-      const parsed = parseMarksArchive(raw);
-      if (!parsed.ok) {
-        setStatus("error");
-        setMessage(`Not a marks archive — ${parsed.error}`);
-        return;
-      }
       const { rows, report } = await importMarksArchive({
-        archive: parsed.archive,
+        archive,
         targetRevisionId: revision.id,
         targetPdfSha256: revision.pdfSha256,
         targetFormat: paper.format,
@@ -468,15 +474,18 @@ export default function Review(): JSX.Element {
         ...(reanchor ? { reanchor } : {}),
         newId: () => crypto.randomUUID(),
       });
-      await annotationsRepo.bulkPut(revision.id, rows);
+      await applyImportedMarks(annotationsRepo, revision.id, rows, mode);
       await load(revision.id);
+      const cleared = mode === "replace" ? existing : 0;
       console.info("[ingest-marks]", {
         targetRevisionId: revision.id,
-        sourceTitle: parsed.archive.document.title,
-        sourceFormat: parsed.archive.document.format,
+        sourceTitle: archive.document.title,
+        sourceFormat: archive.document.format,
         targetFormat: paper.format,
+        mode,
+        cleared,
         hashMatch: report.hashMatch,
-        markCount: parsed.archive.marks.length,
+        markCount: archive.marks.length,
         matched: report.matched,
         reanchored: report.reanchored,
         flagged: report.flagged,
@@ -491,6 +500,57 @@ export default function Review(): JSX.Element {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Import failed");
     }
+  };
+
+  const runMarksImport = async (file: File, reanchor: MarksReanchor | undefined): Promise<void> => {
+    setStatus("working");
+    setMessage(null);
+    setPendingImport(null);
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await file.text());
+    } catch {
+      setStatus("error");
+      setMessage("That file isn't valid JSON.");
+      return;
+    }
+    const parsed = parseMarksArchive(raw);
+    if (!parsed.ok) {
+      setStatus("error");
+      setMessage(`Not a marks archive — ${parsed.error}`);
+      return;
+    }
+    try {
+      const existing = (
+        await annotationsRepo.listForRevision(revision.id, { includeResolved: true })
+      ).length;
+      if (existing === 0) {
+        await completeMarksImport(parsed.archive, reanchor, "merge", 0);
+        return;
+      }
+      setStatus("idle");
+      setPendingImport({ archive: parsed.archive, reanchor, existing });
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Import failed");
+    }
+  };
+
+  const onConfirmImport = (mode: ImportMode): void => {
+    if (pendingImport) {
+      void completeMarksImport(
+        pendingImport.archive,
+        pendingImport.reanchor,
+        mode,
+        pendingImport.existing,
+      );
+    }
+  };
+
+  const onCancelImport = (): void => {
+    setPendingImport(null);
+    setStatus("idle");
+    setMessage(null);
   };
 
   return (
@@ -525,6 +585,9 @@ export default function Review(): JSX.Element {
         onExportMarks,
       }}
       runMarksImport={(file, reanchor) => void runMarksImport(file, reanchor)}
+      pendingImport={pendingImport}
+      onConfirmImport={onConfirmImport}
+      onCancelImport={onCancelImport}
       exportDisabled={status === "working"}
       onRenamePaper={(t) => void onRenamePaper(t)}
       onRenderError={setRenderError}
@@ -572,6 +635,9 @@ type ReviewContentProps = {
   onRubricChange: (r: PaperRubric | null) => Promise<void>;
   exportsBundle: Omit<import("@obelus/review-shell").ReviewPaneExports, "onImportMarks">;
   runMarksImport: (file: File, reanchor: MarksReanchor | undefined) => void;
+  pendingImport: PendingImport | null;
+  onConfirmImport: (mode: ImportMode) => void;
+  onCancelImport: () => void;
   exportDisabled: boolean;
   onRenamePaper: (title: string) => void;
   onRenderError: (message: string | null) => void;
@@ -798,6 +864,17 @@ function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }):
       exportDisabled={props.exportDisabled}
       statusMessage={props.message}
       statusTone={props.status}
+      pendingImport={
+        props.pendingImport
+          ? {
+              incoming: props.pendingImport.archive.marks.length,
+              existing: props.pendingImport.existing,
+              onReplace: () => props.onConfirmImport("replace"),
+              onMerge: () => props.onConfirmImport("merge"),
+              onCancel: props.onCancelImport,
+            }
+          : null
+      }
     />
   );
 

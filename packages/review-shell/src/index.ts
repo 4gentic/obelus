@@ -3,6 +3,8 @@ export { default as CategorySelect } from "./CategorySelect";
 export type { FindProvider, FindSearchOptions } from "./find";
 export { default as MarginGutter, resolveCollisions } from "./MarginGutter";
 export { default as MarginNote } from "./MarginNote";
+export type { MarksImportPromptProps } from "./MarksImportPrompt";
+export { default as MarksImportPrompt } from "./MarksImportPrompt";
 export { default as MarksTransferBar } from "./MarksTransferBar";
 export { default as NoteEditor } from "./NoteEditor";
 export { default as PageNavField } from "./PageNavField";

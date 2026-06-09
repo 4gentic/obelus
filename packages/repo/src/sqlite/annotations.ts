@@ -175,6 +175,11 @@ export function buildAnnotationsRepo(db: Database): AnnotationsRepo {
       await db.execute("DELETE FROM annotations WHERE id = $1", [id]);
     },
 
+    async clearForRevision(revisionId: string): Promise<void> {
+      const res = await db.execute("DELETE FROM annotations WHERE revision_id = $1", [revisionId]);
+      console.info("[clear-marks]", { revisionId, deleted: res.rowsAffected });
+    },
+
     async markResolvedInEdit(ids: ReadonlyArray<string>, editId: string): Promise<void> {
       if (ids.length === 0) return;
       const stmts: TxStmt[] = ids.map((id) => ({

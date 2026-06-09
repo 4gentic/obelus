@@ -1,6 +1,11 @@
-import { type MarksArchiveMark, parseMarksArchive } from "@obelus/bundle-schema";
+import { type MarksArchive, type MarksArchiveMark, parseMarksArchive } from "@obelus/bundle-schema";
 import { DEFAULT_CATEGORIES } from "@obelus/categories";
-import { buildMarksArchive, importMarksArchive } from "@obelus/marks-transfer";
+import {
+  applyImportedMarks,
+  buildMarksArchive,
+  type ImportMode,
+  importMarksArchive,
+} from "@obelus/marks-transfer";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { fsWriteTextAbs, openMarksPicker } from "../../ipc/commands";
@@ -15,12 +20,29 @@ const MARKS_TOOL_VERSION = "0.1.0";
 export type MarksStatus =
   | { kind: "idle" }
   | { kind: "error"; message: string }
-  | { kind: "ok"; message: string };
+  | { kind: "ok"; message: string }
+  | {
+      kind: "confirm-import";
+      archive: MarksArchive;
+      latestId: string;
+      existingCount: number;
+    };
+
+export interface PendingMarksImport {
+  incoming: number;
+  existing: number;
+  onReplace: () => void;
+  onMerge: () => void;
+  onCancel: () => void;
+}
 
 export interface MarksTransfer {
   onExportMarks: () => Promise<void>;
   onImportMarks: () => Promise<void>;
+  onConfirmImport: (mode: ImportMode) => void;
+  onCancelImport: () => void;
   marksStatus: MarksStatus;
+  pendingImport: PendingMarksImport | null;
 }
 
 // Portable marks transfer for the desktop Marks tab. Lifted out of
@@ -111,25 +133,51 @@ export function useMarksTransfer(): MarksTransfer {
         setMarksStatus({ kind: "error", message: "Paper has no revision yet." });
         return;
       }
+      const existingCount = (
+        await repo.annotations.listForRevision(latest.id, { includeResolved: true })
+      ).length;
+      if (existingCount === 0) {
+        await completeImport(archive, latest.id, 0, "merge");
+        return;
+      }
+      setMarksStatus({ kind: "confirm-import", archive, latestId: latest.id, existingCount });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.info("[ingest-marks]", { paperId, failed: true, error: message });
+      setMarksStatus({ kind: "error", message });
+    }
+  }
+
+  async function completeImport(
+    archive: MarksArchive,
+    latestId: string,
+    existingCount: number,
+    mode: ImportMode,
+  ): Promise<void> {
+    if (!activePaper) return;
+    setMarksStatus({ kind: "idle" });
+    try {
       const reanchor = reanchorProvider
         ? (mark: MarksArchiveMark) => reanchorProvider.reanchor(mark)
         : undefined;
       const { rows: importedRows, report } = await importMarksArchive({
         archive,
-        targetRevisionId: latest.id,
+        targetRevisionId: latestId,
         targetPdfSha256: activePaper.pdfSha256,
         targetFormat: activePaper.format,
         targetCategorySlugs: new Set(DEFAULT_CATEGORIES.map((c) => c.id)),
         ...(reanchor ? { reanchor } : {}),
         newId: () => crypto.randomUUID(),
       });
-      await repo.annotations.bulkPut(latest.id, importedRows);
-      await reviewStore.getState().load(latest.id);
+      await applyImportedMarks(repo.annotations, latestId, importedRows, mode);
+      await reviewStore.getState().load(latestId);
       console.info("[ingest-marks]", {
-        targetRevisionId: latest.id,
+        targetRevisionId: latestId,
         sourceTitle: archive.document.title,
         sourceFormat: archive.document.format,
         targetFormat: activePaper.format,
+        mode,
+        cleared: mode === "replace" ? existingCount : 0,
         hashMatch: report.hashMatch,
         markCount: archive.marks.length,
         matched: report.matched,
@@ -148,5 +196,32 @@ export function useMarksTransfer(): MarksTransfer {
     }
   }
 
-  return { onExportMarks, onImportMarks, marksStatus };
+  function onConfirmImport(mode: ImportMode): void {
+    if (marksStatus.kind !== "confirm-import") return;
+    void completeImport(marksStatus.archive, marksStatus.latestId, marksStatus.existingCount, mode);
+  }
+
+  function onCancelImport(): void {
+    setMarksStatus({ kind: "idle" });
+  }
+
+  const pendingImport: PendingMarksImport | null =
+    marksStatus.kind === "confirm-import"
+      ? {
+          incoming: marksStatus.archive.marks.length,
+          existing: marksStatus.existingCount,
+          onReplace: () => onConfirmImport("replace"),
+          onMerge: () => onConfirmImport("merge"),
+          onCancel: onCancelImport,
+        }
+      : null;
+
+  return {
+    onExportMarks,
+    onImportMarks,
+    onConfirmImport,
+    onCancelImport,
+    marksStatus,
+    pendingImport,
+  };
 }

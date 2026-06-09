@@ -1,3 +1,8 @@
+export {
+  applyImportedMarks,
+  type ImportMode,
+  type MarksWriter,
+} from "./apply.js";
 export { type BuildMarksArchiveInput, buildMarksArchive } from "./build.js";
 export {
   type ImportHashMatch,

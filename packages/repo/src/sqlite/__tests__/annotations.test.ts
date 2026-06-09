@@ -75,6 +75,16 @@ describe("buildAnnotationsRepo", () => {
     expect(db.execute).toHaveBeenCalledWith("DELETE FROM annotations WHERE id = $1", ["a1"]);
   });
 
+  it("clearForRevision() issues DELETE by revision_id", async () => {
+    const db = mockDb();
+    db.execute.mockResolvedValue({ rowsAffected: 2 });
+    const repo = buildAnnotationsRepo(db as never);
+    await repo.clearForRevision("rev-1");
+    expect(db.execute).toHaveBeenCalledWith("DELETE FROM annotations WHERE revision_id = $1", [
+      "rev-1",
+    ]);
+  });
+
   it("bulkPut() writes staleness as the last parameter (null when unset)", async () => {
     invokeMock.mockClear();
     const db = mockDb();
