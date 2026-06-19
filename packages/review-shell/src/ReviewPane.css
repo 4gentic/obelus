@@ -364,8 +364,34 @@
   margin: 0;
 }
 
+.review-pane__status[data-status="done"] {
+  color: var(--hl-elaborate);
+}
+
 .review-pane__status[data-status="error"] {
   color: var(--rubric);
+}
+
+.review-pane__see-result {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--ink-soft) 50%, transparent);
+  transition: color 120ms linear;
+}
+
+.review-pane__see-result:hover {
+  color: var(--rubric);
+  text-decoration-color: var(--rubric);
+}
+
+.review-pane__see-result:focus-visible {
+  outline: 2px solid var(--rubric);
+  outline-offset: 2px;
 }
 
 .review-pane__next {

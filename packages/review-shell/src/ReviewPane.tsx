@@ -21,6 +21,9 @@ export type ReviewPaneExports = {
   // (or another session) can import; import a JSON onto the open paper.
   onExportMarks: () => Promise<string | null>;
   onImportMarks: () => void;
+  // Where "see what your coding agent does with this" points, shown after a
+  // bundle export. Threaded as a plain href so this package stays router-free.
+  seeResultHref?: string;
 };
 
 type Props = {
@@ -357,6 +360,14 @@ function NextStep({
   );
 }
 
+function SeeResultLink({ href }: { href: string }): JSX.Element {
+  return (
+    <a className="review-pane__see-result" href={href}>
+      → See what your coding agent does with this
+    </a>
+  );
+}
+
 function draftLocationLabel(draft: DraftInput): string {
   const labels = new Set<string>();
   for (const slice of draft.slices) {
@@ -650,7 +661,10 @@ export default function ReviewPane({
                 <span className="review-pane__actions-chip-hint">obelus-review.json</span>
               </button>
               {reviewExportedName ? (
-                <NextStep skill="write-review" path={`~/Downloads/${reviewExportedName}`} />
+                <>
+                  <NextStep skill="write-review" path={`~/Downloads/${reviewExportedName}`} />
+                  {exports.seeResultHref ? <SeeResultLink href={exports.seeResultHref} /> : null}
+                </>
               ) : null}
             </div>
             <button
@@ -705,7 +719,10 @@ export default function ReviewPane({
                 <span className="review-pane__actions-chip-hint">obelus-revise.json</span>
               </button>
               {reviseExportedName ? (
-                <NextStep skill="apply-revision" path={`~/Downloads/${reviseExportedName}`} />
+                <>
+                  <NextStep skill="apply-revision" path={`~/Downloads/${reviseExportedName}`} />
+                  {exports.seeResultHref ? <SeeResultLink href={exports.seeResultHref} /> : null}
+                </>
               ) : null}
             </div>
             <button
