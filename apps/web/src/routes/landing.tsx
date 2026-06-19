@@ -29,20 +29,20 @@ export default function Landing() {
         </p>
       </section>
 
-      <section className="doors" aria-label="Pick your path">
-        <div className="doors__grid">
-          <article className="doors__col">
-            <p className="doors__tag">Browser · a paper at a time</p>
+      <section className="doors" aria-label="Where to begin">
+        <ol className="doors__grid">
+          <li className="doors__col doors__col--start">
+            <p className="doors__tag">Start here · in the browser</p>
             <h2 className="doors__title">
-              <em>Review a paper.</em>
+              <em>Review the paper.</em>
             </h2>
             <p className="doors__body">
-              Works in the browser. Mark passages in any PDF, Markdown <em>(Beta)</em>, or HTML{" "}
-              <em>(Beta)</em> paper, write margin notes, and export a bundle your coding agent can
-              apply. No install, nothing uploaded.
+              Open a PDF, Markdown <em>(Beta)</em>, or HTML <em>(Beta)</em> paper in the browser.
+              Mark what you doubt, write margin notes, and export a bundle. No install, nothing
+              uploaded — the work begins where you already are.
             </p>
             <p className="doors__for">
-              <strong>Best for reviewers.</strong> Also for writers doing a final self-review pass.
+              <strong>Everything you need to review</strong> lives in the browser.
             </p>
             <Link to="/app" className="doors__cta">
               Open Obelus{" "}
@@ -51,20 +51,22 @@ export default function Landing() {
               </span>
             </Link>
             <p className="doors__caption">Browser · offline after first load</p>
-          </article>
-          <article className="doors__col">
-            <p className="doors__tag">Desktop · many papers</p>
+          </li>
+          <li className="doors__seam" aria-hidden="true">
+            <span className="doors__seam-mark">→</span>
+          </li>
+          <li className="doors__col doors__col--land">
+            <p className="doors__tag">Then · on the desktop</p>
             <h2 className="doors__title">
-              <em>Keep a writing desk.</em>
+              <em>Land the changes.</em>
             </h2>
             <p className="doors__body">
-              Desktop app. One desk per deadline, topic, or collaborator — drafts, reading stacks,
-              and co-authors side by side. Edit source in-window, compile Typst locally, and review
-              the agent's edits as a git-style diff.
+              Take the bundle to the desktop app to close the loop: run Claude Code or OpenCode
+              in-window, watch the agent edit your source, and accept its diffs hunk by hunk. Edit
+              source in-place and compile Typst locally too.
             </p>
             <p className="doors__for">
-              <strong>Best for writers running several drafts at once.</strong> Also for reviewers
-              with a growing reading stack.
+              <strong>Where the review becomes a revision</strong> — and the loop closes.
             </p>
             <a href="#desktop" className="doors__cta">
               Download the desktop app{" "}
@@ -73,11 +75,11 @@ export default function Landing() {
               </span>
             </a>
             <p className="doors__caption">macOS · Windows · Linux</p>
-          </article>
-        </div>
+          </li>
+        </ol>
       </section>
 
-      <section className="demo" aria-label="Three-shot demo">
+      <section className="demo" aria-label="The loop, in four shots">
         <ol className="demo__grid">
           <li className="demo__panel">
             <div className="demo__frame" aria-hidden="true">
@@ -154,6 +156,40 @@ export default function Landing() {
               </svg>
             </div>
             <p className="demo__caption">3. Export a bundle for any coding agent.</p>
+          </li>
+          <li className="demo__panel demo__panel--applied">
+            <Link to="/app/demo" className="demo__link">
+              <div className="demo__frame" aria-hidden="true">
+                <svg viewBox="0 0 180 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <rect
+                    x="12"
+                    y="12"
+                    width="156"
+                    height="96"
+                    fill="none"
+                    stroke="var(--ink)"
+                    strokeWidth="1"
+                  />
+                  <line x1="22" y1="32" x2="158" y2="32" stroke="var(--ink)" strokeWidth="1" />
+                  <line x1="22" y1="48" x2="158" y2="48" stroke="var(--ink)" strokeWidth="1" />
+                  <line x1="22" y1="62" x2="148" y2="62" stroke="var(--ink)" strokeWidth="1" />
+                  <line x1="22" y1="76" x2="158" y2="76" stroke="var(--ink)" strokeWidth="1" />
+                  <line x1="22" y1="90" x2="138" y2="90" stroke="var(--ink)" strokeWidth="1" />
+                  <path
+                    d="M132 56 l6 7 l12 -16"
+                    fill="none"
+                    stroke="var(--hl-elaborate)"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </div>
+              <p className="demo__caption">
+                4. See it applied{" "}
+                <span className="demo__arrow" aria-hidden="true">
+                  →
+                </span>
+              </p>
+            </Link>
           </li>
         </ol>
       </section>

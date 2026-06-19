@@ -14,8 +14,8 @@ test.describe("landing page", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: /writing a paper with ai is cheap/i }),
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: /review a paper\./i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /keep a writing desk\./i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /review the paper\./i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /land the changes\./i })).toBeVisible();
     await expect(page.getByRole("link", { name: /open obelus/i })).toBeVisible();
 
     await expect.poll(() => errors.length, { message: errors.join("\n") }).toBe(0);
