@@ -208,6 +208,13 @@
     border-left: none;
     border-top: var(--rule-soft);
   }
+  /* Comfortable thumb target on touch viewports without restructuring the
+     baseline-aligned underline treatment used on the desktop layout. */
+  .doors__cta {
+    align-items: center;
+    min-height: 44px;
+    padding: var(--space-2) 0;
+  }
 }
 
 /* ---------- Three-shot demo ---------- */
