@@ -117,7 +117,15 @@ export default function CategorySelect({ value, onChange, ariaLabel }: Props): J
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={ariaLabel}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          // Compute position in the same commit that opens the menu so the
+          // portal never paints a frame at the viewport origin (the layout
+          // effect below is a resize/scroll-time fallback). Without this the
+          // popover can stay visibility:hidden if the post-open effect's
+          // setPos doesn't land — e.g. in a production preview build.
+          if (!open && triggerRef.current) setPos(computePopPosition(triggerRef.current));
+          setOpen((v) => !v);
+        }}
       >
         <span className="cat-select__trigger-label">{current.label}</span>
         <span className="cat-select__caret" aria-hidden="true">
