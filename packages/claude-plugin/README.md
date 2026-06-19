@@ -105,11 +105,22 @@ Auth is auto-detected: `ANTHROPIC_API_KEY` → metered mode with `--bare`; other
 
 See `scripts/plugin-e2e.mjs` for the harness and `.claude/commands/plugin-e2e.md` for the full how-to.
 
+### OpenCode verification status
+
+The harness drives OpenCode as well as Claude Code — set `OBELUS_E2E_ENGINE=openCode` and it stages the OpenCode resources, spawns `opencode run`, and parses the same markers. The path is wired, but its first end-to-end smoke test against the sample fixture has not yet been certified clean; treat OpenCode as wired-but-unverified until that lands pre-GA. To run it:
+
+```sh
+# OpenCode CLI on PATH, authenticated once via `opencode auth login`
+OBELUS_E2E_ENGINE=openCode pnpm plugin:e2e
+```
+
+Until that run is green, the GitHub Actions schedule exercises Claude Code only, and the weekly suite does not yet gate the OpenCode path.
+
 ## Known limitations & deferred work
 
 OpenCode support is wired but not exhaustive. Items the desktop integration intentionally defers today:
 
-- The first end-to-end smoke test (`opencode run` against a real paper) is the user's launch task. Treat OpenCode as wired-but-unverified until that completes.
+- The first end-to-end smoke test against the sample fixture is pending pre-GA — see [OpenCode verification status](#opencode-verification-status) above for how to run it. Treat OpenCode as wired-but-unverified until then.
 - Skill resolution under OpenCode uses an English fallback ("read `.claude/skills/<skill>/SKILL.md` and follow it"). If reliability turns out poor, the fix is to author `.opencode/commands/*.md` shims that wrap each skill invocation.
 - Model and reasoning-effort overrides are not forwarded to OpenCode — its model is configured via `opencode auth login` and `opencode.jsonc`.
 - No `.opencode-plugin/plugin.json` marketplace manifest yet — install via `npx -y github:4gentic/obelus#main obelus-install-opencode` (or the manual copy under §Install / OpenCode).
