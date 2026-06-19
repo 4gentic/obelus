@@ -39,6 +39,19 @@
   flex: 0 0 auto;
 }
 
+.review-crumb__format {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--panel);
+  border-radius: 2px;
+  padding: 2px 6px;
+  align-self: center;
+}
+
 .review-crumb__back:hover {
   color: var(--rubric);
 }
@@ -61,6 +74,20 @@
 
 .review-crumb__title:hover {
   color: var(--rubric);
+}
+
+.review-crumb__title--editable {
+  text-decoration: underline dotted transparent;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  transition:
+    color 120ms linear,
+    text-decoration-color 120ms linear;
+}
+
+.review-crumb__title--editable:hover,
+.review-crumb__title--editable:focus-visible {
+  text-decoration-color: var(--rubric);
 }
 
 .review-crumb__input {

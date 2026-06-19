@@ -24,8 +24,8 @@ export default function Landing() {
           <em>Reviewing it is the work.</em>
         </h1>
         <p className="hero__sub">
-          An offline review surface for AI-assisted papers. Mark what you doubt; any coding agent
-          applies the fixes.
+          Mark every passage you doubt and hand your coding agent the fixes to make. An offline
+          review surface for AI-assisted papers — nothing leaves the device.
         </p>
       </section>
 
