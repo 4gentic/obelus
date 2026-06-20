@@ -27,7 +27,7 @@
     "@obelus/review-shell": "workspace:*",
     "@obelus/review-store": "workspace:*",
     "@obelus/source-render": "workspace:*",
-    "dompurify": "3.4.2"
+    "dompurify": "3.4.11"
   },
   "peerDependencies": {
     "react": "^19.0.0"
