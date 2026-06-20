@@ -41,6 +41,7 @@ import {
 } from "../bundle/download";
 import { buildHtmlBundleJson, downloadHtmlBundle } from "../bundle/html-bundle";
 import { buildMdBundleJson, downloadMdBundle } from "../bundle/md-bundle";
+import ErrorBoundary from "../components/ErrorBoundary";
 import { useReviewStore } from "../store/review-store";
 import { usePaperTrust } from "../store/use-paper-trust";
 import "./review.css";
@@ -63,6 +64,7 @@ type PendingImport = {
 type LoadState =
   | { kind: "loading" }
   | { kind: "missing" }
+  | { kind: "error"; reason: string }
   | {
       kind: "ready-pdf";
       paper: PaperRow;
@@ -117,57 +119,69 @@ export default function Review(): JSX.Element {
         if (!cancelled) setState({ kind: "missing" });
         return;
       }
-      const paper = await papers.get(paperId);
-      if (!paper) {
-        if (!cancelled) setState({ kind: "missing" });
-        return;
-      }
-      const revList = await revisions.listForPaper(paper.id);
-      const revision = revList.at(-1);
-      if (!revision) {
-        if (!cancelled) setState({ kind: "missing" });
-        return;
-      }
-      await load(revision.id);
-      if (paper.format === "md") {
-        const text = await getMdText(paper.pdfSha256);
-        if (text === null) {
+      let pdfSha256: string | undefined;
+      try {
+        const paper = await papers.get(paperId);
+        if (!paper) {
           if (!cancelled) setState({ kind: "missing" });
           return;
         }
-        const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.md`;
-        if (!cancelled) setState({ kind: "ready-md", paper, revision, file, text });
-        return;
-      }
-      if (paper.format === "html") {
-        const html = await getHtml(paper.pdfSha256);
-        if (html === null) {
+        pdfSha256 = paper.pdfSha256;
+        const revList = await revisions.listForPaper(paper.id);
+        const revision = revList.at(-1);
+        if (!revision) {
           if (!cancelled) setState({ kind: "missing" });
           return;
         }
-        const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.html`;
-        const classified = classifyHtml({ html, siblingPaths: [], file });
+        await load(revision.id);
+        if (paper.format === "md") {
+          const text = await getMdText(paper.pdfSha256);
+          if (text === null) {
+            if (!cancelled) setState({ kind: "missing" });
+            return;
+          }
+          const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.md`;
+          if (!cancelled) setState({ kind: "ready-md", paper, revision, file, text });
+          return;
+        }
+        if (paper.format === "html") {
+          const html = await getHtml(paper.pdfSha256);
+          if (html === null) {
+            if (!cancelled) setState({ kind: "missing" });
+            return;
+          }
+          const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.html`;
+          const classified = classifyHtml({ html, siblingPaths: [], file });
+          if (!cancelled) {
+            setState({
+              kind: "ready-html",
+              paper,
+              revision,
+              file,
+              html,
+              mode: classified.mode,
+              ...(classified.mode === "source" ? { sourceFile: classified.sourceFile } : {}),
+            });
+          }
+          return;
+        }
+        const bytes = await getPdf(paper.pdfSha256);
+        if (!bytes) {
+          if (!cancelled) setState({ kind: "missing" });
+          return;
+        }
+        const doc = await loadDocument(bytes);
+        if (!cancelled) {
+          setState({ kind: "ready-pdf", paper, revision, doc, pageCount: doc.numPages });
+        }
+      } catch (error) {
+        console.error("[load-paper]", { paperId, pdfSha256, error });
         if (!cancelled) {
           setState({
-            kind: "ready-html",
-            paper,
-            revision,
-            file,
-            html,
-            mode: classified.mode,
-            ...(classified.mode === "source" ? { sourceFile: classified.sourceFile } : {}),
+            kind: "error",
+            reason: error instanceof Error ? error.message : "Could not open this paper.",
           });
         }
-        return;
-      }
-      const bytes = await getPdf(paper.pdfSha256);
-      if (!bytes) {
-        if (!cancelled) setState({ kind: "missing" });
-        return;
-      }
-      const doc = await loadDocument(bytes);
-      if (!cancelled) {
-        setState({ kind: "ready-pdf", paper, revision, doc, pageCount: doc.numPages });
       }
     }
     void run();
@@ -232,6 +246,16 @@ export default function Review(): JSX.Element {
     return (
       <section className="review-shell review-shell--missing" role="alert">
         <p>This paper is not available.</p>
+        <Link to="/app" className="review-crumb__back">
+          Back to library
+        </Link>
+      </section>
+    );
+  }
+  if (state.kind === "error") {
+    return (
+      <section className="review-shell review-shell--missing" role="alert">
+        <p>This paper could not be opened.</p>
         <Link to="/app" className="review-crumb__back">
           Back to library
         </Link>
@@ -530,44 +554,46 @@ export default function Review(): JSX.Element {
   };
 
   return (
-    <ReviewContent
-      state={state}
-      annotations={annotations}
-      selectedAnchor={selectedAnchor}
-      draftCategory={draftCategory}
-      draftNote={draftNote}
-      focusedAnnotationId={focusedAnnotationId}
-      status={status}
-      message={message}
-      renderError={renderError}
-      onAnchor={onAnchor}
-      onFocusMark={setFocusedAnnotation}
-      onSetDraftCategory={setDraftCategory}
-      onSetDraftNote={setDraftNote}
-      onSave={saveAnnotation}
-      onDiscard={() => setSelectedAnchor(null)}
-      onUpdateNote={(id, note) => updateAnnotation(id, { note })}
-      onUpdateCategory={(id, category) => updateAnnotation(id, { category })}
-      onDelete={deleteAnnotation}
-      onDeleteGroup={deleteGroup}
-      onRubricChange={onRubricChange}
-      exportsBundle={{
-        onExportReview: () => exportBundleForKind("review"),
-        onExportRevise: () => exportBundleForKind("revise"),
-        onExportMarkdown: () => void onExportMarkdown(),
-        onExportReviewMarkdown: () => void onExportReviewMarkdown(),
-        onCopy: () => void onCopy(),
-        onCopyReview: () => void onCopyReview(),
-        onExportMarks,
-      }}
-      runMarksImport={(file, reanchor) => void beginMarksImport(file, reanchor)}
-      pendingImport={pendingImport}
-      onConfirmImport={onConfirmImport}
-      onCancelImport={onCancelImport}
-      exportDisabled={status === "working"}
-      onRenamePaper={(t) => void onRenamePaper(t)}
-      onRenderError={setRenderError}
-    />
+    <ErrorBoundary>
+      <ReviewContent
+        state={state}
+        annotations={annotations}
+        selectedAnchor={selectedAnchor}
+        draftCategory={draftCategory}
+        draftNote={draftNote}
+        focusedAnnotationId={focusedAnnotationId}
+        status={status}
+        message={message}
+        renderError={renderError}
+        onAnchor={onAnchor}
+        onFocusMark={setFocusedAnnotation}
+        onSetDraftCategory={setDraftCategory}
+        onSetDraftNote={setDraftNote}
+        onSave={saveAnnotation}
+        onDiscard={() => setSelectedAnchor(null)}
+        onUpdateNote={(id, note) => updateAnnotation(id, { note })}
+        onUpdateCategory={(id, category) => updateAnnotation(id, { category })}
+        onDelete={deleteAnnotation}
+        onDeleteGroup={deleteGroup}
+        onRubricChange={onRubricChange}
+        exportsBundle={{
+          onExportReview: () => exportBundleForKind("review"),
+          onExportRevise: () => exportBundleForKind("revise"),
+          onExportMarkdown: () => void onExportMarkdown(),
+          onExportReviewMarkdown: () => void onExportReviewMarkdown(),
+          onCopy: () => void onCopy(),
+          onCopyReview: () => void onCopyReview(),
+          onExportMarks,
+        }}
+        runMarksImport={(file, reanchor) => void beginMarksImport(file, reanchor)}
+        pendingImport={pendingImport}
+        onConfirmImport={onConfirmImport}
+        onCancelImport={onCancelImport}
+        exportDisabled={status === "working"}
+        onRenamePaper={(t) => void onRenamePaper(t)}
+        onRenderError={setRenderError}
+      />
+    </ErrorBoundary>
   );
 }
 
