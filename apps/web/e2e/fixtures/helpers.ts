@@ -58,6 +58,12 @@ export async function resetStorage(page: Page): Promise<void> {
     try {
       localStorage.clear();
       sessionStorage.clear();
+      // Opt out of the first-run sample auto-seed so the library starts
+      // deterministically empty. Its async fetch+write otherwise races the
+      // assertions (re-seeding after a manual remove, and firing a liveQuery
+      // re-render that closes popovers mid-interaction). Tests that need the
+      // sample paper seed it explicitly via the "Load the sample paper" CTA.
+      localStorage.setItem("obelus.sample-paper-id", "e2e-skip-autoseed");
     } catch {}
   });
 }

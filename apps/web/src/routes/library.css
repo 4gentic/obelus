@@ -165,6 +165,20 @@
   color: var(--rubric);
 }
 
+.library__cta--primary {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-1);
+  color: var(--rubric);
+  text-decoration-color: var(--rubric);
+}
+
+.library__empty-secondary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-5);
+}
+
 .library__sample-link {
   font-family: var(--font-body);
   font-style: italic;

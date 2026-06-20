@@ -22,7 +22,10 @@ export async function buildBundle(input: BuildInput): Promise<Bundle> {
   if (!revision) throw new Error(`revision not found: ${input.revisionId}`);
   const rows = await annotations.listForRevision(revision.id);
 
-  const v2Annotations: AnnotationInput[] = rows.filter(isPdfAnchored).map((r) => ({
+  const kept = rows.filter(isPdfAnchored);
+  const droppedIds = rows.filter((r) => !isPdfAnchored(r)).map((r) => r.id);
+
+  const v2Annotations: AnnotationInput[] = kept.map((r) => ({
     id: r.id,
     paperId: paper.id,
     category: r.category,
@@ -40,6 +43,15 @@ export async function buildBundle(input: BuildInput): Promise<Bundle> {
     createdAt: r.createdAt,
     ...(r.groupId !== undefined ? { groupId: r.groupId } : {}),
   }));
+
+  console.info("[export-bundle]", {
+    paperId: paper.id,
+    revisionId: revision.id,
+    totalAnnotations: rows.length,
+    pdfAnchored: kept.length,
+    droppedNonPdf: droppedIds.length,
+    droppedIds,
+  });
 
   return build({
     project: {

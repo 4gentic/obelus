@@ -11,8 +11,8 @@ test.describe("library", () => {
   test("empty state prompts the first upload", async ({ page }) => {
     const errors = collectConsoleErrors(page);
     await expect(page.getByRole("heading", { name: /your library\./i })).toBeVisible();
-    await expect(page.getByText(/no papers yet\./i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /open a paper/i })).toBeVisible();
+    await expect(page.getByText(/see how review works on a sample paper/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /load the sample paper/i })).toBeVisible();
     await expect(page.getByText(/PDF · Markdown \(Beta\) · HTML \(Beta\)/)).toBeVisible();
     await expect.poll(() => errors.length, { message: errors.join("\n") }).toBe(0);
   });
@@ -54,9 +54,9 @@ test.describe("library", () => {
     await page.getByRole("button", { name: /^remove minimal/i }).click();
     await page.getByRole("button", { name: /confirm removal of minimal/i }).click();
 
-    await expect(page.getByText(/no papers yet\./i)).toBeVisible();
+    await expect(page.getByText(/see how review works on a sample paper/i)).toBeVisible();
     await page.reload();
-    await expect(page.getByText(/no papers yet\./i)).toBeVisible();
+    await expect(page.getByText(/see how review works on a sample paper/i)).toBeVisible();
   });
 
   test("rejects unsupported uploads with a visible error", async ({ page }) => {
@@ -68,6 +68,6 @@ test.describe("library", () => {
 
     await expect(page.getByRole("alert")).toContainText(/supports \.pdf, \.md, and \.html/i);
     await expect(page).toHaveURL(/\/app$/);
-    await expect(page.getByText(/no papers yet\./i)).toBeVisible();
+    await expect(page.getByText(/see how review works on a sample paper/i)).toBeVisible();
   });
 });

@@ -30,6 +30,7 @@ import {
 } from "../bundle/download";
 import { buildHtmlBundleJson, downloadHtmlBundle } from "../bundle/html-bundle";
 import { buildMdBundleJson, downloadMdBundle } from "../bundle/md-bundle";
+import ErrorBoundary from "../components/ErrorBoundary";
 import { useReviewStore } from "../store/review-store";
 import {
   type MarksReanchor,
@@ -49,6 +50,7 @@ const HtmlReviewContent = lazy(() => import("./HtmlReviewContent"));
 type LoadState =
   | { kind: "loading" }
   | { kind: "missing" }
+  | { kind: "error"; reason: string }
   | {
       kind: "ready-pdf";
       paper: PaperRow;
@@ -105,48 +107,58 @@ export default function Review(): JSX.Element {
         if (!cancelled) setState({ kind: "missing" });
         return;
       }
-      const paper = await papers.get(paperId);
-      if (!paper) {
-        if (!cancelled) setState({ kind: "missing" });
-        return;
-      }
-      const revList = await revisions.listForPaper(paper.id);
-      const revision = revList.at(-1);
-      if (!revision) {
-        if (!cancelled) setState({ kind: "missing" });
-        return;
-      }
-      await load(revision.id);
-      if (paper.format === "md") {
-        const text = await getMdText(paper.pdfSha256);
-        if (text === null) {
+      let pdfSha256: string | undefined;
+      try {
+        const paper = await papers.get(paperId);
+        if (!paper) {
           if (!cancelled) setState({ kind: "missing" });
           return;
         }
-        const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.md`;
-        if (!cancelled) setState({ kind: "ready-md", paper, revision, file, text });
-        return;
-      }
-      if (paper.format === "html") {
-        const html = await getHtml(paper.pdfSha256);
-        if (html === null) {
+        pdfSha256 = paper.pdfSha256;
+        const revList = await revisions.listForPaper(paper.id);
+        const revision = revList.at(-1);
+        if (!revision) {
           if (!cancelled) setState({ kind: "missing" });
           return;
         }
-        const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.html`;
+        await load(revision.id);
+        if (paper.format === "md") {
+          const text = await getMdText(paper.pdfSha256);
+          if (text === null) {
+            if (!cancelled) setState({ kind: "missing" });
+            return;
+          }
+          const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.md`;
+          if (!cancelled) setState({ kind: "ready-md", paper, revision, file, text });
+          return;
+        }
+        if (paper.format === "html") {
+          const html = await getHtml(paper.pdfSha256);
+          if (html === null) {
+            if (!cancelled) setState({ kind: "missing" });
+            return;
+          }
+          const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.html`;
+          if (!cancelled) setState({ kind: "ready-html", paper, revision, file, html });
+          return;
+        }
+        const bytes = await getPdf(paper.pdfSha256);
+        if (!bytes) {
+          if (!cancelled) setState({ kind: "missing" });
+          return;
+        }
+        const doc = await loadDocument(bytes);
         if (!cancelled) {
-          setState({ kind: "ready-html", paper, revision, file, html });
+          setState({ kind: "ready-pdf", paper, revision, doc, pageCount: doc.numPages });
         }
-        return;
-      }
-      const bytes = await getPdf(paper.pdfSha256);
-      if (!bytes) {
-        if (!cancelled) setState({ kind: "missing" });
-        return;
-      }
-      const doc = await loadDocument(bytes);
-      if (!cancelled) {
-        setState({ kind: "ready-pdf", paper, revision, doc, pageCount: doc.numPages });
+      } catch (error) {
+        console.error("[load-paper]", { paperId, pdfSha256, error });
+        if (!cancelled) {
+          setState({
+            kind: "error",
+            reason: error instanceof Error ? error.message : "Could not open this paper.",
+          });
+        }
       }
     }
     void run();
@@ -221,16 +233,34 @@ export default function Review(): JSX.Element {
   );
 
   if (state.kind === "loading") {
-    return (
-      <section className="review-shell review-shell--loading" aria-busy>
-        <span className="review-shell__label">loading</span>
-      </section>
-    );
+    return <ReviewLoading />;
   }
   if (state.kind === "missing") {
     return (
       <section className="review-shell review-shell--missing" role="alert">
-        <p>This paper is not available.</p>
+        <p className="review-shell__missing-lead">This paper isn't in your library.</p>
+        <p className="review-shell__missing-hint">
+          It may have been removed, or its stored bytes couldn't be found on this device.
+        </p>
+        <div className="review-shell__missing-actions">
+          <button
+            type="button"
+            className="review-shell__retry"
+            onClick={() => window.location.reload()}
+          >
+            Try again
+          </button>
+          <Link to="/app" className="review-crumb__back">
+            Back to library
+          </Link>
+        </div>
+      </section>
+    );
+  }
+  if (state.kind === "error") {
+    return (
+      <section className="review-shell review-shell--missing" role="alert">
+        <p>This paper could not be opened.</p>
         <Link to="/app" className="review-crumb__back">
           Back to library
         </Link>
@@ -272,7 +302,11 @@ export default function Review(): JSX.Element {
       }
       if (name) {
         setStatus("done");
-        setMessage("Bundle exported.");
+        setMessage(
+          kind === "review"
+            ? "Review bundle saved to your Downloads folder."
+            : "Revise bundle saved to your Downloads folder.",
+        );
       } else {
         setStatus("idle");
       }
@@ -313,7 +347,7 @@ export default function Review(): JSX.Element {
         await exportBundleMarkdown(bundle, rubricForExport);
       }
       setStatus("done");
-      setMessage("Markdown exported.");
+      setMessage("Revise Markdown saved to your Downloads folder.");
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Export failed");
@@ -409,7 +443,7 @@ export default function Review(): JSX.Element {
         await exportReviewBundleMarkdown(bundle, rubricForExport);
       }
       setStatus("done");
-      setMessage("Review Markdown exported.");
+      setMessage("Review Markdown saved to your Downloads folder.");
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Export failed");
@@ -430,7 +464,7 @@ export default function Review(): JSX.Element {
       const name = await exportMarksArchiveFile(archive);
       if (name) {
         setStatus("done");
-        setMessage(`Marks exported (${annotations.length}).`);
+        setMessage(`Marks saved to your Downloads folder (${annotations.length}).`);
       } else {
         setStatus("idle");
       }
@@ -527,45 +561,90 @@ export default function Review(): JSX.Element {
   };
 
   return (
-    <ReviewContent
-      state={state}
-      annotations={annotations}
-      selectedAnchor={selectedAnchor}
-      draftCategory={draftCategory}
-      draftNote={draftNote}
-      focusedAnnotationId={focusedAnnotationId}
-      status={status}
-      message={message}
-      renderError={renderError}
-      onAnchor={onAnchor}
-      onFocusMark={setFocusedAnnotation}
-      onSetDraftCategory={setDraftCategory}
-      onSetDraftNote={setDraftNote}
-      onSave={saveAnnotation}
-      onDiscard={onDiscard}
-      onUpdateNote={onUpdateNote}
-      onUpdateCategory={onUpdateCategory}
-      onDelete={deleteAnnotation}
-      onDeleteGroup={deleteGroup}
-      onRubricChange={onRubricChange}
-      exportsBundle={{
-        onExportReview: () => exportBundleForKind("review"),
-        onExportRevise: () => exportBundleForKind("revise"),
-        onExportMarkdown: () => void onExportMarkdown(),
-        onExportReviewMarkdown: () => void onExportReviewMarkdown(),
-        onCopy: () => void onCopy(),
-        onCopyReview: () => void onCopyReview(),
-        onExportMarks,
-      }}
-      runMarksImport={(file, reanchor) => void beginMarksImport(file, reanchor)}
-      pendingImport={pendingImport}
-      onConfirmImport={onConfirmImport}
-      onCancelImport={onCancelImport}
-      exportDisabled={status === "working"}
-      onRenamePaper={onRenamePaperVoid}
-      onRenderError={setRenderError}
-      onHtmlClassified={setHtmlClassification}
-    />
+    <ErrorBoundary>
+      <ReviewContent
+        state={state}
+        annotations={annotations}
+        selectedAnchor={selectedAnchor}
+        draftCategory={draftCategory}
+        draftNote={draftNote}
+        focusedAnnotationId={focusedAnnotationId}
+        status={status}
+        message={message}
+        renderError={renderError}
+        onAnchor={onAnchor}
+        onFocusMark={setFocusedAnnotation}
+        onSetDraftCategory={setDraftCategory}
+        onSetDraftNote={setDraftNote}
+        onSave={saveAnnotation}
+        onDiscard={onDiscard}
+        onUpdateNote={onUpdateNote}
+        onUpdateCategory={onUpdateCategory}
+        onDelete={deleteAnnotation}
+        onDeleteGroup={deleteGroup}
+        onRubricChange={onRubricChange}
+        exportsBundle={{
+          onExportReview: () => exportBundleForKind("review"),
+          onExportRevise: () => exportBundleForKind("revise"),
+          onExportMarkdown: () => void onExportMarkdown(),
+          onExportReviewMarkdown: () => void onExportReviewMarkdown(),
+          onCopy: () => void onCopy(),
+          onCopyReview: () => void onCopyReview(),
+          onExportMarks,
+          seeResultHref: "/app/demo",
+        }}
+        runMarksImport={(file, reanchor) => void beginMarksImport(file, reanchor)}
+        pendingImport={pendingImport}
+        onConfirmImport={onConfirmImport}
+        onCancelImport={onCancelImport}
+        exportDisabled={status === "working"}
+        onRenamePaper={onRenamePaperVoid}
+        onRenderError={setRenderError}
+        onHtmlClassified={setHtmlClassification}
+      />
+    </ErrorBoundary>
+  );
+}
+
+// Opening a paper means a fetch from OPFS plus a worker parse — usually under a
+// second, but a cold cache or a large PDF can take longer. The skeleton holds
+// the three-column shape so the page doesn't reflow when content lands; after
+// 10s we surface the most common silent failure (private-mode storage blocks)
+// rather than spinning forever. Its own component so the timeout hooks stay
+// above the route's conditional returns.
+function ReviewLoading(): JSX.Element {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setSlow(true), 10_000);
+    return () => window.clearTimeout(id);
+  }, []);
+  return (
+    <section className="review-shell review-shell--loading" aria-busy>
+      <div className="review-skeleton" aria-hidden="true">
+        <div className="review-skeleton__doc">
+          <span className="review-skeleton__line review-skeleton__line--title" />
+          <span className="review-skeleton__line" />
+          <span className="review-skeleton__line" />
+          <span className="review-skeleton__line review-skeleton__line--short" />
+          <span className="review-skeleton__line" />
+          <span className="review-skeleton__line review-skeleton__line--short" />
+        </div>
+        <div className="review-skeleton__gutter">
+          <span className="review-skeleton__note" />
+          <span className="review-skeleton__note" />
+        </div>
+        <div className="review-skeleton__pane">
+          <span className="review-skeleton__chip" />
+          <span className="review-skeleton__chip" />
+          <span className="review-skeleton__chip review-skeleton__chip--short" />
+        </div>
+      </div>
+      <p className="review-shell__loading-message" aria-live="polite">
+        {slow
+          ? "Still opening… if your browser blocks local storage (private mode), the paper can't load."
+          : "Opening your paper…"}
+      </p>
+    </section>
   );
 }
 
