@@ -24,13 +24,19 @@ export async function seedSamplePaper(): Promise<SeedResult> {
     }
   }
 
-  const response = await fetch(SAMPLE_PDF_URL);
-  if (!response.ok) {
+  let pdfBytes: ArrayBuffer;
+  try {
+    const response = await fetch(SAMPLE_PDF_URL);
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+    pdfBytes = await response.arrayBuffer();
+  } catch (cause) {
     throw new Error(
-      `failed to load bundled sample PDF (${response.status} ${response.statusText})`,
+      "Couldn't load the bundled sample paper. Upload your own paper to get started.",
+      { cause },
     );
   }
-  const pdfBytes = await response.arrayBuffer();
 
   const { paper, revision } = await papers.create({
     source: "bytes",
