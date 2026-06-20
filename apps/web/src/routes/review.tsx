@@ -307,7 +307,11 @@ export default function Review(): JSX.Element {
       }
       if (name) {
         setStatus("done");
-        setMessage("Bundle exported.");
+        setMessage(
+          kind === "review"
+            ? "Review bundle saved to your Downloads folder."
+            : "Revise bundle saved to your Downloads folder.",
+        );
       } else {
         setStatus("idle");
       }
@@ -348,7 +352,7 @@ export default function Review(): JSX.Element {
         await exportBundleMarkdown(bundle, rubricForExport);
       }
       setStatus("done");
-      setMessage("Markdown exported.");
+      setMessage("Revise Markdown saved to your Downloads folder.");
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Export failed");
@@ -444,7 +448,7 @@ export default function Review(): JSX.Element {
         await exportReviewBundleMarkdown(bundle, rubricForExport);
       }
       setStatus("done");
-      setMessage("Review Markdown exported.");
+      setMessage("Review Markdown saved to your Downloads folder.");
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Export failed");
@@ -465,7 +469,7 @@ export default function Review(): JSX.Element {
       const name = await exportMarksArchiveFile(archive);
       if (name) {
         setStatus("done");
-        setMessage(`Marks exported (${annotations.length}).`);
+        setMessage(`Marks saved to your Downloads folder (${annotations.length}).`);
       } else {
         setStatus("idle");
       }
@@ -592,6 +596,7 @@ export default function Review(): JSX.Element {
           onCopy: () => void onCopy(),
           onCopyReview: () => void onCopyReview(),
           onExportMarks,
+          seeResultHref: "/app/demo",
         }}
         runMarksImport={(file, reanchor) => void beginMarksImport(file, reanchor)}
         pendingImport={pendingImport}
