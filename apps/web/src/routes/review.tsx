@@ -969,6 +969,12 @@ type ReviewBreadcrumbProps = {
   pages: PageNavProvider | null;
 };
 
+const FORMAT_LABEL: Record<PaperRow["format"], string> = {
+  pdf: "PDF",
+  md: "Markdown",
+  html: "HTML",
+};
+
 function ReviewBreadcrumb({ paper, onRename, pages }: ReviewBreadcrumbProps): JSX.Element {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
@@ -994,6 +1000,7 @@ function ReviewBreadcrumb({ paper, onRename, pages }: ReviewBreadcrumbProps): JS
         <span aria-hidden="true">←</span> Library
       </Link>
       <div className="review-crumb__meta">
+        <span className="review-crumb__format">{FORMAT_LABEL[paper.format]}</span>
         {editing ? (
           <input
             ref={inputRef}
@@ -1016,12 +1023,13 @@ function ReviewBreadcrumb({ paper, onRename, pages }: ReviewBreadcrumbProps): JS
         ) : (
           <button
             type="button"
-            className="review-crumb__title"
+            className="review-crumb__title review-crumb__title--editable"
             onClick={() => {
               setValue(paper.title);
               setEditing(true);
             }}
             aria-label={`Rename ${paper.title}`}
+            title="Click to rename"
           >
             {paper.title}
           </button>
