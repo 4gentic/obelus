@@ -22,7 +22,7 @@ An offline review surface for AI-assisted papers — paired with a plugin (for C
 1. Open the web or desktop app. Drop a **PDF**, **Markdown** *(Beta)*, or **HTML** *(Beta)* paper.
 2. Highlight passages, write margin notes, categorize each mark, thread comments, apply a per-paper rubric.
 3. Export a **review bundle** — a single JSON file with enough context to locate every passage in your source.
-4. In your paper's repo, run `/apply-revision <bundle>`. The plugin detects your source format (`.tex` *(Beta)* / `.md` / `.typ` / `.html`), plans a minimal-diff fix, and — on your confirmation — applies it.
+4. In your paper's repo, run `/apply-revision <bundle>`. The plugin detects your source format (`.tex` *(Beta)* / `.md` / `.typ` / `.html`), plans a minimal-diff fix, and — on your confirmation — applies it. See [`docs/plan-example.md`](docs/plan-example.md) for a worked plan — the shape, read end to end, without running the desktop.
 
 The apps never see the network at runtime. No telemetry, no analytics, no counters — your draft never leaves the device.
 
