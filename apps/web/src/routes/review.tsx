@@ -236,19 +236,27 @@ export default function Review(): JSX.Element {
   }, [selectedAnchor, setSelectedAnchor]);
 
   if (state.kind === "loading") {
-    return (
-      <section className="review-shell review-shell--loading" aria-busy>
-        <span className="review-shell__label">loading</span>
-      </section>
-    );
+    return <ReviewLoading />;
   }
   if (state.kind === "missing") {
     return (
       <section className="review-shell review-shell--missing" role="alert">
-        <p>This paper is not available.</p>
-        <Link to="/app" className="review-crumb__back">
-          Back to library
-        </Link>
+        <p className="review-shell__missing-lead">This paper isn't in your library.</p>
+        <p className="review-shell__missing-hint">
+          It may have been removed, or its stored bytes couldn't be found on this device.
+        </p>
+        <div className="review-shell__missing-actions">
+          <button
+            type="button"
+            className="review-shell__retry"
+            onClick={() => window.location.reload()}
+          >
+            Try again
+          </button>
+          <Link to="/app" className="review-crumb__back">
+            Back to library
+          </Link>
+        </div>
       </section>
     );
   }
@@ -594,6 +602,48 @@ export default function Review(): JSX.Element {
         onRenderError={setRenderError}
       />
     </ErrorBoundary>
+  );
+}
+
+// Opening a paper means a fetch from OPFS plus a worker parse — usually under a
+// second, but a cold cache or a large PDF can take longer. The skeleton holds
+// the three-column shape so the page doesn't reflow when content lands; after
+// 10s we surface the most common silent failure (private-mode storage blocks)
+// rather than spinning forever. Its own component so the timeout hooks stay
+// above the route's conditional returns.
+function ReviewLoading(): JSX.Element {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setSlow(true), 10_000);
+    return () => window.clearTimeout(id);
+  }, []);
+  return (
+    <section className="review-shell review-shell--loading" aria-busy>
+      <div className="review-skeleton" aria-hidden="true">
+        <div className="review-skeleton__doc">
+          <span className="review-skeleton__line review-skeleton__line--title" />
+          <span className="review-skeleton__line" />
+          <span className="review-skeleton__line" />
+          <span className="review-skeleton__line review-skeleton__line--short" />
+          <span className="review-skeleton__line" />
+          <span className="review-skeleton__line review-skeleton__line--short" />
+        </div>
+        <div className="review-skeleton__gutter">
+          <span className="review-skeleton__note" />
+          <span className="review-skeleton__note" />
+        </div>
+        <div className="review-skeleton__pane">
+          <span className="review-skeleton__chip" />
+          <span className="review-skeleton__chip" />
+          <span className="review-skeleton__chip review-skeleton__chip--short" />
+        </div>
+      </div>
+      <p className="review-shell__loading-message" aria-live="polite">
+        {slow
+          ? "Still opening… if your browser blocks local storage (private mode), the paper can't load."
+          : "Opening your paper…"}
+      </p>
+    </section>
   );
 }
 
