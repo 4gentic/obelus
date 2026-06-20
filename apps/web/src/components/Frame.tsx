@@ -6,6 +6,9 @@ import "./Frame.css";
 export default function Frame() {
   return (
     <div className="frame">
+      <a className="frame__skip-link" href="#main">
+        Skip to content
+      </a>
       <header className="frame__header">
         <Link to="/" className="frame__brand" aria-label="Obelus home">
           <Lockup size={28} />
@@ -26,7 +29,7 @@ export default function Frame() {
           </a>
         </nav>
       </header>
-      <main className="frame__main">
+      <main id="main" className="frame__main" tabIndex={-1}>
         <Outlet />
       </main>
       <UpdateBanner />
