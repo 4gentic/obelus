@@ -75,7 +75,11 @@ export async function getMd(sha256: string): Promise<ArrayBuffer | null> {
 export async function getMdText(sha256: string): Promise<string | null> {
   const bytes = await getBlob(MD_DIR, sha256);
   if (bytes === null) return null;
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error(`Markdown source bytes (${sha256}) are not valid UTF-8`);
+  }
 }
 
 export async function hasHtml(sha256: string): Promise<boolean> {
@@ -85,7 +89,11 @@ export async function hasHtml(sha256: string): Promise<boolean> {
 export async function getHtml(sha256: string): Promise<string | null> {
   const bytes = await getBlob(HTML_DIR, sha256);
   if (bytes === null) return null;
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error(`HTML source bytes (${sha256}) are not valid UTF-8`);
+  }
 }
 
 let writer: Worker | null = null;

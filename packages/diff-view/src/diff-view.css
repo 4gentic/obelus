@@ -1,0 +1,99 @@
+/* Unified-diff hunks, editorial register. Mirrors the desktop diff palette
+   (--diff-old-* / --diff-new-*) so a reviewer who has seen the desktop
+   diff-review pane reads this the same way. Tokens come from
+   @obelus/design-tokens; this file assumes they are in scope. */
+
+.diffview-file {
+  border: var(--rule-soft);
+  margin-bottom: var(--space-3);
+}
+
+.diffview-file__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--panel);
+  border-bottom: var(--rule-soft);
+}
+
+.diffview-file__glyph {
+  font-family: var(--font-mono);
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+}
+
+.diffview-file__name {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink);
+}
+
+.diffview-hunk {
+  margin: 0;
+  padding: var(--space-2) 0;
+  overflow-x: auto;
+}
+
+.diffview-hunk + .diffview-hunk {
+  border-top: var(--rule-soft);
+}
+
+.diffview-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: max-content;
+  padding: 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diffview-line__sigil {
+  flex: 0 0 auto;
+  width: 1ch;
+  color: var(--ink-soft);
+  user-select: none;
+}
+
+.diffview-line__text {
+  flex: 1 1 auto;
+}
+
+.diffview-line--hunk {
+  display: block;
+  padding: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  background: var(--panel);
+  white-space: pre-wrap;
+}
+
+.diffview-line--context {
+  color: var(--ink-soft);
+}
+
+.diffview-line--del {
+  background: var(--diff-old-bg);
+  border-left: 2px solid var(--diff-old-rule);
+  padding-left: calc(var(--space-2) - 2px);
+}
+
+.diffview-line--del .diffview-line__sigil {
+  color: var(--diff-old-rule);
+}
+
+.diffview-line--add {
+  background: var(--diff-new-bg);
+  border-left: 2px solid var(--diff-new-rule);
+  padding-left: calc(var(--space-2) - 2px);
+}
+
+.diffview-line--add .diffview-line__sigil {
+  color: var(--diff-new-rule);
+}

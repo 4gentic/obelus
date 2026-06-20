@@ -255,6 +255,127 @@
   letter-spacing: 0.08em;
 }
 
+/* Loading state. The skeleton echoes the real three-column grid — document,
+   220px margin gutter, review pane — so when content lands the page doesn't
+   reflow under the reader's eye. Blocks pulse on a calm linear cycle (never a
+   bounce); reduced-motion users get a static panel wash. */
+.review-shell__loading-message {
+  margin: 0;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: var(--step-0);
+  color: var(--ink-soft);
+  text-align: center;
+  max-width: 48ch;
+  line-height: 1.5;
+}
+
+.review-skeleton {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px minmax(0, 22rem);
+  gap: var(--space-6);
+  width: min(960px, 100%);
+  align-items: start;
+}
+
+.review-skeleton__doc,
+.review-skeleton__pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.review-skeleton__gutter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-6);
+}
+
+.review-skeleton__line,
+.review-skeleton__note,
+.review-skeleton__chip {
+  display: block;
+  border-radius: var(--radius-1);
+  background: var(--panel);
+  animation: review-skeleton-pulse 1600ms linear infinite;
+}
+
+.review-skeleton__line {
+  height: 0.9rem;
+}
+
+.review-skeleton__line--title {
+  height: 1.6rem;
+  width: 70%;
+  margin-bottom: var(--space-3);
+}
+
+.review-skeleton__line--short {
+  width: 55%;
+}
+
+.review-skeleton__note {
+  height: 3.5rem;
+  border-radius: var(--radius-2);
+}
+
+.review-skeleton__chip {
+  height: 2.5rem;
+  border-radius: var(--radius-2);
+}
+
+.review-skeleton__chip--short {
+  width: 60%;
+}
+
+/* Stagger so the wash reads as a wave down the page, not a single blink. */
+.review-skeleton__line:nth-child(2),
+.review-skeleton__note:nth-child(2),
+.review-skeleton__chip:nth-child(2) {
+  animation-delay: 200ms;
+}
+.review-skeleton__line:nth-child(3),
+.review-skeleton__chip:nth-child(3) {
+  animation-delay: 400ms;
+}
+.review-skeleton__line:nth-child(4) {
+  animation-delay: 600ms;
+}
+.review-skeleton__line:nth-child(5) {
+  animation-delay: 800ms;
+}
+
+@keyframes review-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-skeleton__line,
+  .review-skeleton__note,
+  .review-skeleton__chip {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+@media (max-width: 900px) {
+  .review-skeleton {
+    grid-template-columns: minmax(0, 1fr);
+    width: min(640px, 100%);
+  }
+
+  .review-skeleton__gutter {
+    display: none;
+  }
+}
+
 .review-shell__sheet-toggle {
   display: none;
 }
