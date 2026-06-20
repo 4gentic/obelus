@@ -1,14 +1,12 @@
-import { classifyHtml, useHtmlDocumentView } from "@obelus/html-view";
-import { useMdDocumentView } from "@obelus/md-view";
-import "@obelus/md-view/md.css";
-import { type MarksArchive, type MarksArchiveMark, parseMarksArchive } from "@obelus/bundle-schema";
+import { type MarksArchive, parseMarksArchive } from "@obelus/bundle-schema";
+import type { ClassifyResult } from "@obelus/html-view";
 import {
   buildMarksArchiveForExport,
   type ImportMode,
   runMarksImport,
 } from "@obelus/marks-transfer";
 import { loadDocument, usePdfDocumentView } from "@obelus/pdf-view";
-import type { AnchorFields, AnnotationRow, PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
+import type { PaperRow, PaperRubric, RevisionRow } from "@obelus/repo";
 import {
   annotations as annotationsRepo,
   getHtml,
@@ -17,19 +15,10 @@ import {
   papers,
   revisions,
 } from "@obelus/repo/web";
-import {
-  type DocumentView,
-  PageNavField,
-  type PageNavProvider,
-  ReviewPane,
-  type ReviewPaneExports,
-  ReviewShell,
-  TrustBanner,
-} from "@obelus/review-shell";
-import type { DraftInput, ReviewState } from "@obelus/review-store";
+import type { DocumentView } from "@obelus/review-shell";
 import "@obelus/review-shell/review-shell.css";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type JSX, lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { buildBundle } from "../bundle/build";
 import { copyClipboardPrompt, copyReviewClipboardPrompt } from "../bundle/clipboard";
@@ -43,23 +32,20 @@ import { buildHtmlBundleJson, downloadHtmlBundle } from "../bundle/html-bundle";
 import { buildMdBundleJson, downloadMdBundle } from "../bundle/md-bundle";
 import ErrorBoundary from "../components/ErrorBoundary";
 import { useReviewStore } from "../store/review-store";
-import { usePaperTrust } from "../store/use-paper-trust";
+import {
+  type MarksReanchor,
+  type PendingImport,
+  ReviewBody,
+  type ReviewContentProps,
+  type Status,
+} from "./ReviewBody";
 import "./review.css";
 
-import type { JSX } from "react";
-import { useOpfsAssetResolver } from "./use-opfs-asset-resolver";
-
-type Status = "idle" | "working" | "done" | "error";
-
-type MarksReanchor = (mark: MarksArchiveMark) => Promise<AnchorFields | null>;
-
-// A parsed archive held back while the reviewer decides replace-vs-merge, shown
-// only when the paper already has marks.
-type PendingImport = {
-  archive: MarksArchive;
-  reanchor: MarksReanchor | undefined;
-  existing: number;
-};
+// Markdown and HTML viewers pull heavy parsers (mdast / DOMPurify) plus their
+// own CSS. Code-split them so the common PDF path never loads either: each
+// renders through its own chunk fetched only when a paper of that format opens.
+const MdReviewContent = lazy(() => import("./MdReviewContent"));
+const HtmlReviewContent = lazy(() => import("./HtmlReviewContent"));
 
 type LoadState =
   | { kind: "loading" }
@@ -85,8 +71,6 @@ type LoadState =
       revision: RevisionRow;
       file: string;
       html: string;
-      mode: "source" | "html";
-      sourceFile?: string;
     };
 
 export default function Review(): JSX.Element {
@@ -96,6 +80,9 @@ export default function Review(): JSX.Element {
   const [message, setMessage] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  // Filled by the lazy HtmlReviewContent once it classifies the paper; the
+  // export flows read sourceFile from here. Reset per paper load below.
+  const [htmlClassification, setHtmlClassification] = useState<ClassifyResult | null>(null);
 
   const annotations = useReviewStore((s) => s.annotations);
   const selectedAnchor = useReviewStore((s) => s.selectedAnchor);
@@ -114,6 +101,7 @@ export default function Review(): JSX.Element {
 
   useEffect(() => {
     let cancelled = false;
+    setHtmlClassification(null);
     async function run(): Promise<void> {
       if (!paperId) {
         if (!cancelled) setState({ kind: "missing" });
@@ -151,18 +139,7 @@ export default function Review(): JSX.Element {
             return;
           }
           const file = paper.entrypointRelPath ?? `${paper.title || "paper"}.html`;
-          const classified = classifyHtml({ html, siblingPaths: [], file });
-          if (!cancelled) {
-            setState({
-              kind: "ready-html",
-              paper,
-              revision,
-              file,
-              html,
-              mode: classified.mode,
-              ...(classified.mode === "source" ? { sourceFile: classified.sourceFile } : {}),
-            });
-          }
+          if (!cancelled) setState({ kind: "ready-html", paper, revision, file, html });
           return;
         }
         const bytes = await getPdf(paper.pdfSha256);
@@ -235,6 +212,26 @@ export default function Review(): JSX.Element {
     return () => document.removeEventListener("keydown", onKey);
   }, [selectedAnchor, setSelectedAnchor]);
 
+  const onAnchor = useCallback(
+    (draft: Parameters<typeof setSelectedAnchor>[0]): void => {
+      setSelectedAnchor(draft);
+    },
+    [setSelectedAnchor],
+  );
+  const onDiscard = useCallback(() => setSelectedAnchor(null), [setSelectedAnchor]);
+  const onUpdateNote = useCallback(
+    (id: string, note: string) => updateAnnotation(id, { note }),
+    [updateAnnotation],
+  );
+  const onUpdateCategory = useCallback(
+    (id: string, category: string) => updateAnnotation(id, { category }),
+    [updateAnnotation],
+  );
+  const onRenamePaperVoid = useCallback(
+    (title: string) => void onRenamePaper(title),
+    [onRenamePaper],
+  );
+
   if (state.kind === "loading") {
     return <ReviewLoading />;
   }
@@ -274,10 +271,8 @@ export default function Review(): JSX.Element {
   const paper = state.paper;
   const revision = state.revision;
   const pageCount = state.kind === "ready-pdf" ? state.pageCount : 1;
-
-  const onAnchor = (draft: Parameters<typeof setSelectedAnchor>[0]): void => {
-    setSelectedAnchor(draft);
-  };
+  const htmlSourceFile =
+    htmlClassification?.mode === "source" ? htmlClassification.sourceFile : undefined;
 
   const exportBundleForKind = async (kind: "review" | "revise"): Promise<string | null> => {
     setStatus("working");
@@ -300,7 +295,7 @@ export default function Review(): JSX.Element {
             paper,
             revision,
             htmlFile: state.file,
-            ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+            ...(htmlSourceFile !== undefined ? { sourceFile: htmlSourceFile } : {}),
           },
           kind,
         );
@@ -347,7 +342,7 @@ export default function Review(): JSX.Element {
           paper,
           revision,
           htmlFile: state.file,
-          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+          ...(htmlSourceFile !== undefined ? { sourceFile: htmlSourceFile } : {}),
         });
         await exportBundleMarkdown(bundle, rubricForExport);
       }
@@ -379,7 +374,7 @@ export default function Review(): JSX.Element {
           paper,
           revision,
           htmlFile: state.file,
-          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+          ...(htmlSourceFile !== undefined ? { sourceFile: htmlSourceFile } : {}),
         });
         await copyClipboardPrompt(bundle, rubricForExport);
       }
@@ -411,7 +406,7 @@ export default function Review(): JSX.Element {
           paper,
           revision,
           htmlFile: state.file,
-          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+          ...(htmlSourceFile !== undefined ? { sourceFile: htmlSourceFile } : {}),
         });
         await copyReviewClipboardPrompt(bundle, rubricForExport);
       }
@@ -443,7 +438,7 @@ export default function Review(): JSX.Element {
           paper,
           revision,
           htmlFile: state.file,
-          ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
+          ...(htmlSourceFile !== undefined ? { sourceFile: htmlSourceFile } : {}),
         });
         await exportReviewBundleMarkdown(bundle, rubricForExport);
       }
@@ -582,9 +577,9 @@ export default function Review(): JSX.Element {
         onSetDraftCategory={setDraftCategory}
         onSetDraftNote={setDraftNote}
         onSave={saveAnnotation}
-        onDiscard={() => setSelectedAnchor(null)}
-        onUpdateNote={(id, note) => updateAnnotation(id, { note })}
-        onUpdateCategory={(id, category) => updateAnnotation(id, { category })}
+        onDiscard={onDiscard}
+        onUpdateNote={onUpdateNote}
+        onUpdateCategory={onUpdateCategory}
         onDelete={deleteAnnotation}
         onDeleteGroup={deleteGroup}
         onRubricChange={onRubricChange}
@@ -603,8 +598,9 @@ export default function Review(): JSX.Element {
         onConfirmImport={onConfirmImport}
         onCancelImport={onCancelImport}
         exportDisabled={status === "working"}
-        onRenamePaper={(t) => void onRenamePaper(t)}
+        onRenamePaper={onRenamePaperVoid}
         onRenderError={setRenderError}
+        onHtmlClassified={setHtmlClassification}
       />
     </ErrorBoundary>
   );
@@ -652,54 +648,6 @@ function ReviewLoading(): JSX.Element {
   );
 }
 
-type ReviewContentProps = {
-  state:
-    | {
-        kind: "ready-pdf";
-        paper: PaperRow;
-        revision: RevisionRow;
-        doc: PDFDocumentProxy;
-        pageCount: number;
-      }
-    | { kind: "ready-md"; paper: PaperRow; revision: RevisionRow; file: string; text: string }
-    | {
-        kind: "ready-html";
-        paper: PaperRow;
-        revision: RevisionRow;
-        file: string;
-        html: string;
-        mode: "source" | "html";
-        sourceFile?: string;
-      };
-  annotations: AnnotationRow[];
-  selectedAnchor: DraftInput | null;
-  draftCategory: string | null;
-  draftNote: string;
-  focusedAnnotationId: string | null;
-  status: Status;
-  message: string | null;
-  renderError: string | null;
-  onAnchor: (draft: DraftInput | null) => void;
-  onFocusMark: (id: string | null) => void;
-  onSetDraftCategory: (c: string | null) => void;
-  onSetDraftNote: (n: string) => void;
-  onSave: ReviewState["saveAnnotation"];
-  onDiscard: () => void;
-  onUpdateNote: (id: string, note: string) => Promise<void>;
-  onUpdateCategory: (id: string, c: string) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-  onDeleteGroup: (groupId: string) => Promise<void>;
-  onRubricChange: (r: PaperRubric | null) => Promise<void>;
-  exportsBundle: Omit<import("@obelus/review-shell").ReviewPaneExports, "onImportMarks">;
-  runMarksImport: (file: File, reanchor: MarksReanchor | undefined) => void;
-  pendingImport: PendingImport | null;
-  onConfirmImport: (mode: ImportMode) => void;
-  onCancelImport: () => void;
-  exportDisabled: boolean;
-  onRenamePaper: (title: string) => void;
-  onRenderError: (message: string | null) => void;
-};
-
 function usePdfSurface(
   props: ReviewContentProps,
   state: Extract<ReviewContentProps["state"], { kind: "ready-pdf" }>,
@@ -715,100 +663,8 @@ function usePdfSurface(
   });
 }
 
-interface SurfaceTrustState {
-  trusted: boolean;
-  trust: () => void;
-  blockedUris: ReadonlyArray<string>;
-  onBlocked: (uri: string) => void;
-  dismissed: boolean;
-  dismiss: () => void;
-}
-
-function useSurfaceTrust(paperId: string | null): SurfaceTrustState {
-  const { trusted, trust } = usePaperTrust(paperId);
-  const [blockedUris, setBlockedUris] = useState<ReadonlyArray<string>>([]);
-  const [dismissed, setDismissed] = useState(false);
-  const onBlocked = useCallback((uri: string) => {
-    setBlockedUris((prev) => (prev.includes(uri) ? prev : [...prev, uri]));
-  }, []);
-  return {
-    trusted,
-    trust,
-    blockedUris,
-    onBlocked,
-    dismissed,
-    dismiss: useCallback(() => setDismissed(true), []),
-  };
-}
-
-function bannerFor(t: SurfaceTrustState): JSX.Element | null {
-  if (t.trusted) return null;
-  if (t.dismissed) return null;
-  if (t.blockedUris.length === 0) return null;
-  const hosts = uniqueHosts(t.blockedUris);
-  return (
-    <TrustBanner
-      hosts={hosts}
-      blockedCount={t.blockedUris.length}
-      onTrust={t.trust}
-      onDismiss={t.dismiss}
-    />
-  );
-}
-
-function uniqueHosts(uris: ReadonlyArray<string>): string[] {
-  const out = new Set<string>();
-  for (const uri of uris) {
-    try {
-      out.add(new URL(uri).host);
-    } catch {
-      // Non-URL violations (rare) are dropped — they aren't network egress.
-    }
-  }
-  return Array.from(out);
-}
-
-function useMdSurface(
-  props: ReviewContentProps,
-  state: Extract<ReviewContentProps["state"], { kind: "ready-md" }>,
-  trust: SurfaceTrustState,
-): DocumentView {
-  return useMdDocumentView({
-    file: state.file,
-    text: state.text,
-    annotations: props.annotations,
-    selectedAnchor: props.selectedAnchor,
-    draftCategory: props.draftCategory,
-    focusedId: props.focusedAnnotationId,
-    onAnchor: props.onAnchor,
-    onRenderError: props.onRenderError,
-    trusted: trust.trusted,
-    onExternalBlocked: ({ uri }) => trust.onBlocked(uri),
-  });
-}
-
-function useHtmlSurface(
-  props: ReviewContentProps,
-  state: Extract<ReviewContentProps["state"], { kind: "ready-html" }>,
-  trust: SurfaceTrustState,
-): DocumentView {
-  const assets = useOpfsAssetResolver();
-  return useHtmlDocumentView({
-    file: state.file,
-    html: state.html,
-    mode: state.mode,
-    ...(state.sourceFile !== undefined ? { sourceFile: state.sourceFile } : {}),
-    assets,
-    annotations: props.annotations,
-    selectedAnchor: props.selectedAnchor,
-    draftCategory: props.draftCategory,
-    focusedId: props.focusedAnnotationId,
-    onAnchor: props.onAnchor,
-    trusted: trust.trusted,
-    onExternalBlocked: (event) => trust.onBlocked(event.uri),
-  });
-}
-
+// The PDF surface stays eager — it's the common case and the pdf-view chunk is
+// already on the critical path. Markdown and HTML render through lazy chunks.
 function PdfReviewContent(
   props: ReviewContentProps & {
     state: Extract<ReviewContentProps["state"], { kind: "ready-pdf" }>;
@@ -818,231 +674,31 @@ function PdfReviewContent(
   return <ReviewBody {...props} documentView={documentView} />;
 }
 
-function MdReviewContent(
-  props: ReviewContentProps & {
-    state: Extract<ReviewContentProps["state"], { kind: "ready-md" }>;
-  },
-): JSX.Element {
-  const trust = useSurfaceTrust(props.state.paper.id);
-  const documentView = useMdSurface(props, props.state, trust);
-  const banner = bannerFor(trust);
-  const wrapped = useMemo<DocumentView>(
-    () =>
-      banner === null
-        ? documentView
-        : {
-            ...documentView,
-            content: (
-              <>
-                {banner}
-                {documentView.content}
-              </>
-            ),
-          },
-    [banner, documentView],
-  );
-  return <ReviewBody {...props} documentView={wrapped} />;
-}
-
-function HtmlReviewContent(
-  props: ReviewContentProps & {
-    state: Extract<ReviewContentProps["state"], { kind: "ready-html" }>;
-  },
-): JSX.Element {
-  const trust = useSurfaceTrust(props.state.paper.id);
-  const documentView = useHtmlSurface(props, props.state, trust);
-  const banner = bannerFor(trust);
-  const wrapped = useMemo<DocumentView>(
-    () =>
-      banner === null
-        ? documentView
-        : {
-            ...documentView,
-            content: (
-              <>
-                {banner}
-                {documentView.content}
-              </>
-            ),
-          },
-    [banner, documentView],
-  );
-  return <ReviewBody {...props} documentView={wrapped} />;
-}
-
-function ReviewContent(props: ReviewContentProps): JSX.Element {
-  if (props.state.kind === "ready-pdf") {
-    return <PdfReviewContent {...props} state={props.state} />;
-  }
-  if (props.state.kind === "ready-md") {
-    return <MdReviewContent {...props} state={props.state} />;
-  }
-  return <HtmlReviewContent {...props} state={props.state} />;
-}
-
-function ReviewBody(props: ReviewContentProps & { documentView: DocumentView }): JSX.Element {
-  const { state, documentView } = props;
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const provider = documentView.reanchor;
-  const reanchor: MarksReanchor | undefined = provider
-    ? (mark) => provider.reanchor(mark)
-    : undefined;
-  const onMarksFile = (ev: ChangeEvent<HTMLInputElement>): void => {
-    const file = ev.target.files?.[0];
-    ev.target.value = "";
-    if (file) props.runMarksImport(file, reanchor);
-  };
-  const exports: ReviewPaneExports = {
-    ...props.exportsBundle,
-    onImportMarks: () => fileInputRef.current?.click(),
-  };
-  const pane = (
-    <ReviewPane
-      annotations={props.annotations}
-      selectedAnchor={props.selectedAnchor}
-      draftCategory={props.draftCategory}
-      draftNote={props.draftNote}
-      focusedAnnotationId={props.focusedAnnotationId}
-      rubric={state.paper.rubric ?? null}
-      onSave={props.onSave}
-      onDiscard={props.onDiscard}
-      onDraftCategoryChange={props.onSetDraftCategory}
-      onDraftNoteChange={props.onSetDraftNote}
-      onUpdateNote={props.onUpdateNote}
-      onUpdateCategory={props.onUpdateCategory}
-      onDelete={props.onDelete}
-      onDeleteGroup={props.onDeleteGroup}
-      onJumpToMark={(id) => {
-        props.onFocusMark(id);
-        documentView.scrollToAnnotation(id);
-      }}
-      onRubricChange={props.onRubricChange}
-      exports={exports}
-      exportDisabled={props.exportDisabled}
-      statusMessage={props.message}
-      statusTone={props.status}
-      pendingImport={
-        props.pendingImport
-          ? {
-              incoming: props.pendingImport.archive.marks.length,
-              existing: props.pendingImport.existing,
-              onReplace: () => props.onConfirmImport("replace"),
-              onMerge: () => props.onConfirmImport("merge"),
-              onCancel: props.onCancelImport,
-            }
-          : null
-      }
-    />
-  );
-
+function SurfaceLoading(): JSX.Element {
   return (
-    <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="application/json,.json"
-        hidden
-        onChange={onMarksFile}
-      />
-      {props.renderError !== null ? (
-        <p className="review-crumb__render-error" role="alert">
-          Render failed: {props.renderError}
-        </p>
-      ) : null}
-      <ReviewShell
-        label={`Review ${state.paper.id}`}
-        header={
-          <ReviewBreadcrumb
-            paper={state.paper}
-            onRename={props.onRenamePaper}
-            pages={documentView.pages ?? null}
-          />
-        }
-        documentView={documentView}
-        annotations={props.annotations}
-        pane={pane}
-        draftOpen={props.selectedAnchor !== null}
-        onFocusMark={(id) => props.onFocusMark(id)}
-      />
-    </>
+    <section className="review-shell review-shell--loading" aria-busy>
+      <span className="review-shell__label">loading</span>
+    </section>
   );
 }
 
-type ReviewBreadcrumbProps = {
-  paper: PaperRow;
-  onRename: (title: string) => void;
-  pages: PageNavProvider | null;
-};
-
-const FORMAT_LABEL: Record<PaperRow["format"], string> = {
-  pdf: "PDF",
-  md: "Markdown",
-  html: "HTML",
-};
-
-function ReviewBreadcrumb({ paper, onRename, pages }: ReviewBreadcrumbProps): JSX.Element {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState("");
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    if (editing) inputRef.current?.select();
-  }, [editing]);
-
-  function commit(): void {
-    const next = value.trim() || "Untitled";
-    if (next !== paper.title) onRename(next);
-    setEditing(false);
+function ReviewContent(
+  props: ReviewContentProps & { onHtmlClassified: (result: ClassifyResult) => void },
+): JSX.Element {
+  const { onHtmlClassified, ...rest } = props;
+  if (rest.state.kind === "ready-pdf") {
+    return <PdfReviewContent {...rest} state={rest.state} />;
   }
-
-  function cancel(): void {
-    setEditing(false);
+  if (rest.state.kind === "ready-md") {
+    return (
+      <Suspense fallback={<SurfaceLoading />}>
+        <MdReviewContent {...rest} state={rest.state} />
+      </Suspense>
+    );
   }
-
   return (
-    <nav className="review-crumb" aria-label="Paper">
-      <Link to="/app" className="review-crumb__back">
-        <span aria-hidden="true">←</span> Library
-      </Link>
-      <div className="review-crumb__meta">
-        <span className="review-crumb__format">{FORMAT_LABEL[paper.format]}</span>
-        {editing ? (
-          <input
-            ref={inputRef}
-            className="review-crumb__input"
-            type="text"
-            value={value}
-            aria-label="Paper title"
-            onChange={(e) => setValue(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                commit();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                cancel();
-              }
-            }}
-          />
-        ) : (
-          <button
-            type="button"
-            className="review-crumb__title review-crumb__title--editable"
-            onClick={() => {
-              setValue(paper.title);
-              setEditing(true);
-            }}
-            aria-label={`Rename ${paper.title}`}
-            title="Click to rename"
-          >
-            {paper.title}
-          </button>
-        )}
-        {pages && pages.count > 1 ? (
-          <PageNavField provider={pages} className="review-crumb__pagenav" />
-        ) : null}
-      </div>
-    </nav>
+    <Suspense fallback={<SurfaceLoading />}>
+      <HtmlReviewContent {...rest} state={rest.state} onClassified={onHtmlClassified} />
+    </Suspense>
   );
 }
