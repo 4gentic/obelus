@@ -119,10 +119,7 @@ test.describe("review", () => {
     await expect(highlight).toHaveAttribute("data-category", "elaborate");
 
     await item.locator(".cat-select__trigger").click();
-    await page
-      .getByRole("menuitemradio")
-      .filter({ hasText: /^praise$/i })
-      .click();
+    await page.getByRole("menuitemradio", { name: /^praise\b/i }).click();
 
     await expect(item).toHaveAttribute("data-category", "praise");
     await expect(highlight).toHaveAttribute("data-category", "praise");

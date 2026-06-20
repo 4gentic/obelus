@@ -321,17 +321,24 @@ export default function Library(): JSX.Element {
         </>
       ) : (
         <section className="library__empty" aria-label="Empty library">
-          <p className="library__empty-msg">No papers yet. Begin with a mark.</p>
-          <button type="button" className="library__cta" onClick={pickFile}>
-            Open a paper <span aria-hidden="true">&rarr;</span>
-          </button>
+          <p className="library__empty-msg">
+            See how review works on a sample paper — or open your own.
+          </p>
           <button
             type="button"
-            className="library__sample-link"
+            className="library__cta library__cta--primary"
             onClick={() => void onLoadSample()}
           >
-            Or load the sample paper.
+            Load the sample paper <span aria-hidden="true">&rarr;</span>
           </button>
+          <div className="library__empty-secondary">
+            <button type="button" className="library__sample-link" onClick={pickFile}>
+              Open your own paper
+            </button>
+            <Link to="/app/demo" className="library__sample-link">
+              See a finished review <span aria-hidden="true">&rarr;</span>
+            </Link>
+          </div>
           <p className="library__empty-formats">
             PDF · Markdown <em>(Beta)</em> · HTML <em>(Beta)</em>
           </p>

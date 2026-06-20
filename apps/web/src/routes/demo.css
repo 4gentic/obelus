@@ -1,0 +1,282 @@
+.demo {
+  max-width: 76ch;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  width: 100%;
+}
+
+/* Masthead --------------------------------------------------------------- */
+
+.demo__masthead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-5);
+  border-bottom: var(--rule);
+}
+
+.demo__kicker {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rubric);
+  margin: 0;
+}
+
+.demo__title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-4);
+  color: var(--ink);
+  margin: 0;
+}
+
+.demo__standfirst {
+  font-size: var(--step-1);
+  line-height: 1.5;
+  color: var(--ink-soft);
+  max-width: 60ch;
+}
+
+.demo__banner {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--rubric);
+  background: var(--panel);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* Sections --------------------------------------------------------------- */
+
+.demo-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.demo-section__head {
+  display: grid;
+  grid-template-columns: 2.5ch minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+.demo-section__ord {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-2);
+  color: var(--rubric);
+  line-height: 1;
+}
+
+.demo-section__title {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  color: var(--ink);
+  margin: 0 0 var(--space-1);
+}
+
+.demo-section__lede {
+  font-size: var(--step-0);
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0;
+  max-width: 58ch;
+}
+
+/* Marks ------------------------------------------------------------------ */
+
+.demo-marks,
+.demo-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.demo-marks {
+  border-top: var(--rule-soft);
+}
+
+.demo-mark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  border-bottom: var(--rule-soft);
+}
+
+/* Category label, mirrored on plan cards. The swatch is the highlight token
+   at full strength — the same colour the review surface lays under the text
+   at 0.35 alpha — so the legend reads continuous with the marked-up paper. */
+.demo-mark__cat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+
+.demo-mark__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--swatch);
+  flex: 0 0 auto;
+}
+
+.demo-mark__quote {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--rule-soft);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--step-1);
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.demo-mark__note {
+  margin: 0;
+  font-size: var(--step-0);
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+/* Plan cards ------------------------------------------------------------- */
+
+.demo-cards {
+  gap: var(--space-3);
+}
+
+.demo-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: var(--rule-soft);
+  border-left: 2px solid var(--diff-new-rule);
+  background: var(--paper);
+}
+
+/* Praise / note-only cards carry no edit — drop the affirmative green edge
+   for a neutral one so the eye separates "will change the file" from
+   "nothing to apply". */
+.demo-card--note {
+  border-left-color: var(--ink-soft);
+}
+
+.demo-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.demo-card__badge {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: var(--rule-soft);
+  border-radius: 2px;
+  padding: 0 var(--space-1);
+}
+
+.demo-card__badge--edit {
+  color: var(--diff-new-rule);
+  border-color: color-mix(in oklab, var(--diff-new-rule) 45%, var(--ink-soft));
+}
+
+.demo-card__quote {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.demo-card__what {
+  margin: 0;
+  font-size: var(--step-0);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.demo-card__why {
+  margin: 0;
+  font-size: var(--step--1);
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+/* Diff ------------------------------------------------------------------- */
+
+.demo-diff {
+  margin-top: var(--space-1);
+}
+
+/* Footer ----------------------------------------------------------------- */
+
+.demo__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-top: var(--space-5);
+  border-top: var(--rule);
+}
+
+.demo__foot-link {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: color 120ms linear;
+}
+
+.demo__foot-link:hover {
+  color: var(--rubric);
+}
+
+.demo__foot-cta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  transition: color 120ms linear;
+}
+
+.demo__foot-cta:hover {
+  color: var(--rubric);
+}
+
+@media (max-width: 640px) {
+  .demo {
+    padding: var(--space-6) var(--space-4);
+    gap: var(--space-6);
+  }
+  .demo-section__head {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}

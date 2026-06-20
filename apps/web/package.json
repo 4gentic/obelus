@@ -23,6 +23,7 @@
     "@obelus/bundle-schema": "workspace:*",
     "@obelus/categories": "workspace:*",
     "@obelus/design-tokens": "workspace:*",
+    "@obelus/diff-view": "workspace:*",
     "@obelus/html-view": "workspace:*",
     "@obelus/marks-transfer": "workspace:*",
     "@obelus/md-view": "workspace:*",
