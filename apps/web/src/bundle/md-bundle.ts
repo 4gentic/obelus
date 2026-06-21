@@ -8,6 +8,10 @@ type BuildInput = {
   paper: PaperRow;
   revision: RevisionRow;
   file: string;
+  // Decoded markdown source of `file`. When present, the builder extracts the
+  // heading outline, citation index, and per-anchor scope hints. The review
+  // surface already holds this text, so passing it costs nothing.
+  text?: string;
 };
 
 export async function buildMdBundleJson(
@@ -45,7 +49,9 @@ export async function buildMdBundleJson(
       kind: "reviewer",
       categories: DEFAULT_CATEGORIES.map((c) => ({ slug: c.id, label: c.label })),
       main: input.file,
+      files: [{ relPath: input.file, format: "md", role: "main" }],
     },
+    ...(input.text !== undefined ? { sources: [{ relPath: input.file, text: input.text }] } : {}),
     papers: [
       {
         id: input.paper.id,

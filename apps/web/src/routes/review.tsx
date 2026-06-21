@@ -288,7 +288,10 @@ export default function Review(): JSX.Element {
         });
         name = await exportBundleFile(bundle, kind);
       } else if (state.kind === "ready-md") {
-        name = await downloadMdBundle({ paper, revision, file: state.file }, kind);
+        name = await downloadMdBundle(
+          { paper, revision, file: state.file, text: state.text },
+          kind,
+        );
       } else {
         name = await downloadHtmlBundle(
           {
@@ -335,7 +338,12 @@ export default function Review(): JSX.Element {
         });
         await exportBundleMarkdown(bundle, rubricForExport);
       } else if (state.kind === "ready-md") {
-        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        const { bundle } = await buildMdBundleJson({
+          paper,
+          revision,
+          file: state.file,
+          text: state.text,
+        });
         await exportBundleMarkdown(bundle, rubricForExport);
       } else {
         const { bundle } = await buildHtmlBundleJson({
@@ -367,7 +375,12 @@ export default function Review(): JSX.Element {
         });
         await copyClipboardPrompt(bundle, rubricForExport);
       } else if (state.kind === "ready-md") {
-        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        const { bundle } = await buildMdBundleJson({
+          paper,
+          revision,
+          file: state.file,
+          text: state.text,
+        });
         await copyClipboardPrompt(bundle, rubricForExport);
       } else {
         const { bundle } = await buildHtmlBundleJson({
@@ -399,7 +412,12 @@ export default function Review(): JSX.Element {
         });
         await copyReviewClipboardPrompt(bundle, rubricForExport);
       } else if (state.kind === "ready-md") {
-        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        const { bundle } = await buildMdBundleJson({
+          paper,
+          revision,
+          file: state.file,
+          text: state.text,
+        });
         await copyReviewClipboardPrompt(bundle, rubricForExport);
       } else {
         const { bundle } = await buildHtmlBundleJson({
@@ -431,7 +449,12 @@ export default function Review(): JSX.Element {
         });
         await exportReviewBundleMarkdown(bundle, rubricForExport);
       } else if (state.kind === "ready-md") {
-        const { bundle } = await buildMdBundleJson({ paper, revision, file: state.file });
+        const { bundle } = await buildMdBundleJson({
+          paper,
+          revision,
+          file: state.file,
+          text: state.text,
+        });
         await exportReviewBundleMarkdown(bundle, rubricForExport);
       } else {
         const { bundle } = await buildHtmlBundleJson({
