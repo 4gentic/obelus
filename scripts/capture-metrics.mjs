@@ -81,7 +81,12 @@ import {
   synthesizeBundle,
 } from "./lib/capture-bundle.mjs";
 import { openCodePrompt } from "./lib/opencode-prompt.mjs";
-import { leaksMachinePath, orderReplacements, sanitizeLine } from "./lib/sanitize-metrics.mjs";
+import {
+  expandScratchForms,
+  leaksMachinePath,
+  orderReplacements,
+  sanitizeLine,
+} from "./lib/sanitize-metrics.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
@@ -432,11 +437,13 @@ function assembleEvents(run, engineResult, timings) {
 
 // Validate every event through the MetricEvent union (the on-disk contract),
 // serialize, sanitize, and gate on path leaks. `replacements` is an unordered
-// `[absPath, placeholder][]`; we order it longest-prefix-first so a workspace
-// nested under the repo root is not half-rewritten. `extraTokens` sweeps
-// non-path identity strings (hostname). Returns the sanitized JSONL.
+// `[absPath, placeholder][]`; we expand each scratch prefix to its `/private`
+// realpath twin (macOS reports tmp paths through `/private`) and order the
+// table longest-prefix-first so a workspace nested under the repo root is not
+// half-rewritten. `extraTokens` sweeps non-path identity strings (hostname).
+// Returns the sanitized JSONL.
 function serializeSnapshot(events, replacements, extraTokens = []) {
-  const ordered = orderReplacements(replacements);
+  const ordered = orderReplacements(expandScratchForms(replacements));
   const lines = [];
   for (const ev of events) {
     const parsed = MetricEvent.safeParse(ev);
