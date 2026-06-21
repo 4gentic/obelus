@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { Route, Routes, useNavigate } from "react-router-dom";
 import Frame from "./components/frame";
 import JobsListener from "./components/jobs-listener";
+import { useAutoUpdate } from "./lib/auto-update";
 import { registerDeepLinkHandler } from "./lib/deep-link";
 import Boot from "./routes/boot";
 import Home from "./routes/home";
@@ -28,6 +29,7 @@ function useDeepLinks(): void {
 
 export default function App(): JSX.Element {
   useDeepLinks();
+  useAutoUpdate();
   return (
     <JobsListener>
       <Routes>

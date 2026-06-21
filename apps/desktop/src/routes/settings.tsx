@@ -13,16 +13,24 @@ import {
   type ClaudeCodeEngineStatus,
   type OpenCodeEngineStatus,
 } from "../lib/ai-engine";
+import { recordUpdateCheck, runAutoUpdateCheck, setAutoUpdateConsent } from "../lib/auto-update";
+import { formatBytes } from "../lib/format-bytes";
 import { factoryReset, wizardReset } from "../lib/reset";
+import { useUpdateStore } from "../lib/update-store";
 import { checkForUpdate, downloadAndInstall, type UpdaterState } from "../lib/updater";
 import "./settings.css";
 
 import type { JSX } from "react";
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+function formatLastChecked(at: number | null): string {
+  if (at === null) return "Never";
+  const diff = Date.now() - at;
+  if (diff < 60_000) return "Just now";
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return `${Math.floor(hours / 24)} d ago`;
 }
 
 export default function Settings(): JSX.Element {
@@ -31,6 +39,8 @@ export default function Settings(): JSX.Element {
   const [resetting, setResetting] = useState<"wizard" | "factory" | null>(null);
   const [updater, setUpdater] = useState<UpdaterState>({ kind: "idle" });
   const [version, setVersion] = useState<string | null>(null);
+  const consent = useUpdateStore((s) => s.consent);
+  const lastCheckedAt = useUpdateStore((s) => s.lastCheckedAt);
 
   const recheck = useCallback(async (): Promise<void> => {
     setBusy(true);
@@ -63,7 +73,24 @@ export default function Settings(): JSX.Element {
 
   async function onCheckUpdate(): Promise<void> {
     setUpdater({ kind: "checking" });
-    setUpdater(await checkForUpdate());
+    const result = await checkForUpdate();
+    setUpdater(result);
+    await recordUpdateCheck();
+    const store = useUpdateStore.getState();
+    if (result.kind === "available") {
+      store.setAvailable({ version: result.version, notes: result.notes });
+    } else {
+      store.clearAvailable();
+    }
+  }
+
+  async function onToggleAuto(next: boolean): Promise<void> {
+    await setAutoUpdateConsent(next);
+    if (next) {
+      await runAutoUpdateCheck();
+    } else {
+      useUpdateStore.getState().clearAvailable();
+    }
   }
 
   async function onInstallUpdate(): Promise<void> {
@@ -153,6 +180,18 @@ export default function Settings(): JSX.Element {
         <p className="settings__body">
           Checks GitHub Releases for a newer signed build. Obelus only installs updates whose
           manifest verifies against the embedded public key.
+        </p>
+        <label className="settings__toggle">
+          <input
+            type="checkbox"
+            checked={consent === true}
+            onChange={(e) => void onToggleAuto(e.target.checked)}
+          />
+          <span>Check for updates automatically</span>
+        </label>
+        <p className="settings__body settings__hint">
+          On launch and every 8 hours. Only the signed release manifest is checked; nothing else
+          leaves your device. Last checked: {formatLastChecked(lastCheckedAt)}.
         </p>
         {updater.kind === "available" ? (
           <pre className="settings__pane">

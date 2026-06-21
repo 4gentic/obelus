@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import JobsDock from "./jobs-dock";
+import UpdateBanner from "./update-banner";
 import "./frame.css";
 
 import type { JSX } from "react";
@@ -26,6 +27,7 @@ export default function Frame(): JSX.Element {
           </nav>
         </header>
       )}
+      {isWizard ? null : <UpdateBanner />}
       <main className={isWizard ? "frame__main frame__main--wide" : "frame__main"}>
         <Outlet />
       </main>
