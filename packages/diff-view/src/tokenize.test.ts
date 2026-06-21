@@ -28,6 +28,21 @@ describe("tokenizeRich round-trips", () => {
     "\\textbf{bold} and \\ref{fig:1} together",
     "#cite(<page-1954-cusum>) and #align(center)[X]",
     "math \\( a + b \\) then \\[ c - d \\] end",
+    // Adversarial: nesting, escaped quotes, sigil runs, unterminated delimiters,
+    // and non-ASCII after a sigil — the round-trip must survive all of them.
+    '#figure(image("a.png"), caption: [see #ref(<x>) and $y$])',
+    '$f("a)b", "c}d")$',
+    '$x("a\\"b")$',
+    "$a$$b$",
+    "adjacent #a(1)#b(2) calls",
+    "a line-break \\\\ mid sentence",
+    "an unterminated \\[ display open",
+    "an unterminated $ inline open",
+    "#café(x) accent in a call name",
+    "issue #42 and cost $5 and a \\ stray",
+    "\\section{Intro} then text",
+    "\\cmd[opt]{arg} keeps one group",
+    "trailing sigil at end #",
   ];
 
   for (const input of inputs) {
@@ -99,6 +114,34 @@ describe("tokenizeRich robustness", () => {
 
   it("falls back when a Typst call's group never closes", () => {
     expect(tokenizeRich("#cite(unclosed").join("")).toBe("#cite(unclosed");
+  });
+});
+
+describe("tokenizeRich nesting and limitations", () => {
+  it("keeps a deeply nested Typst call as one token", () => {
+    const input = '#figure(image("a.png"), caption: [see #ref(<x>) and $y$])';
+    expect(tokenizeRich(input)).toEqual([input]);
+  });
+
+  it("keeps math with an escaped quote as one token", () => {
+    const input = '$x("a\\"b")$';
+    expect(tokenizeRich(input)).toEqual([input]);
+  });
+
+  it("splits two adjacent math spans without merging the inner dollars", () => {
+    expect(tokenizeRich("$a$$b$")).toEqual(["$a$", "$b$"]);
+  });
+
+  it("captures one LaTeX argument group, leaving a following group separate", () => {
+    expect(tokenizeRich("\\cmd[opt]{arg}")).toEqual(["\\cmd[opt]", "{", "arg", "}"]);
+  });
+
+  it("does not treat a non-ASCII call name as a Typst call", () => {
+    expect(tokenizeRich("#café(x)")).toEqual(["#", "café", "(", "x", ")"]);
+  });
+
+  it("treats a double backslash as two punctuation tokens", () => {
+    expect(tokenizeRich("\\\\")).toEqual(["\\", "\\"]);
   });
 });
 

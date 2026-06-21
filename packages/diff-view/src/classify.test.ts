@@ -61,6 +61,39 @@ describe("looksLikeCode", () => {
     const after = "Note: the sample was tiny, so we treat the result with great caution.";
     expect(looksLikeCode(before, after)).toBe(false);
   });
+
+  it("treats a LaTeX environment line as code", () => {
+    expect(looksLikeCode("\\begin{equation}", "\\begin{align}")).toBe(true);
+  });
+
+  it("treats a Typst bracket-form call as code", () => {
+    expect(looksLikeCode("#heading[Intro]", "#heading[Introduction]")).toBe(true);
+  });
+
+  it("treats a punctuation-heavy expression as code", () => {
+    expect(looksLikeCode("f(x) = (a+b)/(c-d);", "f(x) = (a-b)/(c+d);")).toBe(true);
+  });
+
+  it("treats a Markdown subheading with a prose body as prose", () => {
+    const before = "## Methods\n\nWe ran the trials across three sites.";
+    const after = "## Methods\n\nWe ran the trials across five sites.";
+    expect(looksLikeCode(before, after)).toBe(false);
+  });
+
+  it("keeps a sentence that merely contains a URL as prose", () => {
+    const before = "See https://example.com for the dataset and the code.";
+    const after = "See https://example.org for the dataset and the code.";
+    expect(looksLikeCode(before, after)).toBe(false);
+  });
+
+  // A bare URL on its own line reads as a config-style `key: value` line. The
+  // heuristic's whole cost is which renderer paints the change, so this miss is
+  // cosmetic — pinned here so a future tweak notices it.
+  it("reads a bare URL line as code", () => {
+    expect(looksLikeCode("https://example.com/data.html", "https://example.com/data.json")).toBe(
+      true,
+    );
+  });
 });
 
 describe("isHeavyRewrite", () => {
@@ -85,6 +118,14 @@ describe("isHeavyRewrite", () => {
     expect(isHeavyRewrite(runs("the cat sat on the mat", "a dog ran through the yard"))).toBe(
       false,
     );
+  });
+
+  it("is false for a fully changed passage below the length floor", () => {
+    // ~70 chars per side: even a total rewrite stays inline until the passage
+    // is long enough that reading through the marks is the hard part.
+    const before = "The runner keeps a short baseline of the amendment rate per category.";
+    const after = "A monitor instead tracks an adaptive reference and escalates on drift.";
+    expect(isHeavyRewrite(runs(before, after))).toBe(false);
   });
 
   it("is false for an empty change", () => {
