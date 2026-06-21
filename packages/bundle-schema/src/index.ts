@@ -29,6 +29,7 @@ export {
   Annotation,
   BUNDLE_VERSION,
   Bundle,
+  Citation,
   HtmlAnchor,
   HtmlElementAnchor,
   PaperRef,
@@ -41,5 +42,6 @@ export {
   ProjectFileSummary,
   ProjectKind,
   SourceAnchor,
+  SourceSection,
   type Thread,
 } from "./schema.js";

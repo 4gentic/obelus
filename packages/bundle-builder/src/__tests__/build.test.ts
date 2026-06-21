@@ -138,6 +138,96 @@ describe("buildBundle", () => {
   });
 });
 
+describe("buildBundle structure extraction", () => {
+  const TEX = [
+    "\\documentclass{article}", // 1
+    "\\begin{document}", // 2
+    "\\section{Introduction}", // 3
+    "Attention \\cite{vaswani2017} is quadratic.", // 4
+    "\\section{Methods}", // 5
+    "We reuse \\citep{vaswani2017, bahdanau2014}.", // 6
+    "\\end{document}", // 7
+  ].join("\n");
+
+  function sourceSeed() {
+    const createdAt = "2026-04-19T12:00:00.000Z";
+    return {
+      project: {
+        id: PROJECT_ID,
+        label: "Attention",
+        kind: "writer" as const,
+        categories: [{ slug: "elaborate", label: "elaborate" }],
+        files: [{ relPath: "main.tex", format: "tex" as const, role: "main" as const }],
+      },
+      papers: [
+        { id: PAPER_ID, title: "main.tex", revisionNumber: 1, createdAt, entrypoint: "main.tex" },
+      ],
+      annotations: [
+        {
+          id: ANN_ID,
+          paperId: PAPER_ID,
+          category: "elaborate",
+          quote: "We reuse",
+          contextBefore: "",
+          contextAfter: "",
+          anchor: {
+            kind: "source" as const,
+            file: "main.tex",
+            lineStart: 6,
+            colStart: 0,
+            lineEnd: 6,
+            colEnd: 8,
+          },
+          note: "",
+          thread: [],
+          createdAt,
+        },
+      ],
+      sources: [{ relPath: "main.tex", text: TEX }],
+    };
+  }
+
+  it("attaches a section map to the matching project file", () => {
+    const bundle = buildBundle(sourceSeed());
+    const file = bundle.project.files?.[0];
+    expect(file?.sections).toEqual([
+      { heading: "Introduction", level: 3, lineStart: 3, lineEnd: 4 },
+      { heading: "Methods", level: 3, lineStart: 5, lineEnd: 7 },
+    ]);
+  });
+
+  it("builds a deduplicated top-level citation index", () => {
+    const bundle = buildBundle(sourceSeed());
+    expect(bundle.citations).toEqual([
+      { key: "vaswani2017", count: 2 },
+      { key: "bahdanau2014", count: 1 },
+    ]);
+  });
+
+  it("fills scopeStart/scopeEnd on a source anchor from the enclosing section", () => {
+    const bundle = buildBundle(sourceSeed());
+    const anchor = bundle.annotations[0]?.anchor;
+    expect(anchor?.kind).toBe("source");
+    if (anchor?.kind === "source") {
+      expect(anchor.scopeStart).toBe(5);
+      expect(anchor.scopeEnd).toBe(7);
+    }
+  });
+
+  it("omits all structural fields when no sources are supplied", () => {
+    const s = sourceSeed();
+    const { sources: _omitted, ...withoutSources } = s;
+    const bundle = buildBundle(withoutSources);
+    expect(bundle.citations).toBeUndefined();
+    expect(bundle.project.files?.[0]?.sections).toBeUndefined();
+    const anchor = bundle.annotations[0]?.anchor;
+    if (anchor?.kind === "source") {
+      expect(anchor.scopeStart).toBeUndefined();
+      expect(anchor.scopeEnd).toBeUndefined();
+    }
+  });
+});
+
 describe("suggestBundleFilename", () => {
   it("formats review kind as obelus-review-YYYY-MM-DD.json", () => {
     const name = suggestBundleFilename("review", new Date("2026-04-17T09:03:00"));

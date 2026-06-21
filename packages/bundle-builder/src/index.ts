@@ -1,5 +1,12 @@
-import type { Bundle as BundleType } from "@obelus/bundle-schema";
+import type { Bundle as BundleType, Citation, SourceSection } from "@obelus/bundle-schema";
 import { BUNDLE_VERSION, Bundle } from "@obelus/bundle-schema";
+import {
+  buildCitationIndex,
+  extractCitationKeys,
+  extractSections,
+  isStructuredSourceFormat,
+  scopeForLine,
+} from "./extract";
 
 const DEFAULT_TOOL_VERSION = "0.1.0";
 
@@ -67,6 +74,12 @@ export type AnnotationAnchor =
       colStart: number;
       lineEnd: number;
       colEnd: number;
+      // Enclosing-section line range. Normally the builder fills these from the
+      // section map; a caller may also pass them through pre-computed. `|
+      // undefined` (not just `?:`) so the type accepts the Zod-inferred repo row
+      // shape under `exactOptionalPropertyTypes`.
+      scopeStart?: number | undefined;
+      scopeEnd?: number | undefined;
     }
   | {
       kind: "html";
@@ -111,11 +124,23 @@ export interface AnnotationInput {
   groupId?: string;
 }
 
+// Decoded source bytes for the files the bundle references, keyed by the same
+// `relPath` used in `project.files[]` and `source` anchors. When provided, the
+// builder extracts the heading outline (`project.files[].sections`), the
+// project-wide citation index (top-level `citations`), and per-anchor scope
+// hints (`scopeStart`/`scopeEnd`). Omit it for PDF-only papers where source
+// bytes aren't available; the structural fields then stay absent.
+export interface BundleSourceInput {
+  relPath: string;
+  text: string;
+}
+
 export interface BuildBundleInput {
   project: ProjectInput;
   papers: ReadonlyArray<PaperRefInput>;
   annotations: ReadonlyArray<AnnotationInput>;
   toolVersion?: string;
+  sources?: ReadonlyArray<BundleSourceInput>;
 }
 
 // `<obelus:*>` literals are reserved as plugin-level markers (subagent fence
@@ -197,8 +222,52 @@ function assertNoDelimiterCollisions(input: BuildBundleInput): void {
   }
 }
 
+interface ExtractedStructure {
+  // Section outline keyed by relPath, for files whose source we indexed.
+  sectionsByFile: Map<string, SourceSection[]>;
+  // Project-wide deduplicated citation index (empty when nothing was cited).
+  citations: Citation[];
+}
+
+// Resolve the `(format)` of a referenced file from `project.files[]`. Source
+// text alone doesn't tell us the format unambiguously, so we trust the
+// inventory the caller already classified.
+function formatForPath(input: BuildBundleInput, relPath: string): string | undefined {
+  return input.project.files?.find((f) => f.relPath === relPath)?.format;
+}
+
+function extractStructure(input: BuildBundleInput): ExtractedStructure {
+  const sectionsByFile = new Map<string, SourceSection[]>();
+  const citationKeys: string[] = [];
+  for (const src of input.sources ?? []) {
+    const format = formatForPath(input, src.relPath);
+    if (format === undefined || !isStructuredSourceFormat(format)) continue;
+    const sections = extractSections(src.text, format);
+    if (sections.length > 0) sectionsByFile.set(src.relPath, sections);
+    citationKeys.push(...extractCitationKeys(src.text, format));
+  }
+  return { sectionsByFile, citations: buildCitationIndex(citationKeys) };
+}
+
+// Attach `scopeStart`/`scopeEnd` to a `source` anchor from its file's section
+// map. Non-source anchors and anchors whose enclosing section can't be found
+// (preamble, unstructured file) pass through unchanged. Scope is keyed off
+// `lineStart` — the line the reviewer's selection begins on.
+function withScope(
+  anchor: AnnotationAnchor,
+  sectionsByFile: Map<string, SourceSection[]>,
+): AnnotationAnchor {
+  if (anchor.kind !== "source") return anchor;
+  const sections = sectionsByFile.get(anchor.file);
+  if (!sections) return anchor;
+  const scope = scopeForLine(sections, anchor.lineStart);
+  if (!scope) return anchor;
+  return { ...anchor, scopeStart: scope.scopeStart, scopeEnd: scope.scopeEnd };
+}
+
 export function buildBundle(input: BuildBundleInput): BundleType {
   assertNoDelimiterCollisions(input);
+  const structure = extractStructure(input);
   const candidate = {
     bundleVersion: BUNDLE_VERSION,
     tool: { name: "obelus", version: input.toolVersion ?? DEFAULT_TOOL_VERSION },
@@ -214,11 +283,15 @@ export function buildBundle(input: BuildBundleInput): BundleType {
       ...(input.project.main !== undefined ? { main: input.project.main } : {}),
       ...(input.project.files !== undefined
         ? {
-            files: input.project.files.map((f) => ({
-              relPath: f.relPath,
-              format: f.format,
-              ...(f.role !== undefined ? { role: f.role } : {}),
-            })),
+            files: input.project.files.map((f) => {
+              const sections = structure.sectionsByFile.get(f.relPath);
+              return {
+                relPath: f.relPath,
+                format: f.format,
+                ...(f.role !== undefined ? { role: f.role } : {}),
+                ...(sections !== undefined ? { sections } : {}),
+              };
+            }),
           }
         : {}),
     },
@@ -246,15 +319,45 @@ export function buildBundle(input: BuildBundleInput): BundleType {
       quote: a.quote,
       contextBefore: a.contextBefore,
       contextAfter: a.contextAfter,
-      anchor: a.anchor,
+      anchor: withScope(a.anchor, structure.sectionsByFile),
       note: a.note,
       thread: a.thread,
       createdAt: a.createdAt,
       ...(a.groupId !== undefined ? { groupId: a.groupId } : {}),
     })),
+    ...(structure.citations.length > 0 ? { citations: structure.citations } : {}),
   };
+  if (input.sources !== undefined && input.sources.length > 0) {
+    let scopedAnchors = 0;
+    let unscopedSourceAnchors = 0;
+    for (const a of input.annotations) {
+      if (a.anchor.kind !== "source") continue;
+      const sections = structure.sectionsByFile.get(a.anchor.file);
+      if (sections && scopeForLine(sections, a.anchor.lineStart)) scopedAnchors += 1;
+      else unscopedSourceAnchors += 1;
+    }
+    let sectionCount = 0;
+    for (const s of structure.sectionsByFile.values()) sectionCount += s.length;
+    console.info("[bundle-structure]", {
+      sourcesIndexed: input.sources.length,
+      filesWithSections: structure.sectionsByFile.size,
+      sectionCount,
+      citationKeys: structure.citations.length,
+      scopedAnchors,
+      unscopedSourceAnchors,
+    });
+  }
   return Bundle.parse(candidate);
 }
+
+export {
+  buildCitationIndex,
+  extractCitationKeys,
+  extractSections,
+  isStructuredSourceFormat,
+  type SourceFormat,
+  scopeForLine,
+} from "./extract";
 
 export {
   formatFixPrompt,
