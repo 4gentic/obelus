@@ -18,20 +18,10 @@
 .frame__brand {
   display: inline-flex;
   align-items: baseline;
-  gap: var(--space-2);
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: var(--step-1);
   text-decoration: none;
 }
 
 .frame__brand:hover {
-  color: var(--rubric);
-}
-
-.frame__brand-mark {
-  font-family: var(--font-mono);
-  font-style: normal;
   color: var(--rubric);
 }
 

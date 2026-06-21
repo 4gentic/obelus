@@ -52,6 +52,10 @@
   text-decoration: none;
 }
 
+.frame__brand:hover {
+  color: var(--rubric);
+}
+
 .frame__nav {
   display: flex;
   align-items: baseline;
