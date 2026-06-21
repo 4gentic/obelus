@@ -301,35 +301,35 @@ function assertMarkdownRoundTrip(result, dir, workspaceDir) {
     ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", 29],
   ]);
   for (const b of userBlocks) {
-    const expected = expectedLines.get(b.annotationId);
+    const expected = expectedLines.get(firstAnnId(b));
     if (expected === undefined) continue;
     if (b.file !== "sample.md") {
       return {
         ok: false,
-        reason: `block ${b.annotationId} file expected 'sample.md', got ${JSON.stringify(b.file)}`,
+        reason: `block ${firstAnnId(b)} file expected 'sample.md', got ${JSON.stringify(b.file)}`,
       };
     }
     if (b.ambiguous === true) {
       return {
         ok: false,
-        reason: `block ${b.annotationId} is ambiguous; source anchor did not round-trip`,
+        reason: `block ${firstAnnId(b)} is ambiguous; source anchor did not round-trip`,
       };
     }
     const range = hunkLineRange(b.patch);
     if (!range) {
       return {
         ok: false,
-        reason: `block ${b.annotationId} patch has no @@ -L,N @@ header or is empty`,
+        reason: `block ${firstAnnId(b)} patch has no @@ -L,N @@ header or is empty`,
       };
     }
     if (range.start !== expected) {
       return {
         ok: false,
-        reason: `block ${b.annotationId} patch targets line ${range.start}, expected ${expected}`,
+        reason: `block ${firstAnnId(b)} patch targets line ${range.start}, expected ${expected}`,
       };
     }
     if (!b.patch.endsWith("\n")) {
-      return { ok: false, reason: `block ${b.annotationId} patch does not end with \\n` };
+      return { ok: false, reason: `block ${firstAnnId(b)} patch does not end with \\n` };
     }
   }
 
@@ -407,13 +407,13 @@ function assertHtmlPairedRoundTrip(result, dir, workspaceDir) {
     if (b.file === "sample.html") {
       return {
         ok: false,
-        reason: `block ${b.annotationId} targets sample.html — paired bundles must follow the sourceHint to sample.md`,
+        reason: `block ${firstAnnId(b)} targets sample.html — paired bundles must follow the sourceHint to sample.md`,
       };
     }
     if (b.file !== "sample.md") {
       return {
         ok: false,
-        reason: `block ${b.annotationId} file expected 'sample.md', got ${JSON.stringify(b.file)}`,
+        reason: `block ${firstAnnId(b)} file expected 'sample.md', got ${JSON.stringify(b.file)}`,
       };
     }
   }
@@ -488,46 +488,46 @@ function assertHtmlHandAuthoredPlan(result, _dir, workspaceDir) {
     if (b.ambiguous !== true) {
       return {
         ok: false,
-        reason: `block ${b.annotationId} expected ambiguous: true (no sourceHint), got ${JSON.stringify(b.ambiguous)}`,
+        reason: `block ${firstAnnId(b)} expected ambiguous: true (no sourceHint), got ${JSON.stringify(b.ambiguous)}`,
       };
     }
     if (b.patch !== "") {
       return {
         ok: false,
-        reason: `block ${b.annotationId} expected empty patch when ambiguous, got ${JSON.stringify(b.patch).slice(0, 60)}`,
+        reason: `block ${firstAnnId(b)} expected empty patch when ambiguous, got ${JSON.stringify(b.patch).slice(0, 60)}`,
       };
     }
     if (b.file !== "") {
       return {
         ok: false,
-        reason: `block ${b.annotationId} expected file: "" (unresolved html-only block), got ${JSON.stringify(b.file)}`,
+        reason: `block ${firstAnnId(b)} expected file: "" (unresolved html-only block), got ${JSON.stringify(b.file)}`,
       };
     }
     const notes = typeof b.reviewerNotes === "string" ? b.reviewerNotes : "";
     if (!notes.startsWith("hand-authored HTML anchor —")) {
       return {
         ok: false,
-        reason: `block ${b.annotationId} reviewerNotes must start with 'hand-authored HTML anchor —', got ${JSON.stringify(notes).slice(0, 80)}`,
+        reason: `block ${firstAnnId(b)} reviewerNotes must start with 'hand-authored HTML anchor —', got ${JSON.stringify(notes).slice(0, 80)}`,
       };
     }
     if (!notes.includes("sample-handauthored.html")) {
       return {
         ok: false,
-        reason: `block ${b.annotationId} reviewerNotes must name the html file, got ${JSON.stringify(notes).slice(0, 120)}`,
+        reason: `block ${firstAnnId(b)} reviewerNotes must name the html file, got ${JSON.stringify(notes).slice(0, 120)}`,
       };
     }
-    const want = expected.get(b.annotationId);
+    const want = expected.get(firstAnnId(b));
     if (want) {
       if (!notes.includes(want.xpath)) {
         return {
           ok: false,
-          reason: `block ${b.annotationId} reviewerNotes missing xpath ${want.xpath}, got ${JSON.stringify(notes).slice(0, 160)}`,
+          reason: `block ${firstAnnId(b)} reviewerNotes missing xpath ${want.xpath}, got ${JSON.stringify(notes).slice(0, 160)}`,
         };
       }
       if (!notes.includes(`chars ${want.offsets}`)) {
         return {
           ok: false,
-          reason: `block ${b.annotationId} reviewerNotes missing 'chars ${want.offsets}', got ${JSON.stringify(notes).slice(0, 160)}`,
+          reason: `block ${firstAnnId(b)} reviewerNotes missing 'chars ${want.offsets}', got ${JSON.stringify(notes).slice(0, 160)}`,
         };
       }
     }
@@ -574,8 +574,17 @@ function loadPlanJson(workspaceDir) {
   return { plan, jsonPlan };
 }
 
+// Plan blocks identify on `annotationIds` (a non-empty string array); the
+// synthesised cascade/impact/coherence/quality ids ride in that array too.
+// Read the first id for classification and reporting — the plan schema dropped
+// the legacy singular `annotationId` field this harness used to read.
+function firstAnnId(block) {
+  const ids = block.annotationIds;
+  return Array.isArray(ids) && typeof ids[0] === "string" ? ids[0] : "";
+}
+
 function classifyBlock(block) {
-  const id = typeof block.annotationId === "string" ? block.annotationId : "";
+  const id = firstAnnId(block);
   if (id.startsWith("cascade-")) return "cascade";
   if (id.startsWith("impact-")) return "impact";
   if (id.startsWith("coherence-")) return "coherence";
@@ -603,21 +612,21 @@ function assertLexicalTerminologyCascade(result, _dir, workspaceDir) {
   }
   for (const c of cascades) {
     if (typeof c.patch !== "string" || c.patch.length === 0) {
-      return { ok: false, reason: `cascade block ${c.annotationId} has empty patch` };
+      return { ok: false, reason: `cascade block ${firstAnnId(c)} has empty patch` };
     }
     if (!c.patch.endsWith("\n")) {
-      return { ok: false, reason: `cascade block ${c.annotationId} patch does not end with \\n` };
+      return { ok: false, reason: `cascade block ${firstAnnId(c)} patch does not end with \\n` };
     }
     if (/experimental\s+setting/i.test(c.patch)) {
       return {
         ok: false,
-        reason: `cascade block ${c.annotationId} wrongly cascaded into an 'experimental setting' line (different referent)`,
+        reason: `cascade block ${firstAnnId(c)} wrongly cascaded into an 'experimental setting' line (different referent)`,
       };
     }
     if (typeof c.reviewerNotes !== "string" || !c.reviewerNotes.startsWith("Cascaded from ")) {
       return {
         ok: false,
-        reason: `cascade block ${c.annotationId} reviewerNotes must start with 'Cascaded from '`,
+        reason: `cascade block ${firstAnnId(c)} reviewerNotes must start with 'Cascaded from '`,
       };
     }
   }
@@ -641,7 +650,7 @@ function assertLexicalNumericalCascade(result, _dir, workspaceDir) {
     if (!/^-.*4\.2B/m.test(c.patch)) {
       return {
         ok: false,
-        reason: `cascade block ${c.annotationId} patch does not remove '4.2B' (numerical gate failed)`,
+        reason: `cascade block ${firstAnnId(c)} patch does not remove '4.2B' (numerical gate failed)`,
       };
     }
   }
@@ -665,7 +674,7 @@ function assertStructuralLabelCascade(result, _dir, workspaceDir) {
     if (!/\\ref\{thm-main\}/.test(c.patch)) {
       return {
         ok: false,
-        reason: `cascade block ${c.annotationId} patch does not reference \\ref{thm-main} on minus side`,
+        reason: `cascade block ${firstAnnId(c)} patch does not reference \\ref{thm-main} on minus side`,
       };
     }
   }
@@ -682,7 +691,7 @@ function assertPropositionalImpact(result, _dir, workspaceDir) {
   const impacts = plan.blocks.filter((b) => classifyBlock(b) === "impact");
 
   if (cascades.length > 0) {
-    const ids = cascades.map((c) => c.annotationId).join(", ");
+    const ids = cascades.map((c) => firstAnnId(c)).join(", ");
     return {
       ok: false,
       reason: `propositional delta must not cascade (silent rewrite), got ${cascades.length}: ${ids}`,
@@ -698,19 +707,19 @@ function assertPropositionalImpact(result, _dir, workspaceDir) {
     if (im.patch !== "") {
       return {
         ok: false,
-        reason: `impact block ${im.annotationId} must carry patch: "", got ${JSON.stringify(im.patch).slice(0, 40)}`,
+        reason: `impact block ${firstAnnId(im)} must carry patch: "", got ${JSON.stringify(im.patch).slice(0, 40)}`,
       };
     }
-    if (im.category !== "unclear") {
+    if (im.category !== "note") {
       return {
         ok: false,
-        reason: `impact block ${im.annotationId} must carry category: "unclear", got ${JSON.stringify(im.category)}`,
+        reason: `impact block ${firstAnnId(im)} must carry category: "note", got ${JSON.stringify(im.category)}`,
       };
     }
     if (typeof im.reviewerNotes !== "string" || !im.reviewerNotes.startsWith("Impact of ")) {
       return {
         ok: false,
-        reason: `impact block ${im.annotationId} reviewerNotes must start with 'Impact of '`,
+        reason: `impact block ${firstAnnId(im)} reviewerNotes must start with 'Impact of '`,
       };
     }
   }
@@ -728,7 +737,7 @@ function assertVacuousPhase(result, _dir, workspaceDir) {
     return kind === "cascade" || kind === "impact";
   });
   if (synthesised.length > 0) {
-    const ids = synthesised.map((b) => b.annotationId).join(", ");
+    const ids = synthesised.map((b) => firstAnnId(b)).join(", ");
     return {
       ok: false,
       reason: `praise-only bundle should emit zero cascade/impact blocks, got ${synthesised.length}: ${ids}`,
@@ -748,7 +757,7 @@ function assertCitationOnlyNoTrigger(result, _dir, workspaceDir) {
     return kind === "cascade" || kind === "impact";
   });
   if (synthesised.length > 0) {
-    const ids = synthesised.map((b) => b.annotationId).join(", ");
+    const ids = synthesised.map((b) => firstAnnId(b)).join(", ");
     return {
       ok: false,
       reason: `citation-needed (pure addition, no token substituted) must not cascade; got ${synthesised.length}: ${ids}`,
@@ -818,22 +827,22 @@ function assertLexicalMorphologyCascade(result, _dir, workspaceDir) {
   const covered = new Set();
   for (const c of cascades) {
     if (typeof c.patch !== "string" || c.patch.length === 0) {
-      return { ok: false, reason: `cascade block ${c.annotationId} has empty patch` };
+      return { ok: false, reason: `cascade block ${firstAnnId(c)} has empty patch` };
     }
     if (!c.patch.endsWith("\n")) {
-      return { ok: false, reason: `cascade block ${c.annotationId} patch does not end with \\n` };
+      return { ok: false, reason: `cascade block ${firstAnnId(c)} patch does not end with \\n` };
     }
     if (typeof c.reviewerNotes !== "string" || !c.reviewerNotes.startsWith("Cascaded from ")) {
       return {
         ok: false,
-        reason: `cascade block ${c.annotationId} reviewerNotes must start with 'Cascaded from '`,
+        reason: `cascade block ${firstAnnId(c)} reviewerNotes must start with 'Cascaded from '`,
       };
     }
     // Must not cascade into 'test failure' / 'test failure mode' in Methods — different referent.
     if (/\btest\s+failure/i.test(c.patch)) {
       return {
         ok: false,
-        reason: `cascade block ${c.annotationId} wrongly cascaded into a 'test failure' line (different referent in Methods)`,
+        reason: `cascade block ${firstAnnId(c)} wrongly cascaded into a 'test failure' line (different referent in Methods)`,
       };
     }
     for (const v of variantPatterns) {
@@ -874,21 +883,21 @@ function assertQualitySweep(result, _dir, workspaceDir) {
   }
   for (const q of quality) {
     if (typeof q.patch !== "string" || q.patch.length === 0) {
-      return { ok: false, reason: `quality block ${q.annotationId} has empty patch` };
+      return { ok: false, reason: `quality block ${firstAnnId(q)} has empty patch` };
     }
     if (!q.patch.endsWith("\n")) {
-      return { ok: false, reason: `quality block ${q.annotationId} patch does not end with \\n` };
+      return { ok: false, reason: `quality block ${firstAnnId(q)} patch does not end with \\n` };
     }
     if (typeof q.reviewerNotes !== "string" || !q.reviewerNotes.startsWith("Quality pass: ")) {
       return {
         ok: false,
-        reason: `quality block ${q.annotationId} reviewerNotes must start with 'Quality pass: '`,
+        reason: `quality block ${firstAnnId(q)} reviewerNotes must start with 'Quality pass: '`,
       };
     }
     if (q.ambiguous !== false) {
       return {
         ok: false,
-        reason: `quality block ${q.annotationId} must carry ambiguous: false, got ${JSON.stringify(q.ambiguous)}`,
+        reason: `quality block ${firstAnnId(q)} must carry ambiguous: false, got ${JSON.stringify(q.ambiguous)}`,
       };
     }
   }
@@ -908,7 +917,7 @@ function assertQualitySweep(result, _dir, workspaceDir) {
       if (sourceLines.has(i)) {
         return {
           ok: false,
-          reason: `quality block ${q.annotationId} collides with a user-mark line range at line ${i}`,
+          reason: `quality block ${firstAnnId(q)} collides with a user-mark line range at line ${i}`,
         };
       }
     }
