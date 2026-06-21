@@ -47,9 +47,10 @@ pnpm capture:metrics --engine opencode --fixture large --marks 25 --label 25mark
 Flags: `--engine claude|opencode`, `--fixture small|large|<abs paper dir>`,
 `--marks N`, `--label <slug>` (names the file `<YYYY-MM-DD>-<label>.jsonl`),
 `--out <dir>` (default this directory), `--keep-tmp` (preserve the scratch
-project/workspace for inspection). `small` is the shared `sample.md` (~8 prose
-spans, right for 1–7 marks); `large` is `fixtures/capture/large.md` (~18 spans,
-for 12–25). Marks are synthesised with **source anchors**, so a given
+project/workspace for inspection). `small` is the shared `fixtures/sample/sample.md`
+(~8 prose spans, right for 1–7 marks); `large` is the 15-section survey at
+`fixtures/sample-large/sample.md` (~52 spans, for 12–25). Marks are synthesised
+with **source anchors**, so a given
 `(fixture, N)` always produces the same bundle — see the script header for the
 rationale.
 

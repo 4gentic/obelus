@@ -24,7 +24,7 @@
 // serve a whole sub-range of the gradient with no new files: (a) any N is a
 // loop, not a checked-in artifact; (b) source anchors are deterministic and
 // need no PDF coordinate math; (c) it drives the same apply-revision → plan-fix
-// path a real writer review takes. The two fixtures (small ≈8 spans, large ≈18)
+// path a real writer review takes. The two fixtures (small ≈8 spans, large ≈52)
 // exist only to give realistic span density at each end of the gradient — small
 // for 1–7 marks, large for 12–25. Synthesized ids are deterministic, so two
 // snapshots at the same (fixture, N) differ only in the timings that changed.
@@ -90,10 +90,10 @@ const metricsDir = resolve(repoRoot, "docs/metrics");
 
 const TIMEOUT_MS = 900_000;
 
-// Known fixtures. `small` is the shared sample paper (~7 reviewable spans, the
-// right size for 1–7 mark captures). `large` is a longer markdown paper
-// (~25 spans) for the top of the capture gradient. Anything else is treated as
-// a path to the reviewer's own paper dir.
+// Known fixtures. `small` is the shared sample paper (~8 reviewable spans, the
+// right size for 1–7 mark captures). `large` is the 15-section survey
+// (~52 prose spans) for the top of the capture gradient. Anything else is
+// treated as a path to the reviewer's own paper dir.
 const FIXTURES = {
   small: {
     dir: resolve(pluginDir, "fixtures/sample"),
@@ -101,9 +101,9 @@ const FIXTURES = {
     title: "On the Scalability of Transformer Attention",
   },
   large: {
-    dir: resolve(pluginDir, "fixtures/capture"),
-    entrypoint: "large.md",
-    title: "Bounded-Staleness Replication for Wide-Area Key-Value Stores",
+    dir: resolve(pluginDir, "fixtures/sample-large"),
+    entrypoint: "sample.md",
+    title: "The Scalability of Transformer Attention: A Critical Survey of Long-Context Mechanisms",
   },
 };
 
