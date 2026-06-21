@@ -97,19 +97,55 @@ export function parseChange(patch: string, sourceText: string | null): ParsedCha
   };
 }
 
-// Format jsdiff's structured hunks into the project's stored-patch shape:
-// `@@ -a,b +c,d @@` followed by the body lines, hunks joined by "\n". No
-// `---`/`+++`/`Index:` file headers — stored patches and the Rust apply path
+interface PatchHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: string[];
+}
+
+// Merge jsdiff's hunks into one spanning hunk. structuredPatch splits an edit
+// that leaves a long unchanged middle into separate hunks; a DiffHunkRow holds
+// exactly one (docs/plan-example.md), and parseChange / the Rust apply path
+// both read a single `@@`. The gap between two hunks is unchanged old-file
+// lines, re-added here as context so the merged hunk stays contiguous.
+function coalesceHunks(
+  hunks: ReadonlyArray<PatchHunk>,
+  oldLines: ReadonlyArray<string>,
+): PatchHunk[] {
+  const first = hunks[0];
+  const last = hunks.at(-1);
+  if (first === undefined || last === undefined || hunks.length === 1) return [...hunks];
+
+  const lines: string[] = [];
+  for (let i = 0; i < hunks.length; i += 1) {
+    const cur = hunks[i];
+    if (cur === undefined) continue;
+    lines.push(...cur.lines);
+    const next = hunks[i + 1];
+    if (next === undefined) continue;
+    for (let ln = cur.oldStart + cur.oldLines; ln < next.oldStart; ln += 1) {
+      const text = oldLines[ln - 1];
+      if (text !== undefined) lines.push(` ${text}`);
+    }
+  }
+  return [
+    {
+      oldStart: first.oldStart,
+      oldLines: last.oldStart + last.oldLines - first.oldStart,
+      newStart: first.newStart,
+      newLines: last.newStart + last.newLines - first.newStart,
+      lines,
+    },
+  ];
+}
+
+// Format hunks into the project's stored-patch shape: `@@ -a,b +c,d @@`
+// followed by the body lines, hunks joined by "\n". No `---`/`+++`/`Index:`
+// file headers — stored patches and the Rust apply path
 // (apps/desktop/src-tauri/src/commands/apply.rs) carry only the hunk.
-function formatHunks(
-  hunks: ReadonlyArray<{
-    oldStart: number;
-    oldLines: number;
-    newStart: number;
-    newLines: number;
-    lines: string[];
-  }>,
-): string {
+function formatHunks(hunks: ReadonlyArray<PatchHunk>): string {
   return hunks
     .map((h) => {
       const head = `@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@`;
@@ -144,5 +180,5 @@ export function synthesizePatch(
   const newFile = newLines.join("\n") + terminator;
 
   const patch = structuredPatch("a", "b", sourceText, newFile, "", "", { context: 3 });
-  return formatHunks(patch.hunks);
+  return formatHunks(coalesceHunks(patch.hunks, srcLines));
 }

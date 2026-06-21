@@ -58,6 +58,35 @@ describe("parseChange", () => {
     expect(change?.oldCount).toBe(1);
     expect(change?.before).toBe("only line");
   });
+
+  it("clamps context to the file start", () => {
+    const source = "first\nsecond\nthird\n";
+    const change = parseChange("@@ -1,1 +1,1 @@\n-first\n+FIRST\n", source);
+    expect(change?.contextBefore).toEqual([]);
+    expect(change?.contextAfter).toEqual(["second", "third"]);
+  });
+
+  it("clamps context to the file end", () => {
+    const source = "a\nb\nc";
+    const change = parseChange("@@ -3,1 +3,1 @@\n-c\n+C\n", source);
+    expect(change?.contextBefore).toEqual(["a", "b"]);
+    expect(change?.contextAfter).toEqual([]);
+  });
+
+  it("drops a `\\ No newline at end of file` marker from the body", () => {
+    const patch = "@@ -1,1 +1,1 @@\n-old\n\\ No newline at end of file\n+new\n";
+    const change = parseChange(patch, null);
+    expect(change?.before).toBe("old");
+    expect(change?.after).toBe("new");
+  });
+
+  it("does not throw when the source is too short for the header range", () => {
+    const change = parseChange("@@ -50,1 +50,1 @@\n-x\n+y\n", "only one line\n");
+    expect(change?.before).toBe("");
+    expect(change?.after).toBe("y");
+    expect(change?.contextBefore).toEqual([]);
+    expect(change?.contextAfter).toEqual([]);
+  });
 });
 
 // Every synthesized patch carries only `@@` hunks — no Index:/---/+++ headers —
@@ -158,5 +187,44 @@ describe("synthesize → apply round-trip", () => {
     const synthesized = synthesizePatch(source, original, editedAfter);
     const applied = applyPatch(source, synthesized);
     expect(applied).toBe("head\nrewritten a\nrewritten b\nrewritten c\ntail\n");
+  });
+});
+
+// A DiffHunkRow carries one hunk (docs/plan-example.md); the apply path and
+// parseChange both read a single `@@`. structuredPatch, left alone, splits an
+// edit that leaves a long unchanged middle into two hunks — and then
+// parseChange folds the second `@@` line into the reconstructed text. The
+// stored patch must stay single-hunk regardless of where the edits land.
+describe("synthesizePatch stays single-hunk", () => {
+  it("coalesces an edit whose result keeps a long identical middle", () => {
+    const source = `${["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9"].join("\n")}\n`;
+    // Only the header of the original patch is read; the body is irrelevant.
+    const original = "@@ -1,10 +1,10 @@\n-L0\n+X0\n";
+    // First and last line change; L1..L8 (eight lines) stay identical, which is
+    // past the gap where context-3 jsdiff opens a second hunk.
+    const editedAfter = ["X0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "X9"].join("\n");
+
+    const out = synthesizePatch(source, original, editedAfter);
+    assertNoFileHeaders(out);
+    expect(out.match(/^@@ /gm)?.length).toBe(1);
+
+    expect(applyPatch(source, out)).toBe(`${editedAfter}\n`);
+
+    // No `@@` fragment leaks into the reconstructed after-text, and the full
+    // span (not a truncated first-hunk slice) reconstructs as `before`.
+    expect(parseChange(out, null)?.after).toBe(editedAfter);
+    expect(parseChange(out, source)?.before).toBe(source.replace(/\n$/, ""));
+  });
+
+  it("coalesces a three-region edit with two gaps", () => {
+    const source = `${Array.from({ length: 21 }, (_, i) => `L${i}`).join("\n")}\n`;
+    const original = "@@ -1,21 +1,21 @@\n";
+    const editedAfter = Array.from({ length: 21 }, (_, i) =>
+      i === 0 || i === 10 || i === 20 ? `X${i}` : `L${i}`,
+    ).join("\n");
+
+    const out = synthesizePatch(source, original, editedAfter);
+    expect(out.match(/^@@ /gm)?.length).toBe(1);
+    expect(applyPatch(source, out)).toBe(`${editedAfter}\n`);
   });
 });
