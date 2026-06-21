@@ -444,6 +444,28 @@ describe("createDiffStore — edit round-trip (synthesizePatch regression)", () 
     expect(reseeded).not.toContain("@ -");
   });
 
+  it("discards an edit that nets to no change instead of storing an empty patch", async () => {
+    const { repo, fns } = makeRepo();
+    const { reviewSessions } = makeReviewSessions();
+    const patch = "@@ -2,1 +2,1 @@\n-beta\n+BETA\n";
+    fns.listForSession.mockResolvedValueOnce([hunk({ id: "h1", patch })]);
+    const store = createDiffStore(repo, reviewSessions);
+    await store.getState().load("sess-1");
+    const source = "alpha\nbeta\ngamma\n";
+
+    store.getState().startEdit("h1", source);
+    // Reviewer types the suggestion back to the original line — a no-op edit.
+    store.getState().setEditingText("beta");
+    await store.getState().commitEdit(source);
+
+    expect(fns.setModifiedPatch).not.toHaveBeenCalled();
+    const h = store.getState().hunks[0];
+    expect(h?.state).toBe("pending");
+    expect(h?.modifiedPatchText).toBeNull();
+    expect(store.getState().editingId).toBeNull();
+    expect(store.getState().editingText).toBe("");
+  });
+
   it("commitEdit with no source stores the edited text verbatim", async () => {
     const { repo, fns } = makeRepo();
     const { reviewSessions } = makeReviewSessions();

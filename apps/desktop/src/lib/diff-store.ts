@@ -266,6 +266,17 @@ export function createDiffStore(
       if (!hunk) return;
       const synthesized =
         sourceText === null ? editingText : synthesizePatch(sourceText, hunk.patch, editingText);
+
+      // A no-op edit — the reviewer typed the suggestion back to the source, or
+      // emptied the box — synthesizes to "". Storing it as a "modified" hunk arms
+      // Apply over a patch that writes nothing (the gate counts it, the payload
+      // drops it, apply reports "none could apply"), so discard it like a cancel.
+      if (synthesized.trim() === "") {
+        console.info("[edit-commit]", { hunkId: editingId, file: hunk.file, discarded: true });
+        set({ editingId: null, editingText: "" });
+        return;
+      }
+
       await repo.setModifiedPatch(editingId, synthesized);
       const next = hunks.map((h) =>
         h.id === editingId
@@ -276,7 +287,6 @@ export function createDiffStore(
         hunkId: editingId,
         file: hunk.file,
         synthesizedBytes: synthesized.length,
-        empty: synthesized === "",
       });
       set({
         hunks: next,
