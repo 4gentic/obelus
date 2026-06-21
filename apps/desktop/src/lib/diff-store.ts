@@ -1,3 +1,4 @@
+import { parseChange, synthesizePatch } from "@obelus/diff-view";
 import type {
   DiffHunkApplyFailure,
   DiffHunkRow,
@@ -72,9 +73,13 @@ export interface DiffState {
   acceptFile(file: string): Promise<void>;
   acceptAll(): Promise<void>;
   rejectAll(): Promise<void>;
-  startEdit(id: string): void;
+  // Editing works on the suggested prose, never diff syntax. `startEdit` seeds
+  // the editor with the change's "after" text; `commitEdit` re-synthesizes a
+  // unified patch from the edited prose so the stored shape and the apply path
+  // are unchanged. Both need the file's current source as the diff base.
+  startEdit(id: string, sourceText: string | null): void;
   setEditingText(text: string): void;
-  commitEdit(): Promise<void>;
+  commitEdit(sourceText: string | null): Promise<void>;
   cancelEdit(): void;
   startNote(id: string): void;
   setNoteText(text: string): void;
@@ -239,12 +244,14 @@ export function createDiffStore(
       set({ hunks: next, counts: recount(next) });
     },
 
-    startEdit(id: string): void {
+    startEdit(id: string, sourceText: string | null): void {
       const hunk = get().hunks.find((h) => h.id === id);
       if (!hunk) return;
+      const patch = hunk.modifiedPatchText ?? hunk.patch;
+      const change = parseChange(patch, sourceText);
       set({
         editingId: id,
-        editingText: hunk.modifiedPatchText ?? hunk.patch,
+        editingText: change?.after ?? patch,
       });
     },
 
@@ -252,15 +259,35 @@ export function createDiffStore(
       set({ editingText: text });
     },
 
-    async commitEdit(): Promise<void> {
+    async commitEdit(sourceText: string | null): Promise<void> {
       const { editingId, editingText, hunks } = get();
       if (!editingId) return;
-      await repo.setModifiedPatch(editingId, editingText);
+      const hunk = hunks.find((h) => h.id === editingId);
+      if (!hunk) return;
+      const synthesized =
+        sourceText === null ? editingText : synthesizePatch(sourceText, hunk.patch, editingText);
+
+      // A no-op edit — the reviewer typed the suggestion back to the source, or
+      // emptied the box — synthesizes to "". Storing it as a "modified" hunk arms
+      // Apply over a patch that writes nothing (the gate counts it, the payload
+      // drops it, apply reports "none could apply"), so discard it like a cancel.
+      if (synthesized.trim() === "") {
+        console.info("[edit-commit]", { hunkId: editingId, file: hunk.file, discarded: true });
+        set({ editingId: null, editingText: "" });
+        return;
+      }
+
+      await repo.setModifiedPatch(editingId, synthesized);
       const next = hunks.map((h) =>
         h.id === editingId
-          ? { ...h, modifiedPatchText: editingText, state: "modified" as const }
+          ? { ...h, modifiedPatchText: synthesized, state: "modified" as const }
           : h,
       );
+      console.info("[edit-commit]", {
+        hunkId: editingId,
+        file: hunk.file,
+        synthesizedBytes: synthesized.length,
+      });
       set({
         hunks: next,
         counts: recount(next),

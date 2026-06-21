@@ -9,7 +9,9 @@ import { paperHasSources } from "../../lib/paper-has-sources";
 import { splitHeadline } from "../../lib/split-headline";
 import { useKeyNav } from "../../lib/use-key-nav";
 import { useProject } from "./context";
+import { computeApplyGate, fileKey, groupByFile } from "./diff-review-gate";
 import { useDiffStore } from "./diff-store-context";
+import { filesInDocumentOrder, primaryAnnotation, sortByDocumentOrder } from "./document-order";
 import HunkBlock from "./HunkBlock";
 import { isDeepReviewPlanName } from "./ingest-plan";
 import { markLocationLabel } from "./mark-location-label";
@@ -27,21 +29,6 @@ interface Props {
 }
 
 const EMPTY_PHASE_HISTORY: readonly PhaseEntry[] = Object.freeze([]);
-
-function fileKey(h: DiffHunkRow): string {
-  return h.file === "" ? "(unresolved)" : h.file;
-}
-
-function groupByFile(hunks: ReadonlyArray<DiffHunkRow>): Map<string, DiffHunkRow[]> {
-  const map = new Map<string, DiffHunkRow[]>();
-  for (const h of hunks) {
-    const key = fileKey(h);
-    const bucket = map.get(key) ?? [];
-    bucket.push(h);
-    map.set(key, bucket);
-  }
-  return map;
-}
 
 export default function DiffReview(props: Props): JSX.Element {
   const { project, rootId, repo } = useProject();
@@ -99,7 +86,6 @@ export default function DiffReview(props: Props): JSX.Element {
   );
 
   const grouped = useMemo(() => groupByFile(visibleAllHunks), [visibleAllHunks]);
-  const files = useMemo(() => [...grouped.keys()], [grouped]);
 
   // Annotation-id → row for tooltips on multi-mark diffs and the informational
   // section's location/quote/category rendering. Loaded lazily once per
@@ -155,23 +141,47 @@ export default function DiffReview(props: Props): JSX.Element {
     return m;
   }, [annotationsById]);
 
-  const [activeFile, setActiveFile] = useState<string | null>(() => files[0] ?? null);
+  // The paper's own file sequence, entrypoint first, then alphabetical — so a
+  // file's suggestions stay contiguous in document order. Derived from the
+  // build we already have; no extra fetch.
+  const fileOrder = useMemo<ReadonlyMap<string, number>>(() => {
+    const names = [...new Set(visibleAllHunks.map((h) => h.file).filter((f) => f !== ""))];
+    const entry = paperBuild?.mainRelPath ?? null;
+    names.sort((a, b) => {
+      if (entry !== null) {
+        if (a === entry) return b === entry ? 0 : -1;
+        if (b === entry) return 1;
+      }
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    return new Map(names.map((name, i) => [name, i]));
+  }, [visibleAllHunks, paperBuild]);
+
+  // The rendered stream: the suggestion for each marked passage, in document
+  // order. The store's `hunks` array stays ordinal-ordered (it's the index
+  // space for `focusedIndex`); this is a sorted view over it.
+  const orderedVisibleHunks = useMemo(
+    () => sortByDocumentOrder(visibleAllHunks, annotationsById, fileOrder),
+    [visibleAllHunks, annotationsById, fileOrder],
+  );
+  const files = useMemo(
+    () => filesInDocumentOrder(visibleAllHunks, fileKey, annotationsById, fileOrder),
+    [visibleAllHunks, annotationsById, fileOrder],
+  );
+  const orderedInformational = useMemo(
+    () => sortByDocumentOrder(hiddenInformational, annotationsById, fileOrder),
+    [hiddenInformational, annotationsById, fileOrder],
+  );
+
   const fileListRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    if (files.length === 0) {
-      if (activeFile !== null) setActiveFile(null);
-      return;
-    }
-    if (activeFile === null || !files.includes(activeFile)) {
-      setActiveFile(files[0] ?? null);
-    }
-  }, [files, activeFile]);
+  const focusedHunk = hunks[focusedIndex];
+  // The filter highlights wherever focus currently sits — not a separate
+  // selection. The list is one document-ordered stream; the file control jumps
+  // within it.
+  const activeFile = focusedHunk ? fileKey(focusedHunk) : (files[0] ?? null);
 
-  // Keep the active file row visible inside the now-scrollable list. When a
-  // diff has more files than fit in `max-height`, the list scrolls internally
-  // — without this, clicking a file via the hunk header (or activeFile changing
-  // for any other reason) could leave its row offscreen in the list.
+  // Keep the highlighted file row visible inside the now-scrollable filter.
   useEffect(() => {
     if (activeFile === null) return;
     const container = fileListRef.current;
@@ -180,25 +190,41 @@ export default function DiffReview(props: Props): JSX.Element {
     row?.scrollIntoView({ block: "nearest" });
   }, [activeFile]);
 
-  const focusedHunk = hunks[focusedIndex];
-  const visibleHunks = useMemo(() => {
-    if (activeFile === null) return [];
-    return visibleAllHunks.filter((h) => fileKey(h) === activeFile);
-  }, [visibleAllHunks, activeFile]);
+  // The global index (into the store's ordinal-ordered `hunks`) of each
+  // suggestion in the rendered document order. `j`/`k` walk this; `[`/`]` jump
+  // by file within it.
+  const orderedIndices = useMemo(
+    () => orderedVisibleHunks.map((h) => hunks.indexOf(h)).filter((i) => i >= 0),
+    [orderedVisibleHunks, hunks],
+  );
 
-  const pendingInActive = useMemo(() => {
-    if (activeFile === null) return 0;
-    const bucket = grouped.get(activeFile) ?? [];
-    return bucket.reduce((n, h) => (h.state === "pending" ? n + 1 : n), 0);
-  }, [grouped, activeFile]);
+  // On a fresh session, land focus on the first suggestion in document order —
+  // not `hunks[0]`, which is ordinal-first. Re-fires once more after annotations
+  // resolve and the stream re-sorts off its anchors, but only while focus is
+  // still at the load default (index 0); once the reviewer has navigated, their
+  // position is left alone.
+  const focusedSessionRef = useRef<string | null>(null);
+  const annotationsResolvedRef = useRef(false);
+  useEffect(() => {
+    const resolved = annotationsById.size > 0;
+    const newSession = focusedSessionRef.current !== sessionId;
+    const justResolved = resolved && !annotationsResolvedRef.current;
+    focusedSessionRef.current = sessionId;
+    annotationsResolvedRef.current = resolved;
+    if (sessionId === null || orderedIndices.length === 0) return;
+    if (!newSession && !(justResolved && store.getState().focusedIndex === 0)) return;
+    const first = orderedIndices[0];
+    if (first !== undefined) store.getState().focus(first);
+  }, [sessionId, orderedIndices, annotationsById, store]);
 
   const goToFile = useCallback(
     (file: string): void => {
-      setActiveFile(file);
-      const idx = hunks.findIndex((h) => fileKey(h) === file && (h.patch !== "" || !hasSources));
+      const target = orderedVisibleHunks.find((h) => fileKey(h) === file);
+      if (!target) return;
+      const idx = hunks.indexOf(target);
       if (idx >= 0) store.getState().focus(idx);
     },
-    [hunks, hasSources, store],
+    [orderedVisibleHunks, hunks, store],
   );
 
   const stepFile = useCallback(
@@ -211,21 +237,6 @@ export default function DiffReview(props: Props): JSX.Element {
     },
     [files, activeFile, goToFile],
   );
-
-  const prevPendingInActiveRef = useRef(pendingInActive);
-  useEffect(() => {
-    const prev = prevPendingInActiveRef.current;
-    prevPendingInActiveRef.current = pendingInActive;
-    if (activeFile === null) return;
-    if (prev <= 0 || pendingInActive !== 0) return;
-    const activeIdx = files.indexOf(activeFile);
-    const rotated = [...files.slice(activeIdx + 1), ...files.slice(0, activeIdx)];
-    const next = rotated.find((f) => {
-      const bucket = grouped.get(f) ?? [];
-      return bucket.some((h) => h.state === "pending");
-    });
-    if (next !== undefined && next !== activeFile) goToFile(next);
-  }, [pendingInActive, activeFile, files, grouped, goToFile]);
 
   const [sourceByFile, setSourceByFile] = useState<ReadonlyMap<string, string>>(
     () => new Map<string, string>(),
@@ -264,53 +275,51 @@ export default function DiffReview(props: Props): JSX.Element {
 
   const modeless = editingId === null && noteId === null;
 
-  const navInFile = useCallback(
+  // The file's current bytes are the diff base for editing the suggested prose:
+  // startEdit reads the change's "after" from them, commitEdit re-synthesizes a
+  // patch against them. Null for unresolved files (HunkBlock's edit affordance
+  // is already hidden there, since those rows carry no patch).
+  const sourceForHunk = useCallback(
+    (h: DiffHunkRow): string | null => (h.file === "" ? null : (sourceByFile.get(h.file) ?? null)),
+    [sourceByFile],
+  );
+
+  const navStream = useCallback(
     (delta: 1 | -1): void => {
-      if (activeFile === null) return;
+      if (orderedIndices.length === 0) return;
       const state = store.getState();
-      const locals: number[] = [];
-      state.hunks.forEach((h, i) => {
-        if (fileKey(h) !== activeFile) return;
-        if (hasSources && h.patch === "") return;
-        locals.push(i);
-      });
-      if (locals.length === 0) return;
-      const curGlobal = state.focusedIndex;
-      const curLocal = locals.indexOf(curGlobal);
-      const nextLocal = curLocal < 0 ? 0 : (curLocal + delta + locals.length) % locals.length;
-      const globalIdx = locals[nextLocal];
+      const cur = orderedIndices.indexOf(state.focusedIndex);
+      const next =
+        cur < 0
+          ? delta > 0
+            ? 0
+            : orderedIndices.length - 1
+          : (cur + delta + orderedIndices.length) % orderedIndices.length;
+      const globalIdx = orderedIndices[next];
       if (globalIdx !== undefined) state.focus(globalIdx);
     },
-    [activeFile, hasSources, store],
+    [orderedIndices, store],
   );
 
   const focusEdge = useCallback(
     (edge: "first" | "last"): void => {
-      if (activeFile === null) return;
-      const state = store.getState();
-      const locals: number[] = [];
-      state.hunks.forEach((h, i) => {
-        if (fileKey(h) !== activeFile) return;
-        if (hasSources && h.patch === "") return;
-        locals.push(i);
-      });
-      if (locals.length === 0) return;
-      const pick = edge === "first" ? locals[0] : locals[locals.length - 1];
-      if (pick !== undefined) state.focus(pick);
+      if (orderedIndices.length === 0) return;
+      const pick = edge === "first" ? orderedIndices[0] : orderedIndices[orderedIndices.length - 1];
+      if (pick !== undefined) store.getState().focus(pick);
     },
-    [activeFile, hasSources, store],
+    [orderedIndices, store],
   );
 
   useKeyNav(
     {
-      j: () => navInFile(1),
-      k: () => navInFile(-1),
+      j: () => navStream(1),
+      k: () => navStream(-1),
       a: () => void store.getState().accept(),
       r: () => void store.getState().reject(),
       Backspace: () => void store.getState().reject(),
       e: () => {
         const f = store.getState().hunks[store.getState().focusedIndex];
-        if (f) store.getState().startEdit(f.id);
+        if (f) store.getState().startEdit(f.id, sourceForHunk(f));
       },
       n: () => {
         const f = store.getState().hunks[store.getState().focusedIndex];
@@ -384,7 +393,7 @@ export default function DiffReview(props: Props): JSX.Element {
         ? runner.status.message
         : !hasSources
           ? "This paper has no source files — the Diff tab records notes, not edits."
-          : "Plan loaded but no hunks were produced.";
+          : "Plan loaded, but it proposed no edits.";
     const { headline, details } = splitHeadline(hint);
     return (
       <div className="review-column__empty">
@@ -416,20 +425,12 @@ export default function DiffReview(props: Props): JSX.Element {
     runner.status.kind === "working" ||
     runner.status.kind === "running" ||
     runner.status.kind === "ingesting";
-  const bulkAvailable =
-    applyStatus.kind !== "applying" &&
-    applyStatus.kind !== "applied" &&
-    applyStatus.kind !== "partial" &&
-    !runnerBusy;
-  const canAcceptAll = bulkAvailable && applicableCounts.pending + applicableCounts.rejected > 0;
-  const canRejectAll = bulkAvailable && applicableCounts.pending + applicableCounts.accepted > 0;
-  const applicable =
-    applicableCounts.pending === 0 &&
-    acceptedTotal > 0 &&
-    applyStatus.kind !== "applying" &&
-    applyStatus.kind !== "applied" &&
-    applyStatus.kind !== "partial" &&
-    !runnerBusy;
+  const { canAcceptAll, canRejectAll, applicable } = computeApplyGate({
+    applicableCounts,
+    acceptedTotal,
+    applyStatus,
+    runnerBusy,
+  });
   const canRunDeep =
     deepReview.kind === "ready" &&
     activePaperId !== null &&
@@ -469,7 +470,7 @@ export default function DiffReview(props: Props): JSX.Element {
               className="btn btn--subtle"
               disabled={!canAcceptAll}
               onClick={() => void store.getState().acceptAll()}
-              title="Accept every hunk in this session. Hunks you've edited stay as-is."
+              title="Accept every suggestion in this session. The ones you've edited stay as-is."
             >
               accept all
             </button>
@@ -478,7 +479,7 @@ export default function DiffReview(props: Props): JSX.Element {
               className="btn btn--subtle"
               disabled={!canRejectAll}
               onClick={() => void store.getState().rejectAll()}
-              title="Reject every hunk in this session. Hunks you've edited stay as-is."
+              title="Reject every suggestion in this session. The ones you've edited stay as-is."
             >
               reject all
             </button>
@@ -497,7 +498,7 @@ export default function DiffReview(props: Props): JSX.Element {
               type="button"
               className="btn"
               onClick={() => void props.onDiscard()}
-              title="Dismiss this review. Hunks stay in history; the active diff clears."
+              title="Dismiss this review. The suggestions stay in history; the active review clears."
             >
               discard
             </button>
@@ -508,52 +509,50 @@ export default function DiffReview(props: Props): JSX.Element {
               onClick={() => void props.onApply()}
               title={
                 applicableCounts.pending > 0
-                  ? `Handle the remaining ${applicableCounts.pending} hunk${applicableCounts.pending === 1 ? "" : "s"} first.`
-                  : "Apply the accepted changes to source (keyboard: .)"
+                  ? `Handle the remaining ${applicableCounts.pending} suggestion${applicableCounts.pending === 1 ? "" : "s"} first.`
+                  : "Write the accepted changes into the draft (keyboard: .)"
               }
             >
-              apply
+              Update the draft
               <span className="diff-review__kbd" aria-hidden>
                 .
               </span>
             </button>
           </div>
         </div>
-        <nav
-          className="diff-review__files"
-          aria-label="Files with pending review"
-          ref={fileListRef}
-        >
-          {files.map((file) => {
-            const bucket = grouped.get(file) ?? [];
-            const handled = bucket.filter((h) => h.state !== "pending").length;
-            const pending = bucket.length - handled;
-            const isActive = activeFile === file;
-            const isDone = pending === 0;
-            return (
-              <button
-                key={file}
-                type="button"
-                data-file-row={file}
-                className={[
-                  "diff-review__file-row",
-                  isActive ? "diff-review__file-row--on" : "",
-                  isDone ? "diff-review__file-row--done" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                onClick={() => goToFile(file)}
-                title={file}
-                aria-current={isActive ? "true" : undefined}
-              >
-                <span className="diff-review__file-row-path">{file}</span>
-                <span className="diff-review__file-row-count">
-                  {handled}/{bucket.length}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
+        {files.length > 1 && (
+          <nav className="diff-review__files" aria-label="Jump to a file" ref={fileListRef}>
+            {files.map((file) => {
+              const bucket = grouped.get(file) ?? [];
+              const handled = bucket.filter((h) => h.state !== "pending").length;
+              const pending = bucket.length - handled;
+              const isActive = activeFile === file;
+              const isDone = pending === 0;
+              return (
+                <button
+                  key={file}
+                  type="button"
+                  data-file-row={file}
+                  className={[
+                    "diff-review__file-row",
+                    isActive ? "diff-review__file-row--on" : "",
+                    isDone ? "diff-review__file-row--done" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={() => goToFile(file)}
+                  title={`Jump to the first suggestion in ${file}`}
+                  aria-current={isActive ? "true" : undefined}
+                >
+                  <span className="diff-review__file-row-path">{file}</span>
+                  <span className="diff-review__file-row-count">
+                    {handled}/{bucket.length}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
       </header>
 
       {applyStatus.kind === "applied" && (
@@ -593,9 +592,9 @@ export default function DiffReview(props: Props): JSX.Element {
         applyStatus.kind !== "partial" &&
         props.forkInfo !== null && (
           <p className="diff-review__banner diff-review__banner--warn">
-            You're viewing Draft {props.forkInfo.currentDraftOrdinal}. Applying forks the history —
-            Draft{props.forkInfo.orphanedOrdinals.length === 1 ? "" : "s"}{" "}
-            {props.forkInfo.orphanedOrdinals.join(", ")} stay as an alternate branch.
+            You're viewing Draft {props.forkInfo.currentDraftOrdinal}. Saving here starts a new line
+            of drafts; Draft{props.forkInfo.orphanedOrdinals.length === 1 ? "" : "s"}{" "}
+            {props.forkInfo.orphanedOrdinals.join(", ")} stay aside.
           </p>
         )}
 
@@ -609,8 +608,8 @@ export default function DiffReview(props: Props): JSX.Element {
             </span>
           </summary>
           <ul className="diff-review__informational-list">
-            {hiddenInformational.map((h) => {
-              const annotation = annotationsById.get(h.annotationIds[0] ?? "") ?? null;
+            {orderedInformational.map((h) => {
+              const annotation = primaryAnnotation(h, annotationsById, fileOrder);
               const reason = h.emptyReason ?? "informational";
               const reasonLabel =
                 reason === "structural-note"
@@ -653,18 +652,20 @@ export default function DiffReview(props: Props): JSX.Element {
         </details>
       )}
       <section className="diff-review__list">
-        {visibleHunks.map((h) => {
+        {orderedVisibleHunks.map((h) => {
           const global = hunks.indexOf(h);
           const key = fileKey(h);
           const bucket = grouped.get(key) ?? [];
           const indexInFile = bucket.indexOf(h);
-          const source = h.file === "" ? null : (sourceByFile.get(h.file) ?? null);
+          const source = sourceForHunk(h);
+          const primary = primaryAnnotation(h, annotationsById, fileOrder);
           return (
             <div key={h.id} className="diff-review__group">
               <HunkBlock
                 hunk={h}
                 indexInFile={indexInFile}
                 totalInFile={bucket.length}
+                markLocation={primary ? markLocationLabel(primary) : null}
                 sourceText={source}
                 hasSources={hasSources}
                 marksByAnnotationId={marksByAnnotationId}
@@ -676,9 +677,9 @@ export default function DiffReview(props: Props): JSX.Element {
                 onFocus={() => store.getState().focus(global)}
                 onAccept={() => void store.getState().accept(h.id)}
                 onReject={() => void store.getState().reject(h.id)}
-                onStartEdit={() => store.getState().startEdit(h.id)}
+                onStartEdit={() => store.getState().startEdit(h.id, source)}
                 onEditChange={(t) => store.getState().setEditingText(t)}
-                onCommitEdit={() => void store.getState().commitEdit()}
+                onCommitEdit={() => void store.getState().commitEdit(source)}
                 onCancelEdit={() => store.getState().cancelEdit()}
                 onStartNote={() => store.getState().startNote(h.id)}
                 onNoteChange={(t) => store.getState().setNoteText(t)}
@@ -691,15 +692,15 @@ export default function DiffReview(props: Props): JSX.Element {
       </section>
 
       <footer className="diff-review__foot">
-        <span>j/k nav</span>
-        <span>[ / ] file</span>
-        <span>a/r accept/reject</span>
-        <span>e edit</span>
-        <span>n note</span>
-        <span>⇧a accept file</span>
-        <span>gg / G top/bottom</span>
-        <span>. apply</span>
-        <span>, re-review</span>
+        <span>next/prev j/k</span>
+        {files.length > 1 && <span>jump file [ / ]</span>}
+        <span>accept/reject a/r</span>
+        <span>edit e</span>
+        <span>note n</span>
+        {files.length > 1 && <span>accept file ⇧a</span>}
+        <span>top/bottom gg / G</span>
+        <span>update draft .</span>
+        <span>re-review ,</span>
       </footer>
     </div>
   );

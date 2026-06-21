@@ -1,7 +1,7 @@
 {
   "name": "@obelus/diff-view",
   "version": "0.1.0",
-  "description": "Pure presentational React component that paints unified-diff hunks with Obelus's editorial styling. Props only — no stores, no IPC, no router, no @obelus/repo dependency.",
+  "description": "Renders a stored unified-diff hunk as manuscript track-changes — a serif redline at reading width. Pure functions plus a presentational component; no stores, no IPC, no router, no @obelus/repo dependency.",
   "license": "MIT",
   "type": "module",
   "main": "./src/index.ts",
@@ -20,12 +20,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
+  "dependencies": {
+    "diff": "9.0.0"
+  },
   "peerDependencies": {
     "react": "^19.0.0"
   },
   "devDependencies": {
     "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "happy-dom": "20.9.0",
     "react": "19.2.6",
+    "react-dom": "19.2.6",
     "vitest": "4.1.6"
   }
 }

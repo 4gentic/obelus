@@ -1,5 +1,5 @@
 import { categoryMeta } from "@obelus/categories";
-import { DiffHunks } from "@obelus/diff-view";
+import { InlineChange } from "@obelus/diff-view";
 import "@obelus/diff-view/diff-view.css";
 import type { CSSProperties, JSX } from "react";
 import { Link } from "react-router-dom";
@@ -111,18 +111,23 @@ function DiffSection(): JSX.Element {
         </span>
         <div>
           <h2 id="demo-diff-heading" className="demo-section__title">
-            The diff
+            The changes
           </h2>
           <p className="demo-section__lede">
-            The three edits, applied to <code>{SAMPLE_RESULT_ENTRYPOINT}</code> as a minimal diff —
-            an apparatus note, a commentary gloss, and one reshaped line of the facing translation.
-            You review each hunk before anything lands.
+            The three edits proposed for <code>{SAMPLE_RESULT_ENTRYPOINT}</code>, marked the way an
+            editor marks a manuscript — an apparatus note, a commentary gloss, and one reshaped line
+            of the facing translation. You read each change before anything lands.
           </p>
         </div>
       </header>
-      <div className="demo-diff">
-        <DiffHunks files={SAMPLE_RESULT_DIFF} />
-      </div>
+      <ol className="demo-diff">
+        {SAMPLE_RESULT_DIFF.map((change) => (
+          <li key={change.patch} className="demo-change">
+            <p className="demo-change__label">{change.label}</p>
+            <InlineChange patch={change.patch} sourceText={change.sourceText} />
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

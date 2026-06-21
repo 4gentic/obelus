@@ -17,8 +17,6 @@
 // minimal-diff edit. Nothing here is invented — the changes are defensible
 // editorial edits a copy-editor of this edition would make.
 
-import type { DiffFile } from "@obelus/diff-view";
-
 export const SAMPLE_RESULT_LABEL = "Pre-baked example — no engine ran";
 
 export const SAMPLE_RESULT_ENTRYPOINT = "daedalus-icarus.tex";
@@ -97,55 +95,53 @@ export const SAMPLE_RESULT_PLAN: ReadonlyArray<SampleResultBlock> = [
   },
 ];
 
-// The diff the three actionable marks imply against the edition's LaTeX source.
-// Hunks are ordered by line, the way a real `diff -u` would emit them; the
-// `@@` headers and surrounding context lines are real lines of the edition so
-// the change reads in situ.
-export const SAMPLE_RESULT_DIFF: ReadonlyArray<DiffFile> = [
+// The three actionable marks, each as the stored unified-diff hunk the planner
+// would emit against the edition's LaTeX source, paired with the surrounding
+// source so the viewer can render it as manuscript track-changes in situ. The
+// `patch` strings carry only `@@` hunks — the exact shape the desktop stores in
+// `DiffHunkRow.modifiedPatchText` and the Rust apply path consumes. `sourceText`
+// is the real run of edition lines the hunk sits in; the hunk's `oldStart` is
+// 1-based into that snippet, so the redline reads with its true context.
+export interface SampleResultChange {
+  file: string;
+  // One line naming the edit, shown above the redline.
+  label: string;
+  patch: string;
+  sourceText: string;
+}
+
+export const SAMPLE_RESULT_DIFF: ReadonlyArray<SampleResultChange> = [
   {
     file: "daedalus-icarus.tex",
-    hunks: [
-      {
-        header: "@@ -42,6 +42,7 @@ \\begin{verse}",
-        lines: [
-          { kind: "context", text: "Vota Iovi Minos taurorum corpora centum" },
-          { kind: "context", text: "solvit, ut egressus ratibus Curetida terram" },
-          { kind: "context", text: "contigit, et spoliis decorata est regia fixis." },
-          { kind: "context", text: "creverat obprobrium generis, foedumque patebat" },
-          {
-            kind: "add",
-            text: "% app. crit. v. 187: obprobrium (codd.) — forma antiquior; opprobrium edd. plerique.",
-          },
-          { kind: "context", text: "matris adulterium monstri novitate biformis;" },
-          { kind: "context", text: "destinat hunc Minos thalamo removere pudorem" },
-        ],
-      },
-      {
-        header: "@@ -58,6 +59,8 @@ \\end{verse}",
-        lines: [
-          { kind: "context", text: "multiplicique domo caecisque includere tectis." },
-          { kind: "context", text: "Daedalus ingenio fabrae celeberrimus artis" },
-          {
-            kind: "add",
-            text: "% comm. v. 195: ingenio, non arte — Daedalus is named for wit, not skill;",
-          },
-          { kind: "add", text: "%   the choice foreshadows cunning unbound by paternal feeling." },
-          { kind: "context", text: "ponit opus turbatque notas et lumina flexum" },
-          { kind: "context", text: "ducit in errorem variarum ambage viarum." },
-          { kind: "context", text: "" },
-        ],
-      },
-      {
-        header: "@@ -71,7 +74,7 @@ \\begin{translation}",
-        lines: [
-          { kind: "context", text: "He builds the work and muddles the marks, and leads" },
-          { kind: "context", text: "the eye astray" },
-          { kind: "del", text: "through the winding maze of meandering ways." },
-          { kind: "add", text: "through the maze of circuitous deceits." },
-          { kind: "context", text: "Not otherwise the limpid Maeander plays" },
-          { kind: "context", text: "in Phrygian fields, and slips with doubtful course," },
-        ],
-      },
-    ],
+    label: "Apparatus note for v. 187",
+    sourceText: [
+      "contigit, et spoliis decorata est regia fixis.",
+      "creverat obprobrium generis, foedumque patebat",
+      "matris adulterium monstri novitate biformis;",
+    ].join("\n"),
+    patch:
+      "@@ -2,1 +2,2 @@\n creverat obprobrium generis, foedumque patebat\n+% app. crit. v. 187: obprobrium (codd.) — forma antiquior; opprobrium edd. plerique.\n",
+  },
+  {
+    file: "daedalus-icarus.tex",
+    label: "Commentary gloss on ingenio (v. 195)",
+    sourceText: [
+      "multiplicique domo caecisque includere tectis.",
+      "Daedalus ingenio fabrae celeberrimus artis",
+      "ponit opus turbatque notas et lumina flexum",
+    ].join("\n"),
+    patch:
+      "@@ -2,1 +2,3 @@\n Daedalus ingenio fabrae celeberrimus artis\n+% comm. v. 195: ingenio, non arte — Daedalus is named for wit, not skill;\n+%   the choice foreshadows cunning unbound by paternal feeling.\n",
+  },
+  {
+    file: "daedalus-icarus.tex",
+    label: "Reshaped line of the facing translation",
+    sourceText: [
+      "the eye astray",
+      "through the winding maze of meandering ways.",
+      "Not otherwise the limpid Maeander plays",
+    ].join("\n"),
+    patch:
+      "@@ -2,1 +2,1 @@\n-through the winding maze of meandering ways.\n+through the maze of circuitous deceits.\n",
   },
 ];

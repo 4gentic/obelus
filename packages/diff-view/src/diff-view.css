@@ -1,99 +1,115 @@
-/* Unified-diff hunks, editorial register. Mirrors the desktop diff palette
-   (--diff-old-* / --diff-new-*) so a reviewer who has seen the desktop
-   diff-review pane reads this the same way. Tokens come from
-   @obelus/design-tokens; this file assumes they are in scope. */
+/* Manuscript track-changes. A proposed edit reads as a serif redline at
+   reading width — removed text struck in terracotta, added text underlined in
+   sage — not a unified diff. Tokens come from @obelus/design-tokens; this file
+   assumes they are in scope. */
 
-.diffview-file {
-  border: var(--rule-soft);
-  margin-bottom: var(--space-3);
-}
-
-.diffview-file__head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  background: var(--panel);
-  border-bottom: var(--rule-soft);
-}
-
-.diffview-file__glyph {
-  font-family: var(--font-mono);
-  color: var(--ink-soft);
-  font-size: var(--step--1);
-}
-
-.diffview-file__name {
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  color: var(--ink);
-}
-
-.diffview-hunk {
+.diffview-inline {
   margin: 0;
-  padding: var(--space-2) 0;
-  overflow-x: auto;
-}
-
-.diffview-hunk + .diffview-hunk {
-  border-top: var(--rule-soft);
-}
-
-.diffview-line {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  min-width: max-content;
-  padding: 0 var(--space-2);
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  line-height: 1.5;
+  max-width: 64ch;
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.65;
+  color: var(--ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-.diffview-line__sigil {
-  flex: 0 0 auto;
-  width: 1ch;
+.diffview-inline__context {
   color: var(--ink-soft);
-  user-select: none;
 }
 
-.diffview-line__text {
-  flex: 1 1 auto;
+.diffview-inline__context--before::after {
+  content: " ";
 }
 
-.diffview-line--hunk {
+.diffview-inline__context--after::before {
+  content: " ";
+}
+
+.diffview-inline__del {
+  color: var(--diff-old-rule);
+  text-decoration: line-through;
+}
+
+.diffview-inline__ins {
+  color: var(--diff-new-rule);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.diffview-inline__empty {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+/* A source change (Typst/LaTeX preamble, config blocks) reads as a compact
+   monospace line diff, not the airy serif redline. Only the lines that actually
+   changed are marked; unchanged lines sit quiet so a one-line change in a big
+   block pops. No `@@` header, no `+`/`-` sigils — the colour and gutter rule
+   carry the meaning. */
+.diffview-code {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.diffview-code__row {
+  /* Long lines wrap with the continuation hanging under the first column rather
+     than under the gutter, keeping the change colour as a clean left edge. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-left: 2px solid transparent;
+}
+
+.diffview-code__row--context {
+  color: var(--ink-soft);
+}
+
+.diffview-code__row--removed {
+  color: var(--diff-old-rule);
+  border-left-color: var(--diff-old-rule);
+  background: color-mix(in oklab, var(--diff-old-rule) 7%, var(--paper));
+}
+
+.diffview-code__row--added {
+  color: var(--diff-new-rule);
+  border-left-color: var(--diff-new-rule);
+  background: color-mix(in oklab, var(--diff-new-rule) 9%, var(--paper));
+}
+
+/* A heavily rewritten passage keeps the inline track-changes, then repeats the
+   result as clean unmarked prose below — reading the new text through a wall of
+   marks is the hard part, so the clean copy is the payoff. */
+.diffview-final {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid color-mix(in oklab, var(--ink) 12%, var(--paper));
+}
+
+.diffview-final__label {
   display: block;
-  padding: var(--space-1) var(--space-2);
   margin-bottom: var(--space-1);
   font-family: var(--font-mono);
   font-size: var(--step--1);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--ink-soft);
-  background: var(--panel);
+}
+
+.diffview-final__text {
+  margin: 0;
+  max-width: 64ch;
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.6;
+  color: var(--ink);
   white-space: pre-wrap;
-}
-
-.diffview-line--context {
-  color: var(--ink-soft);
-}
-
-.diffview-line--del {
-  background: var(--diff-old-bg);
-  border-left: 2px solid var(--diff-old-rule);
-  padding-left: calc(var(--space-2) - 2px);
-}
-
-.diffview-line--del .diffview-line__sigil {
-  color: var(--diff-old-rule);
-}
-
-.diffview-line--add {
-  background: var(--diff-new-bg);
-  border-left: 2px solid var(--diff-new-rule);
-  padding-left: calc(var(--space-2) - 2px);
-}
-
-.diffview-line--add .diffview-line__sigil {
-  color: var(--diff-new-rule);
+  overflow-wrap: anywhere;
 }

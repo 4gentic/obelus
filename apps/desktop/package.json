@@ -32,6 +32,7 @@
     "@obelus/categories": "workspace:*",
     "@obelus/claude-sidecar": "workspace:*",
     "@obelus/design-tokens": "workspace:*",
+    "@obelus/diff-view": "workspace:*",
     "@obelus/html-view": "workspace:*",
     "@obelus/marks-transfer": "workspace:*",
     "@obelus/md-view": "workspace:*",
@@ -63,6 +64,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.1",
+    "happy-dom": "20.9.0",
     "typescript": "6.0.3",
     "vite": "8.0.16",
     "vitest": "4.1.6"

@@ -31,10 +31,11 @@ export async function buildRepassPrompt(input: BuildRepassPromptInput): Promise<
     if (h.noteText.trim() !== "") {
       lines.push(h.noteText.trim());
     }
-    if (h.state === "modified" && h.modifiedPatchText !== null) {
+    const preferred = h.state === "modified" ? (h.modifiedPatchText ?? "") : "";
+    if (preferred.trim() !== "") {
       lines.push("Modified patch the user prefers:");
       lines.push("```diff");
-      lines.push(h.modifiedPatchText.trimEnd());
+      lines.push(preferred.trimEnd());
       lines.push("```");
     }
     lines.push("");
