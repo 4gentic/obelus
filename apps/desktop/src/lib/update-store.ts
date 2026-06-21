@@ -47,7 +47,14 @@ export const useUpdateStore: UpdateStore = create<UpdateState>()((set) => ({
   },
 
   setAvailable(update) {
-    set({ available: update });
+    // A new version invalidates any install state from a prior offer, so the
+    // banner can't show one version's failed-download error against another.
+    // A re-offer of the same version keeps an in-flight download untouched.
+    set((state) =>
+      state.available?.version === update.version
+        ? { available: update }
+        : { available: update, install: null },
+    );
   },
 
   clearAvailable() {
