@@ -2,6 +2,13 @@
 
 All notable changes to the Obelus Claude Code plugin are documented here. This file is generated from Conventional Commits touching `packages/claude-plugin/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.15](https://github.com/4gentic/obelus/compare/plugin-v0.1.14...plugin-v0.1.15) (2026-06-21)
+
+
+### Features
+
+* **desktop:** richer real-time reviewer feed ([#206](https://github.com/4gentic/obelus/issues/206)) ([bcee62d](https://github.com/4gentic/obelus/commit/bcee62dd680e1c8d9fd71d273664ebe106370607))
+
 ## [0.1.14](https://github.com/4gentic/obelus/compare/plugin-v0.1.13...plugin-v0.1.14) (2026-06-21)
 
 
