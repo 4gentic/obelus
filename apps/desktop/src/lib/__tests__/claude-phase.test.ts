@@ -1,6 +1,13 @@
 import { type ParsedStreamEvent, parseStreamLine } from "@obelus/claude-sidecar";
 import { describe, expect, it } from "vitest";
-import { extractPhaseMarker, isSemanticPhase, phaseFromEvent } from "../claude-phase";
+import {
+  extractNoteMarker,
+  extractPhaseMarker,
+  humanizePhase,
+  isSemanticPhase,
+  phaseFromEvent,
+  summarizeToolResult,
+} from "../claude-phase";
 
 function assistantText(text: string): ParsedStreamEvent {
   const parsed = parseStreamLine(
@@ -80,5 +87,76 @@ describe("phaseFromEvent", () => {
     expect(phaseFromEvent(toolUse("NotebookEdit", { notebookPath: "/abs/sketch.ipynb" }))).toBe(
       "Editing sketch.ipynb",
     );
+  });
+});
+
+describe("humanizePhase", () => {
+  it("maps every known skill phase token to its noun phrase", () => {
+    expect(humanizePhase("preflight")).toBe("Preparing");
+    expect(humanizePhase("gather-context")).toBe("Gathering context");
+    expect(humanizePhase("locating-spans")).toBe("Locating passages");
+    expect(humanizePhase("stress-test")).toBe("Stress-testing edits");
+    expect(humanizePhase("impact-sweep")).toBe("Impact sweep");
+    expect(humanizePhase("coherence-sweep")).toBe("Coherence sweep");
+    expect(humanizePhase("quality-sweep")).toBe("Quality sweep");
+    expect(humanizePhase("writing-plan")).toBe("Writing the plan");
+  });
+
+  it("title-cases an unknown token on its hyphens", () => {
+    expect(humanizePhase("final-polish-pass")).toBe("Final Polish Pass");
+    expect(humanizePhase("triage")).toBe("Triage");
+  });
+});
+
+describe("extractNoteMarker", () => {
+  it("returns the free text after [obelus:note]", () => {
+    expect(extractNoteMarker(assistantText("[obelus:note] Drafted 6 edits"))).toBe(
+      "Drafted 6 edits",
+    );
+  });
+
+  it("captures the whole line and trims surrounding whitespace", () => {
+    const event = assistantText("narration\n[obelus:note]   Two passages still ambiguous  \n");
+    expect(extractNoteMarker(event)).toBe("Two passages still ambiguous");
+  });
+
+  it("returns null when no note marker is present", () => {
+    expect(extractNoteMarker(assistantText("Just narrating."))).toBeNull();
+  });
+
+  it("does not match a phase marker", () => {
+    expect(extractNoteMarker(assistantText("[obelus:phase] stress-test"))).toBeNull();
+  });
+});
+
+describe("summarizeToolResult", () => {
+  it("counts lines for a Read result", () => {
+    expect(summarizeToolResult("Read", "line one\nline two\nline three", false)).toBe("3 lines");
+    expect(summarizeToolResult("Read", "only one line", false)).toBe("1 line");
+  });
+
+  it("counts non-empty matches for a Grep result", () => {
+    expect(summarizeToolResult("Grep", "src/a.ts:3\n\nsrc/b.ts:9\n", false)).toBe("2 matches");
+    expect(summarizeToolResult("Grep", "src/only.ts:1", false)).toBe("1 match");
+  });
+
+  it("reports an error regardless of tool or content", () => {
+    expect(summarizeToolResult("Read", "partial output", true)).toBe("error");
+    expect(summarizeToolResult("Bash", "", true)).toBe("error");
+  });
+
+  it("falls back to the first non-empty line, truncated, for other tools", () => {
+    expect(summarizeToolResult("Bash", "\n\ncompiled in 1.2s\nmore", false)).toBe(
+      "compiled in 1.2s",
+    );
+  });
+
+  it("returns 'done' for empty non-Read/Grep content", () => {
+    expect(summarizeToolResult("Bash", "", false)).toBe("done");
+    expect(summarizeToolResult("Write", "   \n  ", false)).toBe("done");
+  });
+
+  it("reports zero lines for empty Read content", () => {
+    expect(summarizeToolResult("Read", "", false)).toBe("0 lines");
   });
 });

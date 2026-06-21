@@ -1,5 +1,6 @@
 import { type JSX, memo, useState } from "react";
 import type {
+  NoteBlock,
   StatusBlock,
   TextBlock,
   ThinkingBlock,
@@ -11,7 +12,10 @@ export const TextBlockView = memo(function TextBlockView({
   block,
 }: {
   block: TextBlock;
-}): JSX.Element {
+}): JSX.Element | null {
+  // A closed block whose text was entirely `[obelus:*]` markers strips to "";
+  // render nothing rather than an empty paragraph.
+  if (block.closed && block.text === "") return null;
   const cls = block.closed
     ? "jobs-dock__transcript-text"
     : "jobs-dock__transcript-text jobs-dock__transcript-text--streaming";
@@ -19,6 +23,21 @@ export const TextBlockView = memo(function TextBlockView({
     <p className={cls}>
       {block.text}
       {block.closed ? null : <span className="jobs-dock__transcript-caret" aria-hidden="true" />}
+    </p>
+  );
+});
+
+export const NoteBlockView = memo(function NoteBlockView({
+  block,
+}: {
+  block: NoteBlock;
+}): JSX.Element {
+  return (
+    <p className="jobs-dock__transcript-note">
+      <span className="jobs-dock__transcript-note-mark" aria-hidden="true">
+        —
+      </span>{" "}
+      {block.text}
     </p>
   );
 });

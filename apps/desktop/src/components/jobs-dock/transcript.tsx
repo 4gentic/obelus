@@ -3,6 +3,7 @@ import type { JobRecord } from "../../lib/jobs-store";
 import type { TranscriptBlock } from "../../lib/transcript-reducer";
 import { useTranscriptBlocks, useTranscriptStats } from "../../lib/transcript-store";
 import {
+  NoteBlockView,
   StatusBlockView,
   TextBlockView,
   ThinkingBlockView,
@@ -98,6 +99,8 @@ function renderBlock(b: TranscriptBlock): JSX.Element {
       return <ToolGroupBlockView key={b.id} block={b} />;
     case "status":
       return <StatusBlockView key={b.id} block={b} />;
+    case "note":
+      return <NoteBlockView key={b.id} block={b} />;
   }
 }
 

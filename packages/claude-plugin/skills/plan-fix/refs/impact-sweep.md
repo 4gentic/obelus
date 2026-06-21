@@ -194,3 +194,7 @@ At most 10 `cascade-*` blocks per source edit (the cap covers all cascade emissi
 ## Phase marker
 
 Emit `[obelus:phase] impact-sweep` on its own line at the top of this section, before any `Grep` / `Read` you do for the sweep. Bare line, no Markdown, no prose on the same line, no trailing punctuation. Skip the marker if no eligible blocks entered the sweep (every block is `praise`, `ambiguous`, or has empty `patch`).
+
+## Progress note
+
+After Step C has finished emitting (the sweep's cascade and impact counts are now known), emit one `[obelus:note]` progress line per the **Progress notes** section in `SKILL.md` — a bare line, no Markdown, the literal token `[obelus:note]` exact, your own one-line summary of the sweep result. Name the cascade and flag counts, e.g. `[obelus:note] Impact sweep: 3 cascades, 1 downstream flag`. When the sweep emitted zero blocks (all-local deltas, or every hit skipped), say so plainly, e.g. `[obelus:note] Impact sweep: no downstream effects`. The count is your own read of the blocks you emitted, never reflected bundle text. Skip the note only when you also skipped the phase marker (no eligible blocks entered the sweep).

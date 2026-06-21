@@ -3,13 +3,14 @@ import type { PaperRow } from "@obelus/repo";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { JSX, RefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAiEngine } from "../../hooks/use-ai-engine";
 import { fsWriteBytes, fsWriteTextAbs } from "../../ipc/commands";
 import { exportBundleForPaper, exportMdBundleForPaper } from "./build-bundle";
 import { useProject } from "./context";
 import { slugify, timestampForFilename } from "./filename";
 import { useOpenPaper } from "./OpenPaper";
+import ReviewFeed from "./ReviewFeed";
 import RubricPanel from "./RubricPanel";
 import { useWriteUpProgress, useWriteUpRunner, useWriteUpStore } from "./writeup-store-context";
 
@@ -390,9 +391,21 @@ function EngineAction({
   const phase = progressStore((s) => s.phase);
   const toolEvents = progressStore((s) => s.toolEvents);
   const assistantChars = progressStore((s) => s.assistantChars);
+  const entries = progressStore((s) => s.entries);
+  const trimmed = progressStore((s) => s.trimmed);
   const transcript = writeupStore((s) => s.transcript);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const feedRef = useRef<HTMLDivElement | null>(null);
   const transcriptRef = useRef<HTMLPreElement | null>(null);
+
+  // Stick the live feed to the tail as lines stream in. `entries` is the
+  // trigger, not a value the body reads — the body reads scrollHeight live.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: entries drives the scroll, it is intentionally the only dependency.
+  useLayoutEffect(() => {
+    if (!streaming) return;
+    const el = feedRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [entries, streaming]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: transcript.length is the re-fire trigger so the effect follows content growth; the body reads el.scrollHeight live and doesn't need the numeric length.
   useEffect(() => {
@@ -407,6 +420,17 @@ function EngineAction({
     : hasBody
       ? "Draft ready."
       : "Idle.";
+
+  const rawLabel = streaming
+    ? "Raw output"
+    : `Full output · ${transcript.length.toLocaleString()} chars`;
+  const rawToggle = transcriptOpen
+    ? streaming
+      ? "hide raw output"
+      : "hide"
+    : streaming
+      ? "show raw output"
+      : "show";
 
   return (
     <div className="reviewer-actions__claude">
@@ -425,20 +449,20 @@ function EngineAction({
       </div>
 
       {streaming ? (
-        <div className="reviewer-actions__progress-row">
+        <>
           <p className="reviewer-actions__progress">
             {toolEvents} tool{toolEvents === 1 ? "" : "s"}
             {transcript.length > 0 ? ` · ${transcript.length.toLocaleString()} chars streamed` : ""}
           </p>
-          <button
-            type="button"
-            className="reviewer-actions__transcript-toggle"
-            onClick={() => setTranscriptOpen((v) => !v)}
-            aria-expanded={transcriptOpen}
-          >
-            {transcriptOpen ? "hide live output" : "show live output"}
-          </button>
-        </div>
+          <div ref={feedRef} className="reviewer-actions__feed" aria-live="polite">
+            {trimmed ? <p className="review-console__trimmed">earlier output trimmed</p> : null}
+            {entries.length === 0 ? (
+              <p className="review-console__waiting">Reading your marks…</p>
+            ) : (
+              <ReviewFeed entries={entries} />
+            )}
+          </div>
+        </>
       ) : null}
 
       {!streaming && hasBody ? (
@@ -449,21 +473,23 @@ function EngineAction({
 
       {transcript.length > 0 ? (
         <>
-          {!streaming ? (
-            <div className="reviewer-actions__progress-row reviewer-actions__progress-row--after">
-              <p className="reviewer-actions__progress">
-                Full output · {transcript.length.toLocaleString()} chars
-              </p>
-              <button
-                type="button"
-                className="reviewer-actions__transcript-toggle"
-                onClick={() => setTranscriptOpen((v) => !v)}
-                aria-expanded={transcriptOpen}
-              >
-                {transcriptOpen ? "hide" : "show"}
-              </button>
-            </div>
-          ) : null}
+          <div
+            className={
+              streaming
+                ? "reviewer-actions__progress-row"
+                : "reviewer-actions__progress-row reviewer-actions__progress-row--after"
+            }
+          >
+            <p className="reviewer-actions__progress">{rawLabel}</p>
+            <button
+              type="button"
+              className="reviewer-actions__transcript-toggle"
+              onClick={() => setTranscriptOpen((v) => !v)}
+              aria-expanded={transcriptOpen}
+            >
+              {rawToggle}
+            </button>
+          </div>
           {transcriptOpen ? (
             <div className="reviewer-actions__transcript" aria-live="polite">
               <pre ref={transcriptRef} className="reviewer-actions__transcript-pre">

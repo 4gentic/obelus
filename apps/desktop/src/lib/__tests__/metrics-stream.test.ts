@@ -695,4 +695,108 @@ describe("MetricsStream", () => {
     stream.finalize(startedAt + 200, isoFromMs(startedAt + 200));
     expect(stream.drain()).toEqual([]);
   });
+
+  it("emits a tool-call from an OpenCode inline tool result (no separate tool_result)", () => {
+    const stream = fresh();
+    // OpenCode's `--format json` ships the tool result inline on the same
+    // `tool_use` part (status: completed) — there is no follow-up `user`
+    // tool_result event. parseStreamLine normalizes it to an assistant event
+    // carrying `_inline_tool_result`; the metrics stream must still emit, and
+    // the earlier `running` snapshot must not produce a second tool-call.
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "tool_use",
+          part: {
+            tool: "read",
+            callID: "call_oc_1",
+            state: { status: "running", input: { filePath: "/abs/main.typ" } },
+          },
+        }),
+        at: startedAt + 600,
+      },
+      {
+        line: asJsonl({
+          type: "tool_use",
+          part: {
+            tool: "read",
+            callID: "call_oc_1",
+            state: {
+              status: "completed",
+              input: { filePath: "/abs/main.typ" },
+              output: "line one\nline two",
+            },
+          },
+        }),
+        at: startedAt + 700,
+      },
+    ]);
+    const tools = drained.filter((e) => e.event === "tool-call");
+    expect(tools).toHaveLength(1);
+    const tool = tools[0];
+    if (tool?.event !== "tool-call") throw new Error("typeguard");
+    expect(tool.name).toBe("Read");
+    expect(tool.phase).toBe(PRE_PHASE_NAME);
+    expect(tool.input).toContain("main.typ");
+  });
+
+  it("emits a task-call from an OpenCode inline task (subagent) result", () => {
+    const stream = fresh();
+    // OpenCode dispatches a subagent through its `task` tool. Like every other
+    // OpenCode tool, the result ships inline on the completed `tool_use` part —
+    // there is no follow-up `user` tool_result. `normaliseOpenCodeEvent` keeps
+    // `state.input` (carrying `subagent_type`) verbatim on the synthesized
+    // tool_use block, so `closePending` reads the subagent name and routes to a
+    // `task-call`. Before the inline-result fix this path recorded nothing. The
+    // `running` snapshot is dropped by the normaliser, so it neither emits nor
+    // seeds timing — the completed event does all the work.
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "tool_use",
+          part: {
+            tool: "task",
+            callID: "call_oc_task",
+            state: { status: "running", input: { subagent_type: "obelus:paper-reviewer" } },
+          },
+        }),
+        at: startedAt + 600,
+      },
+      {
+        line: asJsonl({
+          type: "tool_use",
+          part: {
+            tool: "task",
+            callID: "call_oc_task",
+            state: {
+              status: "completed",
+              input: {
+                subagent_type: "obelus:paper-reviewer",
+                description: "Stress-test 3 marks",
+              },
+              output: "**489230f0** — ...",
+            },
+          },
+        }),
+        at: startedAt + 900,
+      },
+    ]);
+    // Exactly one record from the inline-result path, and it's a task-call —
+    // the running snapshot must not also emit.
+    const tasks = drained.filter((e) => e.event === "task-call");
+    expect(tasks).toHaveLength(1);
+    const task = tasks[0];
+    if (task?.event !== "task-call") throw new Error("typeguard");
+    expect(task.agent).toBe("obelus:paper-reviewer");
+    expect(task.phase).toBe(PRE_PHASE_NAME);
+    // `normaliseOpenCodeEvent` drops the non-completed `running` snapshot, so
+    // the pending tool_use is both created and closed by the single `completed`
+    // event — the inline path opens and closes at the same instant.
+    expect(task.durationMs).toBe(0);
+    // OpenCode's synthesized event carries no tool_use_result, so per-task
+    // usage falls back to the parent-turn delta (zero with no usage events).
+    expect(task.inputTokens).toBe(0);
+    expect(task.outputTokens).toBe(0);
+    expect(drained.filter((e) => e.event === "tool-call")).toHaveLength(0);
+  });
 });

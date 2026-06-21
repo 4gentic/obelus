@@ -226,6 +226,25 @@
   color: var(--ink-soft);
 }
 
+/* --- Note blocks --- */
+
+/* A milestone the skill called out ([obelus:note]) — a serif ink line set
+   apart from tool breadcrumbs by the rubric em-dash. Mirrors the writer feed's
+   .review-console__note. */
+.jobs-dock__transcript-note {
+  margin: 0;
+  padding-left: var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.55;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.jobs-dock__transcript-note-mark {
+  color: var(--rubric);
+}
+
 /* --- Status blocks --- */
 
 .jobs-dock__transcript-status {
