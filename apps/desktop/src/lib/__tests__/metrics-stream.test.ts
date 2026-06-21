@@ -739,4 +739,64 @@ describe("MetricsStream", () => {
     expect(tool.phase).toBe(PRE_PHASE_NAME);
     expect(tool.input).toContain("main.typ");
   });
+
+  it("emits a task-call from an OpenCode inline task (subagent) result", () => {
+    const stream = fresh();
+    // OpenCode dispatches a subagent through its `task` tool. Like every other
+    // OpenCode tool, the result ships inline on the completed `tool_use` part —
+    // there is no follow-up `user` tool_result. `normaliseOpenCodeEvent` keeps
+    // `state.input` (carrying `subagent_type`) verbatim on the synthesized
+    // tool_use block, so `closePending` reads the subagent name and routes to a
+    // `task-call`. Before the inline-result fix this path recorded nothing. The
+    // `running` snapshot is dropped by the normaliser, so it neither emits nor
+    // seeds timing — the completed event does all the work.
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "tool_use",
+          part: {
+            tool: "task",
+            callID: "call_oc_task",
+            state: { status: "running", input: { subagent_type: "obelus:paper-reviewer" } },
+          },
+        }),
+        at: startedAt + 600,
+      },
+      {
+        line: asJsonl({
+          type: "tool_use",
+          part: {
+            tool: "task",
+            callID: "call_oc_task",
+            state: {
+              status: "completed",
+              input: {
+                subagent_type: "obelus:paper-reviewer",
+                description: "Stress-test 3 marks",
+              },
+              output: "**489230f0** — ...",
+            },
+          },
+        }),
+        at: startedAt + 900,
+      },
+    ]);
+    // Exactly one record from the inline-result path, and it's a task-call —
+    // the running snapshot must not also emit.
+    const tasks = drained.filter((e) => e.event === "task-call");
+    expect(tasks).toHaveLength(1);
+    const task = tasks[0];
+    if (task?.event !== "task-call") throw new Error("typeguard");
+    expect(task.agent).toBe("obelus:paper-reviewer");
+    expect(task.phase).toBe(PRE_PHASE_NAME);
+    // `normaliseOpenCodeEvent` drops the non-completed `running` snapshot, so
+    // the pending tool_use is both created and closed by the single `completed`
+    // event — the inline path opens and closes at the same instant.
+    expect(task.durationMs).toBe(0);
+    // OpenCode's synthesized event carries no tool_use_result, so per-task
+    // usage falls back to the parent-turn delta (zero with no usage events).
+    expect(task.inputTokens).toBe(0);
+    expect(task.outputTokens).toBe(0);
+    expect(drained.filter((e) => e.event === "tool-call")).toHaveLength(0);
+  });
 });
