@@ -59,7 +59,9 @@ export default function MarginNote({
       <span className="margin-note__chip cat-tooltip" data-cat-tooltip={descriptionFor(cat)}>
         {categoryLabel[cat]}
       </span>
-      <span className="margin-note__body">{annotation.note}</span>
+      {annotation.note.length > 0 ? (
+        <span className="margin-note__body">{annotation.note}</span>
+      ) : null}
     </button>
   );
 }
