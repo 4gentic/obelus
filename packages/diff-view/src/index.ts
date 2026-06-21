@@ -1,2 +1,4 @@
-export type { DiffFile, DiffHunk, DiffHunksProps, DiffLine, DiffLineKind } from "./DiffHunks";
-export { DiffHunks } from "./DiffHunks";
+export { buildCodeRows, CodeDiff, type CodeRow, type CodeRowKind } from "./CodeDiff";
+export { type ParsedChange, parseChange, synthesizePatch } from "./change-model";
+export { looksLikeCode } from "./classify";
+export { InlineChange } from "./InlineChange";
