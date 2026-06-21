@@ -156,4 +156,42 @@ describe("review-progress-store ingest", () => {
     expect(lastThinkingAt).toBeNull();
     expect(entries.at(-1)).toEqual({ kind: "note", text: "Plan ready" });
   });
+
+  it("does not double a closing note already streamed before the result echoes it", () => {
+    store.getState().ingest(assistantText("[obelus:note] Plan ready"));
+    store
+      .getState()
+      .ingest(
+        mustParse({ type: "result", subtype: "success", result: "[obelus:note] Plan ready" }),
+      );
+    const { entries } = store.getState();
+    expect(kinds(entries)).toEqual(["note"]);
+    expect(entries[0]).toEqual({ kind: "note", text: "Plan ready" });
+  });
+
+  it("still attaches a tool result after the window has trimmed past MAX_ENTRIES", () => {
+    // Push well past the 500-entry cap so the trailing window trims from the
+    // front and absolute tool indices diverge from live array slots.
+    for (let i = 0; i < 520; i++) {
+      store
+        .getState()
+        .ingest(toolUses([{ name: "Bash", input: { command: `echo ${i}` }, id: `fill_${i}` }]));
+    }
+    expect(store.getState().trimmed).toBe(true);
+
+    const late: SyntheticUse = {
+      name: "Read",
+      input: { file_path: "/paper/late.tex" },
+      id: "toolu_late",
+    };
+    store.getState().ingest(toolUses([late]));
+    store.getState().ingest(toolResults([{ id: late.id, content: "a\nb\nc\nd\ne" }]));
+
+    expect(store.getState().entries.at(-1)).toEqual({
+      kind: "tool",
+      label: "Reading late.tex",
+      result: "5 lines",
+      error: false,
+    });
+  });
 });

@@ -50,14 +50,20 @@ export interface ReviewProgressState {
   // Once a `[obelus:phase]` marker fires, tool breadcrumbs must stop steering
   // the header — the semantic phase is the better signal and should stick.
   _hasSemanticPhase: boolean;
-  // tool_use id → the `tool` entry it landed in. A coalesced batch maps every
-  // member id to the same index. `name` is the raw tool name (Read/Grep/…) so a
-  // single-tool result can summarise by line/match count. Survives the
-  // trailing-window trim because we never reindex; trimmed entries simply stop
-  // being looked up.
+  // Total entries dropped off the front of `entries` by the trailing-window
+  // trim. Tool breadcrumbs are tracked by *absolute* position (their index
+  // across the whole run); subtracting `_dropped` gives the current array slot.
+  // Without it, a trim silently shifts every stored index and tool_result
+  // summaries stop attaching once the run passes `MAX_ENTRIES`.
+  _dropped: number;
+  // tool_use id → the `tool` entry it landed in, by absolute index (see
+  // `_dropped`). A coalesced batch maps every member id to the same index.
+  // `name` is the raw tool name (Read/Grep/…) so a single-tool result can
+  // summarise by line/match count.
   _toolIndexById: Map<string, { index: number; name: string }>;
   // For a coalesced batch entry, how many tool_results are still outstanding;
-  // when it reaches 0 the entry's summary collapses to "done"/"error".
+  // when it reaches 0 the entry's summary collapses to "done"/"error". Keyed by
+  // the same absolute index as `_toolIndexById`.
   _outstandingByIndex: Map<number, { remaining: number; anyError: boolean }>;
 
   start(): void;
@@ -68,9 +74,10 @@ export interface ReviewProgressState {
 function capped(
   entries: TranscriptEntry[],
   prevTrimmed: boolean,
-): { entries: TranscriptEntry[]; trimmed: boolean } {
-  if (entries.length <= MAX_ENTRIES) return { entries, trimmed: prevTrimmed };
-  return { entries: entries.slice(entries.length - MAX_ENTRIES), trimmed: true };
+): { entries: TranscriptEntry[]; trimmed: boolean; dropped: number } {
+  if (entries.length <= MAX_ENTRIES) return { entries, trimmed: prevTrimmed, dropped: 0 };
+  const dropped = entries.length - MAX_ENTRIES;
+  return { entries: entries.slice(dropped), trimmed: true, dropped };
 }
 
 // Remove whole `[obelus:phase] …` / `[obelus:note] …` lines from streamed prose
@@ -132,8 +139,8 @@ export function createReviewProgressStore(): ReviewProgressStore {
     function pushEntries(toAppend: TranscriptEntry[]): void {
       if (toAppend.length === 0) return;
       set((s) => {
-        const next = s.entries.concat(toAppend);
-        return capped(next, s.trimmed);
+        const { entries, trimmed, dropped } = capped(s.entries.concat(toAppend), s.trimmed);
+        return { entries, trimmed, _dropped: s._dropped + dropped };
       });
     }
 
@@ -150,6 +157,7 @@ export function createReviewProgressStore(): ReviewProgressStore {
         _pendingTimer: null,
         _lastPhaseAt: 0,
         _hasSemanticPhase: false,
+        _dropped: 0,
         _toolIndexById: new Map(),
         _outstandingByIndex: new Map(),
       };
@@ -167,6 +175,7 @@ export function createReviewProgressStore(): ReviewProgressStore {
       _pendingTimer: null,
       _lastPhaseAt: 0,
       _hasSemanticPhase: false,
+      _dropped: 0,
       _toolIndexById: new Map(),
       _outstandingByIndex: new Map(),
 
@@ -182,7 +191,15 @@ export function createReviewProgressStore(): ReviewProgressStore {
         if (isResult(event)) {
           set({ lastThinkingAt: null });
           const finalNote = extractNoteMarker(event);
-          if (finalNote) pushEntries([{ kind: "note", text: finalNote }]);
+          if (finalNote) {
+            // The skill often repeats its closing note in the terminal result
+            // payload; don't double it if that same line already streamed in.
+            const prev = get().entries;
+            const last = prev[prev.length - 1];
+            if (!(last?.kind === "note" && last.text === finalNote)) {
+              pushEntries([{ kind: "note", text: finalNote }]);
+            }
+          }
           return;
         }
 
@@ -206,13 +223,14 @@ export function createReviewProgressStore(): ReviewProgressStore {
           if (thinkingText) {
             set((s) => {
               const last = s.entries[s.entries.length - 1];
-              const next =
+              const merged =
                 last?.kind === "thinking"
                   ? s.entries
                       .slice(0, -1)
                       .concat({ kind: "thinking", text: last.text + thinkingText })
                   : s.entries.concat({ kind: "thinking", text: thinkingText });
-              return capped(next, s.trimmed);
+              const { entries, trimmed, dropped } = capped(merged, s.trimmed);
+              return { entries, trimmed, _dropped: s._dropped + dropped };
             });
           }
         }
@@ -232,8 +250,10 @@ export function createReviewProgressStore(): ReviewProgressStore {
             const entries = s.entries.slice();
             const toolIndexById = new Map(s._toolIndexById);
             const outstandingByIndex = new Map(s._outstandingByIndex);
+            // Absolute index = entries dropped so far + slot in the live array,
+            // so the id→entry map survives front trims (see `_dropped`).
             if (coalesced !== null) {
-              const index = entries.length;
+              const index = s._dropped + entries.length;
               entries.push({ kind: "tool", label: coalesced });
               for (const use of toolUses) {
                 if (use.id) toolIndexById.set(use.id, { index, name: use.name });
@@ -241,23 +261,25 @@ export function createReviewProgressStore(): ReviewProgressStore {
               outstandingByIndex.set(index, { remaining: toolUses.length, anyError: false });
             } else {
               for (const use of toolUses) {
-                const index = entries.length;
+                const index = s._dropped + entries.length;
                 entries.push({ kind: "tool", label: describePhase(use.name, use.input) });
                 if (use.id) toolIndexById.set(use.id, { index, name: use.name });
               }
             }
-            const { entries: kept, trimmed } = capped(entries, s.trimmed);
+            const { entries: kept, trimmed, dropped } = capped(entries, s.trimmed);
             return {
               toolEvents: s.toolEvents + toolUses.length,
               entries: kept,
               trimmed,
+              _dropped: s._dropped + dropped,
               _toolIndexById: toolIndexById,
               _outstandingByIndex: outstandingByIndex,
             };
           });
 
-          // OpenCode ships the tool's output on the same event; attach it to
-          // the breadcrumb we just pushed.
+          // OpenCode ships the tool's output inline on the same event — one tool
+          // per event, so never a coalesced batch. Attach it to the breadcrumb
+          // we just pushed: the current tail, regardless of any front trim.
           const inline = extractInlineToolResult(event);
           if (inline) {
             set((s) => {
@@ -282,11 +304,17 @@ export function createReviewProgressStore(): ReviewProgressStore {
         if (text) {
           set((s) => {
             const last = s.entries[s.entries.length - 1];
-            const next =
+            const merged =
               last?.kind === "assistant"
                 ? s.entries.slice(0, -1).concat({ kind: "assistant", text: last.text + text })
                 : s.entries.concat({ kind: "assistant", text });
-            return { assistantChars: s.assistantChars + text.length, ...capped(next, s.trimmed) };
+            const { entries, trimmed, dropped } = capped(merged, s.trimmed);
+            return {
+              assistantChars: s.assistantChars + text.length,
+              entries,
+              trimmed,
+              _dropped: s._dropped + dropped,
+            };
           });
         }
 
@@ -303,7 +331,10 @@ export function createReviewProgressStore(): ReviewProgressStore {
               const located = s._toolIndexById.get(r.toolUseId);
               if (located === undefined) continue;
               const { index, name } = located;
-              const target = entries[index];
+              // Absolute index → live slot; negative means it was trimmed away.
+              const pos = index - s._dropped;
+              if (pos < 0) continue;
+              const target = entries[pos];
               if (!target || target.kind !== "tool") continue;
               const batch = outstandingByIndex.get(index);
               if (batch) {
@@ -311,7 +342,7 @@ export function createReviewProgressStore(): ReviewProgressStore {
                 const anyError = batch.anyError || r.isError;
                 outstandingByIndex.set(index, { remaining, anyError });
                 if (remaining <= 0) {
-                  entries[index] = {
+                  entries[pos] = {
                     ...target,
                     result: anyError ? "error" : "done",
                     error: anyError,
@@ -319,7 +350,7 @@ export function createReviewProgressStore(): ReviewProgressStore {
                   changed = true;
                 }
               } else {
-                entries[index] = {
+                entries[pos] = {
                   ...target,
                   result: summarizeToolResult(name, r.content, r.isError),
                   error: r.isError,

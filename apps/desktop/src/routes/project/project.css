@@ -2895,7 +2895,7 @@ button.files__row {
   max-height: 50vh;
   overflow-y: auto;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--rule-soft);
+  border: var(--rule-soft);
   background: color-mix(in oklab, var(--panel) 70%, var(--paper));
 }
 
