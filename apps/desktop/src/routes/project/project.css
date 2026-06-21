@@ -1610,11 +1610,6 @@ button.files__row {
   padding: var(--space-1) var(--space-2);
   background: var(--panel);
   font-size: var(--step--1);
-  /* Positioning context for the .satisfies-tooltip ::after panel — anchoring
-     to the header (which spans the full diff-block width) lets the tooltip
-     stay inside the diff-block regardless of how far right the chip itself
-     sits or how narrow the .diff-review pane has been resized. */
-  position: relative;
 }
 
 .diff-block__cat {
@@ -1627,17 +1622,6 @@ button.files__row {
   font-family: var(--font-mono);
   color: var(--rubric);
   font-size: 0.85em;
-}
-
-.diff-block__tag--merged {
-  /* Merged-mark chip — the diff covers more than one user mark. Tooltip
-     spells out the contributing quotes; the chip itself stays minimal so the
-     header doesn't crowd. */
-  color: var(--ink);
-  border: 1px solid var(--rule-soft);
-  border-radius: 2px;
-  padding: 0 var(--space-1);
-  cursor: help;
 }
 
 .diff-review__informational {
@@ -1791,41 +1775,10 @@ button.files__row {
   font-style: italic;
 }
 
-.diff-block__patch {
-  margin: 0;
+/* The redline itself comes from @obelus/diff-view (.diffview-inline …),
+   imported alongside InlineChange. This wrapper only sets the card padding. */
+.diff-block__change {
   padding: var(--space-2);
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  line-height: 1.4;
-  overflow-x: auto;
-  white-space: pre;
-}
-
-.diff-line {
-  display: block;
-  min-width: max-content;
-  padding: 0 var(--space-1);
-}
-
-.diff-line--hunk {
-  color: var(--ink-soft);
-  background: var(--panel);
-}
-
-.diff-line--ctx {
-  color: var(--ink-soft);
-}
-
-.diff-line--old {
-  background: var(--diff-old-bg);
-  border-left: 2px solid var(--diff-old-rule);
-  padding-left: calc(var(--space-1) - 2px);
-}
-
-.diff-line--new {
-  background: var(--diff-new-bg);
-  border-left: 2px solid var(--diff-new-rule);
-  padding-left: calc(var(--space-1) - 2px);
 }
 
 .hunk-block {
@@ -1873,19 +1826,76 @@ button.files__row {
   gap: var(--space-2);
 }
 
+/* Demoted to a quiet position counter on the right — the marked passage leads
+   the card now, not the ordinal. */
 .hunk-block__ord {
+  margin-left: auto;
   font-family: var(--font-mono);
   color: var(--ink-soft);
-  font-size: var(--step--1);
+  font-size: 0.78rem;
+  opacity: 0.7;
 }
 
 .hunk-block__state {
-  margin-left: auto;
   font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* The flagged passage — the user's marked line, quoted like a manuscript
+   excerpt at the top of the card so the eye reads it before the change. */
+.hunk-block__mark {
+  margin: 0;
+  padding: var(--space-2) var(--space-2) var(--space-1);
+}
+
+.hunk-block__mark-cap {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--step--2, 0.75rem);
+}
+
+.hunk-block__mark-cap-label {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.hunk-block__mark-loc {
+  color: var(--ink-soft);
+}
+
+.hunk-block__mark-count {
+  color: var(--rubric);
+}
+
+.hunk-block__mark-quote {
+  margin: 0 0 var(--space-1);
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--rubric);
+  color: var(--ink);
+  font-size: var(--step-0, 1rem);
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.hunk-block__mark-quote:last-child {
+  margin-bottom: 0;
+}
+
+/* Synthesised blocks (cascade-/impact-/…) carry no marked passage; this leads
+   in the quote's place to say where the suggestion came from. */
+.hunk-block__follows {
+  margin: 0;
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  font-style: italic;
 }
 
 .hunk-block__actions {
@@ -2339,42 +2349,6 @@ button.files__row {
 
 .cat-tooltip[data-cat-tooltip]:hover::after,
 .cat-tooltip[data-cat-tooltip]:focus-visible::after {
-  opacity: 1;
-}
-
-/* Hover panel for the "satisfies N marks" chip on a hunk header. Lists each
-   linked mark's quote, one per line, middle-truncated to keep a single
-   oversized highlight from blowing out the panel. Same paper aesthetic as
-   .cat-tooltip, but anchored to the diff-block header rather than the chip
-   itself: the chip's position inside the header varies with content (and the
-   .diff-review pane's overflow-y clips horizontal overflow on both sides),
-   so anchoring to the header — which always spans the diff-block's full
-   width — lets us cap max-width against the header and stay inside the
-   diff-block at any pane width. */
-.satisfies-tooltip[data-satisfies-tooltip]::after {
-  content: attr(data-satisfies-tooltip);
-  position: absolute;
-  top: calc(100% + 6px);
-  left: var(--space-2);
-  max-width: min(480px, calc(100% - 2 * var(--space-2)));
-  width: max-content;
-  padding: var(--space-2) var(--space-3);
-  background: var(--panel);
-  color: var(--ink);
-  border: 1px solid var(--ink-soft);
-  border-radius: var(--radius-1);
-  font-family: var(--font-body);
-  font-size: var(--step--1);
-  line-height: 1.45;
-  white-space: pre-wrap;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 100;
-  transition: opacity 120ms ease 250ms;
-}
-
-.satisfies-tooltip[data-satisfies-tooltip]:hover::after,
-.satisfies-tooltip[data-satisfies-tooltip]:focus-visible::after {
   opacity: 1;
 }
 

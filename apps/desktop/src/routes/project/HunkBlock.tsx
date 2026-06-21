@@ -1,15 +1,17 @@
+import { InlineChange } from "@obelus/diff-view";
+import "@obelus/diff-view/diff-view.css";
 import type { DiffHunkRow } from "@obelus/repo";
 import type { JSX } from "react";
 import { type CSSProperties, useEffect, useRef } from "react";
 import { truncateMiddle } from "../../lib/text";
-import { buildDisplayLines } from "./patch-with-context";
-
-const CONTEXT_LINES = 3;
 
 interface Props {
   hunk: DiffHunkRow;
   indexInFile: number;
   totalInFile: number;
+  // Location label of the mark this card leads with (the earliest-anchored of
+  // the satisfied marks). Null for synthesised blocks with no resolvable mark.
+  markLocation: string | null;
   sourceText: string | null;
   hasSources: boolean;
   focused: boolean;
@@ -36,7 +38,7 @@ interface Props {
   onCancelNote: () => void;
 }
 
-function DiffLines({
+function ChangeBody({
   patch,
   sourceText,
   emptyVariant,
@@ -45,33 +47,17 @@ function DiffLines({
   sourceText: string | null;
   emptyVariant: "no-sources" | "flagged";
 }): JSX.Element {
-  const display = buildDisplayLines(patch, sourceText, CONTEXT_LINES);
-  if (display.length === 0) {
+  if (patch === "") {
     const message =
       emptyVariant === "no-sources"
-        ? "Note only — this paper has no source files to patch."
-        : "No patch (reviewer skipped or flagged).";
+        ? "Note only — this paper has no source to revise."
+        : "No edit — the reviewer left this as a note.";
     return <p className="diff-block__empty">{message}</p>;
   }
   return (
-    <pre className="diff-block__patch">
-      {display.map((line, i) => {
-        const cls =
-          line.kind === "header"
-            ? "diff-line diff-line--hunk"
-            : line.kind === "old"
-              ? "diff-line diff-line--old"
-              : line.kind === "new"
-                ? "diff-line diff-line--new"
-                : "diff-line diff-line--ctx";
-        return (
-          // biome-ignore lint/suspicious/noArrayIndexKey: diff lines are static per render; raw content is insufficient because identical lines may repeat inside a single hunk.
-          <div key={`${i}:${line.text}`} className={cls}>
-            {line.text}
-          </div>
-        );
-      })}
-    </pre>
+    <div className="diff-block__change">
+      <InlineChange patch={patch} sourceText={sourceText} />
+    </div>
   );
 }
 
@@ -80,6 +66,7 @@ export default function HunkBlock(props: Props): JSX.Element {
     hunk,
     indexInFile,
     totalInFile,
+    markLocation,
     sourceText,
     hasSources,
     focused,
@@ -150,34 +137,48 @@ export default function HunkBlock(props: Props): JSX.Element {
       tabIndex={-1}
     >
       <header className="diff-block__head hunk-block__head">
-        <span className="hunk-block__ord">
-          hunk {indexInFile + 1}/{totalInFile}
-        </span>
-        <span className="diff-block__cat">{hunk.category ?? "—"}</span>
-        {mergedMarkCount > 1 && (
-          <span
-            className="diff-block__tag diff-block__tag--merged satisfies-tooltip"
-            data-satisfies-tooltip={
-              linkedQuotes.length > 0
-                ? linkedQuotes.map((m) => `•  ${truncateMiddle(m.quote, 180)}`).join("\n")
-                : `Satisfies ${mergedMarkCount} marks`
-            }
-          >
-            satisfies {mergedMarkCount} marks
-          </span>
+        {hunk.category !== null && hunk.category !== "" && (
+          <span className="diff-block__cat">{hunk.category}</span>
         )}
         {isNoteOnly && <span className="diff-block__tag">note</span>}
         {isTrulyAmbiguous && <span className="diff-block__tag">ambiguous</span>}
+        <span className="hunk-block__ord" title={`Suggestion ${indexInFile + 1} of ${totalInFile}`}>
+          {indexInFile + 1}/{totalInFile}
+        </span>
         <span className="hunk-block__state">{hunk.state}</span>
       </header>
+      {linkedQuotes.length > 0 ? (
+        <figure className="hunk-block__mark">
+          {(markLocation !== null || mergedMarkCount > 1) && (
+            <figcaption className="hunk-block__mark-cap">
+              <span className="hunk-block__mark-cap-label">you marked</span>
+              {markLocation !== null && (
+                <span className="hunk-block__mark-loc">{markLocation}</span>
+              )}
+              {mergedMarkCount > 1 && (
+                <span className="hunk-block__mark-count">satisfies {mergedMarkCount} marks</span>
+              )}
+            </figcaption>
+          )}
+          {linkedQuotes.map((m) => (
+            <blockquote key={m.id} className="hunk-block__mark-quote">
+              {truncateMiddle(m.quote, 320)}
+            </blockquote>
+          ))}
+        </figure>
+      ) : (
+        <p className="hunk-block__follows">
+          Follows from your marks{hunk.category ? ` — ${hunk.category}` : ""}.
+        </p>
+      )}
+      {hunk.reviewerNotes !== "" && <p className="diff-block__notes">{hunk.reviewerNotes}</p>}
       {hunk.applyFailure !== null && (
         <p className="hunk-block__apply-failure" title={hunk.applyFailure.reason}>
           <span className="hunk-block__apply-failure-label">could not apply</span>
           <span className="hunk-block__apply-failure-reason">{hunk.applyFailure.reason}</span>
         </p>
       )}
-      {hunk.reviewerNotes !== "" && <p className="diff-block__notes">{hunk.reviewerNotes}</p>}
-      <DiffLines
+      <ChangeBody
         patch={hunk.modifiedPatchText ?? hunk.patch}
         sourceText={sourceText}
         emptyVariant={isNoteOnly ? "no-sources" : "flagged"}
@@ -199,7 +200,7 @@ export default function HunkBlock(props: Props): JSX.Element {
               }
             }}
             rows={Math.min(16, Math.max(4, editingText.split("\n").length + 1))}
-            aria-label="Edit patch text"
+            aria-label="Edit the suggested text"
           />
           <div className="hunk-block__actions">
             <button type="button" className="btn btn--subtle" onClick={onCancelEdit}>
@@ -227,7 +228,7 @@ export default function HunkBlock(props: Props): JSX.Element {
               }
             }}
             rows={4}
-            placeholder="Push back on this hunk. Included in the next pass."
+            placeholder="Push back on this suggestion. Included in the next pass."
             aria-label="Comment for next pass"
           />
           <div className="hunk-block__actions">
