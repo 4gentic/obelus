@@ -13,25 +13,14 @@ import {
   type ClaudeCodeEngineStatus,
   type OpenCodeEngineStatus,
 } from "../lib/ai-engine";
-import { runAutoUpdateCheck } from "../lib/auto-update";
+import { recordUpdateCheck, runAutoUpdateCheck, setAutoUpdateConsent } from "../lib/auto-update";
+import { formatBytes } from "../lib/format-bytes";
 import { factoryReset, wizardReset } from "../lib/reset";
 import { useUpdateStore } from "../lib/update-store";
 import { checkForUpdate, downloadAndInstall, type UpdaterState } from "../lib/updater";
-import {
-  getAutoUpdateCheck,
-  getLastUpdateCheckAt,
-  setAutoUpdateCheck,
-  setLastUpdateCheckAt,
-} from "../store/app-state";
 import "./settings.css";
 
 import type { JSX } from "react";
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function formatLastChecked(at: number | null): string {
   if (at === null) return "Never";
@@ -50,8 +39,8 @@ export default function Settings(): JSX.Element {
   const [resetting, setResetting] = useState<"wizard" | "factory" | null>(null);
   const [updater, setUpdater] = useState<UpdaterState>({ kind: "idle" });
   const [version, setVersion] = useState<string | null>(null);
-  const [autoCheck, setAutoCheck] = useState<boolean | null>(null);
-  const [lastChecked, setLastChecked] = useState<number | null>(null);
+  const consent = useUpdateStore((s) => s.consent);
+  const lastCheckedAt = useUpdateStore((s) => s.lastCheckedAt);
 
   const recheck = useCallback(async (): Promise<void> => {
     setBusy(true);
@@ -70,11 +59,6 @@ export default function Settings(): JSX.Element {
       });
   }, []);
 
-  useEffect(() => {
-    void getAutoUpdateCheck().then((v) => setAutoCheck(v ?? false));
-    void getLastUpdateCheckAt().then((v) => setLastChecked(v ?? null));
-  }, []);
-
   async function onWizardReset(): Promise<void> {
     const ok = await ask(
       "Reset wizard clears the wizard checkpoint and the engine-detect caches, then re-runs the wizard. Your projects and annotations stay. Continue?",
@@ -91,8 +75,7 @@ export default function Settings(): JSX.Element {
     setUpdater({ kind: "checking" });
     const result = await checkForUpdate();
     setUpdater(result);
-    await setLastUpdateCheckAt(Date.now());
-    setLastChecked(Date.now());
+    await recordUpdateCheck();
     const store = useUpdateStore.getState();
     if (result.kind === "available") {
       store.setAvailable({ version: result.version, notes: result.notes });
@@ -102,11 +85,9 @@ export default function Settings(): JSX.Element {
   }
 
   async function onToggleAuto(next: boolean): Promise<void> {
-    setAutoCheck(next);
-    await setAutoUpdateCheck(next);
+    await setAutoUpdateConsent(next);
     if (next) {
       await runAutoUpdateCheck();
-      setLastChecked(Date.now());
     } else {
       useUpdateStore.getState().clearAvailable();
     }
@@ -203,14 +184,14 @@ export default function Settings(): JSX.Element {
         <label className="settings__toggle">
           <input
             type="checkbox"
-            checked={autoCheck === true}
+            checked={consent === true}
             onChange={(e) => void onToggleAuto(e.target.checked)}
           />
           <span>Check for updates automatically</span>
         </label>
         <p className="settings__body settings__hint">
           On launch and every 8 hours. Only the signed release manifest is checked; nothing else
-          leaves your device. Last checked: {formatLastChecked(lastChecked)}.
+          leaves your device. Last checked: {formatLastChecked(lastCheckedAt)}.
         </p>
         {updater.kind === "available" ? (
           <pre className="settings__pane">
