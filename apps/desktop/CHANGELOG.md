@@ -2,6 +2,21 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.20](https://github.com/4gentic/obelus/compare/desktop-v0.1.19...desktop-v0.1.20) (2026-06-21)
+
+
+### Features
+
+* **brand:** shared lockup with real mark and "by 4gentic" credit ([#205](https://github.com/4gentic/obelus/issues/205)) ([d01215b](https://github.com/4gentic/obelus/commit/d01215ba22126667bbc83cc6f1faf16782f532d6))
+* **desktop:** richer real-time reviewer feed ([#206](https://github.com/4gentic/obelus/issues/206)) ([bcee62d](https://github.com/4gentic/obelus/commit/bcee62dd680e1c8d9fd71d273664ebe106370607))
+* **diff-view:** manuscript-style track-changes diff review in document order ([#199](https://github.com/4gentic/obelus/issues/199)) ([8387371](https://github.com/4gentic/obelus/commit/838737142a543f62ee945ad97b3c105a25753126))
+
+
+### Bug Fixes
+
+* **desktop:** re-fit PDF to the column when the margin gutter opens ([#204](https://github.com/4gentic/obelus/issues/204)) ([0581498](https://github.com/4gentic/obelus/commit/0581498a4e22f73eb5ed766245a08d465af91d2d))
+* **review-shell:** show marks with no note in the margin gutter ([#203](https://github.com/4gentic/obelus/issues/203)) ([45d56e6](https://github.com/4gentic/obelus/commit/45d56e69b9b9638ec19fafca24352f67f755d75d))
+
 ## [0.1.19](https://github.com/4gentic/obelus/compare/desktop-v0.1.18...desktop-v0.1.19) (2026-06-21)
 
 
