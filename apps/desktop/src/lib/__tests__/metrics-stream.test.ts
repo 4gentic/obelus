@@ -695,4 +695,48 @@ describe("MetricsStream", () => {
     stream.finalize(startedAt + 200, isoFromMs(startedAt + 200));
     expect(stream.drain()).toEqual([]);
   });
+
+  it("emits a tool-call from an OpenCode inline tool result (no separate tool_result)", () => {
+    const stream = fresh();
+    // OpenCode's `--format json` ships the tool result inline on the same
+    // `tool_use` part (status: completed) — there is no follow-up `user`
+    // tool_result event. parseStreamLine normalizes it to an assistant event
+    // carrying `_inline_tool_result`; the metrics stream must still emit, and
+    // the earlier `running` snapshot must not produce a second tool-call.
+    const drained = feed(stream, [
+      {
+        line: asJsonl({
+          type: "tool_use",
+          part: {
+            tool: "read",
+            callID: "call_oc_1",
+            state: { status: "running", input: { filePath: "/abs/main.typ" } },
+          },
+        }),
+        at: startedAt + 600,
+      },
+      {
+        line: asJsonl({
+          type: "tool_use",
+          part: {
+            tool: "read",
+            callID: "call_oc_1",
+            state: {
+              status: "completed",
+              input: { filePath: "/abs/main.typ" },
+              output: "line one\nline two",
+            },
+          },
+        }),
+        at: startedAt + 700,
+      },
+    ]);
+    const tools = drained.filter((e) => e.event === "tool-call");
+    expect(tools).toHaveLength(1);
+    const tool = tools[0];
+    if (tool?.event !== "tool-call") throw new Error("typeguard");
+    expect(tool.name).toBe("Read");
+    expect(tool.phase).toBe(PRE_PHASE_NAME);
+    expect(tool.input).toContain("main.typ");
+  });
 });

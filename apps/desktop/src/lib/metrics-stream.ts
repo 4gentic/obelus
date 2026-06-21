@@ -1,5 +1,6 @@
 import {
   extractAssistantText,
+  extractInlineToolResult,
   extractResultText,
   type ParsedStreamEvent,
 } from "@obelus/claude-sidecar";
@@ -121,6 +122,7 @@ export class MetricsStream {
         this.totals.outputTokens += usage.output;
       }
       const blocks = readContent(message);
+      const inlineIds: string[] = [];
       for (const block of blocks) {
         if (block.type !== "tool_use") continue;
         const id = typeof block.id === "string" ? block.id : null;
@@ -156,6 +158,15 @@ export class MetricsStream {
           parentInputTokens: this.totals.inputTokens,
           parentOutputTokens: this.totals.outputTokens,
         });
+        inlineIds.push(id);
+      }
+      // OpenCode ships each tool's result inline on the same synthesized event
+      // (no follow-up `user` tool_result), so close those pending tools here or
+      // they would never be emitted. Claude Code carries no inline result and
+      // closes via the `user` branch below instead.
+      if (extractInlineToolResult(parsed) !== null) {
+        const tur = readToolUseResult(parsed);
+        for (const pendingId of inlineIds) this.closePending(pendingId, atMs, atIso, tur);
       }
       return;
     }
@@ -165,43 +176,46 @@ export class MetricsStream {
         if (block.type !== "tool_result") continue;
         const id = typeof block.tool_use_id === "string" ? block.tool_use_id : null;
         if (!id) continue;
-        const pending = this.pending.get(id);
-        if (!pending) continue;
-        this.pending.delete(id);
-        const durationMs = Math.max(0, atMs - pending.startedAt);
-        // Key on `subagent_type` rather than the tool name. Different Claude
-        // Code releases have shipped this as `Task` and `Agent`; the input
-        // payload's `subagent_type` is the stable signal for "this is a
-        // subagent invocation, not a leaf tool call".
-        const subagentTypeFromInput = readSubagentType(pending.input);
-        const tur = readToolUseResult(parsed);
-        const agent = subagentTypeFromInput || tur?.agentType || "";
-        if (agent !== "") {
-          const inputDelta = Math.max(0, this.totals.inputTokens - pending.parentInputTokens);
-          const outputDelta = Math.max(0, this.totals.outputTokens - pending.parentOutputTokens);
-          const usage = tur?.usage ?? { input: inputDelta, output: outputDelta };
-          this.emitted.push({
-            event: "task-call",
-            at: atIso,
-            sessionId: this.sessionId,
-            phase: pending.phase,
-            agent,
-            durationMs,
-            inputTokens: usage.input,
-            outputTokens: usage.output,
-          });
-        } else {
-          this.emitted.push({
-            event: "tool-call",
-            at: atIso,
-            sessionId: this.sessionId,
-            phase: pending.phase,
-            name: pending.name,
-            input: summariseToolInput(pending.input),
-            durationMs,
-          });
-        }
+        this.closePending(id, atMs, atIso, readToolUseResult(parsed));
       }
+    }
+  }
+
+  // Emit a tool-call — or a task-call for subagent invocations — for the
+  // pending tool_use `id`. Shared by the `user` tool_result branch (Claude
+  // Code) and the inline-result path (OpenCode, which never sends a separate
+  // tool_result). Keying on `subagent_type` survives the Task/Agent rename
+  // across Claude Code releases; `tur.agentType` is the fallback.
+  private closePending(id: string, atMs: number, atIso: string, tur: ToolUseResult | null): void {
+    const pending = this.pending.get(id);
+    if (!pending) return;
+    this.pending.delete(id);
+    const durationMs = Math.max(0, atMs - pending.startedAt);
+    const agent = readSubagentType(pending.input) || tur?.agentType || "";
+    if (agent !== "") {
+      const inputDelta = Math.max(0, this.totals.inputTokens - pending.parentInputTokens);
+      const outputDelta = Math.max(0, this.totals.outputTokens - pending.parentOutputTokens);
+      const usage = tur?.usage ?? { input: inputDelta, output: outputDelta };
+      this.emitted.push({
+        event: "task-call",
+        at: atIso,
+        sessionId: this.sessionId,
+        phase: pending.phase,
+        agent,
+        durationMs,
+        inputTokens: usage.input,
+        outputTokens: usage.output,
+      });
+    } else {
+      this.emitted.push({
+        event: "tool-call",
+        at: atIso,
+        sessionId: this.sessionId,
+        phase: pending.phase,
+        name: pending.name,
+        input: summariseToolInput(pending.input),
+        durationMs,
+      });
     }
   }
 
@@ -300,10 +314,12 @@ function isPlanOutputWrite(input: unknown): boolean {
 // persisted `~/.claude/projects/<sid>.jsonl` transcript uses camelCase
 // `toolUseResult`. Both shapes carry the same keys inside (`usage`,
 // `agentType`, `totalTokens`, …).
-function readToolUseResult(parsed: ParsedStreamEvent): {
+interface ToolUseResult {
   usage: { input: number; output: number } | null;
   agentType: string | null;
-} | null {
+}
+
+function readToolUseResult(parsed: ParsedStreamEvent): ToolUseResult | null {
   const tur = parsed.raw.tool_use_result ?? parsed.raw.toolUseResult;
   if (!tur || typeof tur !== "object") return null;
   const t = tur as Record<string, unknown>;
