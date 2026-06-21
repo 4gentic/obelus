@@ -2888,6 +2888,17 @@ button.files__row {
   overflow-y: auto;
 }
 
+/* The structured live narration (ReviewFeed) while a draft streams. A quiet
+   inset that scrolls on its own so the feed can't push the Stop/Draft controls
+   off-screen; the feed paints its own .review-console__* internals. */
+.reviewer-actions__feed {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--rule-soft);
+  background: color-mix(in oklab, var(--panel) 70%, var(--paper));
+}
+
 .reviewer-actions__empty {
   color: var(--ink-soft);
   font-style: italic;
@@ -3474,6 +3485,85 @@ button.files__row {
 
 .review-console__tool > span {
   color: var(--rubric);
+}
+
+.review-console__tool[data-error] {
+  color: var(--rubric);
+}
+
+.review-console__tool-res {
+  font-family: var(--font-mono);
+  opacity: 0.6;
+}
+
+/* Semantic section divider emitted by the skill ([obelus:phase]). A hairline
+   rule above sets each phase apart from the breadcrumbs that precede it. */
+.review-console__phase {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: var(--rule-soft);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rubric);
+}
+
+.review-console__phase:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* A milestone the reviewer called out ([obelus:note]) — a serif ink line, set
+   apart from breadcrumbs by the rubric em-dash. */
+.review-console__note {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  line-height: 1.6;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.review-console__note-mark {
+  color: var(--rubric);
+}
+
+.review-console__thinking {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid color-mix(in oklab, var(--ink-soft) 35%, transparent);
+}
+
+.review-console__thinking-body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: var(--step--1);
+  line-height: 1.6;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.review-console__thinking-body[data-clamp] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.review-console__thinking-toggle {
+  margin-top: var(--space-1);
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--rubric);
+  cursor: pointer;
 }
 
 /* --- Findings feed (per-finding rationale, links to its diff) -------------- */

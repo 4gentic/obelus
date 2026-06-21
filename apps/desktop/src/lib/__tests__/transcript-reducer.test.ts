@@ -5,6 +5,7 @@ import {
   finalize,
   ingest,
   MAX_BLOCKS,
+  type NoteBlock,
   type TextBlock,
   type ThinkingBlock,
   type ToolBlock,
@@ -94,6 +95,50 @@ describe("text streaming", () => {
     expect(t.kind).toBe("text");
     expect(t.text).toBe("OpenCode-style closed text");
     expect(t.closed).toBe(true);
+  });
+});
+
+describe("obelus markers", () => {
+  it("emits a NoteBlock for an [obelus:note] line", () => {
+    const s = feed(emptyState(), [
+      assistantEvent([{ type: "text", text: "[obelus:note] Drafted 6 edits" }]),
+    ]);
+    const note = s.blocks.find((b) => b.kind === "note") as NoteBlock | undefined;
+    expect(note).toBeDefined();
+    expect(note?.text).toBe("Drafted 6 edits");
+  });
+
+  it("does not leak [obelus:note] / [obelus:phase] marker lines into any TextBlock", () => {
+    const s = feed(emptyState(), [
+      assistantEvent([
+        {
+          type: "text",
+          text: "[obelus:phase] stress-test\nChecking the claim in section 3.\n[obelus:note] Drafted 6 edits",
+        },
+      ]),
+    ]);
+    for (const b of s.blocks) {
+      if (b.kind === "text") {
+        expect(b.text).not.toContain("[obelus:");
+      }
+    }
+    // The surrounding prose survives; only the marker lines are stripped.
+    const text = s.blocks.find((b) => b.kind === "text") as TextBlock | undefined;
+    expect(text?.text).toBe("Checking the claim in section 3.");
+    const note = s.blocks.find((b) => b.kind === "note") as NoteBlock | undefined;
+    expect(note?.text).toBe("Drafted 6 edits");
+  });
+
+  it("strips a marker line out of streamed deltas once the block closes", () => {
+    const s = feed(emptyState(), [
+      textDelta("[obelus:phase] gather-context\n"),
+      textDelta("Reading the introduction."),
+      blockStop(),
+    ]);
+    const text = s.blocks.find((b) => b.kind === "text") as TextBlock | undefined;
+    expect(text?.closed).toBe(true);
+    expect(text?.text).toBe("Reading the introduction.");
+    expect(text?.text).not.toContain("[obelus:");
   });
 });
 

@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import ReviewFeed from "./ReviewFeed";
 import { useReviewProgress } from "./review-runner-context";
 
 function elapsedLabel(startedAt: number | null, now: number): string {
@@ -61,21 +62,7 @@ export default function ReviewConsole({ running }: { running: boolean }): JSX.El
               : "The reviewer's narration appears here while a review runs."}
           </p>
         ) : (
-          <ol className="review-console__list">
-            {entries.map((e, i) =>
-              e.kind === "assistant" ? (
-                // biome-ignore lint/suspicious/noArrayIndexKey: append-only transcript; positions are stable except a rare trailing trim.
-                <li key={i} className="review-console__assistant">
-                  {e.text}
-                </li>
-              ) : (
-                // biome-ignore lint/suspicious/noArrayIndexKey: append-only transcript; positions are stable except a rare trailing trim.
-                <li key={i} className="review-console__tool">
-                  <span aria-hidden>→</span> {e.label}
-                </li>
-              ),
-            )}
-          </ol>
+          <ReviewFeed entries={entries} />
         )}
       </div>
     </section>

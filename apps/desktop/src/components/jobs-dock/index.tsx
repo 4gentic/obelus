@@ -1,6 +1,7 @@
 import { claudeCancel } from "@obelus/claude-sidecar";
 import { type JSX, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { humanizePhase, isSemanticPhase, SEMANTIC_PHASE_PREFIX } from "../../lib/claude-phase";
 import { type JobRecord, STALL_THRESHOLD_MS, useJobsStore } from "../../lib/jobs-store";
 import { emitOpenFile } from "../../lib/open-file-event";
 import { getRepository } from "../../lib/repo";
@@ -347,10 +348,19 @@ function orderJobs(jobs: Record<string, JobRecord>): JobRecord[] {
   return Object.values(jobs).sort((a, b) => a.startedAt - b.startedAt);
 }
 
+// `job.phase` is stored raw: a semantic marker arrives as `obelus:<token>`,
+// while tool-derived phases are already the human caption from `describePhase`.
+// Humanize the semantic form at the display boundary so the dock never shows a
+// bare token like `obelus:gather-context`.
+function displayPhase(phase: string): string {
+  if (isSemanticPhase(phase)) return humanizePhase(phase.slice(SEMANTIC_PHASE_PREFIX.length));
+  return phase;
+}
+
 function shortPhase(job: JobRecord): string {
   switch (job.status) {
     case "running":
-      return job.phase || "Working";
+      return job.phase ? displayPhase(job.phase) : "Working";
     case "ingesting":
       return "Ingesting";
     case "done":
@@ -380,7 +390,7 @@ function JobMessage({ message }: { message: string }): JSX.Element {
 function statusWord(job: JobRecord): string {
   switch (job.status) {
     case "running":
-      return job.phase ? `Running · ${job.phase}` : "Running";
+      return job.phase ? `Running · ${displayPhase(job.phase)}` : "Running";
     case "ingesting":
       return "Ingesting";
     case "done":

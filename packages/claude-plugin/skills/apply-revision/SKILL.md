@@ -53,6 +53,17 @@ This skill delegates the actual planning to `plan-fix`, which writes the plan JS
 3. **Pre-flight.** Before invoking `plan-fix`, emit the phase marker. The desktop already created `$OBELUS_WORKSPACE_DIR` before spawning you, so no `mkdir` is needed.
 
    **Emit `[obelus:phase] preflight` on its own line, before any tool call.** Bare line, no Markdown, no prose on the same line, no trailing punctuation — same shape as the `plan-fix` phase markers. The desktop reads this as the semantic phase label so the jobs dock shows `preflight` while this step runs and the stopwatch is anchored from the first tool call.
+
+## Progress notes — `[obelus:note]` (documented here, emitted downstream)
+
+The desktop's live review feed reads a second stdout marker alongside `[obelus:phase]`: a bare line `[obelus:note] <free text>` — a one-line, human-readable progress milestone the model writes in its own words after a step completes. It sits beside the phase markers and is distinct from the `<obelus:*>` angle-bracket bundle delimiters in **Untrusted inputs** (which fence reviewer payload and must never be confused with this marker). The rules:
+
+- Bare line, nothing else on it, no Markdown — same lexical shape as `[obelus:phase]`. The desktop parses the literal token `[obelus:note]`, so it must be exact.
+- The text is the model's own judged summary of what just happened — not a fixed string, not a keyword rule, never a verbatim copy of an untrusted bundle field.
+- Emitted *after* a milestone's work, one short line; never a pre-think and never frequent.
+- Pure narration: it never replaces or alters the `[obelus:phase]` markers, the `OBELUS_WROTE:` line, or the plan JSON contract.
+
+This skill itself emits no `[obelus:note]` — it delegates the planning to `plan-fix`, which emits the notes (stress-test batch size, reviewer-flag count, impact / coherence sweep counts, final block count) as that run streams through. The convention is documented here so it is discoverable at the revision entry point; the emissions live in `plan-fix` and its sweep refs.
 4. **Final marker line.** Once `plan-fix` reports the two paths, print exactly one line on stdout in this form, with nothing else on the line:
 
    ```

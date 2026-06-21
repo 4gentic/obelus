@@ -11,7 +11,7 @@ import {
   parseToolResults,
   type StreamUsage,
 } from "@obelus/claude-sidecar";
-import { describePhase } from "./claude-phase";
+import { describePhase, extractNoteMarker } from "./claude-phase";
 
 // Hard caps. Numbers chosen so a long deep-review (~600 events) stays well
 // under ~5 MB heap per session.
@@ -67,7 +67,21 @@ export interface StatusBlock extends BaseBlock {
   readonly label: string;
 }
 
-export type TranscriptBlock = TextBlock | ThinkingBlock | ToolBlock | ToolGroupBlock | StatusBlock;
+// A milestone the skill called out via a bare `[obelus:note] <text>` line —
+// rendered as an editorial line apart from tool breadcrumbs, mirroring the
+// writer feed's `.review-console__note`.
+export interface NoteBlock extends BaseBlock {
+  readonly kind: "note";
+  readonly text: string;
+}
+
+export type TranscriptBlock =
+  | TextBlock
+  | ThinkingBlock
+  | ToolBlock
+  | ToolGroupBlock
+  | StatusBlock
+  | NoteBlock;
 
 export interface TranscriptState {
   readonly blocks: ReadonlyArray<TranscriptBlock>;
@@ -151,6 +165,15 @@ export function ingest(
   const usage = extractUsage(parsed);
   if (usage) next = { ...next, usage };
 
+  // `[obelus:note]` milestones ride on whole-text events (assistant / result),
+  // never on partial deltas — `extractNoteMarker` returns null for stream
+  // events — so pushing here fires once per note without duplicating across
+  // the delta cadence.
+  const note = extractNoteMarker(parsed);
+  if (note !== null) {
+    next = pushNote(next, note, atMs);
+  }
+
   if (parsed.type === "stream_event") {
     const deltaText = extractDeltaText(parsed);
     if (deltaText) {
@@ -191,7 +214,7 @@ function ingestAssistant(
   // first time we learn the text/thinking content (OpenCode, older Claude
   // builds). Push closed blocks for whatever it carries.
   if (!state.sawDeltaSinceLastAssistant) {
-    const text = extractAssistantText(parsed);
+    const text = compactText(extractAssistantText(parsed));
     if (text) {
       const id = nextId(next);
       next = withCounterBumped(next);
@@ -200,7 +223,7 @@ function ingestAssistant(
         kind: "text",
         startedAt: atMs,
         closed: true,
-        text: compactText(text),
+        text,
       };
       next = pushBlock(next, block);
     }
@@ -401,10 +424,23 @@ function closeOpenBlocks(state: TranscriptState): TranscriptState {
 }
 
 function compactText(text: string): string {
-  if (text.length <= MAX_TEXT_KEEP_BYTES) return text;
-  const head = text.slice(0, TEXT_HEAD_BYTES);
-  const tail = text.slice(text.length - TEXT_TAIL_BYTES);
+  const cleaned = stripMarkerLines(text);
+  if (cleaned.length <= MAX_TEXT_KEEP_BYTES) return cleaned;
+  const head = cleaned.slice(0, TEXT_HEAD_BYTES);
+  const tail = cleaned.slice(cleaned.length - TEXT_TAIL_BYTES);
   return `${head}\n…\n${tail}`;
+}
+
+// Drop whole `[obelus:phase] …` / `[obelus:note] …` lines so a recognised
+// marker is surfaced as its own block (phase header / NoteBlock) and never
+// leaks into the rendered prose. Mirrors the writer feed's stripMarkerLines.
+function stripMarkerLines(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => !/^\s*\[obelus:(phase|note)\]/.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function clampLength(text: string, max: number): string {
@@ -414,6 +450,13 @@ function clampLength(text: string, max: number): string {
 function pushBlock(state: TranscriptState, block: TranscriptBlock): TranscriptState {
   const blocks = [...state.blocks, block];
   return enforceBlockCap({ ...state, blocks });
+}
+
+function pushNote(state: TranscriptState, text: string, atMs: number): TranscriptState {
+  const id = nextId(state);
+  const next = withCounterBumped(state);
+  const block: NoteBlock = { id, kind: "note", startedAt: atMs, closed: true, text };
+  return pushBlock(next, block);
 }
 
 function pushTool(state: TranscriptState, tool: ToolBlock, useId: string | null): TranscriptState {

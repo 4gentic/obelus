@@ -11,20 +11,83 @@ import { artifactLabel } from "./artifact-label";
 // plugin-side contract lives in `packages/claude-plugin/skills/plan-fix/
 // SKILL.md`; keep both sides in lockstep when extending.
 const PHASE_MARKER_RE = /\[obelus:phase\]\s+(\S+)/;
+// `[obelus:note] <free text>`, captured to end of line. `[^\n]` keeps the note
+// to a single line so a paragraph following the marker isn't swallowed; the
+// `phase` regex's `\S+` token can't match here because notes carry free text.
+const NOTE_MARKER_RE = /\[obelus:note\]\s+([^\n]+)/;
 export const SEMANTIC_PHASE_PREFIX = "obelus:" as const;
 
 // Delta chunks can split the marker token mid-parse, so we scan the complete
 // assistant text and the final result payload — never the partial stream
 // events — to avoid false matches on prefixes like `[obelus:p`.
+function fullEventText(event: ParsedStreamEvent): string {
+  return extractAssistantText(event) || extractResultText(event) || "";
+}
+
 export function extractPhaseMarker(event: ParsedStreamEvent): string | null {
-  const text = extractAssistantText(event) || extractResultText(event) || "";
+  const text = fullEventText(event);
   if (!text) return null;
   const match = text.match(PHASE_MARKER_RE);
   return match?.[1] ?? null;
 }
 
+// Sibling of `extractPhaseMarker` for `[obelus:note]` milestone lines the skill
+// emits to narrate progress ("Drafted 6 edits"). Same whole-text scan to dodge
+// split deltas.
+export function extractNoteMarker(event: ParsedStreamEvent): string | null {
+  const text = fullEventText(event);
+  if (!text) return null;
+  const match = text.match(NOTE_MARKER_RE);
+  return match?.[1]?.trim() ?? null;
+}
+
 export function isSemanticPhase(phase: string): boolean {
   return phase.startsWith(SEMANTIC_PHASE_PREFIX);
+}
+
+// Phase tokens the `plan-fix` skill emits, mapped to the noun phrase shown in
+// the live feed's header. Unknown tokens are title-cased so a new skill phase
+// still reads cleanly without a code change here.
+const PHASE_LABELS: Readonly<Record<string, string>> = {
+  preflight: "Preparing",
+  "gather-context": "Gathering context",
+  "locating-spans": "Locating passages",
+  "stress-test": "Stress-testing edits",
+  "impact-sweep": "Impact sweep",
+  "coherence-sweep": "Coherence sweep",
+  "quality-sweep": "Quality sweep",
+  "writing-plan": "Writing the plan",
+};
+
+export function humanizePhase(token: string): string {
+  const known = PHASE_LABELS[token];
+  if (known) return known;
+  return token
+    .split("-")
+    .map((word) => (word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(" ");
+}
+
+// A short suffix appended to a tool breadcrumb once its result lands, so the
+// feed shows the shape of the answer ("12 matches", "84 lines") rather than a
+// bare "Reading X". Content may be empty (tools that produce no stdout).
+export function summarizeToolResult(toolName: string, content: string, isError: boolean): string {
+  if (isError) return "error";
+  if (toolName === "Read") {
+    const lines = content === "" ? 0 : content.split(/\r?\n/).length;
+    return `${lines} line${lines === 1 ? "" : "s"}`;
+  }
+  if (toolName === "Grep") {
+    const matches = content.split(/\r?\n/).filter((l) => l.trim() !== "").length;
+    return `${matches} match${matches === 1 ? "" : "es"}`;
+  }
+  const firstLine =
+    content
+      .split(/\r?\n/)
+      .find((l) => l.trim() !== "")
+      ?.trim() ?? "";
+  if (firstLine === "") return "done";
+  return truncate(firstLine, 40);
 }
 
 export function describePhase(toolName: string, input: unknown): string {

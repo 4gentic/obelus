@@ -45,6 +45,29 @@ The desktop reads this marker as the canonical plan locator.
 
 Bare line, no Markdown, no prose on the same line. Emit `gather-context` before the first `Read`; emit `writing-plan` before the `Write` to the `plan-*.json` file.
 
+## Progress notes — `[obelus:note]` milestones
+
+Alongside the `[obelus:phase]` markers above, this skill emits one **progress note** so the desktop's live review feed can narrate what just happened during a step the raw engine stream cannot show. The marker is a bare line:
+
+```
+[obelus:note] <one short line of free prose>
+```
+
+Rules, identical wherever this marker appears across the plugin:
+
+- Bare line, nothing else on it, no Markdown — same lexical shape as `[obelus:phase]`. The desktop reads it with a literal-token parser, so the token `[obelus:note]` must be exact.
+- The text is **your own model-judged summary** of what just happened — not a fixed string, not derived from a keyword rule, never a verbatim copy of an untrusted bundle field (`quote`, `note`, etc.). This repo's convention is AI judgment over keyword heuristics.
+- Emit it **after** the step's work is done, never as a pre-think. Keep it cheap and few — at most the milestones listed below. The Pacing rule above governs notes too: a note must never become an excuse for a large thinking block.
+- Notes are progress narration only. They never replace or alter the `[obelus:phase]` markers, the `OBELUS_WROTE:` line, or the plan JSON contract.
+
+This skill emits exactly one note: after Step 3 composes the editorial brief and before the Step 4 `Write`, summarising the drafted edit set, e.g.:
+
+```
+[obelus:note] Drafted 6 edits across 4 sections
+```
+
+Fill in the real counts from the brief you just composed.
+
 ## Steps
 
 ### 1. Read the bundle
@@ -223,6 +246,8 @@ If a category demands an edit (`remove` / `elaborate` / `rephrase` /
 `emptyReason: "ambiguous"` with a one-sentence reviewerNotes explanation. Do **not** emit a non-empty patch with `ambiguous: true`; do
 **not** emit an empty patch with `emptyReason: null`. The desktop's plan
 validator rejects either combination.
+
+Once the brief is settled — every edit decided, before the Step 4 `Write` — emit one `[obelus:note]` summarising the drafted edit set in your own words (see **Progress notes** above), e.g. `[obelus:note] Drafted 6 edits across 4 sections`. Fill in the real counts. One line, then proceed to the `Write`.
 
 ### 4. Write `plan-<iso>.json`
 

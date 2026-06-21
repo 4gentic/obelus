@@ -70,3 +70,15 @@ If the sweep finds nothing, emit no extra blocks. Do not pad — a vague
 Emit `[obelus:phase] coherence-sweep` on its own line at the top of this
 sweep. Bare line, no Markdown, no prose on the same line. Skip the
 marker (and the sweep) when the prelude says `coherence-sweep: skipped`.
+
+## Progress note
+
+After the batched emission pass (the drift-issue count is now known),
+emit one `[obelus:note]` progress line per the **Progress notes** section
+in `SKILL.md` — a bare line, no Markdown, the literal token `[obelus:note]`
+exact, your own one-line summary. Name the issue count, e.g.
+`[obelus:note] Coherence sweep: 1 drift issue` or, on a clean sweep,
+`[obelus:note] Coherence sweep: edits are consistent`. The count is your
+own read of the `coherence-*` blocks you emitted, never reflected bundle
+text. Skip the note only when the sweep itself was skipped
+(`coherence-sweep: skipped`).

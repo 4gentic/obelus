@@ -356,6 +356,9 @@ function contentBlocks(event: ParsedStreamEvent): ReadonlyArray<Record<string, u
 export interface StreamToolUse {
   readonly name: string;
   readonly input: unknown;
+  // The tool_use block's `id`, used to correlate the follow-up `tool_result`
+  // (see `parseToolResults`) back to this call. Empty string when absent.
+  readonly id: string;
 }
 
 export function extractToolUses(event: ParsedStreamEvent): ReadonlyArray<StreamToolUse> {
@@ -365,7 +368,8 @@ export function extractToolUses(event: ParsedStreamEvent): ReadonlyArray<StreamT
     if (block.type !== "tool_use") continue;
     const name = typeof block.name === "string" ? block.name : "";
     if (!name) continue;
-    out.push({ name, input: block.input });
+    const id = typeof block.id === "string" ? block.id : "";
+    out.push({ name, input: block.input, id });
   }
   return out;
 }
