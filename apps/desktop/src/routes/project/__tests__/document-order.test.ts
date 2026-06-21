@@ -15,6 +15,41 @@ function pdfAnchor(page: number, y0: number): AnchorFields {
   };
 }
 
+function sourceHint(
+  file: string,
+  lineStart: number,
+  colStart = 0,
+): AnchorFields & { kind: "source" } {
+  return { kind: "source", file, lineStart, colStart, lineEnd: lineStart, colEnd: colStart + 1 };
+}
+
+function htmlAnchor(
+  file: string,
+  charOffsetStart: number,
+  hint?: { file: string; lineStart: number; colStart?: number },
+): AnchorFields {
+  return {
+    kind: "html",
+    file,
+    xpath: "/html/body/p[1]",
+    charOffsetStart,
+    charOffsetEnd: charOffsetStart + 1,
+    ...(hint ? { sourceHint: sourceHint(hint.file, hint.lineStart, hint.colStart) } : {}),
+  };
+}
+
+function htmlElementAnchor(
+  file: string,
+  hint?: { file: string; lineStart: number; colStart?: number },
+): AnchorFields {
+  return {
+    kind: "html-element",
+    file,
+    xpath: "/html/body/img[1]",
+    ...(hint ? { sourceHint: sourceHint(hint.file, hint.lineStart, hint.colStart) } : {}),
+  };
+}
+
 function annotation(id: string, anchor: AnchorFields): AnnotationRow {
   return {
     id,
@@ -175,6 +210,113 @@ describe("sortByDocumentOrder", () => {
     expect(sorted.map((h) => h.id)).toEqual(["h1", "h2", "h3"]);
   });
 
+  it("orders html anchors with a sourceHint by the hint's line then column", () => {
+    const anns = new Map<string, AnnotationRow>([
+      [
+        "a1",
+        annotation("a1", htmlAnchor("index.html", 9000, { file: "index.html", lineStart: 40 })),
+      ],
+      ["a2", annotation("a2", htmlAnchor("index.html", 10, { file: "index.html", lineStart: 12 }))],
+      [
+        "a3",
+        annotation(
+          "a3",
+          htmlAnchor("index.html", 5000, { file: "index.html", lineStart: 12, colStart: 4 }),
+        ),
+      ],
+    ]);
+    // charOffsets are deliberately out of hint-line order; the hint must win.
+    const hunks = [
+      hunk("h1", 0, ["a1"], "index.html"),
+      hunk("h2", 1, ["a2"], "index.html"),
+      hunk("h3", 2, ["a3"], "index.html"),
+    ];
+
+    const sorted = sortByDocumentOrder(hunks, anns, NO_FILE_ORDER);
+
+    // line 12 col 0 (h2) < line 12 col 4 (h3) < line 40 (h1).
+    expect(sorted.map((h) => h.id)).toEqual(["h2", "h3", "h1"]);
+  });
+
+  it("orders html anchors without a sourceHint by charOffsetStart", () => {
+    const anns = new Map<string, AnnotationRow>([
+      ["a1", annotation("a1", htmlAnchor("index.html", 800))],
+      ["a2", annotation("a2", htmlAnchor("index.html", 30))],
+      ["a3", annotation("a3", htmlAnchor("index.html", 410))],
+    ]);
+    const hunks = [
+      hunk("h1", 0, ["a1"], "index.html"),
+      hunk("h2", 1, ["a2"], "index.html"),
+      hunk("h3", 2, ["a3"], "index.html"),
+    ];
+
+    const sorted = sortByDocumentOrder(hunks, anns, NO_FILE_ORDER);
+
+    // charOffset 30 < 410 < 800.
+    expect(sorted.map((h) => h.id)).toEqual(["h2", "h3", "h1"]);
+  });
+
+  it("orders html-element anchors with a sourceHint by the hint's line", () => {
+    const anns = new Map<string, AnnotationRow>([
+      [
+        "a1",
+        annotation("a1", htmlElementAnchor("index.html", { file: "index.html", lineStart: 70 })),
+      ],
+      [
+        "a2",
+        annotation("a2", htmlElementAnchor("index.html", { file: "index.html", lineStart: 5 })),
+      ],
+    ]);
+    const hunks = [hunk("h1", 0, ["a1"], "index.html"), hunk("h2", 1, ["a2"], "index.html")];
+
+    const sorted = sortByDocumentOrder(hunks, anns, NO_FILE_ORDER);
+
+    expect(sorted.map((h) => h.id)).toEqual(["h2", "h1"]);
+  });
+
+  it("anchors html-element without a sourceHint at primary 0 (tiebroken by ordinal)", () => {
+    // No hint ⇒ every html-element shares position {0, 0} within the file, so
+    // only the trailing ordinal distinguishes them. A hinted element on line 1
+    // still sorts after the hintless ones, since 0 < 1.
+    const anns = new Map<string, AnnotationRow>([
+      ["plain1", annotation("plain1", htmlElementAnchor("index.html"))],
+      ["plain2", annotation("plain2", htmlElementAnchor("index.html"))],
+      [
+        "hinted",
+        annotation("hinted", htmlElementAnchor("index.html", { file: "index.html", lineStart: 1 })),
+      ],
+    ]);
+    const hunks = [
+      hunk("h-hinted", 0, ["hinted"], "index.html"),
+      hunk("h-plain2", 1, ["plain2"], "index.html"),
+      hunk("h-plain1", 2, ["plain1"], "index.html"),
+    ];
+
+    const sorted = sortByDocumentOrder(hunks, anns, NO_FILE_ORDER);
+
+    // primary 0 (the two plain ones, by ordinal) before primary 1 (hinted).
+    expect(sorted.map((h) => h.id)).toEqual(["h-plain2", "h-plain1", "h-hinted"]);
+  });
+
+  it("sorts the pdf bucket after every source/html file in a mixed session", () => {
+    const anns = new Map<string, AnnotationRow>([
+      ["pdf-top", annotation("pdf-top", pdfAnchor(1, 10))],
+      ["src", annotation("src", sourceAnchor("main.tex", 999))],
+      ["html", annotation("html", htmlAnchor("index.html", 5))],
+    ]);
+    const hunks = [
+      hunk("h-pdf", 0, ["pdf-top"]),
+      hunk("h-src", 1, ["src"], "main.tex"),
+      hunk("h-html", 2, ["html"], "index.html"),
+    ];
+
+    const sorted = sortByDocumentOrder(hunks, anns, NO_FILE_ORDER);
+
+    // Source/html files first (alphabetical: index.html < main.tex); the pdf
+    // bucket trails, even though its only mark sits high on page 1.
+    expect(sorted.map((h) => h.id)).toEqual(["h-html", "h-src", "h-pdf"]);
+  });
+
   it("does not mutate the input array", () => {
     const anns = new Map<string, AnnotationRow>([
       ["a1", annotation("a1", sourceAnchor("main.tex", 9))],
@@ -208,5 +350,22 @@ describe("filesInDocumentOrder", () => {
     const files = filesInDocumentOrder(hunks, (h) => h.file, anns, fileOrder);
 
     expect(files).toEqual(["a.tex", "b.tex"]);
+  });
+
+  it("sinks a file whose only hunks are anchorless to the end", () => {
+    // `synth.tex` carries one hunk with no resolvable mark; `body.tex` has an
+    // anchored one. Anchorless ⇒ no document position, so the file trails the
+    // anchored file regardless of name.
+    const anns = new Map<string, AnnotationRow>([
+      ["a1", annotation("a1", sourceAnchor("body.tex", 5))],
+    ]);
+    const hunks = [
+      hunk("h-synth", 0, ["cascade-1"], "synth.tex"),
+      hunk("h-body", 1, ["a1"], "body.tex"),
+    ];
+
+    const files = filesInDocumentOrder(hunks, (h) => h.file, anns, NO_FILE_ORDER);
+
+    expect(files).toEqual(["body.tex", "synth.tex"]);
   });
 });

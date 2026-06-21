@@ -9,6 +9,7 @@ import { paperHasSources } from "../../lib/paper-has-sources";
 import { splitHeadline } from "../../lib/split-headline";
 import { useKeyNav } from "../../lib/use-key-nav";
 import { useProject } from "./context";
+import { computeApplyGate, fileKey, groupByFile } from "./diff-review-gate";
 import { useDiffStore } from "./diff-store-context";
 import { filesInDocumentOrder, primaryAnnotation, sortByDocumentOrder } from "./document-order";
 import HunkBlock from "./HunkBlock";
@@ -28,21 +29,6 @@ interface Props {
 }
 
 const EMPTY_PHASE_HISTORY: readonly PhaseEntry[] = Object.freeze([]);
-
-function fileKey(h: DiffHunkRow): string {
-  return h.file === "" ? "(unresolved)" : h.file;
-}
-
-function groupByFile(hunks: ReadonlyArray<DiffHunkRow>): Map<string, DiffHunkRow[]> {
-  const map = new Map<string, DiffHunkRow[]>();
-  for (const h of hunks) {
-    const key = fileKey(h);
-    const bucket = map.get(key) ?? [];
-    bucket.push(h);
-    map.set(key, bucket);
-  }
-  return map;
-}
 
 export default function DiffReview(props: Props): JSX.Element {
   const { project, rootId, repo } = useProject();
@@ -439,20 +425,12 @@ export default function DiffReview(props: Props): JSX.Element {
     runner.status.kind === "working" ||
     runner.status.kind === "running" ||
     runner.status.kind === "ingesting";
-  const bulkAvailable =
-    applyStatus.kind !== "applying" &&
-    applyStatus.kind !== "applied" &&
-    applyStatus.kind !== "partial" &&
-    !runnerBusy;
-  const canAcceptAll = bulkAvailable && applicableCounts.pending + applicableCounts.rejected > 0;
-  const canRejectAll = bulkAvailable && applicableCounts.pending + applicableCounts.accepted > 0;
-  const applicable =
-    applicableCounts.pending === 0 &&
-    acceptedTotal > 0 &&
-    applyStatus.kind !== "applying" &&
-    applyStatus.kind !== "applied" &&
-    applyStatus.kind !== "partial" &&
-    !runnerBusy;
+  const { canAcceptAll, canRejectAll, applicable } = computeApplyGate({
+    applicableCounts,
+    acceptedTotal,
+    applyStatus,
+    runnerBusy,
+  });
   const canRunDeep =
     deepReview.kind === "ready" &&
     activePaperId !== null &&
