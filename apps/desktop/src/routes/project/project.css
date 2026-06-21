@@ -997,6 +997,11 @@ button.files__row {
   padding: var(--space-4);
   min-height: 100%;
   background: var(--paper);
+  /* Flex item in the flex-column scroll container. Without this, .pdf-doc's
+     min-content (the current page width) pins the pane wide once pages render at
+     a wide scale, so .pdf-adapter never shrinks, the auto-fit ResizeObserver
+     never fires, and the PDF stays clipped when the margin gutter opens. */
+  min-width: 0;
 }
 
 /* Zero-height sticky anchor so the find bar stays pinned to the visible top
