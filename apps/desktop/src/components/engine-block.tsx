@@ -9,6 +9,7 @@ import {
   engineStatus,
   engineUninstall,
 } from "../ipc/commands";
+import { formatBytes } from "../lib/format-bytes";
 import "./engine-block.css";
 
 type InstallState =
@@ -247,10 +248,4 @@ function computeRatio(s: Extract<InstallState, { kind: "installing" }>): number 
   const total = s.bytesTotal;
   if (total === null || total <= 0) return null;
   return Math.min(1, done / total);
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
