@@ -39,7 +39,10 @@ type StoreKey =
   | "currentDeskId"
   | "trustedPapers"
   | "reviewerThoroughness"
-  | "panelsByProject";
+  | "panelsByProject"
+  | "autoUpdateCheck"
+  | "lastUpdateCheckAt"
+  | "dismissedUpdateVersion";
 
 export interface ProjectPanelState {
   filesHidden: boolean;
@@ -77,6 +80,16 @@ interface StoreShape {
   // not focused (the default). Persisted so users keep their layout across
   // restarts.
   panelsByProject: Record<string, ProjectPanelState>;
+  // Consent for proactive update checks. Absent = the user hasn't decided yet
+  // (the one-time consent banner is still eligible); true/false = decided.
+  // Off unless opted in, so the offline-first promise holds by default.
+  autoUpdateCheck: boolean;
+  // Epoch ms of the last completed update check. Drives the 8h re-check cadence
+  // and a short floor that dedupes WebView refreshes; surfaced in Settings.
+  lastUpdateCheckAt: number;
+  // Version the user dismissed in the update banner. The banner stays hidden
+  // until a different (newer) version is offered.
+  dismissedUpdateVersion: string;
 }
 
 let singleton: Promise<Store> | null = null;
@@ -196,4 +209,28 @@ export async function setProjectReviewFocused(projectId: string, focused: boolea
     ...existing,
     [projectId]: { ...current, reviewFocused: focused },
   });
+}
+
+export async function getAutoUpdateCheck(): Promise<boolean | undefined> {
+  return getAppState("autoUpdateCheck");
+}
+
+export async function setAutoUpdateCheck(value: boolean): Promise<void> {
+  await setAppState("autoUpdateCheck", value);
+}
+
+export async function getLastUpdateCheckAt(): Promise<number | undefined> {
+  return getAppState("lastUpdateCheckAt");
+}
+
+export async function setLastUpdateCheckAt(value: number): Promise<void> {
+  await setAppState("lastUpdateCheckAt", value);
+}
+
+export async function getDismissedUpdateVersion(): Promise<string | undefined> {
+  return getAppState("dismissedUpdateVersion");
+}
+
+export async function setDismissedUpdateVersion(value: string): Promise<void> {
+  await setAppState("dismissedUpdateVersion", value);
 }

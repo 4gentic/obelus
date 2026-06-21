@@ -1,0 +1,88 @@
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-6);
+  background: color-mix(in oklab, var(--rubric) 10%, var(--paper));
+  border-bottom: 1px solid var(--rubric);
+  border-left: 3px solid var(--rubric);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+}
+
+.update-banner__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.update-banner__text {
+  margin: 0;
+}
+
+.update-banner__version {
+  font-family: var(--font-mono);
+}
+
+.update-banner__notes {
+  margin-top: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+}
+
+.update-banner__notes > summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+
+.update-banner__notes-body {
+  margin: var(--space-2) 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.update-banner__status {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--ink-soft);
+}
+
+.update-banner__status--warn {
+  color: var(--rubric);
+}
+
+.update-banner__actions {
+  display: inline-flex;
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+
+.update-banner__btn {
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: color 120ms linear;
+}
+
+.update-banner__btn:hover {
+  color: var(--rubric);
+}
+
+.update-banner__btn:disabled {
+  color: var(--ink-soft);
+  text-decoration: none;
+  cursor: default;
+}
+
+.update-banner__btn--muted {
+  color: var(--ink-soft);
+}
