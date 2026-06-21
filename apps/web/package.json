@@ -19,6 +19,7 @@
     "@fontsource-variable/newsreader": "5.2.10",
     "@fontsource-variable/source-serif-4": "5.2.9",
     "@obelus/anchor": "workspace:*",
+    "@obelus/brand": "workspace:*",
     "@obelus/bundle-builder": "workspace:*",
     "@obelus/bundle-schema": "workspace:*",
     "@obelus/categories": "workspace:*",

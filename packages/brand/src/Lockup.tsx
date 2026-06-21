@@ -1,0 +1,22 @@
+import type { JSX } from "react";
+
+export default function Lockup(): JSX.Element {
+  return (
+    <span className="obelus-lockup">
+      <svg
+        className="obelus-lockup__mark"
+        viewBox="0 0 64 64"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <g fill="var(--rubric)">
+          <ellipse cx="32" cy="18.4" rx="3.9" ry="3.6" />
+          <path d="M10.5,31.3 C12,30.9 18.6,30.8 32,30.8 C45.4,30.8 52,30.9 53.5,31.3 C53.8,31.9 53.8,32.6 53.5,33.2 C52,33.6 45.4,33.7 32,33.7 C18.6,33.7 12,33.6 10.5,33.2 C10.2,32.6 10.2,31.9 10.5,31.3 Z" />
+          <ellipse cx="32" cy="46.1" rx="3.7" ry="3.9" />
+        </g>
+      </svg>
+      <span className="obelus-lockup__word">Obelus</span>
+      <span className="obelus-lockup__by">by 4gentic</span>
+    </span>
+  );
+}

@@ -1,4 +1,6 @@
+import { Lockup } from "@obelus/brand";
 import { Link, Outlet, useLocation } from "react-router-dom";
+import "@obelus/brand/lockup.css";
 import JobsDock from "./jobs-dock";
 import UpdateBanner from "./update-banner";
 import "./frame.css";
@@ -12,10 +14,7 @@ export default function Frame(): JSX.Element {
       {isWizard ? null : (
         <header className="frame__header">
           <Link to="/home" className="frame__brand" aria-label="Obelus home">
-            <span className="frame__brand-mark" aria-hidden="true">
-              ⸻
-            </span>
-            <span className="frame__brand-word">Obelus</span>
+            <Lockup />
           </Link>
           <nav className="frame__nav" aria-label="Primary">
             <Link to="/home" className="frame__link">

@@ -1,6 +1,7 @@
+import { Lockup } from "@obelus/brand";
 import { Link, Outlet } from "react-router-dom";
+import "@obelus/brand/lockup.css";
 import UpdateBanner from "../pwa/UpdateBanner";
-import Lockup from "./Lockup";
 import "./Frame.css";
 
 export default function Frame() {
@@ -11,7 +12,7 @@ export default function Frame() {
       </a>
       <header className="frame__header">
         <Link to="/" className="frame__brand" aria-label="Obelus home">
-          <Lockup size={28} />
+          <Lockup />
         </Link>
         <nav className="frame__nav" aria-label="Primary">
           <Link to="/" className="frame__link">
