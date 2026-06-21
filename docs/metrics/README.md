@@ -22,20 +22,101 @@ workspace, plugin install dir, paper repo) are rewritten to placeholders
 (`<paper-root>`, `<workspace>`, `<obelus-repo>`). Session UUIDs are kept
 intact — they're not path leaks and the JSONL stays internally consistent.
 
+Two caveats when diffing these against a fresh harness capture: (1) they predate
+the harness, so they carry no `anchor-resolution` event (the harness emits one,
+right after `bundle-stats`); (2) their `plan-stats.byCategory` uses the older
+`unclear` key — the current `MetricEvent` schema renamed it to `rephrase`, which
+is what a new capture emits. Neither is a regression; the harness tracks the
+current schema in `apps/desktop/src/lib/metrics.ts`.
+
 ## Capturing a new baseline
 
-1. Run a real review through the desktop app against a representative paper.
-2. Find the file at
-   `~/Library/Application Support/app.obelus.desktop/projects/<projectId>/metrics-<sessionId>.jsonl`.
-3. Copy it here as
-   `<YYYY-MM-DD>-<n>marks-<label>.jsonl` (e.g. `2026-05-12-12marks-postws1.jsonl`).
-4. Sanitize: replace any `/Users/<you>/…` substring with `<paper-root>`,
-   `<workspace>`, or `<obelus-repo>` as appropriate. Each line must remain
-   valid JSON; the easiest check is `cat file | while read l; do echo "$l" |
-   node -e 'JSON.parse(require("fs").readFileSync(0))'; done`.
-5. `grep -nE 'juan|/Users|/home' docs/metrics/<your-file>.jsonl` — if it
-   prints anything, sanitize again. Truncated tool-input blobs sometimes end
-   mid-path; strip those too.
+Use the capture harness — one command runs a review at N marks against a chosen
+fixture for a chosen engine and writes a **pre-sanitized** snapshot here. It
+reuses the desktop's own `MetricsStream` parser and the bundle/plan Zod
+schemas, so the output matches what the desktop emits for the same run.
+
+```sh
+# claude, small fixture, 7 marks → docs/metrics/<today>-7marks-baseline.jsonl
+pnpm capture:metrics --engine claude --fixture small --marks 7 --label 7marks-baseline
+
+# opencode, large fixture, 25 marks
+pnpm capture:metrics --engine opencode --fixture large --marks 25 --label 25marks-opencode
+```
+
+Flags: `--engine claude|opencode`, `--fixture small|large|<abs paper dir>`,
+`--marks N`, `--label <slug>` (names the file `<YYYY-MM-DD>-<label>.jsonl`),
+`--out <dir>` (default this directory), `--keep-tmp` (preserve the scratch
+project/workspace for inspection). `small` is the shared `sample.md` (~8 prose
+spans, right for 1–7 marks); `large` is `fixtures/capture/large.md` (~18 spans,
+for 12–25). Marks are synthesised with **source anchors**, so a given
+`(fixture, N)` always produces the same bundle — see the script header for the
+rationale.
+
+**Dry self-test (no engine, spends no quota):**
+
+```sh
+pnpm capture:metrics:selftest      # = capture:metrics --dry-run
+```
+
+It asserts the fixture resolves, the N-mark bundle synthesises and validates
+against the bundle schema, the boundary events conform to `MetricEvent`, the
+`plan-stats` derivation matches `jobs-listener.tsx`, and the path sanitiser
+scrubs a sample machine path. Run it after touching the harness or the metric
+schema.
+
+### Capturing the full gradient
+
+The capture gradient is **{1, 7, 12, 25} marks × {small, large} × {claude,
+opencode}**. Use `small` for 1 and 7 marks, `large` for 12 and 25 (it has the
+span density to support them). A bash loop:
+
+```sh
+for engine in claude opencode; do
+  for n in 1 7; do
+    pnpm capture:metrics --engine "$engine" --fixture small --marks "$n" \
+      --label "${n}marks-small-${engine}"
+  done
+  for n in 12 25; do
+    pnpm capture:metrics --engine "$engine" --fixture large --marks "$n" \
+      --label "${n}marks-large-${engine}"
+  done
+done
+```
+
+Each run spawns a **real** engine session (it spends quota / counts against your
+plan's rate limits) and takes minutes — see "Prerequisites" below. Capture a
+"before" gradient ahead of a workstream and an "after" gradient once it lands;
+the diff is the receipt.
+
+### Prerequisites for a real capture
+
+- The engine CLI on PATH: `claude` (`npm i -g @anthropic-ai/claude-code`) or
+  `opencode` (`brew install sst/tap/opencode`). The harness probes
+  `--version` and aborts with an install hint if missing.
+- **Auth.** Claude: either `ANTHROPIC_API_KEY` (metered) or a logged-in
+  subscription (`claude /login` once). OpenCode: `ANTHROPIC_API_KEY` or
+  `opencode auth login`. The harness inherits the ambient environment — it does
+  not manage auth.
+- **Cost / wall-clock.** A capture is one full review (preflight → locate →
+  sweeps → plan). Expect a few minutes per run on the small fixture and longer
+  as marks climb; the per-run timeout is 15 minutes. There is no built-in
+  budget cap — set `ANTHROPIC_API_KEY` spend limits on your account if metered.
+
+### Sanitisation (already applied)
+
+The harness scrubs every emitted line before writing: the scratch workspace →
+`<workspace>`, the paper dir → `<paper-root>`, the repo/plugin dir →
+`<obelus-repo>`, then a generic `/Users/<name>` · `/home/<name>` ·
+`C:\Users\<name>` → `<home>` fallback and a hostname → `<host>` sweep
+(`scripts/lib/sanitize-metrics.mjs`, unit-tested under `node --test`). A hard
+gate refuses to write the file if any line still leaks a machine path. Session
+UUIDs are kept intact — they are not path leaks and keep the JSONL internally
+consistent. As a belt-and-braces check before committing:
+
+```sh
+grep -nE '/Users/|/home/' docs/metrics/<your-file>.jsonl   # must print nothing
+```
 
 ## The measurement rule
 
