@@ -54,7 +54,6 @@ export default function MarginGutter({
   const desiredNotes = useMemo<DesiredNote[]>(() => {
     const out: DesiredNote[] = [];
     for (const row of annotations) {
-      if (row.note.length === 0) continue;
       const top = annotationTops.get(row.id);
       if (top === undefined) continue;
       out.push({ row, desiredTop: top - gutterOffsetTop });
