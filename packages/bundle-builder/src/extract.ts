@@ -180,10 +180,11 @@ function trimTrailingCiteKeyPunctuation(key: string): string {
 // bracketed pre/post notes, then a brace list of comma-separated keys. The
 // command name is captured whole and filtered in code rather than matched as
 // `[a-zA-Z]*cite[a-zA-Z]*`, whose overlap around the literal is quadratic.
-// Note content is length-bounded and the key class excludes `\{}`, so neither
-// inner scan can run to end-of-input and then be re-tried at every `\command`
-// by matchAll — which would be quadratic on crafted unbalanced brackets.
-const LATEX_CITE_RE = /\\([a-zA-Z]+)(?:\s*\[[^\]]{0,200}\])*\s*\{([^{}\\]*)\}/g;
+// A cite takes at most two bracket notes, so the note loop is bounded in both
+// count and content length, and the key class excludes `\{}` — nothing here can
+// scan to end-of-input and then be re-tried at every `\command` by matchAll,
+// which would be quadratic on crafted unbalanced brackets.
+const LATEX_CITE_RE = /\\([a-zA-Z]+)(?:\s*\[[^\]]{0,200}\]){0,4}\s*\{([^{}\\]*)\}/g;
 
 function latexCitationKeys(text: string): string[] {
   const keys: string[] = [];
