@@ -1,0 +1,67 @@
+{
+  "bundleVersion": "1.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.1.0"
+  },
+  "project": {
+    "id": "7c1e1e71-0000-4000-8000-000000000010",
+    "label": "attention-survey-large-md",
+    "kind": "reviewer",
+    "categories": [
+      { "slug": "elaborate", "label": "elaborate" },
+      { "slug": "weak-argument", "label": "weak argument", "color": "#B84A2E" },
+      { "slug": "praise", "label": "praise" }
+    ],
+    "main": "sample.md"
+  },
+  "papers": [
+    {
+      "id": "9b2d3a4f-5c6e-4b7a-8f9d-2b3c4d5e6f01",
+      "title": "The Scalability of Transformer Attention: A Critical Survey of Long-Context Mechanisms",
+      "revision": 1,
+      "createdAt": "2026-06-10T10:00:00.000Z",
+      "entrypoint": "sample.md"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "a1a1a1a1-aaaa-4aaa-8aaa-a1a1a1a1a1a1",
+      "paperId": "9b2d3a4f-5c6e-4b7a-8f9d-2b3c4d5e6f01",
+      "category": "elaborate",
+      "quote": "most deployed pipelines still truncate, chunk, or summarise their inputs rather than attending over them directly",
+      "contextBefore": "At the context lengths now demanded of production systems, it dominates both the training budget and the inference latency, and it is the reason ",
+      "contextAfter": ".",
+      "anchor": {
+        "kind": "source",
+        "file": "sample.md",
+        "lineStart": 16,
+        "colStart": 565,
+        "lineEnd": 16,
+        "colEnd": 678
+      },
+      "note": "Name two or three of these production pipelines, or soften 'most' — the claim is currently unsupported.",
+      "thread": [],
+      "createdAt": "2026-06-11T10:12:03.000Z"
+    },
+    {
+      "id": "b2b2b2b2-bbbb-4bbb-8bbb-b2b2b2b2b2b2",
+      "paperId": "9b2d3a4f-5c6e-4b7a-8f9d-2b3c4d5e6f01",
+      "category": "weak-argument",
+      "quote": "It is sometimes claimed that linear attention is equivalent to softmax attention in the limit of an exact feature map.",
+      "contextBefore": "the feature map's positivity assumptions are stressed. ",
+      "contextAfter": " This is true only in a limit that no deployed feature map approaches",
+      "anchor": {
+        "kind": "source",
+        "file": "sample.md",
+        "lineStart": 80,
+        "colStart": 313,
+        "lineEnd": 80,
+        "colEnd": 431
+      },
+      "note": "Attribute this claim — who makes it? A citation would let the reader weigh the equivalence result you are qualifying.",
+      "thread": [],
+      "createdAt": "2026-06-11T10:14:21.000Z"
+    }
+  ]
+}

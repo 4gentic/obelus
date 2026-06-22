@@ -303,6 +303,12 @@ export async function exportBundleForPaper(input: ExportBundleInput): Promise<Ex
     project: projectInput,
     papers,
     annotations,
+    // The PDF-resolution candidates are already decoded source text keyed by
+    // relPath; reuse them so the builder can extract sections/citations/scope
+    // for the files actually in the bundle's read list.
+    ...(candidates.length > 0
+      ? { sources: candidates.map((c) => ({ relPath: c.relPath, text: c.text })) }
+      : {}),
   });
 
   const filename = `bundle-${isoStampForFilename()}.json`;

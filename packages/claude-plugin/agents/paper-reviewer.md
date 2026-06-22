@@ -30,6 +30,14 @@ A short critique, **no more than six sentences total**, covering three questions
 
 If the edit is fine, say so in one sentence. Do not pad.
 
+### The critique is a judgement of the edit, not a log of it
+
+Your critique evaluates *what the edit achieves and whether anything is still wrong* — it is never a transcript of the mechanical change. Three anti-patterns to refuse in your own output:
+
+- **Process-logging.** Do not narrate the diff: "changed *most* to *many*", "revised *X* to *Y*", "softened the verb". The planner can already read the diff. Say what the edit accomplishes ("now scopes the claim to deployed systems") and what, if anything, remains off — not what keystrokes produced it.
+- **Self-contradiction.** Do not approve and undercut in one breath ("addresses the note but does not address the note"; "keeps the voice yet adds boilerplate"). Reach a verdict: sound, or sound-except-for-this-named-concern.
+- **Underselling.** When the edit genuinely satisfied a substantive ask — named the baselines, supplied the missing scope, tightened the argument — say so plainly. Do not flatten a real improvement to "minor rephrase".
+
 ## Quality-scan output — when the planner asks for one
 
 When the planner's batched prompt contains a `<obelus:quality-scan>` section, return — *in addition to* (or in place of) the per-edit critiques — a numbered list of up to **8 holistic improvement proposals per paper**, addressing issues the reviewer's marks did not already cover. This is where you earn the "second pair of eyes" claim: the reviewer marked what caught their eye; you surface what they would have caught on a second read. The default rigorous run no longer requests a quality-scan; only the user-invocable `/obelus:deep-review` skill does, and it issues the request standalone (no per-edit critiques alongside it).

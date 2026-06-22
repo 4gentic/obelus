@@ -193,6 +193,43 @@ describe("Bundle", () => {
     expect(Bundle.safeParse(ok).success).toBe(true);
   });
 
+  it("accepts optional sections, citations, and source-anchor scope hints", () => {
+    const ok = structuredClone(validBundle);
+    ok.project.files = [
+      {
+        relPath: "notes/intro.tex",
+        format: "tex",
+        role: "main",
+        sections: [{ heading: "Introduction", level: 1, lineStart: 1, lineEnd: 20 }],
+      },
+    ];
+    ok.citations = [{ key: "vaswani2017", count: 3 }];
+    // biome-ignore lint/suspicious/noExplicitAny: narrowing the source arm for the test
+    const src = ok.annotations[1] as any;
+    src.anchor.scopeStart = 10;
+    src.anchor.scopeEnd = 30;
+    expect(Bundle.safeParse(ok).success).toBe(true);
+  });
+
+  it("still validates a bundle that carries none of the optional structure fields", () => {
+    expect(Bundle.safeParse(validBundle).success).toBe(true);
+    expect("citations" in validBundle).toBe(false);
+  });
+
+  it("rejects a section with a non-positive line number", () => {
+    const bad = structuredClone(validBundle);
+    bad.project.files = [
+      {
+        relPath: "a.tex",
+        format: "tex",
+        sections: [{ heading: "X", level: 1, lineStart: 1, lineEnd: 20 }],
+      },
+    ];
+    const section = bad.project.files[0]?.sections?.[0];
+    if (section) section.lineStart = 0;
+    expect(Bundle.safeParse(bad).success).toBe(false);
+  });
+
   it("rejects an html-element anchor that smuggles char offsets", () => {
     const bad = structuredClone(validBundle);
     // biome-ignore lint/suspicious/noExplicitAny: deliberately invalid for the test

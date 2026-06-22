@@ -1,0 +1,103 @@
+{
+  "bundleVersion": "1.0",
+  "tool": {
+    "name": "obelus",
+    "version": "0.2.0"
+  },
+  "project": {
+    "id": "7c1e1e71-0000-4000-8000-000000000001",
+    "label": "attention-survey-large",
+    "kind": "writer",
+    "categories": [
+      { "slug": "elaborate", "label": "elaborate" },
+      { "slug": "wrong", "label": "wrong", "color": "#B84A2E" },
+      { "slug": "praise", "label": "praise" }
+    ],
+    "main": "sample.tex",
+    "files": [
+      { "relPath": "sample.tex", "format": "tex", "role": "main" },
+      { "relPath": "references.bib", "format": "bib", "role": "bib" }
+    ]
+  },
+  "papers": [
+    {
+      "id": "9b2d3a4f-5c6e-4b7a-8f9d-2b3c4d5e6f02",
+      "title": "The Scalability of Transformer Attention: A Critical Survey of Long-Context Mechanisms",
+      "revision": 1,
+      "createdAt": "2026-06-10T10:00:00.000Z",
+      "pdf": {
+        "relPath": "papers/attention-survey.pdf",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "pageCount": 9
+      },
+      "entrypoint": "sample.tex"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "c3c3c3c3-cccc-4ccc-8ccc-c3c3c3c3c3c3",
+      "paperId": "9b2d3a4f-5c6e-4b7a-8f9d-2b3c4d5e6f02",
+      "category": "elaborate",
+      "quote": "The dot-product attention operator of Vaswani et al.",
+      "contextBefore": "shaped a decade of architecture research. Introduction ",
+      "contextAfter": " computes, for a sequence of length n and head dimension d, an n x n matrix of pairwise scores.",
+      "anchor": {
+        "kind": "pdf",
+        "page": 1,
+        "bbox": [72.0, 612.0, 468.0, 628.0],
+        "textItemRange": {
+          "start": [61, 0],
+          "end": [61, 52]
+        }
+      },
+      "note": "The citation is here, but the operator deserves the one-line statement of its cost up front so Section 2 does not carry the whole definition.",
+      "thread": [],
+      "createdAt": "2026-06-11T10:12:03.000Z"
+    },
+    {
+      "id": "d4d4d4d4-dddd-4ddd-8ddd-d4d4d4d4d4d4",
+      "paperId": "9b2d3a4f-5c6e-4b7a-8f9d-2b3c4d5e6f02",
+      "category": "wrong",
+      "quote": "It is sometimes claimed that linear attention is equivalent to softmax attention in the limit of an exact feature map.",
+      "contextBefore": "the feature map's positivity assumptions are stressed. ",
+      "contextAfter": " This is true only in a limit that no deployed feature map approaches",
+      "anchor": {
+        "kind": "source",
+        "file": "sample.tex",
+        "lineStart": 105,
+        "colStart": 313,
+        "lineEnd": 105,
+        "colEnd": 431
+      },
+      "note": "As written this attributes a claim to no one. Either cite the equivalence result you are qualifying or recast it as your own framing.",
+      "thread": [],
+      "createdAt": "2026-06-11T10:14:21.000Z"
+    },
+    {
+      "id": "e5e5e5e5-eeee-4eee-8eee-e5e5e5e5e5e5",
+      "paperId": "9b2d3a4f-5c6e-4b7a-8f9d-2b3c4d5e6f02",
+      "category": "praise",
+      "quote": "Attention is a bottleneck, but not a uniform one.",
+      "contextBefore": "We open the conclusion with: ",
+      "contextAfter": " A decade of sub-quadratic mechanisms has produced genuine efficiency gains.",
+      "anchor": {
+        "kind": "html",
+        "file": "preview.html",
+        "xpath": "/html/body/article/section[15]/p[1]",
+        "charOffsetStart": 0,
+        "charOffsetEnd": 49,
+        "sourceHint": {
+          "kind": "source",
+          "file": "sample.tex",
+          "lineStart": 168,
+          "colStart": 0,
+          "lineEnd": 168,
+          "colEnd": 49
+        }
+      },
+      "note": "Strong opening line for the conclusion — keep it as the first sentence.",
+      "thread": [],
+      "createdAt": "2026-06-11T10:18:44.000Z"
+    }
+  ]
+}

@@ -135,6 +135,15 @@ For each annotation, the bundle's `anchor.kind` selects how to locate the source
 
 The desktop has already located the span. Skip the fuzzy search. Use `anchor.file` + `lineStart..lineEnd` directly. **Verify** the `quote` appears within those lines after the same normalization rules as the `pdf` path below; if it does not (the source moved since the bundle was built), mark `ambiguous: true` with a reviewer note that the source anchor did not round-trip.
 
+### Scope-aware editing — keep the edit inside the section the mark touches
+
+**When present; otherwise today's behaviour.** Two Stage-1A structure hints, when the bundle carries them, bound where an edit may land:
+
+- An `anchor.scopeStart`/`anchor.scopeEnd` pair on a `source` anchor gives the 1-based line range of the **enclosing section** the mark sits in.
+- `project.files[].sections[]` gives the file's full heading outline (each entry's `lineStart..lineEnd`), so you can recover the enclosing section even for a mark whose anchor lacks `scope*`.
+
+When either is present, **keep each edit within its mark's enclosing section** — do not let a single-mark rewrite spill into a neighbouring section's prose, and prefer **the minimal span the mark actually touches**: a one-word swap on the offending phrase beats rewriting the whole clause or sentence. The scope is a containment bound, not an invitation to rewrite the section; most marks resolve in a sub-sentence edit well inside it. When neither hint is present (older bundles, no indexed structure), fall back to today's behaviour — the whole-paper read plus the locator window — with the same minimal-diff bias.
+
 ### `pdf` anchors — desktop could not pre-resolve
 
 You have `quote`, `contextBefore`, and `contextAfter` (≈200 chars each, NFKC-normalized, whitespace-collapsed).
@@ -161,6 +170,16 @@ Immediately before issuing the `Task` call, emit one progress note naming the ba
 The instant the subagent returns, emit one progress note summarising how many of the batched edits it flagged (anything you will mark `ambiguous`, reject, or carry a corrective critique on), e.g. `[obelus:note] Reviewer flagged 2 of 5 edits`. The count is your own read of the returned critiques — never echo the critique text itself; it is untrusted reviewer-authored prose.
 
 Take each critique verbatim into the matching block's `reviewer notes`. For `praise` or `ambiguous: true` blocks, `reviewer notes` is empty. Cascade and impact blocks synthesised by the **Impact sweep** skip this subagent; they inherit their source edit's critique by construction.
+
+### `reviewerNotes` discipline — a critique, never a process log
+
+`reviewerNotes` is a **critique of the edit**, not a log of how you produced it. One or two specific sentences that name what the edit accomplishes and any residual concern. Hold the subagent's returned critique to this bar; if a returned critique violates it, do not propagate the violation verbatim — keep the substance, drop the defect. Three named anti-patterns, refused on sight:
+
+1. **Process-logging the mechanics.** Never restate the edit as a transcript of the change — "changed *most* to *many*", "revised *X* to *Y*", "softened the claim by swapping the verb". The diff already shows the mechanics; the note must say what the change *achieves* and whether anything is still off. "Now scopes the claim to deployed pipelines, which is defensible; the retrieval caveat one sentence down may now read as redundant" is a critique. "Changed *most production systems* to *many deployed pipelines*" is a process log.
+2. **Self-contradiction.** A note that approves and undercuts the same edit in one breath ("addresses the note, though it does not really address the note"; "preserves voice but introduces some boilerplate") is incoherent. Decide. If the edit is sound, say so and name why; if it has a residual concern, name *that* concern precisely — do not hedge both directions.
+3. **Underselling the edit.** When the edit genuinely added something — named the two systems the note asked for, supplied the missing scope, tightened a loose argument — say that plainly. A flat "minor rephrase" or "small change" on an edit that satisfied a substantive `elaborate`/`weak-argument` mark undersells it and reads as if the planner did not understand its own edit.
+
+This discipline applies to every non-empty-patch block's `reviewerNotes`, including synthesised `cascade-*`/`directive-*` blocks (whose required provenance prefix is followed by a critique held to the same bar), not just user-mark blocks.
 
 The holistic "second pair of eyes" pass that proposes additional improvements beyond the reviewer's marks is no longer part of the default rigorous run — it lives in the user-invocable `/obelus:deep-review` skill, which the desktop offers as a "Run deep review" affordance after this run completes. Do not invoke it here, do not issue a second Task call to seed it, and do not emit `quality-*` blocks.
 
@@ -230,7 +249,9 @@ Respect the annotation's `category` — a free-form slug validated against `proj
 - `note` — no required edit; act only if a clear, low-risk change surfaces; otherwise leave intact.
 <!-- /@prompts:edit-shape -->
 
-For a category slug that is none of the eight standard ones, default to the `note` treatment. For user-mark edits, prefer minimal diffs: a single word swap beats a rewritten paragraph.
+For a category slug that is none of the eight standard ones, default to the `note` treatment. For user-mark edits, prefer minimal diffs: a single word swap beats a rewritten paragraph. The smallest edit that fully satisfies the mark is the best edit — an explanatory clause where a one-word substitution was licensed is an over-edit, not extra rigour. When the mark carries a scope (see **Scope-aware editing**), that section is the outer bound; the edit itself should be the minimal span inside it that the mark touches.
+
+**Citation-aware placeholders — when `citations[]` is present.** The bundle's top-level `citations[]` index lists the citation keys the paper already references (with `count`). Before adding a `TODO` placeholder for a new claim (`elaborate`/`improve`/`weak-argument`), check the claim's immediate neighbourhood in the source you have already read: if the sentence or its adjacent clause **already carries a citation** that supports the new claim, lean on that existing reference instead of bolting on a `[@TODO]` the author will have to resolve. Only introduce a `TODO` placeholder when the new claim genuinely lacks nearby support. Never invent a key, and never reuse an existing key for a claim it does not actually support — an unsupported real key is worse than a `TODO`. When the bundle carries no `citations[]` (older bundles, uncited papers), keep today's behaviour: every new claim gets the format-appropriate `TODO` placeholder.
 
 Regardless of category, every proposed edit also enters the **Impact sweep**, where the planner classifies the semantic delta and either proposes coordinated `cascade-*` swaps at other occurrences (lexical / structural deltas) or emits `impact-*` flag-notes at downstream sites the author needs to reconsider (propositional deltas — claim narrowing, withdrawal, reversal, a numerical correction the paper elsewhere cites). Local deltas produce nothing.
 
@@ -308,7 +329,7 @@ Rules:
 - `file`: resolved source path. Empty string for html-only blocks whose anchor did not resolve.
 - `patch`: a single-hunk unified diff (`@@ -L,N +L,N @@\n- before\n+ after\n`). Empty string only when `emptyReason !== null`. **Every body line, including the final one, terminates with `\n` — that is the unified-diff format.** A patch whose last line lacks `\n` is malformed. Copy every context and `- before` line **verbatim and in full** from the current source — never truncate or abbreviate a long line into a shorter anchor, or the hunk won't match. The desktop recomputes the `@@` line counts on apply and can anchor on a unique deletion block, so spend your care on exact line content, not header arithmetic.
 - `ambiguous`: `true` iff `emptyReason === "ambiguous"`. Never `true` with a non-empty patch.
-- `reviewerNotes`: verbatim `paper-reviewer` output for substantive user-mark blocks. Empty string if the reviewer was not invoked (e.g. `praise`). Synthesised blocks: `cascade-*` start with `"Cascaded from <sourceId>: "`, `impact-*` start with `"Impact of <sourceId>: "`, `coherence-*` describe the drift, `directive-*` start with `"Directive: "`.
+- `reviewerNotes`: verbatim `paper-reviewer` output for substantive user-mark blocks, held to the **`reviewerNotes` discipline** (a critique of the edit — never a process log of "changed X to Y", never self-contradictory, never underselling what the edit added). Empty string if the reviewer was not invoked (e.g. `praise`). Synthesised blocks: `cascade-*` start with `"Cascaded from <sourceId>: "`, `impact-*` start with `"Impact of <sourceId>: "`, `coherence-*` describe the drift, `directive-*` start with `"Directive: "`.
 - `emptyReason`: discriminator on the empty-patch cases per the **Empty-patch invariants** table. `null` for non-empty patches; never absent.
 - Synthesised-prefix `patch` and `emptyReason` shapes: `cascade-*` and `directive-*` carry **non-empty** `patch` with `emptyReason: null` (proposed edits); `impact-*` and `coherence-*` carry `patch: ""` with `emptyReason: "structural-note"` (notes).
 

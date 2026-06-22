@@ -39,6 +39,13 @@ export const SourceAnchor = z.object({
   colStart: z.number().int().nonnegative(),
   lineEnd: z.number().int().positive(),
   colEnd: z.number().int().nonnegative(),
+  // Line range of the enclosing section/block, derived from the file's section
+  // map at export time. A navigation hint: the plugin can read the whole scope
+  // in one shot instead of widening a Read window by trial and error. Omitted
+  // when no section encloses the anchor (e.g. preamble before the first
+  // heading) or when source structure wasn't available.
+  scopeStart: z.number().int().positive().optional(),
+  scopeEnd: z.number().int().positive().optional(),
 });
 
 export const HtmlAnchor = z.object({
@@ -98,10 +105,27 @@ export const ProjectFileFormat = z.enum([
 
 export const ProjectFileRole = z.enum(["main", "include", "bib", "asset"]);
 
+// One heading in a source file's structure, with the 1-based inclusive line
+// range it spans (`lineStart` is the heading line; `lineEnd` is the line
+// before the next sibling-or-shallower heading, or the file's last line).
+// `level` is the nesting depth (1 = top section, 2 = subsection, …) so the
+// model can reconstruct the outline without re-parsing.
+export const SourceSection = z.object({
+  heading: z.string(),
+  level: z.number().int().positive(),
+  lineStart: z.number().int().positive(),
+  lineEnd: z.number().int().positive(),
+});
+
 export const ProjectFileSummary = z.object({
   relPath: relPosixPath,
   format: ProjectFileFormat,
   role: ProjectFileRole.optional(),
+  // Heading outline of this file, extracted from source at export time. Lets
+  // the model navigate to a section by line range instead of grepping.
+  // Omitted for files with no detectable structure (e.g. a `.bib`) or when
+  // source bytes weren't available at export.
+  sections: z.array(SourceSection).optional(),
 });
 
 const Project = z.object({
@@ -137,6 +161,17 @@ const PaperRefSchema = z.object({
   rubric: PaperRubric.optional(),
 });
 
+// A citation key referenced by the paper's prose (`\cite{key}`, `[@key]`,
+// `@key`). `count` is how many references point at it across all indexed
+// sources — a cheap signal of which keys carry the argument vs. which appear
+// once. `key` is the bare citation key as written; we don't resolve it against
+// a `.bib` entry (the raw label or title would require parsing the
+// bibliography, which is out of scope for this index).
+export const Citation = z.object({
+  key: z.string().min(1),
+  count: z.number().int().positive(),
+});
+
 // `category` is a free string; the cross-field check below enforces it against
 // `project.categories[].slug`.
 export const Annotation = z.object({
@@ -163,6 +198,12 @@ export const Bundle = z
     project: Project,
     papers: z.array(PaperRefSchema).min(1),
     annotations: z.array(Annotation),
+    // Project-wide citation index, deduplicated across every indexed source.
+    // Top-level rather than per-paper because the keys reference a shared
+    // bibliography: a `\cite` in an included file resolves against the same
+    // `.bib` as the main file, so one index serves the whole review. Omitted
+    // when no source was indexed or the paper cites nothing.
+    citations: z.array(Citation).optional(),
   })
   .superRefine((bundle, ctx) => {
     const paperIds = new Set(bundle.papers.map((p) => p.id));
@@ -195,6 +236,9 @@ export type SourceAnchor = z.infer<typeof SourceAnchor>;
 export type HtmlAnchor = z.infer<typeof HtmlAnchor>;
 export type HtmlElementAnchor = z.infer<typeof HtmlElementAnchor>;
 export type ProjectCategory = z.infer<typeof ProjectCategory>;
+export type ProjectFileSummary = z.infer<typeof ProjectFileSummary>;
+export type SourceSection = z.infer<typeof SourceSection>;
+export type Citation = z.infer<typeof Citation>;
 export type ProjectKind = z.infer<typeof ProjectKind>;
 export type PaperRubric = z.infer<typeof PaperRubric>;
 export type PaperRef = Bundle["papers"][number];
