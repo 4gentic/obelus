@@ -138,6 +138,14 @@ export default function JobsListener({ children }: { children: ReactNode }): JSX
     void onClaudeStdout((ev) => {
       if (cancelled) return;
 
+      // A killed engine's orphaned descendants can keep the stdout pipe open
+      // long enough to emit a few more NDJSON lines after the job is already
+      // terminal. Drop them so a cancelled job's tool counter stops climbing.
+      const status = useJobsStore.getState().jobs[ev.sessionId]?.status;
+      if (status === "cancelled" || status === "done" || status === "error") {
+        return;
+      }
+
       // Tick the watchdog *before* the parse short-circuit: any line at all —
       // even a malformed one — is proof the socket is alive. Using the event's
       // own ts (set by the Rust emit at line read time) keeps activity

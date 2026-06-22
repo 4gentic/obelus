@@ -485,6 +485,9 @@ pub async fn claude_cancel(
         .map_err(|_| AppError::Other(format!("invalid session id: {session_id}")))?;
     if let Some((_, tx)) = state.claude_cancellers.remove(&id) {
         let _ = tx.send(());
+        eprintln!("[claude-cancel] killed session={id}");
+    } else {
+        eprintln!("[claude-cancel] no live session for id={id} (already exited or unknown)");
     }
     Ok(())
 }
