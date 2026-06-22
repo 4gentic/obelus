@@ -31,13 +31,26 @@ export interface PhaseEntry {
 
 const PHASE_HISTORY_CAP = 32;
 
-// A running job that hasn't produced a stdout line in this many ms is treated
-// as stalled. Empirically the only thing that buys us this much silence is a
-// dead TCP socket (laptop suspend, network drop, server-side hang) — Claude's
-// stream-json fires partial-message deltas on a sub-second cadence during
-// active generation, and even long-tool-call phases (large reads, big greps)
-// emit tool_use / tool_result around them well within this window.
-export const STALL_THRESHOLD_MS = 180_000;
+// A running job that hasn't produced a stdout line in this long is treated as
+// stalled. The window is engine-specific because the two engines stream at
+// different granularities:
+//   - Claude Code runs with `--include-partial-messages`, so partial-message
+//     deltas fire on a sub-second cadence during generation and tool_use /
+//     tool_result bracket every tool call. Sustained silence here really is a
+//     dead TCP socket (laptop suspend, network drop, server-side hang).
+//   - OpenCode (`--format json`) emits one NDJSON line only at step boundaries
+//     (step_start / tool_use / text / step_finish) — there is no token-level
+//     stream. A heavy reasoning model can think silently for minutes between
+//     steps, so the Claude window would cry wolf on a perfectly healthy run.
+// Unknown engine — the WebView-refresh reattach path reconstructs from the
+// SQLite session, which does not persist `engine` — falls back to the Claude
+// window, which is the original behaviour, unchanged.
+const STALL_THRESHOLD_CLAUDE_MS = 180_000;
+const STALL_THRESHOLD_OPENCODE_MS = 360_000;
+
+export function stallThresholdMs(engine: AiEngineId | undefined): number {
+  return engine === "openCode" ? STALL_THRESHOLD_OPENCODE_MS : STALL_THRESHOLD_CLAUDE_MS;
+}
 
 export interface JobRecord {
   claudeSessionId: string;
@@ -67,8 +80,9 @@ export interface JobRecord {
   // CLI is the failure we're trying to surface.
   lastEventAt?: number;
   // Wall-clock ms when the user clicked "Keep waiting" on the stalled banner.
-  // While set and within `STALL_THRESHOLD_MS` of now, the banner is suppressed;
-  // a fresh stream event clears it so the next genuine stall re-prompts.
+  // While set and within the engine's stall window of now, the banner is
+  // suppressed; a fresh stream event clears it so the next genuine stall
+  // re-prompts.
   stalledAckAt?: number;
   // Path the plugin printed in its `OBELUS_WROTE: <path>` marker line. Used
   // by ingest as a hint when the desktop's filesystem scan would otherwise

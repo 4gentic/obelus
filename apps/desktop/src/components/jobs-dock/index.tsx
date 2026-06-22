@@ -2,7 +2,7 @@ import { claudeCancel } from "@obelus/claude-sidecar";
 import { type JSX, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { humanizePhase, isSemanticPhase, SEMANTIC_PHASE_PREFIX } from "../../lib/claude-phase";
-import { type JobRecord, STALL_THRESHOLD_MS, useJobsStore } from "../../lib/jobs-store";
+import { type JobRecord, stallThresholdMs, useJobsStore } from "../../lib/jobs-store";
 import { emitOpenFile } from "../../lib/open-file-event";
 import { getRepository } from "../../lib/repo";
 import { splitHeadline } from "../../lib/split-headline";
@@ -291,6 +291,19 @@ function JobDetailPanel({ job, onClose, onDismiss }: JobDetailPanelProps): JSX.E
   );
 }
 
+// What the silence most likely means depends on how the engine streams.
+// Claude Code emits sub-second partial-message deltas, so a multi-minute gap is
+// anomalous — a dropped socket is the usual cause. OpenCode only emits at step
+// boundaries, so a long quiet stretch while the model reasons is expected, not
+// a failure. Unknown engine (reattach path) gets the Claude wording, matching
+// its threshold.
+function stallBody(engine: JobRecord["engine"]): string {
+  if (engine === "openCode") {
+    return "OpenCode streams only at step boundaries, so a long quiet gap while the model reasons is normal — not a network drop. The subprocess is still running. Give it more time, or cancel if you think it's genuinely stuck.";
+  }
+  return "The engine CLI may have lost its network connection — common after the laptop sleeps mid-run. The subprocess is still alive but no stream events are arriving.";
+}
+
 interface StallBannerProps {
   job: JobRecord;
   onCancel: () => void;
@@ -307,10 +320,7 @@ function StallBanner({ job, onCancel, cancelArmed, cancelBind }: StallBannerProp
   return (
     <aside className="jobs-dock__stall" role="alert">
       <p className="jobs-dock__stall-headline">No progress for {idleMin} min.</p>
-      <p className="jobs-dock__stall-body">
-        The engine CLI may have lost its network connection — common after the laptop sleeps
-        mid-run. The subprocess is still alive but no stream events are arriving.
-      </p>
+      <p className="jobs-dock__stall-body">{stallBody(job.engine)}</p>
       <div className="jobs-dock__stall-actions">
         <button
           type="button"
@@ -333,14 +343,15 @@ function isLive(job: JobRecord): boolean {
 }
 
 // "Stalled" is a visual overlay on a still-running job — the data model
-// remains `running`. Suppressed for `STALL_THRESHOLD_MS` after a "Keep waiting"
-// click; cleared on any fresh stream event (jobs-store.noteEvent strips
-// `stalledAckAt` so the next stall is a new one).
+// remains `running`. Suppressed for the engine's stall window after a "Keep
+// waiting" click; cleared on any fresh stream event (jobs-store.noteEvent
+// strips `stalledAckAt` so the next stall is a new one).
 function isStalled(job: JobRecord, now: number): boolean {
   if (job.status !== "running") return false;
   if (job.lastEventAt === undefined) return false;
-  if (now - job.lastEventAt <= STALL_THRESHOLD_MS) return false;
-  if (job.stalledAckAt !== undefined && now - job.stalledAckAt <= STALL_THRESHOLD_MS) return false;
+  const threshold = stallThresholdMs(job.engine);
+  if (now - job.lastEventAt <= threshold) return false;
+  if (job.stalledAckAt !== undefined && now - job.stalledAckAt <= threshold) return false;
   return true;
 }
 
