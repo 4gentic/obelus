@@ -2,6 +2,19 @@
 
 All notable changes to the Obelus desktop app are documented here. This file is generated from Conventional Commits touching `apps/desktop/**` by [release-please](https://github.com/googleapis/release-please) and follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.21](https://github.com/4gentic/obelus/compare/desktop-v0.1.20...desktop-v0.1.21) (2026-06-22)
+
+
+### Features
+
+* **quality:** measured review-quality improvement + Stage 1A structured bundle + measurement infra ([#210](https://github.com/4gentic/obelus/issues/210)) ([329298d](https://github.com/4gentic/obelus/commit/329298d6cea8469770da12802398af9d64f0726e))
+
+
+### Bug Fixes
+
+* **desktop:** cancel kills the whole engine process tree ([#213](https://github.com/4gentic/obelus/issues/213)) ([7bb3db1](https://github.com/4gentic/obelus/commit/7bb3db11a4c07b72953c5a07b25483eaebcdbf3c))
+* **desktop:** engine-aware stall threshold and banner copy ([#211](https://github.com/4gentic/obelus/issues/211)) ([6f83d82](https://github.com/4gentic/obelus/commit/6f83d82dc5d62c814a9c4a41ceb3a5d4a468fa77))
+
 ## [0.1.20](https://github.com/4gentic/obelus/compare/desktop-v0.1.19...desktop-v0.1.20) (2026-06-21)
 
 
