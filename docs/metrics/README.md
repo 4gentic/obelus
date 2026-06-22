@@ -16,6 +16,11 @@ ingested.
   against the same paper after WS3 telemetry landed. Phase share shifts
   toward coherence-sweep (~37%) and locating-spans grows with the mark
   count.
+- `2026-06-22-large-{7,25}marks-base-r{1,2,3}.jsonl` — the **n=3** baselines
+  on the large fixture that anchor the latency investigation. Three repeats
+  per mark count, so phase medians and run-to-run variance are both
+  measurable. See [`latency-investigation.md`](latency-investigation.md) for
+  the diagnosis these support.
 
 Both files are sanitized: real machine paths (`/Users/<name>/…`,
 workspace, plugin install dir, paper repo) are rewritten to placeholders
