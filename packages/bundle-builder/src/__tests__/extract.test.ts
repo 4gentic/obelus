@@ -166,9 +166,7 @@ describe("extract — ReDoS resilience on adversarial input", () => {
 
   it("Markdown heading: a tab run after the marker terminates fast", () => {
     within(2000, () => {
-      expect(extractSections(`# ${"\t".repeat(100_000)}`, "md")).toEqual([
-        { heading: "", level: 1, lineStart: 1, lineEnd: 1 },
-      ]);
+      expect(extractSections(`# ${"\t".repeat(100_000)}`, "md")).toEqual([]);
     });
   });
 
@@ -181,6 +179,18 @@ describe("extract — ReDoS resilience on adversarial input", () => {
   it("Typst cite: an unterminated #cite( with a tab run terminates fast", () => {
     within(2000, () => {
       expect(extractCitationKeys(`#cite(${"\t".repeat(100_000)}`, "typ")).toEqual([]);
+    });
+  });
+
+  it("LaTeX cite: many unterminated \\cite[ commands stay linear (matchAll re-scan)", () => {
+    within(2000, () => {
+      expect(extractCitationKeys("\\cite[".repeat(50_000), "tex")).toEqual([]);
+    });
+  });
+
+  it("Typst cite: many unterminated #cite( calls stay linear (matchAll re-scan)", () => {
+    within(2000, () => {
+      expect(extractCitationKeys("#cite(".repeat(50_000), "typ")).toEqual([]);
     });
   });
 

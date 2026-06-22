@@ -81,9 +81,11 @@ function typstHeadings(lines: readonly string[]): RawHeading[] {
 }
 
 // ATX headings only. `#` must open the line (after optional indent) and be
-// followed by whitespace, so a `#tag` or a shebang isn't a heading. Fenced
-// code blocks are skipped — a `# comment` inside ``` is not structure.
-const MD_HEADING_RE = /^ {0,3}(#{1,6})\s+(.*)$/;
+// followed by whitespace and a non-blank title (`\S.*`, not `.*` — the latter
+// overlaps `\s+` and backtracks quadratically when `.` halts at a line
+// terminator). A `#tag`, a shebang, or a hashes-only line isn't a heading.
+// Fenced code blocks are skipped — a `# comment` inside ``` is not structure.
+const MD_HEADING_RE = /^ {0,3}(#{1,6})\s+(\S.*)$/;
 const MD_FENCE_RE = /^\s*(`{3,}|~{3,})/;
 
 // Drop an ATX closing run — trailing whitespace and optional `#`s
@@ -178,7 +180,10 @@ function trimTrailingCiteKeyPunctuation(key: string): string {
 // bracketed pre/post notes, then a brace list of comma-separated keys. The
 // command name is captured whole and filtered in code rather than matched as
 // `[a-zA-Z]*cite[a-zA-Z]*`, whose overlap around the literal is quadratic.
-const LATEX_CITE_RE = /\\([a-zA-Z]+)(?:\s*\[[^\]]*\])*\s*\{([^}]*)\}/g;
+// Note content is length-bounded and the key class excludes `\{}`, so neither
+// inner scan can run to end-of-input and then be re-tried at every `\command`
+// by matchAll — which would be quadratic on crafted unbalanced brackets.
+const LATEX_CITE_RE = /\\([a-zA-Z]+)(?:\s*\[[^\]]{0,200}\])*\s*\{([^{}\\]*)\}/g;
 
 function latexCitationKeys(text: string): string[] {
   const keys: string[] = [];
@@ -213,9 +218,11 @@ function markdownCitationKeys(text: string): string[] {
 // "...", <label>)`. The label grammar is alnum/`_`/`-`/`.`/`:`. We collect
 // both forms; `#cite(label: <l>)` and `#cite(<l>)` both surface the `<l>`.
 const TYPST_REF_RE = /(?<![\w@])@([\p{L}\d][\w.:-]*)/gu;
-// `[^)]*?` already absorbs leading whitespace, so the redundant `\s*` after `(`
-// — which overlaps it and backtracks on a tab run — is dropped.
-const TYPST_CITE_RE = /#cite\([^)]*?<([\w.:-]+)>/g;
+// The label sits after some argument junk; `[^)#<]` bounds that junk to one
+// cite call — excluding `<` keeps the delimiter unambiguous, and excluding
+// `#`/`)` stops the scan from running across the next `#cite(`, which matchAll
+// would otherwise re-scan quadratically.
+const TYPST_CITE_RE = /#cite\([^)#<]*<([\w.:-]+)>/g;
 
 function typstCitationKeys(text: string): string[] {
   const keys: string[] = [];
