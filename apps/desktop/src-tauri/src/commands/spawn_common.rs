@@ -1,5 +1,6 @@
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
+use command_group::AsyncCommandGroup;
 use serde::Serialize;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -75,19 +76,19 @@ pub async fn spawn_and_stream(
     }
 
     let started_at = std::time::Instant::now();
-    let mut child = cmd.spawn().map_err(AppError::from)?;
+    let mut child = cmd.group_spawn().map_err(AppError::from)?;
     let session_id = Uuid::new_v4();
     let session_str = session_id.to_string();
 
     if let Some(data) = stdin_data {
-        if let Some(mut stdin) = child.stdin.take() {
+        if let Some(mut stdin) = child.inner().stdin.take() {
             stdin.write_all(data.as_bytes()).await.map_err(AppError::from)?;
             stdin.flush().await.ok();
             drop(stdin);
         }
     }
 
-    if let Some(stdout) = child.stdout.take() {
+    if let Some(stdout) = child.inner().stdout.take() {
         let app_clone = app.clone();
         let sid = session_str.clone();
         let started_at_for_stdout = started_at;
@@ -116,7 +117,7 @@ pub async fn spawn_and_stream(
         });
     }
 
-    if let Some(stderr) = child.stderr.take() {
+    if let Some(stderr) = child.inner().stderr.take() {
         let app_clone = app.clone();
         let sid = session_str.clone();
         tokio::spawn(async move {
