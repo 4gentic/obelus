@@ -47,6 +47,13 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { basename, resolve } from "node:path";
 
 import { MetricEvent } from "../apps/desktop/src/lib/metrics.ts";
+import {
+  buildCitationIndex,
+  extractCitationKeys,
+  extractSections,
+  isStructuredSourceFormat,
+  scopeForLine,
+} from "../packages/bundle-builder/src/index.ts";
 import { Bundle } from "../packages/bundle-schema/src/index.ts";
 import { PlanFileSchema } from "../packages/claude-sidecar/src/index.ts";
 import {
@@ -116,6 +123,7 @@ function parseArgs(argv) {
     judge: DEFAULT_JUDGE_MODEL,
     passes: 3,
     out: metricsDir,
+    structure: "off",
     dryRun: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -132,6 +140,7 @@ function parseArgs(argv) {
     else if (a === "--judge") opts.judge = next();
     else if (a === "--passes") opts.passes = Number.parseInt(next(), 10);
     else if (a === "--out") opts.out = resolve(next());
+    else if (a === "--structure") opts.structure = next();
     else if (a === "--dry-run") opts.dryRun = true;
     else if (a === "-h" || a === "--help") {
       printHelp();
@@ -143,6 +152,9 @@ function parseArgs(argv) {
   }
   if (!(opts.bundle in FIXTURES[opts.fixture].bundles)) {
     fail(`--bundle must be "md" or "full", got ${JSON.stringify(opts.bundle)}`);
+  }
+  if (opts.structure !== "on" && opts.structure !== "off") {
+    fail(`--structure must be "on" or "off", got ${JSON.stringify(opts.structure)}`);
   }
   if (!opts.dryRun && (!Number.isInteger(opts.runs) || opts.runs < 3)) {
     fail(`--runs must be an integer >= 3 (variance discipline), got ${JSON.stringify(opts.runs)}`);
@@ -164,6 +176,13 @@ function printHelp() {
       "  --judge    <model>  judge model      (default opus; pin across before/after)",
       "  --passes   K (>=1)  judge passes      (default 3 — judge-variance control, median)",
       "  --out      <dir>    output dir        (default docs/metrics)",
+      "  --structure on|off  Stage-1A enrichment (default off). on = populate the loaded",
+      "                      bundle with project.files[].sections, top-level citations, and",
+      "                      per-source-anchor scopeStart/scopeEnd via the bundle-builder",
+      "                      extractors BEFORE writing the bundle the review reads. The",
+      "                      treatment arm of the structure-aware A/B is this worktree's",
+      "                      improved skill + --structure on; the baseline is the captured",
+      "                      perf/quality-eval runs (current skill, no structure).",
       "  --dry-run  build + rubric + aggregation self-test; NO engine, NO judge, NO quota",
       "",
       "Dry self-test:  pnpm eval:quality:selftest",
@@ -211,6 +230,120 @@ function loadHandAuthoredBundle(opts) {
   }
 
   return { fixture, bundleFile, bundle, rawJson, sourceText, sourceByFile };
+}
+
+// === Stage-1A structure enrichment (--structure on) =========================
+//
+// The hand-authored fixture bundles carry no Stage-1A structure: no
+// `project.files[].sections`, no top-level `citations`, no per-anchor
+// `scopeStart`/`scopeEnd`. The desktop's exporter (`bundle-builder`) fills these
+// from source bytes at export time; here we apply the SAME extractors
+// (`extractSections` / `extractCitationKeys` / `buildCitationIndex` /
+// `scopeForLine`) to an already-parsed bundle so the A/B treatment arm reviews
+// against a structure-aware bundle without re-deriving the whole `BuildBundleInput`
+// shape. `--structure off` (default) is a no-op → the baseline bundle.
+//
+// Mutates `loaded.bundle` in place and regenerates `loaded.rawJson` so BOTH the
+// on-disk bundle the review reads (written by setupScratch) and the prelude
+// (rendered from `run.bundle`) carry the structure. Re-validates through the
+// Bundle schema — a structure-enriched bundle that doesn't round-trip is a bug,
+// not a soft-failure to paper over.
+function fileFormatOf(relPath) {
+  const ext = relPath.slice(relPath.lastIndexOf(".") + 1);
+  return ext === "tex" || ext === "md" || ext === "typ" ? ext : "other";
+}
+
+function enrichWithStructure(loaded) {
+  const { bundle, fixture } = loaded;
+
+  // The source files this bundle's source anchors reference, plus the
+  // entrypoint. Read each from the fixture dir; absent files (the `full`
+  // bundle's PDF/HTML source paths) contribute no structure.
+  const fileSet = new Set([fixture.entrypoint]);
+  for (const a of bundle.annotations) {
+    if (a.anchor.kind === "source" && a.anchor.file) fileSet.add(a.anchor.file);
+  }
+
+  // Per-file section map + accumulated citation keys, mirroring
+  // bundle-builder's extractStructure. Format comes from project.files[] when
+  // present, else from the path extension (the md fixtures carry no inventory).
+  const sectionsByFile = new Map();
+  const citationKeys = [];
+  const filesIndex = new Map((bundle.project.files ?? []).map((f) => [f.relPath, f]));
+  for (const rel of fileSet) {
+    const abs = resolve(fixture.dir, rel);
+    if (!existsSync(abs)) continue;
+    const format = filesIndex.get(rel)?.format ?? fileFormatOf(rel);
+    if (!isStructuredSourceFormat(format)) continue;
+    const text = readFileSync(abs, "utf8");
+    const sections = extractSections(text, format);
+    if (sections.length > 0) sectionsByFile.set(rel, sections);
+    citationKeys.push(...extractCitationKeys(text, format));
+  }
+  const citations = buildCitationIndex(citationKeys);
+
+  // project.files[] with sections (creating the inventory if the fixture bundle
+  // had none — this is what activates the prelude's whole-paper read list too).
+  const files = [];
+  for (const rel of fileSet) {
+    const abs = resolve(fixture.dir, rel);
+    if (!existsSync(abs)) continue;
+    const existing = filesIndex.get(rel);
+    const format = existing?.format ?? fileFormatOf(rel);
+    const sections = sectionsByFile.get(rel);
+    files.push({
+      relPath: rel,
+      format,
+      ...(existing?.role !== undefined ? { role: existing.role } : {}),
+      ...(sections !== undefined ? { sections } : {}),
+    });
+  }
+  // Preserve any inventory files the bundle already listed that aren't source
+  // anchors (none in the fixtures today, but don't drop them silently).
+  for (const f of bundle.project.files ?? []) {
+    if (!files.some((nf) => nf.relPath === f.relPath)) files.push(f);
+  }
+  bundle.project.files = files;
+
+  // Per-source-anchor scopeStart/scopeEnd from the file's section map, exactly
+  // as bundle-builder's withScope does (keyed off lineStart).
+  let scopedAnchors = 0;
+  for (const a of bundle.annotations) {
+    if (a.anchor.kind !== "source") continue;
+    const sections = sectionsByFile.get(a.anchor.file);
+    if (!sections) continue;
+    const scope = scopeForLine(sections, a.anchor.lineStart);
+    if (!scope) continue;
+    a.anchor.scopeStart = scope.scopeStart;
+    a.anchor.scopeEnd = scope.scopeEnd;
+    scopedAnchors += 1;
+  }
+
+  if (citations.length > 0) bundle.citations = citations;
+
+  // Re-validate + re-serialize: the enriched bundle is what the review reads.
+  const reparsed = Bundle.safeParse(bundle);
+  if (!reparsed.success) {
+    fail(
+      `structure-enriched bundle failed Bundle schema (${reparsed.error.issues.length} issues): ` +
+        reparsed.error.issues
+          .slice(0, 3)
+          .map((iss) => `${iss.path.join(".")}: ${iss.message}`)
+          .join("; "),
+    );
+  }
+  loaded.bundle = reparsed.data;
+  loaded.rawJson = `${JSON.stringify(reparsed.data, null, 2)}\n`;
+
+  let sectionCount = 0;
+  for (const s of sectionsByFile.values()) sectionCount += s.length;
+  console.info("[eval-quality:structure]", {
+    filesWithSections: sectionsByFile.size,
+    sectionCount,
+    citationKeys: citations.length,
+    scopedAnchors,
+  });
+  return loaded;
 }
 
 // Build the `run` shape capture-metrics' setupScratch / runEngine consume,
@@ -559,15 +692,101 @@ async function dryRun(opts) {
   );
   console.log("  ✓ end-to-end serialize+gate passes on the assembled quality snapshot\n");
 
+  // 6. The --structure A/B switch. The baseline (hand-authored) bundle carries
+  //    NO Stage-1A structure; --structure on populates it via the bundle-builder
+  //    extractors, and the enriched bundle still validates. This is the
+  //    treatment arm's input — assert it actually adds sections + scoped anchors.
+  assertStructureSwitch(opts);
+
   console.log("[eval-quality] dry-run: all self-tests passed.");
+}
+
+// Dry proof for `--structure on`: enrichment populates project.files[].sections
+// + per-source-anchor scopeStart/scopeEnd (and, where the source cites, the
+// top-level citations index), the result round-trips the Bundle schema, and
+// each scoped anchor's range encloses its own anchor line. `--structure off`
+// stays a no-op (the baseline). Runs for BOTH md fixtures so the small (no
+// citations) and large (cited) shapes are both exercised — no engine, no judge.
+function assertStructureSwitch(opts) {
+  for (const fixtureName of ["small", "large"]) {
+    // Baseline: the hand-authored bundle has no structure at all.
+    const baseline = loadHandAuthoredBundle({ ...opts, fixture: fixtureName, bundle: "md" });
+    assert(
+      (baseline.bundle.project.files ?? []).every((f) => f.sections === undefined),
+      `${fixtureName}/md baseline must carry no section maps (the A/B precondition)`,
+    );
+    assert(
+      baseline.bundle.annotations.every(
+        (a) => a.anchor.kind !== "source" || a.anchor.scopeStart === undefined,
+      ),
+      `${fixtureName}/md baseline must carry no scoped anchors`,
+    );
+
+    // --structure off path: the bundle the review reads is the hand-authored
+    // bundle unchanged (enrichWithStructure is never called when off). Capture
+    // its serialized form as the baseline to diff the treatment arm against.
+    const offRawJson = loadHandAuthoredBundle({
+      ...opts,
+      fixture: fixtureName,
+      bundle: "md",
+    }).rawJson;
+
+    // --structure on: enrich and assert real structure landed.
+    const enriched = enrichWithStructure(
+      loadHandAuthoredBundle({ ...opts, fixture: fixtureName, bundle: "md" }),
+    );
+    assert(
+      enriched.rawJson !== offRawJson,
+      `${fixtureName}/md --structure on must change the bundle vs --structure off (enrichment is non-trivial)`,
+    );
+    const reparsed = Bundle.safeParse(JSON.parse(enriched.rawJson));
+    assert(
+      reparsed.success,
+      `${fixtureName}/md enriched bundle must round-trip the Bundle schema: ${JSON.stringify(reparsed.success ? "" : reparsed.error.issues.slice(0, 2))}`,
+    );
+
+    const filesWithSections = (enriched.bundle.project.files ?? []).filter(
+      (f) => Array.isArray(f.sections) && f.sections.length > 0,
+    );
+    assert(
+      filesWithSections.length > 0,
+      `${fixtureName}/md --structure on must populate at least one file's sections`,
+    );
+
+    const sourceAnchors = enriched.bundle.annotations.filter((a) => a.anchor.kind === "source");
+    const scopedAnchors = sourceAnchors.filter(
+      (a) => a.anchor.scopeStart !== undefined && a.anchor.scopeEnd !== undefined,
+    );
+    assert(
+      scopedAnchors.length === sourceAnchors.length && scopedAnchors.length > 0,
+      `${fixtureName}/md --structure on must scope every source anchor (got ${scopedAnchors.length}/${sourceAnchors.length})`,
+    );
+    // Each scope must actually enclose its anchor line — a scope that doesn't
+    // contain lineStart would mis-route the planner's section-bounded edit.
+    for (const a of scopedAnchors) {
+      assert(
+        a.anchor.scopeStart <= a.anchor.lineStart && a.anchor.lineStart <= a.anchor.scopeEnd,
+        `${fixtureName}/md scoped anchor must enclose its line (line ${a.anchor.lineStart} not in [${a.anchor.scopeStart}, ${a.anchor.scopeEnd}])`,
+      );
+    }
+
+    const citationNote =
+      (enriched.bundle.citations ?? []).length > 0
+        ? `, citations=${enriched.bundle.citations.length}`
+        : " (no citations in source — citations omitted, correct)";
+    console.log(
+      `  ✓ --structure on (${fixtureName}/md): ${filesWithSections.length} file(s) with sections, ${scopedAnchors.length}/${sourceAnchors.length} anchors scoped${citationNote}`,
+    );
+  }
 }
 
 // === real run ===============================================================
 async function realRun(opts) {
   // Engine preflight (claude on PATH).
   const loaded = loadHandAuthoredBundle(opts);
+  if (opts.structure === "on") enrichWithStructure(loaded);
   console.log(
-    `[eval-quality] fixture=${opts.fixture} bundle=${opts.bundle} (${loaded.bundleFile.replace(repoRoot, "<obelus-repo>")}), runs=${opts.runs}, judge=${opts.judge}, passes=${opts.passes}`,
+    `[eval-quality] fixture=${opts.fixture} bundle=${opts.bundle} (${loaded.bundleFile.replace(repoRoot, "<obelus-repo>")}), runs=${opts.runs}, judge=${opts.judge}, passes=${opts.passes}, structure=${opts.structure}`,
   );
 
   const reviewOpts = {
@@ -640,7 +859,7 @@ async function realRun(opts) {
       mkdirSync(opts.out, { recursive: true });
       const outPath = resolve(
         opts.out,
-        `${dateStamp()}-quality-${opts.fixture}-${opts.bundle}-${reviewOpts.model}-r${runIndex + 1}.jsonl`,
+        `${dateStamp()}-quality-${opts.fixture}-${opts.bundle}-struct-${opts.structure}-${reviewOpts.model}-r${runIndex + 1}.jsonl`,
       );
       writeFileSync(outPath, jsonl);
       console.log(

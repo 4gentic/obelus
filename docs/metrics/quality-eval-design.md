@@ -131,6 +131,53 @@ tools, no Obelus plugin. (The claude CLI exposes no `--temperature` flag, so
 the median-of-k is the operative variance control; the prompt additionally
 instructs deterministic, anchor-literal scoring.)
 
+## The `--structure` A/B switch — Stage-1A on vs. off
+
+The hand-authored fixture bundles deliberately carry **no Stage-1A structure**:
+no `project.files[].sections`, no top-level `citations`, no per-source-anchor
+`scopeStart`/`scopeEnd`. They are the *baseline* shape. `--structure on|off`
+(default `off`) controls whether the harness enriches the loaded bundle with
+that structure **before writing the bundle the review reads**:
+
+- `--structure off` (default): the bundle reaches the engine exactly as
+  hand-authored — no sections, no scope, no citations. This is the **baseline
+  arm**.
+- `--structure on`: the harness runs the production `bundle-builder` extractors
+  (`extractSections` / `extractCitationKeys` / `buildCitationIndex` /
+  `scopeForLine` — the same code path the desktop's exporter uses) on the staged
+  fixture source and populates `project.files[].sections`, top-level `citations`
+  (when the source cites anything), and `scopeStart`/`scopeEnd` on every source
+  anchor. The enriched bundle is re-validated through the `Bundle` schema and
+  re-serialised, so both the on-disk bundle and the prelude (rendered from the
+  same `run.bundle`) carry the structure. This is the **treatment arm's input**.
+
+The enrichment lives in `eval-review-quality.mjs::enrichWithStructure`; it
+mirrors `bundle-builder`'s `extractStructure` + `withScope` rather than
+re-deriving the whole `BuildBundleInput`, so the fixtures' hand-authored marks
+are preserved untouched and only the optional structure fields are added. It
+logs once (`[eval-quality:structure] { filesWithSections, sectionCount,
+citationKeys, scopedAnchors }`) before returning.
+
+The structure-aware skill change (Stage-1A scope-aware editing → B1/B3) is a
+no-op when the bundle carries no `scope*`/`sections`, so it cannot help the
+baseline; it can only move scores when the bundle is structure-enriched.
+Therefore the two arms of the structure-aware A/B are:
+
+| Arm | Skill | Bundle |
+|---|---|---|
+| **Baseline** | `perf/quality-eval` (current `plan-fix`) | `--structure off` (or absent) |
+| **Treatment** | `perf/quality-structure-edits` (improved `plan-fix` + `paper-reviewer`) | `--structure on` |
+
+The output filename carries `struct-on` / `struct-off`
+(`<date>-quality-<fixture>-<bundle>-struct-<on|off>-<reviewModel>-r<n>.jsonl`)
+so the two arms' snapshots never collide and the diff between them is the
+receipt. Pin `--judge` across both arms exactly as for the latency gradient.
+
+The two `reviewerNotes`/citation levers (B6 sharpening, citation-awareness) are
+prompt changes that help regardless of `--structure`; the scope lever (B1/B3) is
+the one that *requires* `--structure on` to have any surface to act on. Running
+the treatment arm with `--structure on` exercises all three at once.
+
 ## Harness flow
 
 ```
@@ -178,4 +225,11 @@ deterministic in-process judge runner stands in):
    the `MetricEvent` union;
 5. the sanitizer scrubs a machine path embedded in a (truncated) judge
    rationale;
-6. the full serialize→gate path passes on the assembled snapshot.
+6. the full serialize→gate path passes on the assembled snapshot;
+7. the **`--structure on` switch** populates real Stage-1A structure: for both
+   the `small` and `large` md fixtures it asserts the baseline carries no
+   sections/scope, then that enrichment adds non-empty `project.files[].sections`
+   and scopes every source anchor (each scope range actually enclosing its
+   anchor line), the enriched bundle round-trips the `Bundle` schema, and
+   `citations` is populated for the cited (`large`) fixture and correctly absent
+   for the uncited (`small`) one.
