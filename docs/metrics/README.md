@@ -135,9 +135,49 @@ canonical example: between the 1-mark and 7-mark runs above, preflight share
 dropped from 70% to 23% and coherence-sweep grew from 0 to 37%. Optimizing
 the 1-mark file alone would have mis-prioritized the work.
 
+## Review-quality snapshots (a different harness)
+
+The files above measure **latency / phase share**. A second harness measures
+**review QUALITY** — how good the plan-fix output (diffs + `reviewerNotes`)
+actually is — and writes its own snapshots here, named
+`<date>-quality-<fixture>-<bundle>-<reviewModel>-r<n>.jsonl`.
+
+- It runs against the **hand-authored** fixture bundles (real reviewer notes),
+  never the synthetic marks the latency harness generates — a synthetic
+  "Capture mark (rephrase): …" has no editorial intent to score.
+- It scores each substantive plan block (dims `B1`–`B6`) and the plan as a
+  whole (`P1`–`P4`) with an LLM judge against a rubric grounded in the
+  `plan-fix` / `paper-reviewer` skill criteria, k=3 judge passes per prompt
+  (per-dimension median), across n≥3 review repeats.
+- Emits three event types: `quality-block`, `quality-plan`, `quality-run`.
+
+```sh
+pnpm eval:quality --fixture small --bundle md --runs 3 --judge opus
+pnpm eval:quality:selftest      # = --dry-run, no engine, no judge, no quota
+```
+
+Methodology, the rubric dimensions, and the gating / anti-verbosity rules are
+in [`quality-eval-design.md`](quality-eval-design.md); the exact judge prompts
+live in `scripts/lib/judge.mjs`.
+
 ## Schema
 
 Event shapes are the canonical `MetricEvent` discriminated union in
 [`apps/desktop/src/lib/metrics.ts`](../../apps/desktop/src/lib/metrics.ts).
 Read that file before adding a new event type — the Zod schemas double as
 the on-disk contract.
+
+The latency runs emit `bundle-validated`, `bundle-stats`, `preflight-rust`,
+`anchor-resolution`, `phase`, `phase-tokens`, `tool-call`, `task-call`,
+`plan-stats`, and (on apply) `apply`. The review-quality runs emit only
+`quality-block` / `quality-plan` / `quality-run` — they are NOT produced by
+the desktop at runtime; they live in the union because they pass through the
+same sanitizer gate into the same JSONL shape.
+
+- `quality-block` — `{ annotationIds, category, blockKind, dims:{B1..B6}, gated }`.
+  One per scored (patched) plan block. `gated` lists the MIN-aggregated dims.
+- `quality-plan` — `{ fixture, bundle, marks, dims:{P1..P4}, overall, coverageDropped[] }`.
+  One per plan. `overall ∈ {pass, weak, fail}`; `coverageDropped` carries the
+  ids of substantive marks that got no block (by id, never just a count).
+- `quality-run` — `{ judgeModel, judgePasses, reviewModel, reviewEffort,
+  runIndex, runsTotal }`. Run provenance, kept OUT of what the judge sees.

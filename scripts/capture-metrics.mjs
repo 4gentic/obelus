@@ -89,9 +89,9 @@ import {
 } from "./lib/sanitize-metrics.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, "..");
-const pluginDir = resolve(repoRoot, "packages/claude-plugin");
-const metricsDir = resolve(repoRoot, "docs/metrics");
+export const repoRoot = resolve(here, "..");
+export const pluginDir = resolve(repoRoot, "packages/claude-plugin");
+export const metricsDir = resolve(repoRoot, "docs/metrics");
 
 const TIMEOUT_MS = 900_000;
 
@@ -277,7 +277,9 @@ function stageOpenCodeResources(projectDir) {
 
 // Spawn the engine the desktop way and stream stdout line-by-line into a
 // MetricsStream. Resolves with { events, planPath, exitCode }.
-function runEngine(run, opts, scratch) {
+// Exported so the review-quality eval (scripts/eval-review-quality.mjs) drives
+// the SAME desktop-shaped spawn against a hand-authored bundle.
+export function runEngine(run, opts, scratch) {
   return new Promise((resolvePromise) => {
     const { projectDir, workspaceDir, bundleAbs } = scratch;
     const sessionId = randomUUID();
@@ -442,7 +444,9 @@ function assembleEvents(run, engineResult, timings) {
 // table longest-prefix-first so a workspace nested under the repo root is not
 // half-rewritten. `extraTokens` sweeps non-path identity strings (hostname).
 // Returns the sanitized JSONL.
-function serializeSnapshot(events, replacements, extraTokens = []) {
+// Exported for the review-quality eval, which emits its quality-* events
+// through the SAME validate→sanitize→gate path.
+export function serializeSnapshot(events, replacements, extraTokens = []) {
   const ordered = orderReplacements(expandScratchForms(replacements));
   const lines = [];
   for (const ev of events) {
@@ -467,7 +471,7 @@ function serializeSnapshot(events, replacements, extraTokens = []) {
 // login name is not swept on its own — it is frequently a common English word
 // and would over-redact; it only matters inside a path, which the home-dir
 // fallback already collapses to <home>.
-function identityTokens() {
+export function identityTokens() {
   const tokens = [];
   const host = hostname();
   if (host) {
@@ -478,13 +482,13 @@ function identityTokens() {
   return tokens.filter((t, i, a) => t.length > 0 && a.indexOf(t) === i);
 }
 
-function dateStamp() {
+export function dateStamp() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function setupScratch(run) {
+export function setupScratch(run) {
   const root = resolve(tmpdir(), `obelus-capture-${randomUUID().slice(0, 8)}`);
   const projectDir = resolve(root, "paper");
   const workspaceDir = resolve(root, "workspace");
@@ -689,7 +693,12 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("[capture] fatal:", err instanceof Error ? err.stack : err);
-  process.exit(1);
-});
+// Only run the capture CLI when invoked directly (`tsx capture-metrics.mjs`).
+// When imported (by scripts/eval-review-quality.mjs, to reuse the run stage),
+// stay inert.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error("[capture] fatal:", err instanceof Error ? err.stack : err);
+    process.exit(1);
+  });
+}

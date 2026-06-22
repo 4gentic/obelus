@@ -151,6 +151,90 @@ const AnchorResolutionEvent = z.object({
   htmlFallback: z.number().int().nonnegative(),
 });
 
+// === Review-quality eval (scripts/eval-review-quality.mjs) =================
+// These three events are NOT emitted by the desktop at runtime — they are
+// produced only by the offline quality-eval harness, which scores a plan's
+// editorial output (the diffs + reviewerNotes) against an LLM-judge rubric
+// grounded in the plan-fix / paper-reviewer skill criteria. They live in the
+// MetricEvent union (not a parallel schema) because the harness writes them
+// through the same sanitizer gate into the same `docs/metrics/*.jsonl` snapshot
+// shape, and the union is the single on-disk contract for that directory.
+//
+// Per-block dimensions (B1–B6) and plan dimensions (P1–P4) are scored on an
+// anchored 0–3 scale (see scripts/lib/judge.mjs for the exact level
+// descriptions). B5 (citation-handling) is restricted to {0, 2}: inventing a
+// citation is a gating 0; a format-appropriate TODO placeholder (or no citation
+// needed) is 2. `gated` records the dimensions aggregated by MIN rather than
+// mean for this block (B2, B5).
+export const QUALITY_BLOCK_DIMS = ["B1", "B2", "B3", "B4", "B5", "B6"] as const;
+export const QUALITY_PLAN_DIMS = ["P1", "P2", "P3", "P4"] as const;
+export const QUALITY_OVERALL = ["pass", "weak", "fail"] as const;
+
+const Score03 = z.number().int().min(0).max(3);
+
+const QualityBlockDims = z.object({
+  B1: Score03,
+  B2: Score03,
+  B3: Score03,
+  B4: Score03,
+  B5: Score03,
+  B6: Score03,
+});
+
+const QualityPlanDims = z.object({
+  P1: Score03,
+  P2: Score03,
+  P3: Score03,
+  P4: Score03,
+});
+
+// One scored substantive block. `annotationIds` ties the score back to the
+// plan block (and, for user-mark blocks, to the bundle marks it satisfies).
+// `category` is the block's editorial category; `blockKind` distinguishes a
+// user-mark edit from a synthesised cascade/impact/coherence/directive block.
+const QualityBlockEvent = z.object({
+  event: z.literal("quality-block"),
+  at: Iso,
+  sessionId: z.string(),
+  annotationIds: z.array(z.string()).min(1),
+  category: z.string(),
+  blockKind: z.string(),
+  dims: QualityBlockDims,
+  // The dimensions aggregated by MIN (gating) for this block, e.g. ["B2","B5"].
+  gated: z.array(z.string()),
+});
+
+// One plan-level score. `overall` is the aggregated verdict after the gating
+// rules (any block with B5=0 caps it at "fail"). `coverageDropped` carries the
+// ids of substantive bundle marks that received no plan block (the mechanical
+// P1 input), by id — never just a count.
+const QualityPlanEvent = z.object({
+  event: z.literal("quality-plan"),
+  at: Iso,
+  sessionId: z.string(),
+  fixture: z.string(),
+  bundle: z.string(),
+  marks: z.number().int().nonnegative(),
+  dims: QualityPlanDims,
+  overall: z.enum(QUALITY_OVERALL),
+  coverageDropped: z.array(z.string()),
+});
+
+// Run-level provenance. Kept OUT of what the judge sees (the judge is blind to
+// model/branch/run/timing); recorded here so a before/after comparison can pin
+// the judge model and count the review repeats.
+const QualityRunEvent = z.object({
+  event: z.literal("quality-run"),
+  at: Iso,
+  sessionId: z.string(),
+  judgeModel: z.string(),
+  judgePasses: z.number().int().positive(),
+  reviewModel: z.string(),
+  reviewEffort: z.string(),
+  runIndex: z.number().int().nonnegative(),
+  runsTotal: z.number().int().positive(),
+});
+
 export const MetricEvent = z.discriminatedUnion("event", [
   BundleStatsEvent,
   BundleValidatedEvent,
@@ -163,6 +247,9 @@ export const MetricEvent = z.discriminatedUnion("event", [
   ApplyEvent,
   ErrorEvent,
   AnchorResolutionEvent,
+  QualityBlockEvent,
+  QualityPlanEvent,
+  QualityRunEvent,
 ]);
 
 export type MetricEvent = z.infer<typeof MetricEvent>;
