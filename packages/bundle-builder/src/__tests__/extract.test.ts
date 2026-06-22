@@ -74,6 +74,10 @@ describe("extractSections — Typst", () => {
   it("does not treat an equals sign mid-line as a heading", () => {
     expect(extractSections("let x = 3", "typ")).toEqual([]);
   });
+
+  it("trims surrounding whitespace from the title", () => {
+    expect(extractSections("==   Spaced heading  ", "typ")[0]?.heading).toBe("Spaced heading");
+  });
 });
 
 describe("extractSections — Markdown", () => {
@@ -106,6 +110,10 @@ describe("extractSections — Markdown", () => {
     expect(extractSections("## Heading ##", "md")[0]?.heading).toBe("Heading");
   });
 
+  it("strips trailing whitespace with no closing hashes", () => {
+    expect(extractSections("# Heading   ", "md")[0]?.heading).toBe("Heading");
+  });
+
   it("does not treat a hashtag without a space as a heading", () => {
     expect(extractSections("#tag in prose", "md")).toEqual([]);
   });
@@ -131,6 +139,55 @@ describe("extractCitationKeys", () => {
   it("Typst: @ref and #cite(<label>) forms", () => {
     const src = 'See @vaswani2017 and #cite(<bahdanau2014>) and #cite(form: "prose", <luong2015>).';
     expect(extractCitationKeys(src, "typ")).toEqual(["vaswani2017", "bahdanau2014", "luong2015"]);
+  });
+
+  it("LaTeX: ignores non-cite commands that also carry a brace argument", () => {
+    const src = "\\section{Introduction}\n\\textbf{bold} then \\cite{vaswani2017}.";
+    expect(extractCitationKeys(src, "tex")).toEqual(["vaswani2017"]);
+  });
+});
+
+// The extractors run over decoded paper source — untrusted input. Each rewritten
+// pattern below was flagged js/polynomial-redos; a crafted line would take
+// seconds-to-minutes on the old quadratic form and is near-instant now. The
+// bound is generous so the guard fails on a regression, not on a slow machine.
+describe("extract — ReDoS resilience on adversarial input", () => {
+  const within = (budgetMs: number, run: () => void) => {
+    const start = performance.now();
+    run();
+    expect(performance.now() - start).toBeLessThan(budgetMs);
+  };
+
+  it("Typst heading: a tab-only line after the marker terminates fast", () => {
+    within(2000, () => {
+      expect(extractSections(`=${"\t".repeat(100_000)}`, "typ")).toEqual([]);
+    });
+  });
+
+  it("Markdown heading: a tab run after the marker terminates fast", () => {
+    within(2000, () => {
+      expect(extractSections(`# ${"\t".repeat(100_000)}`, "md")).toEqual([
+        { heading: "", level: 1, lineStart: 1, lineEnd: 1 },
+      ]);
+    });
+  });
+
+  it("LaTeX cite: a long cite-like run with no brace list terminates fast", () => {
+    within(2000, () => {
+      expect(extractCitationKeys(`\\${"cite".repeat(100_000)}`, "tex")).toEqual([]);
+    });
+  });
+
+  it("Typst cite: an unterminated #cite( with a tab run terminates fast", () => {
+    within(2000, () => {
+      expect(extractCitationKeys(`#cite(${"\t".repeat(100_000)}`, "typ")).toEqual([]);
+    });
+  });
+
+  it("citation-key punctuation strip is linear in trailing punctuation", () => {
+    within(2000, () => {
+      expect(extractCitationKeys(`@a${".".repeat(100_000)}`, "md")).toEqual(["a"]);
+    });
   });
 });
 

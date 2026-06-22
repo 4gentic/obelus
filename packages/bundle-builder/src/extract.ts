@@ -63,7 +63,10 @@ function latexHeadings(lines: readonly string[]): RawHeading[] {
   return out;
 }
 
-const TYPST_HEADING_RE = /^(=+)\s+(.*\S)/;
+// `\S.*` (not `.*\S`) so the title's leading boundary is fixed at the first
+// non-space: a single split point instead of a quantifier pair that both
+// consume whitespace and backtrack on a tab-only line (untrusted paper text).
+const TYPST_HEADING_RE = /^(=+)\s+(\S.*)$/;
 
 function typstHeadings(lines: readonly string[]): RawHeading[] {
   const out: RawHeading[] = [];
@@ -80,8 +83,22 @@ function typstHeadings(lines: readonly string[]): RawHeading[] {
 // ATX headings only. `#` must open the line (after optional indent) and be
 // followed by whitespace, so a `#tag` or a shebang isn't a heading. Fenced
 // code blocks are skipped — a `# comment` inside ``` is not structure.
-const MD_HEADING_RE = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
+const MD_HEADING_RE = /^ {0,3}(#{1,6})\s+(.*)$/;
 const MD_FENCE_RE = /^\s*(`{3,}|~{3,})/;
+
+// Drop an ATX closing run — trailing whitespace and optional `#`s
+// ("## Title ##" → "Title") — in one backward pass. The regex form `/[#\s]+$/`
+// that would otherwise tail the heading pattern is quadratic on a crafted line,
+// and paper source is untrusted.
+function trimAtxClosing(title: string): string {
+  let end = title.length;
+  while (end > 0) {
+    const ch = title[end - 1];
+    if (ch === "#" || ch === " " || ch === "\t" || ch === "\r") end -= 1;
+    else break;
+  }
+  return title.slice(0, end);
+}
 
 function markdownHeadings(lines: readonly string[]): RawHeading[] {
   const out: RawHeading[] = [];
@@ -99,7 +116,7 @@ function markdownHeadings(lines: readonly string[]): RawHeading[] {
     if (fence !== null) continue;
     const m = MD_HEADING_RE.exec(line);
     if (!m || m[1] === undefined) continue;
-    out.push({ heading: (m[2] ?? "").trim(), level: m[1].length, lineStart: i + 1 });
+    out.push({ heading: trimAtxClosing(m[2] ?? ""), level: m[1].length, lineStart: i + 1 });
   }
   return out;
 }
@@ -143,16 +160,32 @@ export function extractSections(text: string, format: SourceFormat): SourceSecti
   return closeRanges(raw, lines.length);
 }
 
+// Trailing sentence punctuation isn't part of a citation key. Strip it in one
+// backward pass; the regex `/[.,;:]+$/` is quadratic on adversarial input and
+// paper source is untrusted.
+function trimTrailingCiteKeyPunctuation(key: string): string {
+  let end = key.length;
+  while (end > 0) {
+    const ch = key[end - 1];
+    if (ch === "." || ch === "," || ch === ";" || ch === ":") end -= 1;
+    else break;
+  }
+  return key.slice(0, end);
+}
+
 // `\cite`, `\citep`, `\citet`, `\autocite`, `\parencite`, `\textcite`,
-// `\citeauthor`, … — any `\cite*`/`\*cite*` command, with optional bracketed
-// pre/post notes, then a brace list of comma-separated keys.
-const LATEX_CITE_RE = /\\[a-zA-Z]*cite[a-zA-Z]*\s*(?:\[[^\]]*\]\s*)*\{([^}]*)\}/g;
+// `\citeauthor`, … — any control word containing "cite", with optional
+// bracketed pre/post notes, then a brace list of comma-separated keys. The
+// command name is captured whole and filtered in code rather than matched as
+// `[a-zA-Z]*cite[a-zA-Z]*`, whose overlap around the literal is quadratic.
+const LATEX_CITE_RE = /\\([a-zA-Z]+)(?:\s*\[[^\]]*\])*\s*\{([^}]*)\}/g;
 
 function latexCitationKeys(text: string): string[] {
   const keys: string[] = [];
   for (const m of text.matchAll(LATEX_CITE_RE)) {
-    const group = m[1];
-    if (group === undefined) continue;
+    const command = m[1];
+    const group = m[2];
+    if (command === undefined || group === undefined || !command.includes("cite")) continue;
     for (const k of group.split(",")) {
       const key = k.trim();
       if (key.length > 0) keys.push(key);
@@ -171,7 +204,7 @@ function markdownCitationKeys(text: string): string[] {
   const keys: string[] = [];
   for (const m of text.matchAll(MD_CITE_RE)) {
     const key = m[1];
-    if (key !== undefined && key.length > 0) keys.push(key.replace(/[.,;:]+$/, ""));
+    if (key !== undefined && key.length > 0) keys.push(trimTrailingCiteKeyPunctuation(key));
   }
   return keys;
 }
@@ -180,13 +213,15 @@ function markdownCitationKeys(text: string): string[] {
 // "...", <label>)`. The label grammar is alnum/`_`/`-`/`.`/`:`. We collect
 // both forms; `#cite(label: <l>)` and `#cite(<l>)` both surface the `<l>`.
 const TYPST_REF_RE = /(?<![\w@])@([\p{L}\d][\w.:-]*)/gu;
-const TYPST_CITE_RE = /#cite\(\s*(?:[^)]*?<([\w.:-]+)>)/g;
+// `[^)]*?` already absorbs leading whitespace, so the redundant `\s*` after `(`
+// — which overlaps it and backtracks on a tab run — is dropped.
+const TYPST_CITE_RE = /#cite\([^)]*?<([\w.:-]+)>/g;
 
 function typstCitationKeys(text: string): string[] {
   const keys: string[] = [];
   for (const m of text.matchAll(TYPST_REF_RE)) {
     const key = m[1];
-    if (key !== undefined && key.length > 0) keys.push(key.replace(/[.,;:]+$/, ""));
+    if (key !== undefined && key.length > 0) keys.push(trimTrailingCiteKeyPunctuation(key));
   }
   for (const m of text.matchAll(TYPST_CITE_RE)) {
     const key = m[1];
