@@ -43,6 +43,7 @@ tar = "0.4"
 flate2 = "1"
 zip = { version = "8.6", default-features = false, features = ["deflate"] }
 lzma-rs = "0.3.0"
+command-group = { version = "5.0.1", features = ["with-tokio"] }
 
 [dev-dependencies]
 tempfile = "3"
