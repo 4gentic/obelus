@@ -1,35 +1,40 @@
 import type { ClassifyResult } from "@obelus/html-view";
 import type { PaperRow } from "@obelus/repo";
-import type { JSX } from "react";
+import { type JSX, useRef } from "react";
 import { compileLatex, compileTypst } from "../../ipc/commands";
 import { usePaperTrust } from "../../store/use-paper-trust";
 import { useBuffersStore } from "./buffers-store-context";
-import CompilePane, { type CompileReport } from "./CompilePane";
+import CenterSplitDivider from "./CenterSplitDivider";
+import CompilePane from "./CompilePane";
+import CompileToolbar from "./CompileToolbar";
 import { useProject } from "./context";
 import HtmlReviewSurface from "./HtmlReviewSurface";
 import MdReviewSurface from "./MdReviewSurface";
-import { useOpenPaper } from "./OpenPaper";
+import { useOpenPaper, useRefreshOpenPaper } from "./OpenPaper";
 import { extensionOf, SOURCE_EXTS } from "./openable";
 import PaperActionsMenu from "./PaperActionsMenu";
 import PdfPageControls from "./PdfPageControls";
 import PdfPane from "./PdfPane";
 import PdfZoomControls from "./PdfZoomControls";
 import SourcePane from "./SourcePane";
+import { setShowSource, setSplitRatio, useSourceSplit } from "./source-split-store";
 import UnsupportedPane from "./UnsupportedPane";
 import { useAssetResolver } from "./use-asset-resolver";
+import { useCompanionPaperId } from "./use-companion-paper";
+import { useCompanionSource } from "./use-companion-source";
+import { type CompileReport, useCompile } from "./use-compile";
+
+interface CompileDispatchEntry {
+  label: string;
+  compile: (rootId: string, relPath: string) => Promise<CompileReport>;
+  compilerToken: "typst" | "latexmk";
+}
 
 // Extension-keyed config for files that route through CompilePane (source +
 // "Compile → PDF" header). The `compile` adapter normalizes the per-engine
 // IPC report (LaTeX adds `engine`, Typst doesn't) down to the structural
-// `CompileReport` CompilePane uses.
-const COMPILE_DISPATCH: Record<
-  string,
-  {
-    label: string;
-    compile: (rootId: string, relPath: string) => Promise<CompileReport>;
-    compilerToken: "typst" | "latexmk";
-  }
-> = {
+// `CompileReport`.
+const COMPILE_DISPATCH: Record<string, CompileDispatchEntry> = {
   typ: {
     label: "Typst source",
     compile: compileTypst,
@@ -71,6 +76,44 @@ function PathHeaderSave({ relPath }: { relPath: string }): JSX.Element {
     >
       Save (⌘S)
     </button>
+  );
+}
+
+// The source editor beside the markable PDF. A clean compile here refreshes the
+// already-open PDF in place (reanchoring marks against the new output) rather
+// than swapping the open file — the editor and its undo history persist. Its
+// hooks (`useCompile`, `useCompanionPaperId`) live in this child so they only
+// mount when the split is on, never running for the plain-PDF path.
+function SplitEditorPane({
+  rootId,
+  companionSource,
+  cfg,
+}: {
+  rootId: string;
+  companionSource: string;
+  cfg: CompileDispatchEntry;
+}): JSX.Element {
+  const { repo, project } = useProject();
+  const refreshOpenPaper = useRefreshOpenPaper();
+  const fixPaperId = useCompanionPaperId(repo, project.id, companionSource);
+  const compileState = useCompile({
+    rootId,
+    relPath: companionSource,
+    compile: cfg.compile,
+    compilerToken: cfg.compilerToken,
+    fixPaperId,
+    projectId: project.id,
+    projectLabel: project.label,
+    repo,
+    onCompiled: () => refreshOpenPaper(),
+  });
+  return (
+    <>
+      <CompileToolbar label={cfg.label} compile={compileState} />
+      <div className="compile-pane__editor">
+        <SourcePane key={companionSource} rootId={rootId} relPath={companionSource} />
+      </div>
+    </>
   );
 }
 
@@ -128,8 +171,12 @@ function activePaperFromState(state: ReturnType<typeof useOpenPaper>): PaperRow 
 }
 
 export default function CenterPane(): JSX.Element {
-  const { project, openFilePath, rootId } = useProject();
+  const { project, openFilePath, rootId, repo } = useProject();
   const openPaper = useOpenPaper();
+  const ext = openFilePath ? extensionOf(openFilePath) : "";
+  const companionSource = useCompanionSource(repo, project.id, openFilePath);
+  const { showSource, splitRatio } = useSourceSplit(project.id);
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
 
   const absolutePath = openFilePath ? `${project.root}/${openFilePath}` : null;
   const showSave = openFilePath !== null && isEditablePath(openFilePath, project.kind);
@@ -139,27 +186,58 @@ export default function CenterPane(): JSX.Element {
   // sidebar; suppressing the menu there matches that "out of view" stance.
   const showPaperActions = activePaper !== null && activePaper.removedAt === undefined;
   const showZoom = openPaper.kind === "ready" && activePaper !== null;
+  // Writer-only, companion-gated: the toggle that slides the source editor in
+  // beside the PDF. Reviewer projects and non-PDF files never see it.
+  const showSourceToggle = ext === "pdf" && project.kind === "writer" && companionSource !== null;
+  const companionCfg =
+    companionSource !== null ? COMPILE_DISPATCH[extensionOf(companionSource)] : undefined;
 
   const body = ((): JSX.Element => {
     if (!openFilePath) return <UnsupportedPane path={null} />;
-    const ext = extensionOf(openFilePath);
     if (ext === "pdf") {
-      if (openPaper.kind === "loading") return <div className="pane pane--empty">Loading…</div>;
-      if (openPaper.kind === "error") {
-        return (
-          <div className="pane pane--empty">
-            <p>This PDF cannot be opened.</p>
-            <p className="pane__sub">
-              <code>{openPaper.path}</code>
-            </p>
-            <p className="pane__sub">{openPaper.message}</p>
+      // The PDF sub-pane owns the loading/error/ready lifecycle. Scoping it
+      // here (not the whole branch) keeps the source editor mounted across a
+      // recompile refresh — only this side spins.
+      const pdfSub = ((): JSX.Element => {
+        if (openPaper.kind === "loading") return <div className="pane pane--empty">Loading…</div>;
+        if (openPaper.kind === "error") {
+          return (
+            <div className="pane pane--empty">
+              <p>This PDF cannot be opened.</p>
+              <p className="pane__sub">
+                <code>{openPaper.path}</code>
+              </p>
+              <p className="pane__sub">{openPaper.message}</p>
+            </div>
+          );
+        }
+        if (openPaper.kind === "ready") {
+          return <PdfPane doc={openPaper.doc} paperId={openPaper.paper.id} />;
+        }
+        return <UnsupportedPane path={openFilePath} />;
+      })();
+
+      const splitOn = project.kind === "writer" && showSource && companionSource !== null;
+      if (!splitOn || companionSource === null || companionCfg === undefined) {
+        return pdfSub;
+      }
+      return (
+        <div
+          className="center-split"
+          ref={splitContainerRef}
+          style={{ gridTemplateColumns: `${splitRatio}fr 6px ${1 - splitRatio}fr` }}
+        >
+          <div className="center-split__editor">
+            <SplitEditorPane rootId={rootId} companionSource={companionSource} cfg={companionCfg} />
           </div>
-        );
-      }
-      if (openPaper.kind === "ready") {
-        return <PdfPane doc={openPaper.doc} paperId={openPaper.paper.id} />;
-      }
-      return <UnsupportedPane path={openFilePath} />;
+          <CenterSplitDivider
+            containerRef={splitContainerRef}
+            valueNow={splitRatio}
+            onChange={(ratio) => setSplitRatio(project.id, ratio)}
+          />
+          <div className="center-split__pdf">{pdfSub}</div>
+        </div>
+      );
     }
     const compileCfg = COMPILE_DISPATCH[ext];
     if (compileCfg) {
@@ -237,6 +315,16 @@ export default function CenterPane(): JSX.Element {
       {absolutePath && (
         <header className="pane__path" title={absolutePath}>
           <code className="pane__path-code">{absolutePath}</code>
+          {showSourceToggle && (
+            <button
+              type="button"
+              className="btn btn--subtle pane__path-toggle"
+              aria-pressed={showSource}
+              onClick={() => setShowSource(project.id, !showSource)}
+            >
+              {showSource ? "Hide source" : "Show source"}
+            </button>
+          )}
           {showSave && openFilePath !== null && <PathHeaderSave relPath={openFilePath} />}
           {showZoom && activePaper !== null && <PdfPageControls />}
           {showZoom && activePaper !== null && <PdfZoomControls paperId={activePaper.id} />}

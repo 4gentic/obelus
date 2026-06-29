@@ -40,6 +40,7 @@ type StoreKey =
   | "trustedPapers"
   | "reviewerThoroughness"
   | "panelsByProject"
+  | "sourceSplitByProject"
   | "autoUpdateCheck"
   | "lastUpdateCheckAt"
   | "dismissedUpdateVersion";
@@ -51,6 +52,15 @@ export interface ProjectPanelState {
   // the review console get a legible reading width. A wide-screen affordance,
   // persisted so it survives a restart like the hide flags.
   reviewFocused: boolean;
+}
+
+export interface SourceSplitPrefs {
+  // Writer-mode-only: when a PDF is open and its companion source exists, this
+  // slides a source editor in beside the markable PDF.
+  showSource: boolean;
+  // Editor-to-PDF column ratio inside the center, clamped [0.2, 0.8] by the
+  // store layer before it reaches here.
+  splitRatio: number;
 }
 
 interface StoreShape {
@@ -80,6 +90,10 @@ interface StoreShape {
   // not focused (the default). Persisted so users keep their layout across
   // restarts.
   panelsByProject: Record<string, ProjectPanelState>;
+  // Per-project source-split preference (writer mode): whether the source
+  // editor is shown beside the PDF and the editor/PDF column ratio. Absent
+  // entry → not shown, even split.
+  sourceSplitByProject: Record<string, SourceSplitPrefs>;
   // Consent for proactive update checks. Absent = the user hasn't decided yet
   // (the one-time consent banner is still eligible); true/false = decided.
   // Off unless opted in, so the offline-first promise holds by default.
@@ -209,6 +223,21 @@ export async function setProjectReviewFocused(projectId: string, focused: boolea
     ...existing,
     [projectId]: { ...current, reviewFocused: focused },
   });
+}
+
+const DEFAULT_SOURCE_SPLIT: SourceSplitPrefs = {
+  showSource: false,
+  splitRatio: 0.5,
+};
+
+export async function getSourceSplit(projectId: string): Promise<SourceSplitPrefs> {
+  const stored = (await getAppState("sourceSplitByProject"))?.[projectId];
+  return { ...DEFAULT_SOURCE_SPLIT, ...stored };
+}
+
+export async function setSourceSplit(projectId: string, prefs: SourceSplitPrefs): Promise<void> {
+  const existing = (await getAppState("sourceSplitByProject")) ?? {};
+  await setAppState("sourceSplitByProject", { ...existing, [projectId]: prefs });
 }
 
 export async function getAutoUpdateCheck(): Promise<boolean | undefined> {

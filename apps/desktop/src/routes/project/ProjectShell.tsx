@@ -22,6 +22,7 @@ import QuickOpenPalette from "./QuickOpenPalette";
 import { useQuickOpenStore } from "./quick-open-store-context";
 import ReviewColumn from "./ReviewColumn";
 import { ReanchorContextProvider } from "./reanchor-context";
+import { useSourceSplit } from "./source-split-store";
 import { useReviewStore } from "./store-context";
 import { useDiffActions } from "./use-diff-actions";
 import { useWorkingTreeDivergence } from "./use-divergence";
@@ -60,6 +61,7 @@ export default function ProjectShell(): JSX.Element {
   const findStore = useFindStore();
   const quickOpenStore = useQuickOpenStore();
   const panels = useProjectPanels(project.id);
+  const { showSource } = useSourceSplit(project.id);
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent): void => {
@@ -93,7 +95,13 @@ export default function ProjectShell(): JSX.Element {
         const target = ev.target as HTMLElement | null;
         if (target?.closest(".cm-editor")) return;
         const view = getActiveSourceView();
-        if (view) {
+        // In the source/PDF split the editor stays mounted, so
+        // `getActiveSourceView()` returns it even while the user is reviewing
+        // the PDF. Route to the editor's search only in writing mode (no PDF
+        // open); when a PDF is the open paper, ⌘F outside the editor belongs to
+        // it — fall through to the shared FindBar. Editor-focused ⌘F never
+        // reaches here (the `.cm-editor` early return hands it to CodeMirror).
+        if (view && openPaper.kind !== "ready") {
           ev.preventDefault();
           view.focus();
           openSearchPanel(view);
@@ -259,6 +267,21 @@ export default function ProjectShell(): JSX.Element {
     prevSelectedRef.current = selectedAnchor;
     prevFocusedRef.current = focusedAnnotationId;
   }, [selectedAnchor, focusedAnnotationId, panels]);
+
+  // Sliding the source editor in reclaims width for the editor|PDF pair: hide
+  // the files column, and — until the first mark — the review column too
+  // (review auto-shows again on selection, above). Fires only on the off→on
+  // transition and only when the panel is currently shown, so a manual re-show
+  // afterward isn't fought. A persisted `showSource` re-hydrating on reopen is
+  // a no-op when the panels were already persisted hidden.
+  const prevShowSourceRef = useRef(showSource);
+  useEffect(() => {
+    const turnedOn = showSource && !prevShowSourceRef.current;
+    prevShowSourceRef.current = showSource;
+    if (!turnedOn || project.kind !== "writer") return;
+    if (!panels.filesHidden) panels.toggleFiles();
+    if (!panels.reviewHidden && annotationCount === 0) panels.toggleReview();
+  }, [showSource, project.kind, panels, annotationCount]);
 
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const [bodyWidth, setBodyWidth] = useState(0);
