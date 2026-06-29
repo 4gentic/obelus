@@ -1,4 +1,4 @@
-import { type Bbox, rectsFromAnchor } from "@obelus/anchor";
+import { type Bbox, normalizeForSearch, normalizeQuery, rectsFromAnchor } from "@obelus/anchor";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { TextItem, TextMarkedContent } from "pdfjs-dist/types/src/display/api";
 
@@ -35,6 +35,11 @@ export type PageIndex = {
   text: string;
   itemForChar: Int32Array;
   offsetForChar: Int32Array;
+  // Typographic-tolerant haystack: NFKC-folded `text` (ligatures, smart
+  // quotes/dashes, exotic spaces) plus the offset map that projects a hit in
+  // `norm` back onto the original `text` indices the mapping arrays key on.
+  norm: string;
+  normMap: Int32Array;
 };
 type DocIndex = Map<number, PageIndex>;
 const cache = new WeakMap<PDFDocumentProxy, DocIndex>();
@@ -95,7 +100,9 @@ export function indexPage(rawItems: ReadonlyArray<TextItem | TextMarkedContent>)
       cursor += 1;
     }
   }
-  return { items, text: text.join(""), itemForChar, offsetForChar };
+  const joined = text.join("");
+  const { text: norm, map: normMap } = normalizeForSearch(joined);
+  return { items, text: joined, itemForChar, offsetForChar, norm, normMap };
 }
 
 export async function getPageIndex(doc: PDFDocumentProxy, pageIndex: number): Promise<PageIndex> {
@@ -129,7 +136,8 @@ export async function searchPdfDocumentDetailed(
   const query = rawQuery;
   if (query.length === 0) return [];
   const caseSensitive = opts.caseSensitive === true;
-  const needle = caseFold(query, caseSensitive);
+  const needle = caseFold(normalizeQuery(query), caseSensitive);
+  if (needle.length === 0) return [];
   const matches: DetailedMatch[] = [];
   const pageCount = doc.numPages;
   const pagesWithMatches: number[] = [];
@@ -138,7 +146,7 @@ export async function searchPdfDocumentDetailed(
     if (opts.signal?.aborted) throw opts.signal.reason ?? new Error("search aborted");
     const entry = await getPageIndex(doc, pageIndex);
     if (entry.text.length === 0) continue;
-    const hay = caseFold(entry.text, caseSensitive);
+    const hay = caseFold(entry.norm, caseSensitive);
 
     const page = await doc.getPage(pageIndex + 1);
     const viewport = page.getViewport({ scale: 1 });
@@ -148,12 +156,25 @@ export async function searchPdfDocumentDetailed(
       while (from <= hay.length - needle.length) {
         const hit = hay.indexOf(needle, from);
         if (hit < 0) break;
-        const endExclusive = hit + needle.length;
-        const startItem = entry.itemForChar[hit] ?? -1;
-        const startOffset = entry.offsetForChar[hit] ?? -1;
-        const endItem = entry.itemForChar[endExclusive - 1] ?? -1;
-        const endCharOffset = entry.offsetForChar[endExclusive - 1] ?? -1;
-        if (startItem < 0 || endItem < 0 || startOffset < 0 || endCharOffset < 0) {
+        // `hit` indexes normalized text; project the match back onto the
+        // original `text` indices the mapping arrays key on. The first matched
+        // unit comes from source char `startSrc`, the last from `endSrc`. They
+        // coincide when the whole match lies inside one expanded char (e.g. the
+        // "fi" ligature), so the span covers that single source glyph.
+        const startSrc = entry.normMap[hit] ?? -1;
+        const endSrc = entry.normMap[hit + needle.length - 1] ?? -1;
+        const startItem = entry.itemForChar[startSrc] ?? -1;
+        const startOffset = entry.offsetForChar[startSrc] ?? -1;
+        const endItem = entry.itemForChar[endSrc] ?? -1;
+        const endCharOffset = entry.offsetForChar[endSrc] ?? -1;
+        if (
+          startSrc < 0 ||
+          endSrc < 0 ||
+          startItem < 0 ||
+          endItem < 0 ||
+          startOffset < 0 ||
+          endCharOffset < 0
+        ) {
           from = hit + 1;
           continue;
         }

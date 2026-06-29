@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { mockDoc, mockViewport, ti } from "./__fixtures__/mock-pdf";
 import { indexPage, searchPdfDocument, searchPdfDocumentDetailed } from "./find";
 
+// Typographic code points are built from explicit hex so the folded / invisible
+// characters under test are unambiguous in tooling — never paste literal glyphs.
+const FI = String.fromCodePoint(0xfb01); // U+FB01 LATIN SMALL LIGATURE FI, one code unit
+const LDQUO = String.fromCodePoint(0x201c);
+const RDQUO = String.fromCodePoint(0x201d);
+const NBSP = String.fromCodePoint(0x00a0);
+
 describe("indexPage", () => {
   it("maps characters of a single item to (item, offset)", () => {
     const idx = indexPage([ti("hello")]);
@@ -42,6 +49,15 @@ describe("indexPage", () => {
     const idx = indexPage([ti("a"), marked, ti(""), ti("b")]);
     expect(idx.items).toHaveLength(2);
     expect(idx.text).toBe("a b");
+  });
+
+  it("exposes an NFKC-folded haystack that expands ligatures, with an offset map", () => {
+    const idx = indexPage([ti(`de${FI}nition`)]);
+    expect(idx.text).toBe(`de${FI}nition`);
+    expect(idx.norm).toBe("definition");
+    // Map contract: length === norm.length + 1, final sentinel === original length.
+    expect(idx.normMap.length).toBe(idx.norm.length + 1);
+    expect(idx.normMap[idx.norm.length]).toBe(idx.text.length);
   });
 });
 
@@ -106,6 +122,34 @@ describe("searchPdfDocument", () => {
     const doc = mockDoc([{ items: [ti("hello")], viewport: mockViewport() }]);
     expect(await searchPdfDocument(doc, "")).toEqual([]);
   });
+
+  it("matches an ASCII query against a fi-ligature in the text layer", async () => {
+    const doc = mockDoc([{ items: [ti(`de${FI}nition`)], viewport: mockViewport() }]);
+    const matches = await searchPdfDocument(doc, "definition");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.rects.length).toBeGreaterThan(0);
+  });
+
+  it("matches the ligature substring 'fi' inside the folded text", async () => {
+    const doc = mockDoc([{ items: [ti(`de${FI}nition`)], viewport: mockViewport() }]);
+    const matches = await searchPdfDocument(doc, "fi");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.rects.length).toBeGreaterThan(0);
+  });
+
+  it("folds smart quotes so an ASCII-quoted query matches", async () => {
+    const doc = mockDoc([{ items: [ti(`${LDQUO}quote${RDQUO}`)], viewport: mockViewport() }]);
+    const matches = await searchPdfDocument(doc, '"quote"');
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.rects.length).toBeGreaterThan(0);
+  });
+
+  it("normalizes a non-breaking space so a plain-space query matches", async () => {
+    const doc = mockDoc([{ items: [ti(`a${NBSP}b`)], viewport: mockViewport() }]);
+    const matches = await searchPdfDocument(doc, "a b");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.rects.length).toBeGreaterThan(0);
+  });
 });
 
 describe("searchPdfDocumentDetailed", () => {
@@ -133,5 +177,36 @@ describe("searchPdfDocumentDetailed", () => {
   it("discards a match that straddles a synthetic word break", async () => {
     const doc = mockDoc([{ items: [ti("hello"), ti("world")], viewport: mockViewport() }]);
     expect(await searchPdfDocumentDetailed(doc, "helloworld")).toEqual([]);
+  });
+
+  it("projects an ASCII query back onto a ligature's original item offsets", async () => {
+    const doc = mockDoc([{ items: [ti(`de${FI}nition`)], viewport: mockViewport() }]);
+    const matches = await searchPdfDocumentDetailed(doc, "definition");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.startItem).toBe(0);
+    expect(matches[0]?.startOffset).toBe(0);
+    expect(matches[0]?.endItem).toBe(0);
+    // endOffset is exclusive and in original coords: all code units of the item.
+    expect(matches[0]?.endOffset).toBe(`de${FI}nition`.length);
+  });
+
+  it("anchors a 'fi' query to just the single ligature code unit", async () => {
+    const doc = mockDoc([{ items: [ti(`de${FI}nition`)], viewport: mockViewport() }]);
+    const matches = await searchPdfDocumentDetailed(doc, "fi");
+    expect(matches).toHaveLength(1);
+    // The ASCII "fi" projects back to the one original code unit (offsets 2..3).
+    expect(matches[0]?.startOffset).toBe(2);
+    expect(matches[0]?.endOffset).toBe(3);
+  });
+
+  it("anchors a single 'f' to the whole ligature glyph it folds from", async () => {
+    const doc = mockDoc([{ items: [ti(`de${FI}nition`)], viewport: mockViewport() }]);
+    const matches = await searchPdfDocumentDetailed(doc, "f");
+    expect(matches).toHaveLength(1);
+    // "f" is the first half of the fi-ligature; the match covers the whole
+    // original code unit (offsets 2..3) rather than being dropped as a
+    // sub-glyph fragment with no anchorable sub-character.
+    expect(matches[0]?.startOffset).toBe(2);
+    expect(matches[0]?.endOffset).toBe(3);
   });
 });

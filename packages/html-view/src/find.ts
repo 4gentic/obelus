@@ -1,3 +1,4 @@
+import { normalizeForSearch, normalizeQuery } from "@obelus/anchor";
 import type { FindProvider, FindSearchOptions } from "@obelus/review-shell";
 
 // Geometry-only rects in scroll-container coordinates. The HTML adapter paints
@@ -167,8 +168,9 @@ export function createHtmlFindProvider(hooks: FindHostHooks): HtmlFindProvider {
         hooks.paint([]);
         return 0;
       }
-      const hay = caseFold(idx.text, opts.caseSensitive);
-      const needle = caseFold(query, opts.caseSensitive);
+      const { text: norm, map } = normalizeForSearch(idx.text);
+      const hay = caseFold(norm, opts.caseSensitive);
+      const needle = caseFold(normalizeQuery(query), opts.caseSensitive);
       if (needle.length === 0) {
         hooks.paint([]);
         return 0;
@@ -183,8 +185,10 @@ export function createHtmlFindProvider(hooks: FindHostHooks): HtmlFindProvider {
         if (opts.signal?.aborted) throw opts.signal.reason ?? new Error("search aborted");
         const hit = hay.indexOf(needle, from);
         if (hit < 0) break;
-        const start = locate(idx, hit);
-        const end = locate(idx, hit + needle.length);
+        const o0 = map[hit] ?? 0;
+        const o1 = map[hit + needle.length] ?? idx.text.length;
+        const start = locate(idx, o0);
+        const end = locate(idx, o1);
         if (start && end) {
           const range = doc.createRange();
           try {
