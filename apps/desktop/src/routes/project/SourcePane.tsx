@@ -214,7 +214,9 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
       if (!view) return;
       openSearchPanel(view);
       view.dispatch({
-        effects: setSearchQuery.of(new SearchQuery({ search: query, caseSensitive })),
+        effects: setSearchQuery.of(
+          new SearchQuery({ search: query, caseSensitive, literal: true }),
+        ),
       });
       return;
     }
@@ -322,7 +324,10 @@ export default function SourcePane({ rootId, relPath }: Props): JSX.Element {
           rectangularSelection(),
           crosshairCursor(),
           highlightActiveLine(),
-          search({ top: true }),
+          // literal: false (the default) reinterprets \n \r \t \\ inside the
+          // query — a footgun in .tex/.typ/.md source, where a search like
+          // "\table" silently becomes a tab + "able". Search the bytes typed.
+          search({ top: true, literal: true }),
           ...langForPath(relPath),
           editorTheme(),
           keymap.of([
