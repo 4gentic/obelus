@@ -854,6 +854,10 @@ button.files__row {
   flex: 0 0 auto;
 }
 
+.pane__path-toggle {
+  flex: 0 0 auto;
+}
+
 .pdf-zoom {
   flex: 0 0 auto;
   display: inline-flex;
@@ -2795,6 +2799,67 @@ button.files__row {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+/* --- Source-split: editor | divider | markable PDF, inside the center -------
+   A grid filling the center body below the path header. The column ratio is
+   set inline (`Nfr 6px (1-N)fr`). */
+
+.center-split {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.center-split__editor {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The PDF's own scroll container, so `findScrollAncestor` resolves here and the
+   margin gutter tracks this sub-pane's scroll. Deliberately unpositioned: the
+   page slots' `offsetParent` then stays `.project-shell__center` (as in the
+   plain-PDF path), which bakes the path-header offset into `annotationTop` and
+   keeps margin-note vertical alignment identical. `min-width: 0` mirrors
+   `.pdf-pane` — load-bearing for the auto-fit ResizeObserver. */
+.center-split__pdf {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Inner ratio divider — clones `.project-shell__divider`'s hairline, but lives
+   as a 6px grid cell rather than an absolutely-positioned overlay. */
+.center-split__divider {
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.center-split__divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background-color 120ms ease-out;
+}
+
+.center-split__divider:hover::before,
+.center-split__divider:focus-visible::before,
+.center-split__divider:active::before {
+  background-color: var(--ink-soft);
+}
+
+.center-split__divider:focus-visible {
+  outline: none;
 }
 
 /* Reviewer-actions panel — shown inside the Review tab of reviewer projects.

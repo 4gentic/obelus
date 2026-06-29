@@ -3,7 +3,15 @@ import { loadDocument, MAX_PDF_BYTES, MAX_PDF_BYTES_LABEL } from "@obelus/pdf-vi
 import type { PaperRow, RevisionRow } from "@obelus/repo";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { JSX } from "react";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { fsReadFile, fsStat } from "../../ipc/commands";
 import { useProject } from "./context";
 import { findOrCreatePaper, findPaper } from "./find-or-create-paper";
@@ -214,6 +222,13 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
           return;
         }
         const doc = await loadDocument(buffer);
+        // The file switched (or the provider unmounted) while we were loading:
+        // this doc will never be published, so destroy the orphan here — the
+        // state-reconciling effect below only sees docs that reach `state`.
+        if (cancelled) {
+          void doc.destroy();
+          return;
+        }
         const { paper, revision } = await findOrCreatePaper({
           repo,
           projectId: project.id,
@@ -222,7 +237,11 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
           format: "pdf",
           pageCount: doc.numPages,
         });
-        if (!cancelled) setState({ kind: "ready", path, doc, paper, revision });
+        if (cancelled) {
+          void doc.destroy();
+          return;
+        }
+        setState({ kind: "ready", path, doc, paper, revision });
       } catch (err) {
         console.error("OpenPaper failed", { path, err });
         if (!cancelled) {
@@ -244,6 +263,27 @@ export function OpenPaperProvider({ children }: { children: ReactNode }): JSX.El
       cancelled = true;
     };
   }, [openFilePath, project.id, project.kind, repo, rootId, refreshTick]);
+
+  // A PDF doc owns a pdf.js worker; nothing destroyed them before, and
+  // per-compile `refresh()` now re-runs the load effect repeatedly, so the
+  // leak compounds. Destroy a doc once it stops being the published one — this
+  // effect runs after the new state has committed, so the prior doc is already
+  // off-screen (no blank flash) — and on unmount. Only `ready` carries a doc.
+  const liveDocRef = useRef<PDFDocumentProxy | null>(null);
+  useEffect(() => {
+    const published = state.kind === "ready" ? state.doc : null;
+    const prev = liveDocRef.current;
+    liveDocRef.current = published;
+    if (prev && prev !== published) void prev.destroy();
+  }, [state]);
+  useEffect(
+    () => () => {
+      const prev = liveDocRef.current;
+      liveDocRef.current = null;
+      if (prev) void prev.destroy();
+    },
+    [],
+  );
 
   return (
     <OpenPaperContext.Provider value={{ state, refresh }}>{children}</OpenPaperContext.Provider>
